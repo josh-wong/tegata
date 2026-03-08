@@ -394,9 +394,13 @@ Since the Tegata host app is written in Go or Rust (not Java), the ScalarDL Java
 
 ## 10. Release plan
 
-Tegata will be developed in four phases, progressing from a basic authenticator to a full-featured system with audit capabilities.
+Tegata will be developed in five phases, progressing from planning to a full-featured system with audit capabilities.
 
-### 10.1 v0.1 – Core authenticator (MVP)
+### 10.1 v0.1 – Planning
+
+Product requirements document, technical design document, app design mockups, architecture decisions (Go vs. Rust, vault format), repository setup.
+
+### 10.2 v0.2 – Core authenticator (MVP)
 
 - Encrypted vault (AES-256-GCM + Argon2id)
 - TOTP generation (RFC 6238)
@@ -407,14 +411,14 @@ Tegata will be developed in four phases, progressing from a basic authenticator 
 - Linux (amd64) build included if cross-compilation works without issues; no automated testing available
 - No ScalarDL integration
 
-### 10.2 v0.2 – Challenge-response and enhancements
+### 10.3 v0.3 – Challenge-response and enhancements
 
 - Challenge-response signing (HMAC-SHA1/SHA256)
 - Clipboard integration with auto-clear
 - Vault export/import
 - QR code scanning support (from terminal-pasted `otpauth://` URIs)
 
-### 10.3 v0.3 – ScalarDL audit layer
+### 10.4 v0.4 – ScalarDL audit layer
 
 - ScalarDL Ledger integration via gRPC
 - `tegata ledger setup` command
@@ -424,7 +428,7 @@ Tegata will be developed in four phases, progressing from a basic authenticator 
 - Offline event queueing
 - Docker Compose deployment template for ScalarDL Ledger
 
-### 10.4 v1.0 – Stable release
+### 10.5 v1.0 – Stable release
 
 - TUI (terminal user interface) for guided setup and daily use
 - Comprehensive documentation and user guides

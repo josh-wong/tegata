@@ -13,7 +13,7 @@ Tegata provides a **low-cost alternative to hardware security keys** like YubiKe
 - **Encrypted vault storage**: AES-256-GCM encryption with Argon2id key derivation
 - **Multi-protocol support**: TOTP (RFC 6238), HOTP (RFC 4226), challenge-response signing (HMAC-SHA256), static passwords
 - **Portable**: Single static binary runs from USB drives/microSD cards with no external dependencies
-- **Cross-platform**: Linux (v0.2+), macOS and Windows (v0.3+)
+- **Cross-platform**: Windows and macOS (v0.1+), Linux (v0.1+ if cross-compilation works without issues)
 - **Tamper-evident audit logging**: Optional ScalarDL Ledger integration for immutable authentication history
 - **Offline-first**: Queue events locally when audit ledger is unreachable
 - **Open source**: Apache 2.0 license
@@ -93,7 +93,7 @@ For detailed architecture documentation, see [section "2. Architecture overview"
 
 ### Installation
 
-Installation instructions will be provided when the first release (v0.2 MVP) is ready. The application will be distributed as a single static binary for Linux (initial release), with macOS and Windows support in v0.3.
+Installation instructions will be provided when the first release (v0.2 MVP) is ready. The application will be distributed as single static binaries for Windows and macOS, with Linux support if cross-compilation works without issues.
 
 ### Basic usage
 
