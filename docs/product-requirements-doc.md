@@ -21,7 +21,7 @@ Tegata (手形) were handprint-stamped travel passes carried by samurai and merc
 
 ### 1.3 Tagline
 
-> *"Identity you carry. Proof you can trust."*
+> *"Identity that you carry. Proof you can trust."*
 
 ### 1.4 License
 
