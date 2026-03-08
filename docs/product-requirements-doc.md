@@ -80,7 +80,7 @@ This section defines the priority goals for Tegata and the metrics used to measu
 | P0 | Portable and zero-install | The host application runs as a single portable binary from the USB drive itself—no installation required on the host machine |
 | P0 | Open source | The entire project is Apache 2.0 licensed and publicly auditable |
 | P1 | Tamper-evident audit logging | Authentication events are optionally recorded to a ScalarDL Ledger instance with hash-chain integrity |
-| P1 | Cross-platform | Works on macOS, Linux, and Windows |
+| P1 | Cross-platform | Works on Windows, macOS, and Linux |
 | P2 | User-friendly CLI and TUI | A terminal UI that guides users through setup and daily use |
 
 ### 4.2 Success metrics (6 months post-launch)
@@ -127,10 +127,17 @@ The following subsections detail each major component of the Tegata system.
   - Performs challenge-response signing (HMAC-SHA1/SHA256)
   - Retrieves static passwords
   - Optionally submits auth events to ScalarDL Ledger
-- **Distribution:** Pre-compiled binaries for macOS (arm64, amd64), Linux (amd64), and Windows (amd64) stored on the USB drive itself
+- **Distribution:** Pre-compiled binaries for Windows (amd64) and macOS (arm64, amd64), with Linux (amd64) included if cross-compilation works without issues; stored on the USB drive itself
 - **Memory safety:** Keys are decrypted in memory, used, and immediately zeroed. The vault file on disk is never written in plaintext.
 
-#### 5.2.3 ScalarDL Ledger integration (optional)
+#### 5.2.3 Event Builder
+
+- **Purpose:** Constructs authentication event records from vault operations before sending to ScalarDL
+- **Inputs:** Operation type (TOTP/HOTP/CR/static), credential label, target service, success/failure status
+- **Outputs:** AuthEvent struct with hashed identifiers (labels and services are hashed before transmission)
+- **Location:** Runs within the host application, invoked by authentication engines
+
+#### 5.2.4 ScalarDL Ledger integration (optional)
 
 - **Version:** ScalarDL 3.12 Community Edition (Apache 2.0)
 - **Deployment:** User-managed. Can run on a local machine, a Raspberry Pi, a VPS, or a cloud instance. Not bundled with the USB drive.
@@ -272,7 +279,7 @@ These requirements define security, performance, compatibility, and usability co
 
 | ID | Requirement |
 |----|-------------|
-| NFR-11 | Host application runs on macOS 12+, Ubuntu 20.04+, and Windows 10+ |
+| NFR-11 | Host application runs on Windows 10+, macOS 12+, and Ubuntu 20.04+ |
 | NFR-12 | USB drive must be formatted as FAT32 or exFAT for cross-platform compatibility |
 | NFR-13 | No elevated permissions (admin/root) required for normal operation |
 | NFR-14 | ScalarDL integration is compatible with ScalarDL 3.12 Community Edition |
@@ -396,12 +403,12 @@ Tegata will be developed in four phases, progressing from a basic authenticator 
 - HOTP generation (RFC 4226)
 - Static password storage and retrieval
 - CLI interface with `init`, `add`, `list`, `code`, and `remove` commands
-- Single-platform binary (Linux amd64)
+- Binary builds for **Windows (amd64) and macOS (arm64, amd64)**
+- Linux (amd64) build included if cross-compilation works without issues; no automated testing available
 - No ScalarDL integration
 
-### 10.2 v0.2 – Cross-platform and challenge-response
+### 10.2 v0.2 – Challenge-response and enhancements
 
-- macOS and Windows binary builds
 - Challenge-response signing (HMAC-SHA1/SHA256)
 - Clipboard integration with auto-clear
 - Vault export/import
