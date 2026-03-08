@@ -2,7 +2,7 @@
 
 **Author:** [josh-wong](https://github.com/josh-wong)
 **Date:** March 8, 2026
-**Status:** Draft
+**Status:** Approved
 **Companion document:** [Design document](./design-doc.md)
 
 ## 1. Overview
