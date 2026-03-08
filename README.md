@@ -31,7 +31,7 @@ graph TB
     subgraph Host["Tegata Host Application"]
         subgraph Core["Core Components"]
             VM["Vault Manager"]
-            AuthEng["Authentication Engines<br/>(TOTP/HOTP/CR/Password)"]
+            AuthEng["Authentication Engines<br/>(TOTP/HOTP/CR/Password Store)"]
             CM["Clipboard Manager"]
             Config["Config Manager"]
         end
@@ -137,7 +137,7 @@ For development environment setup, including Docker Compose configurations for l
 - **Encryption**: AES-256-GCM with Argon2id key derivation protects your vault
 - **Auditability**: Optional tamper-evident logging of every authentication event
 - **Transparency**: Open-source code under Apache 2.0, fully auditable
-- **Cross-platform compatibility**: Single binary works across Linux, macOS, and Windows
+- **Cross-platform compatibility**: Single binary works across Windows, macOS, and Linux
 
 ### What Tegata does NOT provide
 
