@@ -1,6 +1,6 @@
 # Tegata: Portable authenticator with tamper-evident audit logging
 
-> *"Identity you carry. Proof you can trust."*
+> *"Your authentication history. Integrity checked."*
 
 Tegata (手形) is an open-source portable authenticator with optional tamper-evident audit logging. Store encrypted authentication keys on standard USB drives or microSD cards, supporting TOTP, HOTP, challenge-response signing, and static password storage. The name references historical Japanese travel passes—handprint-stamped documents carried as portable proof of identity between checkpoint stations.
 
