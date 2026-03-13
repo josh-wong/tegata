@@ -2,8 +2,8 @@
 
 **Author:** [josh-wong](https://github.com/josh-wong)
 **Date:** March 12, 2026
-**Last revised:** March 12, 2026
-**Status:** Draft
+**Last revised:** March 13, 2026
+**Status:** Draft (Phase 2 complete)
 **Companion document:** [Product requirements document](./product-requirements-doc.md)
 
 ---
@@ -213,7 +213,7 @@ The following Go modules are expected dependencies for the initial implementatio
 | Module                                    | Purpose                                      | License    |
 |-------------------------------------------|----------------------------------------------|------------|
 | `github.com/spf13/cobra`                  | CLI command routing and flag parsing         | Apache 2.0 |
-| `github.com/awnumar/memguard`             | Guarded memory for sensitive data (accessed only via `internal/crypto/guard`) | Apache 2.0 |
+| `github.com/awnumar/memguard`              | Guarded memory for sensitive data (accessed only via `internal/crypto/guard`) | Apache 2.0 |
 | `golang.org/x/crypto/argon2`              | Argon2id key derivation                      | BSD-3      |
 | `google.golang.org/grpc`                  | gRPC client for ScalarDL communication       | Apache 2.0 |
 | `google.golang.org/protobuf`              | Protobuf serialization for gRPC messages     | BSD-3      |
@@ -417,10 +417,18 @@ The HOTP engine generates counter-based one-time passwords as specified in RFC 4
 
 - Compute `HMAC-SHA1(secret, counter)` where `counter` is an 8-byte big-endian integer.
 - Apply dynamic truncation to produce a 6-digit or 8-digit code.
-- Increment the counter in the vault after each successful generation.
-- Write the updated counter to disk immediately (vault re-encrypt and save) to prevent counter reuse on crash.
+- Persist the counter to disk before returning the code (see counter persistence order below).
 
-**Counter persistence:** The counter is stored in the credential's `counter` field inside the encrypted vault. Because the entire vault is re-encrypted on every counter update, the write-temp-rename strategy (section 3.5) ensures atomicity.
+**Counter persistence order:** The counter update and code generation follow this exact sequence to prevent counter/code inconsistency on crash:
+
+1. Increment the counter in-memory.
+2. Write the vault with the new counter to a temporary file.
+3. Atomic rename the temporary file over the vault file.
+4. Generate and return the code to the caller.
+
+If step 2 or 3 fails, the code is never returned — the user retries with the same counter value. This ordering ensures that a displayed code always corresponds to a persisted counter. See section 9 (Security model), cryptographic pitfall #4 for the rationale behind this ordering, and section 3.5 for the atomic write strategy.
+
+The counter is stored in the credential's `counter` field inside the encrypted vault. Because the entire vault is re-encrypted on every counter update, the write-temp-rename strategy (section 3.5) ensures atomicity.
 
 **Resynchronization:** If a user's counter drifts from the server, `tegata resync <label>` generates codes for a configurable look-ahead window (default 10) and prompts the user to confirm which code the server accepted, then updates the counter accordingly.
 
@@ -1019,16 +1027,22 @@ Unit tests verify the core logic of each component.
 
 ### 11.3 Platform testing
 
-| Platform             | CI                 | Manual testing     |
-|----------------------|--------------------|--------------------|
-| Windows 10+ (amd64)  | GitHub Actions     | Developer machine  |
-| macOS 12+ (arm64)    | GitHub Actions     | Developer machine  |
-| macOS 12+ (amd64)    | GitHub Actions     | —                  |
-| Linux (amd64)        | GitHub Actions     | Docker/WSL         |
+The platform testing matrix differs between the CLI binary (cross-compiled, no CGO) and the GUI binary (native CGO builds required).
 
-Cross-compilation is verified in CI using `GOOS`/`GOARCH` flags with `CGO_ENABLED=0`.
+| Platform            | CLI CI             | GUI CI          | Manual testing     |
+|---------------------|--------------------|-----------------|--------------------|
+| Windows 10+ (amd64) | GitHub Actions     | Platform runner | Developer machine  |
+| macOS 12+ (arm64)   | GitHub Actions     | Platform runner | Developer machine  |
+| macOS 12+ (amd64)   | GitHub Actions     | Platform runner | —                  |
+| Linux (amd64)       | GitHub Actions     | Platform runner | Docker/WSL         |
 
-### 11.4 Security and fuzz testing
+CLI cross-compilation is verified in CI using `GOOS`/`GOARCH` flags with `CGO_ENABLED=0`.
+
+### 11.4 GUI and CGO testing
+
+GUI testing uses Wails' built-in test utilities for Go binding verification and Playwright (or similar browser automation) for end-to-end frontend tests. Because the GUI binary requires CGO, GUI-specific tests cannot run on `CGO_ENABLED=0` CI runners. GUI tests run on platform-specific CI runners or during manual testing. The shared service layer (`internal/`) is fully tested by the CLI test suite — GUI-specific tests focus on the binding layer and frontend interactions.
+
+### 11.5 Security and fuzz testing
 
 - **Fuzz testing:** Go's built-in fuzzing (`go test -fuzz`) targets the vault decrypt path, TOTP generation, and otpauth:// URI parsing.
 - **Static analysis:** `go vet`, `staticcheck`, and `gosec` run in CI on every pull request.
@@ -1206,13 +1220,13 @@ The following features are explicitly deferred from v1.0 but may be considered i
 
 **Terminal user interface (TUI):** A guided interactive interface using a library such as `bubbletea` for users who prefer visual navigation over CLI commands. Planned for v1.0 per the release plan.
 
-**FIDO2/WebAuthn:** Implementing a software-based FIDO2 authenticator is technically possible but architecturally controversial. FIDO2 is designed around hardware attestation, and a software implementation would not provide the security guarantees that relying parties expect. This is explicitly deferred and would require significant security analysis before consideration.
+**FIDO2/WebAuthn:** FIDO2/WebAuthn is excluded from all Tegata versions. FIDO2 is designed for hardware attestation, and a software implementation would not provide the security guarantees that relying parties expect. See PRD section 12 Q4 for the full rationale.
 
 **Standalone gRPC library:** The ScalarDL gRPC client implemented for Tegata could be extracted as a standalone open-source Go library, benefiting the broader ScalarDL ecosystem. This adds maintenance scope and is deferred until the client implementation stabilizes.
 
 **Multi-user support:** The current design assumes a single user per vault. Supporting multiple users (for example, a shared team vault) would require access control, per-user encryption keys, and conflict resolution. This is a significant architectural change deferred to a future major version.
 
-**GUI application:** Planned for v0.6. A Wails desktop application with full CLI feature parity, using CGO and the system WebView. The GUI binary is installed on the host machine (not on the USB drive). Architecture details are covered in section 7.
+**GUI application:** The GUI architecture is fully specified in section 7. Implementation begins at v0.6 with full CLI feature parity. Component library selection is deferred to v0.6 planning.
 
 ## 14. References
 
@@ -1229,11 +1243,12 @@ Standards and specifications referenced in this document.
 Go libraries referenced in this document.
 
 - [spf13/cobra – CLI framework](https://github.com/spf13/cobra)
-- [awnuber/memguard – Guarded memory for Go](https://github.com/awnuber/memguard)
+- [awnumar/memguard – Guarded memory for Go](https://github.com/awnumar/memguard)
 - [grpc-go – gRPC for Go](https://github.com/grpc/grpc-go)
 - [BurntSushi/toml – TOML parser for Go](https://github.com/BurntSushi/toml)
 - [atotto/clipboard – Cross-platform clipboard for Go](https://github.com/atotto/clipboard)
 - [golang.org/x/crypto – Extended Go crypto library (Argon2)](https://pkg.go.dev/golang.org/x/crypto)
+- [wailsapp/wails – Desktop GUI framework](https://github.com/wailsapp/wails)
 
 ScalarDL documentation.
 
@@ -1241,3 +1256,4 @@ ScalarDL documentation.
 - [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/latest/getting-started-hashstore/)
 - [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/latest/how-to-write-applications-with-hashstore/)
 - [ScalarDL GitHub Repository](https://github.com/scalar-labs/scalardl)
+- [ScalarDL Protobuf Definitions](https://github.com/scalar-labs/scalardl/tree/master/rpc/src/main/proto)
