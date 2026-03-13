@@ -2,6 +2,7 @@
 
 **Author:** [josh-wong](https://github.com/josh-wong)
 **Date:** March 8, 2026
+**Last revised:** March 12, 2026
 **Status:** Approved
 **Companion document:** [Design document](./design-doc.md)
 
@@ -115,31 +116,39 @@ The following subsections detail each major component of the Tegata system.
 
 #### 5.2.1 Encrypted key vault (on USB/microSD)
 
-- **Format:** AES-256-GCM encrypted file (JSON or SQLite)
+- **Format:** AES-256-GCM encrypted JSON file
 - **Protection:** User-provided PIN or passphrase, stretched via Argon2id
 - **Contents:** TOTP/HOTP secrets, challenge-response private keys, static passwords, vault metadata (creation date, last modified, version)
 - **Location:** Stored on the USB drive or microSD card alongside the portable binary
 
-#### 5.2.2 Host application (portable binary)
+#### 5.2.2 CLI binary (portable)
 
-- **Language:** Go or Rust that compiles to a single static binary per platform—no runtime dependencies.
+- **Language:** Go, compiling to a single static binary per platform with CGO_ENABLED=0 — no runtime dependencies.
 - **Functionality:**
   - Decrypts the key vault using the user's PIN/passphrase.
   - Generates TOTP/HOTP codes.
   - Performs challenge-response signing (HMAC-SHA1/SHA256).
   - Retrieves static passwords.
   - Optionally submits auth events to ScalarDL Ledger.
-- **Distribution:** Pre-compiled binaries for Windows (amd64) and macOS (arm64, amd64), with Linux (amd64) included if cross-compilation works without issues; stored on the USB drive itself.
+- **Distribution:** Pre-compiled static binaries for Windows (amd64), macOS (arm64, amd64), and Linux (amd64). Linux support is CI cross-compiled; manual testing only (no Linux CI runner). Binaries are stored on the USB drive itself.
 - **Memory safety:** Keys are decrypted in memory, used, and immediately zeroed. The vault file on disk is never written in plaintext.
 
-#### 5.2.3 Event Builder
+#### 5.2.3 Desktop GUI (host-installed)
+
+- **Framework:** Wails desktop application (CGO required; system WebView used as frontend).
+- **Feature parity:** Full feature parity with the CLI — all authentication operations, vault management, and optional audit logging available via a graphical interface.
+- **Shared service layer:** The same internal Go packages handle vault, auth, and audit operations in both the CLI and GUI binaries.
+- **Distribution:** Platform-specific installer; installed on the host machine, not carried on the USB drive.
+- **Architecture details:** App struct design, frontend framework selection, and build flags are deferred to the design document.
+
+#### 5.2.4 Event Builder
 
 - **Purpose:** Constructs authentication event records from vault operations before sending to ScalarDL.
 - **Inputs:** Operation type (TOTP/HOTP/CR/static), credential label, target service, success/failure status.
 - **Outputs:** AuthEvent struct with hashed identifiers (labels and services are hashed before transmission).
 - **Location:** Runs within the host application, invoked by authentication engines.
 
-#### 5.2.4 ScalarDL Ledger integration (optional)
+#### 5.2.5 ScalarDL Ledger integration (optional)
 
 - **Version:** ScalarDL 3.12 Community Edition (Apache 2.0).
 - **Deployment:** User-managed. Can run on a local machine, a Raspberry Pi, a VPS, or a cloud instance. Not bundled with the USB drive.
@@ -155,6 +164,7 @@ The following subsections detail each major component of the Tegata system.
 - No database engine
 - No ScalarDL Ledger server
 - No network services or daemons
+- No GUI binary (the desktop GUI is installed on the host machine, not carried on the USB drive)
 
 The USB drive contains only: the portable binary (per-platform), the encrypted vault file, and a README.
 
