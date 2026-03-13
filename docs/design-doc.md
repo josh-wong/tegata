@@ -56,8 +56,15 @@ The codebase is organized by responsibility. Each top-level package corresponds 
 ```
 tegata/
 ├── cmd/
-│   └── tegata/          # CLI entrypoint (cobra commands)
-│       └── main.go
+│   ├── tegata/          # CLI entrypoint (cobra commands)
+│   │   └── main.go
+│   └── tegata-gui/      # GUI entrypoint (Wails app)
+│       ├── main.go
+│       ├── app.go       # App struct (thin adapter over internal/)
+│       └── frontend/    # React + TypeScript (Wails managed)
+│           ├── src/
+│           ├── wailsjs/  # Auto-generated Go bindings
+│           └── package.json
 ├── internal/
 │   ├── vault/           # Vault Manager – encrypt, decrypt, read, write
 │   ├── auth/            # Authentication engines – TOTP, HOTP, CR, static
@@ -560,11 +567,103 @@ When enabled, the gRPC client requires:
 - Valid TLS certificates (`cert`, `key`, `ca`).
 - The `tegata ledger setup` command validates connectivity, negotiates TLS, and confirms that the required HashStore contracts are available on the Ledger instance.
 
-## 7. ScalarDL integration
+## 7. Wails GUI architecture
+
+Tegata provides an optional desktop GUI application built with Wails v2, planned for v0.6. The GUI binary is a separate executable installed on the host machine (not carried on the USB drive like the CLI binary). It shares the same internal service packages as the CLI, ensuring feature parity without code duplication. This section specifies the architecture in enough detail that v0.6 implementation can begin without further design work.
+
+The `frontend/` directory within `cmd/tegata-gui/` is managed by Wails and uses npm for dependency management. It is only relevant to the GUI binary — the CLI build ignores it entirely.
+
+### 7.1 App struct as thin adapter
+
+The Wails v2 application entry point is an `App` struct registered with `wails.Run()`. Exported methods on the App struct are automatically bound to the JavaScript frontend. The App struct is a thin adapter — it holds references to the same internal service instances (`vault.Manager`, `auth.Registry`, `audit.EventBuilder`) used by the CLI's Cobra command handlers.
+
+```go
+// cmd/tegata-gui/app.go
+type App struct {
+    ctx   context.Context
+    vault *vault.Manager      // same internal package as CLI
+    auth  *auth.Registry      // same internal package as CLI
+    audit *audit.EventBuilder // same internal package as CLI
+}
+
+func NewApp() *App {
+    return &App{
+        vault: vault.NewManager(),
+        auth:  auth.NewRegistry(),
+        audit: audit.NewEventBuilder(),
+    }
+}
+
+func (a *App) startup(ctx context.Context) {
+    a.ctx = ctx
+}
+
+// VaultUnlock is bound to JavaScript as window.go.main.App.VaultUnlock()
+func (a *App) VaultUnlock(passphrase string) error {
+    return a.vault.Unlock([]byte(passphrase))
+}
+
+// GetTOTPCode is bound to JavaScript as window.go.main.App.GetTOTPCode()
+func (a *App) GetTOTPCode(label string) (TOTPResult, error) {
+    return a.auth.GenerateTOTP(label)
+}
+```
+
+The CLI's Cobra commands call the same `vault.Manager.Unlock()` and `auth.Registry.GenerateTOTP()` methods. The GUI adapter adds no business logic — it translates frontend calls to internal package calls.
+
+### 7.2 Frontend framework
+
+The GUI frontend uses React 18 with TypeScript 5, initialized from the official Wails react-ts template. React was chosen because the developer has existing React experience and the bundle size difference between React and lighter alternatives (Svelte, Preact) is negligible for an embedded desktop application where the assets are bundled into the binary.
+
+Wails v2 automatically generates TypeScript bindings in `frontend/wailsjs/go/` from exported Go types. Developers do not manually maintain Go/TypeScript type parity — the build step regenerates bindings on each `wails build` or `wails dev` invocation.
+
+The specific component library is deferred to v0.6 planning. UI frameworks evolve rapidly; locking in a component library now risks choosing one that is outdated by the time implementation begins. The architecture is framework-agnostic — any React component library can be added at v0.6.
+
+### 7.3 CGO build requirements
+
+The GUI binary requires CGO (unlike the CLI binary which uses `CGO_ENABLED=0`). Wails v2 depends on the system WebView for rendering.
+
+| Platform      | WebView dependency                         | Installation                                     |
+|---------------|--------------------------------------------|--------------------------------------------------|
+| Windows 10+   | WebView2 (Microsoft Edge Chromium runtime) | Bundled with Windows 10 1903+ by default         |
+| macOS 12+     | WKWebView                                  | System framework — no installation needed        |
+| Linux (amd64) | WebKitGTK                                  | `apt install libgtk-3-dev libwebkit2gtk-4.0-dev` |
+
+Because CGO is required, the GUI binary cannot be cross-compiled. Each platform binary must be built natively on that platform. This is the primary operational distinction from the CLI (which cross-compiles freely with `GOOS`/`GOARCH`).
+
+Build commands for the GUI binary:
+
+```bash
+# Install Wails CLI (development dependency)
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# Development mode (hot reload)
+wails dev
+
+# Production build
+wails build -clean -o tegata-gui
+
+# Windows with NSIS installer
+wails build -clean -nsis -o tegata-gui.exe
+```
+
+### 7.4 Installer strategy
+
+The GUI binary is installed on the host machine (unlike the CLI, which runs from the USB drive). Each platform uses its native installer format.
+
+| Platform | Installer format | Tool                | Notes                                                                          |
+|----------|------------------|---------------------|--------------------------------------------------------------------------------|
+| Windows  | MSI (via NSIS)   | `wails build -nsis` | Built-in Wails support; requires NSIS installed                                |
+| macOS    | DMG              | `create-dmg`        | Wails v2 does not natively produce DMG files                                   |
+| Linux    | .deb / .rpm      | `nfpm`              | AppImage has known WebKitNetworkProcess issues with Wails; prefer native packages |
+
+The installer bundles only the GUI binary and frontend assets. It does not bundle the vault, config, or CLI binary — those remain on the USB drive. The GUI discovers the vault file using the same auto-detection logic as the CLI (section 5.3).
+
+## 8. ScalarDL integration
 
 This section details how Tegata communicates with ScalarDL Ledger for tamper-evident audit logging. All functionality in this section is optional — Tegata operates as a fully functional authenticator without it.
 
-### 7.1 gRPC client
+### 8.1 gRPC client
 
 Tegata implements a lightweight gRPC client using `grpc-go` against ScalarDL's protobuf service definitions. The client communicates with the `Ledger` gRPC service using a single RPC method — `ExecuteContract` — and varies behavior by passing different contract identifiers.
 
@@ -614,7 +713,7 @@ resp, err := client.ExecuteContract(ctx, req)
 
 Note that `grpc.NewClient` is used instead of the deprecated `grpc.Dial`.
 
-### 7.2 AuthEvent struct
+### 8.2 AuthEvent struct
 
 Each authentication operation produces an `AuthEvent` that is serialized and submitted to ScalarDL.
 
@@ -632,7 +731,7 @@ type AuthEvent struct {
 
 Labels, service names, and host identifiers are always hashed before transmission. This protects privacy even if the audit log is compromised — an attacker cannot determine which services the user authenticates with.
 
-### 7.3 HashStore contract usage
+### 8.3 HashStore contract usage
 
 Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. This avoids requiring a JDK toolchain for contract compilation and deployment.
 
@@ -649,7 +748,7 @@ Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. 
 2. ScalarDL traverses the hash chain, recomputes hashes, and returns the validation result.
 3. Tegata reports the result to the user.
 
-### 7.4 Offline queue
+### 8.4 Offline queue
 
 When the ScalarDL Ledger instance is unreachable, events are stored in an encrypted local queue (`queue.tegata`) on the USB drive.
 
@@ -664,7 +763,7 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 - If the flush fails, the new event is appended to the queue.
 - A configurable maximum queue size (`queue_max_events`, default 10,000) prevents unbounded growth. When the limit is reached, the oldest events are dropped with a warning.
 
-### 7.5 `tegata verify` and `tegata history`
+### 8.5 `tegata verify` and `tegata history`
 
 **`tegata verify`:** Calls `ExecuteContract` with the `object.Validate` contract on the ScalarDL Ledger instance. Reports the total number of events verified and whether the hash chain is intact. If tampering is detected, reports the range of affected events.
 
@@ -672,11 +771,11 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 **`tegata ledger setup`:** Performs `RegisterCertificate` to register the user's TLS certificate with the ScalarDL Ledger, followed by a test `ExecuteContract` call using `object.Put` with a sentinel value to confirm connectivity. The exact `RegisterCertificate` proto message fields (`CertHolderId`, `CertVersion`) require integration-test validation against ScalarDL 3.12 before implementation.
 
-## 8. Security model
+## 9. Security model
 
 This section describes the threat model, cryptographic rationale, and operational security measures. Users should read this section to understand both what Tegata protects against and what it does not.
 
-### 8.1 Threat model
+### 9.1 Threat model
 
 Tegata is designed to protect against the following threats.
 
@@ -700,7 +799,7 @@ Tegata is designed to protect against the following threats.
 | Fully compromised ScalarDL Ledger server   | An attacker controlling both the database and the ScalarDL process could reconstruct a valid chain. |
 | Cold boot attacks                          | memguard mitigates this with mlock but cannot guarantee protection on all hardware.                 |
 
-### 8.2 Cryptographic rationale
+### 9.2 Cryptographic rationale
 
 **AES-256-GCM** was chosen over AES-256-CBC or XChaCha20-Poly1305 because GCM provides authenticated encryption (confidentiality + integrity) in a single operation, is NIST-approved, has hardware acceleration on modern CPUs (AES-NI), and is well-supported by Go's standard library with constant-time implementations.
 
@@ -708,7 +807,7 @@ Tegata is designed to protect against the following threats.
 
 **HMAC-SHA1 for TOTP/HOTP** is specified by RFC 6238 and RFC 4226. While SHA-1 is deprecated for collision resistance, it remains secure for HMAC construction (HMAC-SHA1 security depends on PRF properties, not collision resistance). SHA-256 and SHA-512 are also supported for TOTP.
 
-### 8.3 Cryptographic pitfall mitigations
+### 9.3 Cryptographic pitfall mitigations
 
 The following table documents the five most critical cryptographic pitfalls identified during research and the specific mitigations that Tegata's design enforces. Each pitfall has caused real-world vulnerabilities in similar software.
 
@@ -720,9 +819,9 @@ The following table documents the five most critical cryptographic pitfalls iden
 | HOTP counter race condition          | If the counter is incremented in memory but the vault write fails, the in-memory and on-disk counters diverge, causing authentication failures.                                    | Correct order: (1) increment counter in-memory, (2) write vault with new counter to temp file, (3) atomic rename over vault, (4) generate and return code. If step 2 or 3 fails, the code is never displayed — user retries with same counter. See section 3.5 for atomic write strategy.        |
 | memguard pre-v1 API instability      | memguard explicitly warns its API may change. Direct usage throughout the codebase means a breaking change requires updates across all packages.                                   | All memguard usage MUST go through `internal/crypto/guard`. This is an architectural rule, not a recommendation. Only `internal/crypto/guard` may import `github.com/awnumar/memguard`.                                                                                                          |
 
-### 8.4 memguard key lifecycle
+### 9.4 memguard key lifecycle
 
-All memguard operations are accessed through the `internal/crypto/guard` wrapper package, which provides `SecretBuffer` (for sensitive byte slices like passphrases) and `KeyEnclave` (for the DEK, encrypted in RAM). This wrapper isolates memguard's pre-v1 API behind stable Tegata-specific types. See the pitfall table in section 8.3 for the architectural rationale.
+All memguard operations are accessed through the `internal/crypto/guard` wrapper package, which provides `SecretBuffer` (for sensitive byte slices like passphrases) and `KeyEnclave` (for the DEK, encrypted in RAM). This wrapper isolates memguard's pre-v1 API behind stable Tegata-specific types. See the pitfall table in section 9.3 for the architectural rationale.
 
 The following lifecycle applies to all key material in Tegata.
 
@@ -762,7 +861,7 @@ Passphrase entry (stdin)
 - After each vault operation, the unsealed DEK buffer is re-sealed immediately.
 - On vault lock (idle timeout or explicit lock), the `KeyEnclave` is destroyed and all memory is zeroed.
 
-### 8.5 Guard wrapper package
+### 9.5 Guard wrapper package
 
 The `internal/crypto/guard` package provides stable Tegata-specific types over memguard's pre-v1 API. It is the only package in the codebase permitted to import `github.com/awnumar/memguard`.
 
@@ -791,7 +890,7 @@ func (e *KeyEnclave) Destroy()
 
 The `Open(fn)` pattern is the only way to access DEK bytes. This ensures the key is never stored in a local variable — the callback receives a slice backed by the guarded buffer, and the buffer is destroyed when the callback returns.
 
-### 8.6 Passphrase rate-limiting
+### 9.6 Passphrase rate-limiting
 
 Failed passphrase attempts trigger exponential backoff.
 
@@ -806,7 +905,7 @@ Failed passphrase attempts trigger exponential backoff.
 
 The delay is enforced in-process (not stored on disk) to prevent bypass by restarting the binary. After 20 consecutive failures, Tegata prints a warning suggesting the user may be using the wrong vault or passphrase.
 
-### 8.7 Software authenticator limitations
+### 9.7 Software authenticator limitations
 
 Tegata prominently documents that it is a software authenticator, not a hardware security key. The following limitations are displayed during `tegata init` and in `tegata --help`.
 
@@ -815,11 +914,11 @@ Tegata prominently documents that it is a software authenticator, not a hardware
 - Tegata does not provide tamper-resistant hardware isolation.
 - Users requiring hardware-level security should use a dedicated hardware security key.
 
-## 9. Error handling
+## 10. Error handling
 
 Tegata uses structured error categories and actionable messages to help users resolve problems.
 
-### 9.1 Error categories
+### 10.1 Error categories
 
 | Category       | Exit code | Description                                     | Example                                      |
 |----------------|-----------|------------------------------------------------|----------------------------------------------|
@@ -829,7 +928,7 @@ Tegata uses structured error categories and actionable messages to help users re
 | `network`      | 4         | ScalarDL connectivity issues                   | `"Cannot reach ScalarDL Ledger at localhost:50051. Event queued locally (3 events pending)."` |
 | `integrity`    | 5         | Audit chain integrity violation                | `"Hash chain broken at event #843. Run 'tegata history --around 843' for details."` |
 
-### 9.2 Actionable message format
+### 10.2 Actionable message format
 
 Every error message follows this structure:
 
@@ -838,7 +937,7 @@ Every error message follows this structure:
 
 Error messages never display raw stack traces, internal error codes, or technical jargon without explanation.
 
-### 9.3 Graceful degradation
+### 10.3 Graceful degradation
 
 ScalarDL failures never block authentication operations. If the audit layer encounters an error, Tegata:
 
@@ -848,11 +947,11 @@ ScalarDL failures never block authentication operations. If the audit layer enco
 
 This ensures that the P0 requirement (functional authenticator) is never compromised by the P1 requirement (audit logging).
 
-## 10. Testing strategy
+## 11. Testing strategy
 
 Testing covers correctness, security, and cross-platform compatibility.
 
-### 10.1 Unit tests
+### 11.1 Unit tests
 
 Unit tests verify the core logic of each component.
 
@@ -873,7 +972,7 @@ Unit tests verify the core logic of each component.
 - Precedence tests: verify that CLI flags override env vars override config file override defaults.
 - Malformed config tests: missing fields, invalid values, unknown keys.
 
-### 10.2 Integration tests
+### 11.2 Integration tests
 
 **ScalarDL integration:**
 
@@ -887,7 +986,7 @@ Unit tests verify the core logic of each component.
 - Script-driven tests exercise the full CLI workflow: `init` -> `add` -> `code` -> `verify`.
 - Tests run against a real vault file on a temporary directory simulating a USB drive.
 
-### 10.3 Platform testing
+### 11.3 Platform testing
 
 | Platform             | CI                 | Manual testing     |
 |----------------------|--------------------|--------------------|
@@ -898,17 +997,17 @@ Unit tests verify the core logic of each component.
 
 Cross-compilation is verified in CI using `GOOS`/`GOARCH` flags with `CGO_ENABLED=0`.
 
-### 10.4 Security and fuzz testing
+### 11.4 Security and fuzz testing
 
 - **Fuzz testing:** Go's built-in fuzzing (`go test -fuzz`) targets the vault decrypt path, TOTP generation, and otpauth:// URI parsing.
 - **Static analysis:** `go vet`, `staticcheck`, and `gosec` run in CI on every pull request.
 - **Dependency auditing:** `govulncheck` runs in CI to detect known vulnerabilities in dependencies.
 
-## 11. Development and deployment
+## 12. Development and deployment
 
 This section covers the developer setup, build process, cross-compilation strategy, and USB drive layout.
 
-### 11.1 Development prerequisites
+### 12.1 Development prerequisites
 
 | Tool          | Version | Purpose                            |
 |---------------|---------|------------------------------------|
@@ -918,7 +1017,7 @@ This section covers the developer setup, build process, cross-compilation strate
 | Git           | 2.40+   | Version control                    |
 | golangci-lint | 1.60+   | Linting and static analysis        |
 
-### 11.2 Build commands
+### 12.2 Build commands
 
 ```bash
 # Development build (current platform)
@@ -941,7 +1040,7 @@ gosec ./...
 govulncheck ./...
 ```
 
-### 11.3 Cross-compilation
+### 12.3 Cross-compilation
 
 Tegata builds static binaries with no CGo dependencies (`CGO_ENABLED=0`). This is critical because the binary must run from a USB drive with no system library dependencies.
 
@@ -963,7 +1062,7 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o tegata-linux-amd64 ./cmd/tegat
 
 **No elevated permissions (NFR-13):** Static binaries with no CGo dependencies, no installation step, and no system library requirements mean Tegata runs entirely in user space. It reads and writes only to the USB drive (vault, config, queue files) and the system clipboard. No admin/root privileges are required on any supported platform.
 
-### 11.4 USB drive layout
+### 12.4 USB drive layout
 
 After setup, the USB drive or microSD card contains the following files.
 
@@ -985,7 +1084,7 @@ USB_DRIVE/
 
 All binaries are included so users can plug the drive into any supported platform and run the appropriate binary.
 
-### 11.5 ScalarDL Docker Compose (development)
+### 12.5 ScalarDL Docker Compose (development)
 
 A `deployments/docker-compose/docker-compose.yml` provides a local ScalarDL Ledger instance for development and testing.
 
@@ -1023,7 +1122,7 @@ volumes:
 
 Run `docker compose up -d` from the `deployments/docker-compose/` directory to start the environment. Integration tests automatically detect this local instance.
 
-### 11.6 CI/CD
+### 12.6 CI/CD
 
 GitHub Actions runs the following pipeline on every pull request.
 
@@ -1039,7 +1138,7 @@ GitHub Actions runs the following pipeline on every pull request.
 
 Release builds use `goreleaser` to produce tagged, checksummed binaries for each platform. Releases are published as GitHub Releases with SHA-256 checksums.
 
-## 12. Future considerations
+## 13. Future considerations
 
 The following features are explicitly deferred from v1.0 but may be considered in future versions.
 
@@ -1051,9 +1150,9 @@ The following features are explicitly deferred from v1.0 but may be considered i
 
 **Multi-user support:** The current design assumes a single user per vault. Supporting multiple users (for example, a shared team vault) would require access control, per-user encryption keys, and conflict resolution. This is a significant architectural change deferred to a future major version.
 
-**GUI application:** Planned for v0.6. A Wails desktop application with full CLI feature parity, using CGO and the system WebView. The GUI binary is installed on the host machine (not on the USB drive). Architecture details are covered in the design document's GUI section (to be written in Phase 2).
+**GUI application:** Planned for v0.6. A Wails desktop application with full CLI feature parity, using CGO and the system WebView. The GUI binary is installed on the host machine (not on the USB drive). Architecture details are covered in section 7.
 
-## 13. References
+## 14. References
 
 Standards and specifications referenced in this document.
 
