@@ -483,13 +483,27 @@ The following table identifies potential risks and their mitigation strategies.
 
 ## 12. Open questions
 
-These questions require resolution before or during v1.0 development.
+All questions resolved as of March 12, 2026. Decisions and rationale are documented below.
 
 1. **Language choice: Go vs. Rust?** Go offers faster development and simpler cross-compilation. Rust offers better memory safety guarantees (important for crypto operations) and smaller binaries. Decision needed before v0.1.
+
+   ✅ Resolved: Go. Pros: faster development velocity, simpler cross-compilation (GOOS/GOARCH flags), mature ecosystem for CLI tools and gRPC. Tradeoff: Rust's stronger memory safety deferred — mitigated by memguard for key material lifecycle.
+
 2. **Should Tegata support FIDO2/WebAuthn in software?** This is technically possible (software-based FIDO2 authenticator) but controversial—the FIDO Alliance specifically designed FIDO2 to require hardware attestation. Including it could create false security expectations.
+
+   ✅ Resolved: FIDO2 excluded entirely. FIDO2 is designed for hardware attestation; a software implementation would contradict Tegata's honest positioning as a software authenticator. No plans to revisit.
+
 3. **Should the ScalarDL gRPC client be extracted as a standalone open-source Go/Rust library?** This could benefit the broader ScalarDL ecosystem but adds maintenance scope.
+
+   ✅ Resolved: gRPC client stays internal. A standalone library adds maintenance scope with unclear benefit at this stage. May be revisited if external demand materializes.
+
 4. **Vault format: JSON vs. SQLite?** JSON is simpler and more portable. SQLite handles larger vaults more efficiently and supports atomic writes. Decision needed before v0.1.
+
+   ✅ Resolved: JSON (whole-blob AES-256-GCM). Pros: no CGO dependency (encoding/json is pure Go), simpler implementation, adequate for expected vault size (tens to low hundreds of credentials). Tradeoff: SQLite would handle larger vaults more efficiently — revisit if vault size becomes a bottleneck.
+
 5. **Should v1.0 include a GUI application in addition to CLI/TUI?** A GUI would improve accessibility for non-developer users but significantly increases development and maintenance scope.
+
+   ✅ Resolved: GUI required. Planned for v0.6 with full CLI feature parity. Wails desktop application (CGO, system WebView). The GUI binary is installed on the host machine, not carried on the USB drive.
 
 ## 13. References
 
