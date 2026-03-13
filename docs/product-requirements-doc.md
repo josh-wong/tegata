@@ -153,7 +153,7 @@ The following subsections detail each major component of the Tegata system.
 - **Version:** ScalarDL 3.12 Community Edition (Apache 2.0).
 - **Deployment:** User-managed. Can run on a local machine, a Raspberry Pi, a VPS, or a cloud instance. Not bundled with the USB drive.
 - **Backing database:** PostgreSQL (recommended for multi-device use), SQLite, or MySQL
-- **Communication:** The host application communicates with ScalarDL Ledger via gRPC. Since the host app is Go/Rust, a lightweight gRPC client will be implemented (not the Java Client SDK).
+- **Communication:** The host application communicates with ScalarDL Ledger via gRPC. Since the host app is Go, a lightweight gRPC client will be implemented (not the Java Client SDK).
 - **What gets logged:** Timestamp, auth protocol used, target service identifier (hashed), success/failure, a hash of the challenge (never the key material itself).
 - **Contracts:** Will primarily use the HashStore contracts (`object.Put`, `object.Validate`) in ScalarDL 3.12 to store and verify event hashes, avoiding the need to write and deploy custom Java contracts.
 - **Validation:** Users can run `tegata verify` to traverse the hash chain and confirm no entries have been tampered with.
@@ -493,7 +493,7 @@ All questions resolved as of March 12, 2026. Decisions and rationale are documen
 
    ✅ Resolved: FIDO2 excluded entirely. FIDO2 is designed for hardware attestation; a software implementation would contradict Tegata's honest positioning as a software authenticator. No plans to revisit.
 
-3. **Should the ScalarDL gRPC client be extracted as a standalone open-source Go/Rust library?** This could benefit the broader ScalarDL ecosystem but adds maintenance scope.
+3. **Should the ScalarDL gRPC client be extracted as a standalone open-source Go library?** This could benefit the broader ScalarDL ecosystem but adds maintenance scope.
 
    ✅ Resolved: gRPC client stays internal. A standalone library adds maintenance scope with unclear benefit at this stage. May be revisited if external demand materializes.
 
