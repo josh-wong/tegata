@@ -469,6 +469,7 @@ tegata
 ├── export <file>           # Export vault backup
 ├── import <file>           # Import vault backup
 ├── resync <label>          # Resynchronize HOTP counter
+├── bench                   # Benchmark Argon2id on this machine
 ├── history                 # View audit event history
 ├── verify                  # Verify audit chain integrity
 ├── ledger
@@ -521,6 +522,29 @@ The CLI workflow is designed to meet two usability benchmarks from the PRD.
 
 - **First-time setup under 5 minutes (NFR-15):** The `tegata init` command handles vault creation in a single interactive flow (passphrase entry, recovery key display). Adding a first credential via `tegata add --scan` with an `otpauth://` URI is a single command. The entire init-add-verify cycle requires three commands.
 - **Daily use under 10 seconds (NFR-16):** The daily flow is `tegata code <label>`, passphrase entry, and code display. Vault auto-detection (section 5.3) eliminates the need to specify paths. Argon2id derivation targets under 3 seconds (section 3.3), and TOTP generation completes in under 100 ms after unlock.
+
+### 5.7 Bench command
+
+**`tegata bench`** benchmarks Argon2id key derivation on the current machine using the default parameters (t=3, m=64MiB, p=4). It reports the derivation time and, if it exceeds 3 seconds, recommends adjusted parameters. The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance.
+
+Example output when within target:
+
+```
+Benchmarking Argon2id (t=3, m=64MiB, p=4)...
+Derivation time: 2.1s ✓ (within 3s target)
+```
+
+Example output when over target:
+
+```
+Benchmarking Argon2id (t=3, m=64MiB, p=4)...
+Derivation time: 4.8s ✗ (exceeds 3s target)
+Recommended: t=3, m=32MiB, p=4 (estimated 2.4s)
+
+Run 'tegata init --time=3 --memory=32 --parallel=4' to use adjusted parameters.
+```
+
+The bench command does not modify the vault. It is informational only.
 
 ## 6. Configuration
 
