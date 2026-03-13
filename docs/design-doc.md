@@ -615,7 +615,9 @@ Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. 
 
 When the ScalarDL Ledger instance is unreachable, events are stored in an encrypted local queue (`queue.tegata`) on the USB drive.
 
-**Queue format:** The queue file uses the same encryption scheme as the vault (AES-256-GCM) with a separate nonce and the same DEK. Events are stored as a JSON array of `AuthEvent` objects. A local hash chain (each event includes a hash of the previous event) protects integrity during the offline window.
+**Queue format:** The queue file uses AES-256-GCM encryption with random 96-bit nonces (not the vault's write-counter approach). Random nonces are safe for the queue because queue writes are bounded by authentication frequency — at a realistic rate of 100 operations per day, it would take over 100 years to approach the birthday-bound collision risk of approximately 2^32 encryptions. Using random nonces avoids the complexity of shared counter state between the vault and queue files. Each queue entry stores its own nonce alongside the ciphertext.
+
+The queue uses a key derived from the same passphrase but with a distinct salt (stored in the queue file header), ensuring cryptographic separation from the vault. Events are stored as a JSON array of `AuthEvent` objects. A local hash chain (each event includes a hash of the previous event) protects integrity during the offline window.
 
 **Flush behavior:**
 
