@@ -226,8 +226,9 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 │  │ Argon2id parallelism: uint8  (1B)   ││
 │  │ Salt: [32]byte               (32B)  ││
 │  │ Recovery key salt: [32]byte  (32B)  ││
+│  │ Write counter: uint64        (8B)   ││
 │  │ Nonce: [12]byte              (12B)  ││
-│  │ Reserved: [33]byte           (33B)  ││
+│  │ Reserved: [13]byte           (13B)  ││
 │  └─────────────────────────────────────┘│
 ├─────────────────────────────────────────┤
 │  Encrypted blob (variable size)         │
@@ -236,7 +237,7 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 └─────────────────────────────────────────┘
 ```
 
-The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The reserved bytes allow future header extensions without breaking compatibility.
+The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the 12-byte nonce is derived deterministically from it as `counter_be8 || zeros4`. Storing both the counter and derived nonce in the header allows direct nonce validation during decryption without recomputation. The reserved bytes allow future header extensions without breaking compatibility.
 
 ### 3.2 Inner JSON schema
 
@@ -304,15 +305,15 @@ Fields vary by credential type. TOTP credentials include `algorithm`, `digits`, 
 
 The following parameters are used for key derivation from the user's passphrase.
 
-| Parameter      | Value   | Rationale                                                                |
-|----------------|---------|--------------------------------------------------------------------------|
-| Time cost      | 3       | Three iterations balance security and the NFR-9 target (<3s on commodity hardware) |
-| Memory cost    | 64 MiB  | 64 MiB is feasible on all target platforms while providing GPU resistance |
-| Parallelism    | 4       | Matches typical core counts on target hardware                           |
-| Salt length    | 32 bytes | Randomly generated per vault, stored in the plaintext header            |
-| Output key length | 32 bytes | Produces a 256-bit key for AES-256-GCM                               |
+| Parameter         | Default  | OWASP minimum | Rationale                                                                                                             |
+|-------------------|----------|---------------|-----------------------------------------------------------------------------------------------------------------------|
+| Time cost         | 3        | 2             | Three iterations balance security and NFR-9 (<3s) on commodity hardware                                              |
+| Memory cost       | 64 MiB   | 19 MiB        | Well above minimum; 64 MiB feasible on all target platforms                                                          |
+| Parallelism       | 4        | 1             | Matches common core counts; lower values appropriate for single-core hosts                                            |
+| Salt length       | 32 bytes | —             | Exceeds recommended 16-byte minimum                                                                                   |
+| Output key length | 32 bytes | —             | Produces 256-bit key for AES-256                                                                                      |
 
-These parameters are stored in the vault header so that future versions can adjust them without breaking existing vaults. The `tegata init` command benchmarks Argon2id on the current machine and warns if derivation exceeds 3 seconds.
+These parameters are stored in the vault header so that future versions can adjust them without breaking existing vaults. The `tegata bench` command benchmarks Argon2id on the current machine and recommends parameter adjustments if derivation exceeds 3 seconds. When reducing parameters, lower memory cost first (since memory cost is more resistant to GPU attacks than time cost). Never allow time cost below 2 or memory cost below 19 MiB (OWASP minimum) without an explicit override flag.
 
 ### 3.4 Encrypt/decrypt flow
 
@@ -321,20 +322,35 @@ These parameters are stored in the vault header so that future versions can adju
 1. Serialize credentials to JSON.
 2. Read the salt from the vault header (or generate a new one for `init`).
 3. Derive the DEK from the passphrase using Argon2id with the stored parameters and salt.
-4. Generate a random 12-byte nonce.
-5. Encrypt the JSON blob using AES-256-GCM with the DEK and nonce.
-6. Write the header (with updated nonce) and encrypted blob to a temporary file.
-7. Rename the temporary file over the vault file (atomic on all target file systems).
-8. Zero the DEK and plaintext JSON from memory using memguard.
+4. Increment the write counter in the header.
+5. Derive the 12-byte nonce from the write counter: `nonce = counter_be8 || zeros4`.
+6. Encrypt the JSON blob using AES-256-GCM with the DEK and derived nonce.
+7. Write the header (with updated write counter and derived nonce) and encrypted blob to a temporary file.
+8. Rename the temporary file over the vault file (atomic on all target file systems).
+9. Zero the DEK and plaintext JSON from memory using memguard.
 
 **Decryption (on vault unlock):**
 
-1. Read the plaintext header to extract salt, Argon2id parameters, and nonce.
-2. Derive the DEK from the passphrase using the extracted parameters.
-3. Decrypt the blob using AES-256-GCM with the DEK and nonce.
-4. If decryption fails (GCM tag mismatch), the passphrase is incorrect — return an error.
-5. Deserialize the JSON into in-memory credential structs (within memguard `LockedBuffer`).
-6. Zero the DEK. The plaintext credentials remain in guarded memory until the vault locks.
+1. Read the plaintext header to extract salt, Argon2id parameters, write counter, and nonce.
+2. Verify the nonce matches `deriveNonce(write_counter)` — reject if mismatched (header corruption).
+3. Derive the DEK from the passphrase using the extracted parameters.
+4. Decrypt the blob using AES-256-GCM with the DEK and nonce.
+5. If decryption fails (GCM tag mismatch), the passphrase is incorrect — return an error.
+6. Deserialize the JSON into in-memory credential structs (within memguard `LockedBuffer`).
+7. Zero the DEK. The plaintext credentials remain in guarded memory until the vault locks.
+
+The nonce derivation function ensures the counter and nonce are always consistent.
+
+```go
+func deriveNonce(counter uint64) [12]byte {
+    var nonce [12]byte
+    binary.BigEndian.PutUint64(nonce[:8], counter)
+    // nonce[8:12] are already zero
+    return nonce
+}
+```
+
+The write counter starts at 1 on `tegata init` (counter 0 is reserved as an invalid state). The counter is stored as both the uint64 value and the derived 12-byte nonce in the header. Storing both allows direct nonce validation during decryption without recomputing. If the counter reaches 2^63, the vault format mandates key rotation via `tegata init` with a new salt — this bound is astronomically unreachable in practice but specified for format completeness.
 
 ### 3.5 Write strategy: temp-file rename with backup
 
