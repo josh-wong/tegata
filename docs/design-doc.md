@@ -65,6 +65,7 @@ tegata/
 │   ├── config/          # Config Manager – tegata.toml parsing, defaults
 │   ├── audit/           # Event Builder + gRPC client + offline queue
 │   └── crypto/          # Shared crypto primitives – Argon2id, AES-GCM, memguard wrappers
+│       └── guard/       # memguard wrapper – SecretBuffer, KeyEnclave
 ├── pkg/
 │   └── model/           # Shared types – Credential, AuthEvent, VaultHeader
 ├── scripts/             # Build, release, and CI helper scripts
@@ -198,7 +199,7 @@ The following Go modules are expected dependencies for the initial implementatio
 | Module                                    | Purpose                                      | License    |
 |-------------------------------------------|----------------------------------------------|------------|
 | `github.com/spf13/cobra`                  | CLI command routing and flag parsing         | Apache 2.0 |
-| `github.com/awnuber/memguard`             | Guarded memory for sensitive data            | Apache 2.0 |
+| `github.com/awnumar/memguard`             | Guarded memory for sensitive data (accessed only via `internal/crypto/guard`) | Apache 2.0 |
 | `golang.org/x/crypto/argon2`              | Argon2id key derivation                      | BSD-3      |
 | `google.golang.org/grpc`                  | gRPC client for ScalarDL communication       | Apache 2.0 |
 | `google.golang.org/protobuf`              | Protobuf serialization for gRPC messages     | BSD-3      |
@@ -665,47 +666,90 @@ Tegata is designed to protect against the following threats.
 
 **HMAC-SHA1 for TOTP/HOTP** is specified by RFC 6238 and RFC 4226. While SHA-1 is deprecated for collision resistance, it remains secure for HMAC construction (HMAC-SHA1 security depends on PRF properties, not collision resistance). SHA-256 and SHA-512 are also supported for TOTP.
 
-### 8.3 memguard key lifecycle
+### 8.3 Cryptographic pitfall mitigations
 
-The `memguard` library provides guarded memory allocation for sensitive data. The following lifecycle applies to all key material in Tegata.
+The following table documents the five most critical cryptographic pitfalls identified during research and the specific mitigations that Tegata's design enforces. Each pitfall has caused real-world vulnerabilities in similar software.
+
+| Pitfall                              | Risk                                                                                                                                                                              | Mitigation                                                                                                                                                                                                                                                          |
+|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Nonce reuse in AES-256-GCM           | Two encryptions with the same key and nonce break GCM security — the authentication key can be recovered and all prior messages can be forged                                     | Write-counter nonce: monotonic uint64 counter in vault header, incremented before each write, nonce derived deterministically as `counter_be8 \|\| zeros4`. Counter starts at 1; reads never increment; a crashed write leaves an incremented counter on the next successful write. See section 3.4. |
+| Key material copies escaping guarded memory | Go's garbage collector does not zero freed memory. Key bytes copied into plain `[]byte` slices survive in memory after vault locks.                                        | All key material access goes through `internal/crypto/guard`. `KeyEnclave.Open(fn func([]byte) error)` ensures key bytes exist only inside the callback; the buffer is destroyed on return. No function should accept `key []byte` parameters — use `*guard.KeyEnclave` instead.               |
+| Weak Argon2id parameters             | Using insufficient memory cost (e.g., t=1, m=4MiB, p=1) defeats GPU-resistance. Copy-pasted defaults from documentation examples are often dangerously low.                      | Defaults locked in vault header at creation: t=3, m=64MiB, p=4 (above OWASP minimums). `tegata bench` warns if derivation exceeds 3 seconds. Never allow t < 2 or m < 19 MiB without explicit override. See section 3.3.                                                                       |
+| HOTP counter race condition          | If the counter is incremented in memory but the vault write fails, the in-memory and on-disk counters diverge, causing authentication failures.                                    | Correct order: (1) increment counter in-memory, (2) write vault with new counter to temp file, (3) atomic rename over vault, (4) generate and return code. If step 2 or 3 fails, the code is never displayed — user retries with same counter. See section 3.5 for atomic write strategy.        |
+| memguard pre-v1 API instability      | memguard explicitly warns its API may change. Direct usage throughout the codebase means a breaking change requires updates across all packages.                                   | All memguard usage MUST go through `internal/crypto/guard`. This is an architectural rule, not a recommendation. Only `internal/crypto/guard` may import `github.com/awnumar/memguard`.                                                                                                          |
+
+### 8.4 memguard key lifecycle
+
+All memguard operations are accessed through the `internal/crypto/guard` wrapper package, which provides `SecretBuffer` (for sensitive byte slices like passphrases) and `KeyEnclave` (for the DEK, encrypted in RAM). This wrapper isolates memguard's pre-v1 API behind stable Tegata-specific types. See the pitfall table in section 8.3 for the architectural rationale.
+
+The following lifecycle applies to all key material in Tegata.
 
 ```
 Passphrase entry (stdin)
         │
         ▼
-┌─────────────────────┐
-│  memguard.NewBuffer  │  Passphrase stored in mlock'd, guard-paged memory
-└────────┬────────────┘
+┌─────────────────────────┐
+│  guard.NewSecretBuffer   │  Passphrase stored in mlock'd, guard-paged memory
+└────────┬────────────────┘
          │
          ▼
-┌─────────────────────┐
-│  Argon2id derivation │  DEK derived, passphrase buffer destroyed
-└────────┬────────────┘
+┌─────────────────────────┐
+│  Argon2id derivation     │  DEK derived, passphrase buffer destroyed
+└────────┬────────────────┘
          │
          ▼
-┌─────────────────────┐
-│  memguard.NewEnclave │  DEK sealed in encrypted enclave (encrypted in RAM)
-└────────┬────────────┘
+┌─────────────────────────┐
+│  guard.NewKeyEnclave     │  DEK sealed in encrypted enclave (encrypted in RAM)
+└────────┬────────────────┘
          │
          ▼  (on vault access)
-┌─────────────────────┐
-│  Enclave.Open()      │  DEK temporarily unsealed for decrypt/encrypt operation
-└────────┬────────────┘
+┌─────────────────────────┐
+│  KeyEnclave.Open(fn)     │  DEK temporarily unsealed inside callback, re-sealed on return
+└────────┬────────────────┘
          │
          ▼
-┌─────────────────────┐
-│  Enclave.Destroy()   │  DEK memory zeroed and deallocated on vault lock
-└─────────────────────┘
+┌─────────────────────────┐
+│  KeyEnclave.Destroy()    │  DEK memory zeroed and deallocated on vault lock
+└─────────────────────────┘
 ```
 
 **Rules:**
 
-- Plaintext passphrases never exist outside of a `LockedBuffer`.
-- The DEK is stored in an `Enclave` (encrypted in RAM) between operations.
+- Plaintext passphrases never exist outside of a `guard.SecretBuffer`.
+- The DEK is stored in a `guard.KeyEnclave` (encrypted in RAM) between operations.
 - After each vault operation, the unsealed DEK buffer is re-sealed immediately.
-- On vault lock (idle timeout or explicit lock), the `Enclave` is destroyed and all memory is zeroed.
+- On vault lock (idle timeout or explicit lock), the `KeyEnclave` is destroyed and all memory is zeroed.
 
-### 8.4 Passphrase rate-limiting
+### 8.5 Guard wrapper package
+
+The `internal/crypto/guard` package provides stable Tegata-specific types over memguard's pre-v1 API. It is the only package in the codebase permitted to import `github.com/awnumar/memguard`.
+
+```go
+// internal/crypto/guard/guard.go
+
+// SecretBuffer wraps memguard.LockedBuffer for sensitive byte slices
+// (passphrases, plaintext credential bytes).
+type SecretBuffer struct {
+    lb *memguard.LockedBuffer
+}
+
+func NewSecretBuffer(data []byte) (*SecretBuffer, error)
+func (s *SecretBuffer) Bytes() []byte   // read-only view; invalidated on Destroy
+func (s *SecretBuffer) Destroy()
+
+// KeyEnclave wraps memguard.Enclave for the DEK (encrypted in RAM).
+type KeyEnclave struct {
+    enc *memguard.Enclave
+}
+
+func NewKeyEnclave(key []byte) (*KeyEnclave, error)
+func (e *KeyEnclave) Open(fn func([]byte) error) error  // unseals, calls fn, re-seals
+func (e *KeyEnclave) Destroy()
+```
+
+The `Open(fn)` pattern is the only way to access DEK bytes. This ensures the key is never stored in a local variable — the callback receives a slice backed by the guarded buffer, and the buffer is destroyed when the callback returns.
+
+### 8.6 Passphrase rate-limiting
 
 Failed passphrase attempts trigger exponential backoff.
 
@@ -720,7 +764,7 @@ Failed passphrase attempts trigger exponential backoff.
 
 The delay is enforced in-process (not stored on disk) to prevent bypass by restarting the binary. After 20 consecutive failures, Tegata prints a warning suggesting the user may be using the wrong vault or passphrase.
 
-### 8.5 Software authenticator limitations
+### 8.7 Software authenticator limitations
 
 Tegata prominently documents that it is a software authenticator, not a hardware security key. The following limitations are displayed during `tegata init` and in `tegata --help`.
 
