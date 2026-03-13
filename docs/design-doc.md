@@ -162,24 +162,27 @@ graph TB
 
 This sequence shows the complete flow when a user runs `tegata code GitHub`, including the optional audit path.
 
-```
-User                CLI               VaultManager    auth.TOTP     EventBuilder    GRPCClient
- │                   │                     │              │              │               │
- │─ tegata code GitHub ──>│                │              │              │               │
- │                   │── Unlock(pass) ────>│              │              │               │
- │                   │                     │── Argon2id ──┐              │               │
- │                   │                     │<── DEK ──────┘              │               │
- │                   │                     │── AES-GCM decrypt ──┐      │               │
- │                   │                     │<── JSON credentials ┘      │               │
- │                   │<── TOTP secret ─────│              │              │               │
- │                   │── Generate(secret) ─────────────>│              │               │
- │                   │<── code + TTL ───────────────────│              │               │
- │<── display code ──│                     │              │              │               │
- │                   │── LogEvent(TOTP, GitHub) ─────────────────────>│               │
- │                   │                     │              │              │── Put() ────>│
- │                   │                     │              │              │<── OK ───────│
- │                   │                     │── zero DEK ──┐              │               │
- │                   │                     │<─────────────┘              │               │
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant VaultManager
+    participant TOTP as auth.TOTP
+    participant EventBuilder
+    participant GRPCClient
+
+    User->>CLI: tegata code GitHub
+    CLI->>VaultManager: Unlock(passphrase)
+    VaultManager->>VaultManager: Argon2id(passphrase, salt) → DEK
+    VaultManager->>VaultManager: AES-GCM decrypt(DEK, nonce, blob)
+    VaultManager-->>CLI: TOTP secret
+    CLI->>TOTP: Generate(secret)
+    TOTP-->>CLI: code + TTL
+    CLI-->>User: display code
+    CLI->>EventBuilder: LogEvent(totp, GitHub)
+    EventBuilder->>GRPCClient: ExecuteContract(object.Put, event_hash)
+    GRPCClient-->>EventBuilder: OK
+    VaultManager->>VaultManager: zero DEK (guard.Destroy)
 ```
 
 If the gRPC call fails, `EventBuilder` routes the event to `OfflineQueue` instead. The queue flushes automatically on the next successful connection.
@@ -188,15 +191,19 @@ If the gRPC call fails, `EventBuilder` routes the event to `OfflineQueue` instea
 
 When a user runs `tegata verify`, the following flow executes.
 
-```
-User                CLI             GRPCClient          ScalarDL Ledger
- │                   │                  │                      │
- │─ tegata verify ──>│                  │                      │
- │                   │── Validate() ──>│                      │
- │                   │                  │── ExecuteContract(object.Validate) ──>│
- │                   │                  │<── chain status ──────────────────────│
- │                   │<── result ───────│                      │
- │<── "N events verified" ─│            │                      │
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant GRPCClient
+    participant Ledger as ScalarDL Ledger
+
+    User->>CLI: tegata verify
+    CLI->>GRPCClient: ValidateChain()
+    GRPCClient->>Ledger: ExecuteContract(object.Validate, asset_range)
+    Ledger-->>GRPCClient: chain status
+    GRPCClient-->>CLI: validation result
+    CLI-->>User: "N events verified, chain intact"
 ```
 
 ### 2.5 Dependency list
