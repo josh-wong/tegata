@@ -406,15 +406,14 @@ Since the Tegata host app is written in Go (not Java), the ScalarDL Java Client 
 
 ## 10. Release plan
 
-Tegata will be developed in five phases, progressing from planning to a full-featured system with audit capabilities.
+Tegata will be developed across nine versions, progressing from planning through a full-featured system with audit capabilities and a desktop GUI.
 
 ### 10.1 v0.1 – Planning
 
 1. Product requirements document
 2. Design document
 3. App design mockups
-4. Architecture decisions (Go vs. Rust, vault format)
-5. Repository setup with CI/CD pipelines
+4. Repository setup with CI/CD pipelines
 
 ### 10.2 v0.2 – Core authenticator (MVP)
 
@@ -423,8 +422,7 @@ Tegata will be developed in five phases, progressing from planning to a full-fea
 - HOTP generation (RFC 4226)
 - Static password storage and retrieval
 - CLI interface with `init`, `add`, `list`, `code`, and `remove` commands
-- Binary builds for **Windows (amd64) and macOS (arm64, amd64)**
-- Linux (amd64) build included if cross-compilation works without issues; no automated testing available
+- Binary builds for Windows (amd64), macOS (arm64, amd64), and Linux (amd64)
 - No ScalarDL integration
 
 ### 10.3 v0.3 – Challenge-response and enhancements
@@ -444,12 +442,29 @@ Tegata will be developed in five phases, progressing from planning to a full-fea
 - Offline event queueing
 - Docker Compose deployment template for ScalarDL Ledger
 
-### 10.5 v1.0 – Stable release
+### 10.5 v0.5 – TUI
 
-- Terminal user interface (TUI) for guided setup and daily use
+- Terminal user interface (bubbletea) for guided setup and daily use
+- First-time setup flow, daily use flow, credential management
+
+### 10.6 v0.6 – Desktop GUI
+
+- Wails desktop application with full CLI feature parity
+- CGO build with system WebView frontend
+- Platform-specific installer (host-installed, not on USB drive)
+- Shared service layer with CLI binary
+
+### 10.7 v0.7 – Stable CLI API
+
+- Stable CLI command set with backwards-compatibility guarantees documented
+
+### 10.8 v0.8 – Security audit
+
+- Independent security review of cryptographic implementation, vault format, and memory handling
+
+### 10.9 v1.0 – Stable release
+
 - Comprehensive documentation and user guides
-- Security audit by at least one independent reviewer
-- Stable CLI API with backwards-compatibility guarantees
 - Contribution guidelines and community governance
 
 ## 11. Risks and mitigations
