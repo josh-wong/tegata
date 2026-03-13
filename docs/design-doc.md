@@ -1016,13 +1016,18 @@ This section covers the developer setup, build process, cross-compilation strate
 
 ### 12.1 Development prerequisites
 
-| Tool          | Version | Purpose                            |
-|---------------|---------|------------------------------------|
-| Go            | 1.23+   | Compiler and toolchain             |
-| Docker        | 24+     | ScalarDL integration testing       |
-| Docker Compose| 2.20+   | Local ScalarDL Ledger environment  |
-| Git           | 2.40+   | Version control                    |
-| golangci-lint | 1.60+   | Linting and static analysis        |
+| Tool           | Version | Purpose                                        |
+|----------------|---------|------------------------------------------------|
+| Go             | 1.23+   | Compiler and toolchain                         |
+| Docker         | 24+     | ScalarDL integration testing                   |
+| Docker Compose | 2.20+   | Local ScalarDL Ledger environment              |
+| Git            | 2.40+   | Version control                                |
+| golangci-lint  | 1.60+   | Linting and static analysis                    |
+| Wails CLI      | 2.9+    | GUI binary build tool (GUI development only)   |
+| Node.js        | 18+     | Frontend build toolchain (GUI development only)|
+| npm            | 9+      | Frontend dependency management (GUI development only)|
+
+The Wails CLI, Node.js, and npm are only required for GUI development. CLI-only development needs none of these.
 
 ### 12.2 Build commands
 
@@ -1045,11 +1050,31 @@ golangci-lint run ./...
 # Security scan
 gosec ./...
 govulncheck ./...
+
+# GUI development mode (hot reload, requires Wails CLI)
+cd cmd/tegata-gui && wails dev
+
+# GUI production build
+cd cmd/tegata-gui && wails build -clean -o tegata-gui
+
+# GUI Windows installer (requires NSIS)
+cd cmd/tegata-gui && wails build -clean -nsis -o tegata-gui.exe
 ```
 
-### 12.3 Cross-compilation
+### 12.3 Cross-compilation and build matrix
 
-Tegata builds static binaries with no CGo dependencies (`CGO_ENABLED=0`). This is critical because the binary must run from a USB drive with no system library dependencies.
+Tegata produces two distinct binaries with different CGO requirements and cross-compilation strategies.
+
+The following build matrix summarizes the key differences.
+
+| Binary             | CGO                   | Cross-compile | Build tool    | Platforms                                       |
+|--------------------|-----------------------|---------------|---------------|-------------------------------------------------|
+| CLI (`tegata`)     | Disabled (CGO_ENABLED=0) | Yes        | `go build`    | Windows amd64, macOS arm64/amd64, Linux amd64   |
+| GUI (`tegata-gui`) | Required              | No — native only | `wails build` | Windows amd64, macOS arm64/amd64, Linux amd64   |
+
+The CLI binary cross-compiles freely because all dependencies are pure Go. The GUI binary requires CGO for Wails/WebView integration and must be built natively on each target platform. In CI, the CLI is cross-compiled from a single Linux runner; the GUI requires per-platform runners (or is built in platform-specific release workflows).
+
+CLI cross-compilation commands:
 
 ```bash
 # Windows (amd64)
@@ -1065,13 +1090,19 @@ GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o tegata-darwin-amd64 ./cmd/teg
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o tegata-linux-amd64 ./cmd/tegata
 ```
 
+GUI binaries are not cross-compiled. See the Wails GUI architecture section for platform-specific build commands.
+
 **CGO_ENABLED=0 constraint:** All Go dependencies must be pure Go. This rules out libraries that require CGo bindings (such as `go-sqlite3`). The decision to use JSON rather than SQLite for the vault format eliminates the primary CGo dependency risk.
 
 **No elevated permissions (NFR-13):** Static binaries with no CGo dependencies, no installation step, and no system library requirements mean Tegata runs entirely in user space. It reads and writes only to the USB drive (vault, config, queue files) and the system clipboard. No admin/root privileges are required on any supported platform.
 
+#### 12.3.1 Windows SmartScreen consideration
+
+Windows SmartScreen will block execution of unsigned binaries downloaded from the internet. For v0.2, the CLI binary distributed via GitHub Releases will trigger SmartScreen warnings. Users can bypass this via PowerShell (`Unblock-File -Path tegata.exe`) or by right-clicking the binary and selecting "Unblock" in Properties. Code signing (via Authenticode) is planned for a future release when a code signing certificate is obtained.
+
 ### 12.4 USB drive layout
 
-After setup, the USB drive or microSD card contains the following files.
+After setup, the USB drive or microSD card contains the following files. The GUI binary is installed on the host machine via platform-specific installers (see the Wails GUI architecture section). It is not included on the USB drive.
 
 ```
 USB_DRIVE/
