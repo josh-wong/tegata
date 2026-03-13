@@ -186,8 +186,8 @@ User                CLI             GRPCClient          ScalarDL Ledger
  │                   │                  │                      │
  │─ tegata verify ──>│                  │                      │
  │                   │── Validate() ──>│                      │
- │                   │                  │── object.Validate ──>│
- │                   │                  │<── chain status ─────│
+ │                   │                  │── ExecuteContract(object.Validate) ──>│
+ │                   │                  │<── chain status ──────────────────────│
  │                   │<── result ───────│                      │
  │<── "N events verified" ─│            │                      │
 ```
@@ -566,15 +566,53 @@ This section details how Tegata communicates with ScalarDL Ledger for tamper-evi
 
 ### 7.1 gRPC client
 
-Tegata implements a lightweight gRPC client using `grpc-go` against ScalarDL's protobuf service definitions. The client supports three operations.
+Tegata implements a lightweight gRPC client using `grpc-go` against ScalarDL's protobuf service definitions. The client communicates with the `Ledger` gRPC service using a single RPC method — `ExecuteContract` — and varies behavior by passing different contract identifiers.
 
-| Operation        | ScalarDL contract      | Purpose                                            |
-|------------------|------------------------|----------------------------------------------------|
-| `Put`            | `object.Put`           | Store an authentication event record               |
-| `Get`            | `object.Get`           | Retrieve event records for history display         |
-| `Validate`       | `object.Validate`      | Verify hash-chain integrity across all events      |
+| Operation  | Contract identifier | Purpose                                       |
+|------------|---------------------|-----------------------------------------------|
+| Put        | `object.Put`        | Store an authentication event record          |
+| Get        | `object.Get`        | Retrieve event records for history display    |
+| Validate   | `object.Validate`   | Verify hash-chain integrity across all events |
+
+All three operations are invoked via the `ExecuteContract` RPC method on ScalarDL's `Ledger` gRPC service. The contract identifier is passed as the `ContractId` field in `ContractExecutionRequest`, along with a JSON-formatted `ContractArgument` and certificate credentials. The ScalarDL proto file defines the `Ledger` service with `ExecuteContract(ContractExecutionRequest) returns (ContractExecutionResponse)` as the primary entry point.
 
 The client handles TLS negotiation, certificate-based authentication, and automatic retry with exponential backoff for transient failures.
+
+#### gRPC stub generation
+
+Generated stubs are committed to the repository so that `go build` succeeds without requiring protoc. Stubs are regenerated only when the ScalarDL proto version changes.
+
+```bash
+# Install protoc plugins
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Download ScalarDL proto file
+curl -O https://raw.githubusercontent.com/scalar-labs/scalardl/master/rpc/src/main/proto/scalar.proto
+
+# Generate Go stubs into internal/audit/rpc/
+protoc --go_out=internal/audit/rpc --go-grpc_out=internal/audit/rpc scalar.proto
+```
+
+The first client call pattern follows this structure:
+
+```go
+conn, err := grpc.NewClient(
+    serverAddr,
+    grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+)
+client := rpc.NewLedgerClient(conn)
+
+req := &rpc.ContractExecutionRequest{
+    ContractId:       "object.Put",
+    ContractArgument: `{"object_id": "event-001", "hash_value": "abc123..."}`,
+    CertHolderId:     certHolderID,
+    CertVersion:      1,
+}
+resp, err := client.ExecuteContract(ctx, req)
+```
+
+Note that `grpc.NewClient` is used instead of the deprecated `grpc.Dial`.
 
 ### 7.2 AuthEvent struct
 
@@ -602,12 +640,12 @@ Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. 
 
 1. Serialize the `AuthEvent` to JSON.
 2. Compute `SHA-256(serialized_event)`.
-3. Call `object.Put` with the event hash as the value and a sequential asset ID.
+3. Call `ExecuteContract` with contract identifier `object.Put`, passing the event hash as the value and a sequential asset ID in the JSON argument.
 4. ScalarDL appends the entry to the hash chain and returns confirmation.
 
 **Verification flow:**
 
-1. Call `object.Validate` with the asset ID range to verify.
+1. Call `ExecuteContract` with contract identifier `object.Validate` and the asset ID range to verify.
 2. ScalarDL traverses the hash chain, recomputes hashes, and returns the validation result.
 3. Tegata reports the result to the user.
 
@@ -628,9 +666,11 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 ### 7.5 `tegata verify` and `tegata history`
 
-**`tegata verify`:** Calls `object.Validate` on the ScalarDL Ledger instance. Reports the total number of events verified and whether the hash chain is intact. If tampering is detected, reports the range of affected events.
+**`tegata verify`:** Calls `ExecuteContract` with the `object.Validate` contract on the ScalarDL Ledger instance. Reports the total number of events verified and whether the hash chain is intact. If tampering is detected, reports the range of affected events.
 
-**`tegata history`:** Calls `object.Get` to retrieve event records. Supports filtering by date range (`--from`, `--to`), credential label (`--label`), and operation type (`--type`). Displays results in a human-readable table or JSON (`--json`).
+**`tegata history`:** Calls `ExecuteContract` with the `object.Get` contract to retrieve event records. Supports filtering by date range (`--from`, `--to`), credential label (`--label`), and operation type (`--type`). Displays results in a human-readable table or JSON (`--json`).
+
+**`tegata ledger setup`:** Performs `RegisterCertificate` to register the user's TLS certificate with the ScalarDL Ledger, followed by a test `ExecuteContract` call using `object.Put` with a sentinel value to confirm connectivity. The exact `RegisterCertificate` proto message fields (`CertHolderId`, `CertVersion`) require integration-test validation against ScalarDL 3.12 before implementation.
 
 ## 8. Security model
 
