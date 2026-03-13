@@ -398,7 +398,7 @@ This avoids requiring users to write, compile, and deploy Java contracts (which 
 
 ### 9.5 gRPC client
 
-Since the Tegata host app is written in Go or Rust (not Java), the ScalarDL Java Client SDK cannot be used directly. Tegata will implement a lightweight gRPC client based on the protobuf service definitions in ScalarDL. This client will support:
+Since the Tegata host app is written in Go (not Java), the ScalarDL Java Client SDK cannot be used directly. Tegata will implement a lightweight gRPC client based on the protobuf service definitions in ScalarDL. This client will support:
 
 - Certificate-based authentication with the Ledger server.
 - Contract execution (`Put`, `Get`, `Validate`).
