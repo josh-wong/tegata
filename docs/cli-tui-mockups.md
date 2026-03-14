@@ -33,8 +33,18 @@ This document is the visual specification for every CLI command output and TUI f
   - [4.4 ScalarDL unreachable (exit 4)](#44-scalardl-unreachable-exit-4)
   - [4.5 Integrity violation (exit 5)](#45-integrity-violation-exit-5)
 - [5. TUI wireframes — first-time setup](#5-tui-wireframes--first-time-setup)
+  - [5.1 Step 1 of 4 — Welcome](#51-step-1-of-4--welcome)
+  - [5.2 Step 2 of 4 — Create passphrase](#52-step-2-of-4--create-passphrase)
+  - [5.3 Step 3 of 4 — Recovery key](#53-step-3-of-4--recovery-key)
+  - [5.4 Step 4 of 4 — Add first credential](#54-step-4-of-4--add-first-credential)
 - [6. TUI wireframes — daily use](#6-tui-wireframes--daily-use)
+  - [6.1 Unlock vault](#61-unlock-vault)
+  - [6.2 Main view with code generation](#62-main-view-with-code-generation)
+  - [6.3 Auto-lock](#63-auto-lock)
 - [7. TUI wireframes — credential management](#7-tui-wireframes--credential-management)
+  - [7.1 Credential list view](#71-credential-list-view)
+  - [7.2 Add credential](#72-add-credential)
+  - [7.3 Remove credential (confirmation)](#73-remove-credential-confirmation)
 
 ---
 
@@ -933,16 +943,728 @@ $ tegata verify
 
 ## 5. TUI wireframes — first-time setup
 
-Content will be added in a subsequent plan.
+The first-time setup wizard runs when `tegata init` is invoked and the TUI flag is active (or the binary is launched without arguments in GUI mode). All four steps render in a full-width panel — the sidebar is not shown during the wizard because no credentials exist yet. Each step uses a 4-character step indicator in the panel title.
+
+The following TUI conventions apply across all sections in this document.
+
+**Terminal minimum:** 80 columns wide. Below 80 columns, the TUI does not render the panel layout; instead it shows:
+
+```
+Terminal too narrow (minimum 80 columns)
+```
+
+**Sidebar width:** Fixed 28 characters minimum. Labels truncate with `…` at 20 characters. The type badge is right-aligned within the sidebar column.
+
+**Main panel:** Fills remaining terminal width after the sidebar and divider.
+
+**Help bar:** Always rendered at the bottom of the outer frame, showing context-sensitive keyboard shortcuts for the current state.
+
+**Selection highlight:** The currently selected item is highlighted using reverse video (lipgloss `Reverse` style) — a full-row background swap that remains visible without relying on color.
+
+All wireframes in this document assume an 80-column terminal.
+
+### 5.1 Step 1 of 4 — Welcome
+
+The welcome step displays the Tegata logo and tagline and prompts the user to begin setup or quit.
+
+**Frame 1: Welcome screen**
+
+```
+┌─ Tegata setup ───────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                          _                    _                              │
+│                         | |_ ___  __ _  __ _| |_ __ _                       │
+│                         | __/ _ \/ _` |/ _` | __/ _` |                      │
+│                          \__\___/\__, |\__,_|\__\__,_|                      │
+│                                  |___/                                       │
+│                                                                              │
+│                   Tegata — portable authenticator (v0.2.0)                  │
+│                   Your authentication history. Integrity checked.           │
+│                                                                              │
+│                         Press Enter to begin setup.                         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Continue  [q] Quit                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**State:** `wizard_welcome`
+
+**Transition:**
+
+| Action  | Target state        |
+|---------|---------------------|
+| `Enter` | `wizard_passphrase` |
+| `q`     | Exit (no vault)     |
+
+### 5.2 Step 2 of 4 — Create passphrase
+
+The passphrase step collects and confirms the vault passphrase. Two frames are shown: the initial state with both fields empty, and the state after the first field is filled.
+
+**Frame 1: Initial state**
+
+```
+┌─ Tegata setup — Create passphrase (Step 2 of 4) ────────────────────────────┐
+│                                                                              │
+│  Create a passphrase to protect your vault. Choose something memorable      │
+│  but difficult to guess. The passphrase is never stored — it is used only   │
+│  to derive the encryption key.                                               │
+│                                                                              │
+│  Passphrase:   <passphrase input>                                            │
+│  Confirm:      <confirm input>                                               │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Continue  [Esc] Back                                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: After passphrase entered, confirm field active**
+
+```
+┌─ Tegata setup — Create passphrase (Step 2 of 4) ────────────────────────────┐
+│                                                                              │
+│  Create a passphrase to protect your vault. Choose something memorable      │
+│  but difficult to guess. The passphrase is never stored — it is used only   │
+│  to derive the encryption key.                                               │
+│                                                                              │
+│  Passphrase:   ················                                              │
+│  Confirm:      <confirm input, cursor here>                                  │
+│                                                                              │
+│  Strength: ████████░░  Strong                                                │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Continue  [Esc] Back                                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 3: Mismatch error after Enter pressed**
+
+```
+┌─ Tegata setup — Create passphrase (Step 2 of 4) ────────────────────────────┐
+│                                                                              │
+│  Create a passphrase to protect your vault. Choose something memorable      │
+│  but difficult to guess. The passphrase is never stored — it is used only   │
+│  to derive the encryption key.                                               │
+│                                                                              │
+│  Passphrase:   ················                                              │
+│  Confirm:      ········                                                      │
+│                                                                              │
+│  Strength: ████████░░  Strong                                                │
+│                                                                              │
+│  ✗ Passphrases do not match                                      (red)       │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Continue  [Esc] Back                                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The strength indicator (frame 2) is optional visual feedback computed from passphrase length and character variety — it does not enforce any minimum. The `✗` mismatch message (frame 3) is red when color is enabled; it remains clearly labeled by the `✗` prefix under `NO_COLOR`. The Confirm field is cleared after a mismatch so the user re-enters only the confirmation.
+
+**State:** `wizard_passphrase`
+
+**Transition:**
+
+| Action                       | Target state          |
+|------------------------------|-----------------------|
+| Both fields match + `Enter`  | `wizard_recovery_key` |
+| Fields mismatch + `Enter`    | Stay (show error)     |
+| `Esc`                        | `wizard_welcome`      |
+
+### 5.3 Step 3 of 4 — Recovery key
+
+The recovery key step displays the generated recovery key and requires the user to confirm they have saved it before proceeding.
+
+**Frame 1: Recovery key displayed**
+
+```
+┌─ Tegata setup — Recovery key (Step 3 of 4) ─────────────────────────────────┐
+│                                                                              │
+│  Your recovery key allows you to access your vault if you forget your       │
+│  passphrase. Store it somewhere safe — offline, not on this device.         │
+│                                                                              │
+│  ────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│    ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZAB-CDEF-GHIJ-KLMN-OPQR-STUV-WX        │
+│                                                                              │
+│  ────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│  ! Store this key somewhere safe. It will not be shown again.   (yellow)    │
+│                                                                              │
+│                                                                              │
+│  [ ] I have saved my recovery key                                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Space] Check box  [Enter] Continue  [Esc] Back                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Checkbox checked, ready to continue**
+
+```
+┌─ Tegata setup — Recovery key (Step 3 of 4) ─────────────────────────────────┐
+│                                                                              │
+│  Your recovery key allows you to access your vault if you forget your       │
+│  passphrase. Store it somewhere safe — offline, not on this device.         │
+│                                                                              │
+│  ────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│    ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZAB-CDEF-GHIJ-KLMN-OPQR-STUV-WX        │
+│                                                                              │
+│  ────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│  ! Store this key somewhere safe. It will not be shown again.   (yellow)    │
+│                                                                              │
+│                                                                              │
+│  [x] I have saved my recovery key                                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Space] Check box  [Enter] Continue  [Esc] Back                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The recovery key uses 4-character groups separated by hyphens (13 groups, 52 characters total from the base32 alphabet). The horizontal separator lines visually bracket the key without color, so it is clearly set apart even under `NO_COLOR`. The `Enter` key is disabled while the checkbox is unchecked — the user must positively affirm they have saved the key before proceeding. This is a one-time display; navigating back to this step does not re-show the key.
+
+**State:** `wizard_recovery_key`
+
+**Transition:**
+
+| Action                       | Target state              |
+|------------------------------|---------------------------|
+| `Space`                      | Toggle checkbox           |
+| Checkbox checked + `Enter`   | `wizard_add_credential`   |
+| Checkbox unchecked + `Enter` | Stay (no transition)      |
+| `Esc`                        | `wizard_passphrase`       |
+
+### 5.4 Step 4 of 4 — Add first credential
+
+The final wizard step adds an initial credential. It can be skipped — the user goes directly to the main view without any credentials if they press Escape.
+
+**Frame 1: Empty form, TOTP selected**
+
+```
+┌─ Tegata setup — Add first credential (Step 4 of 4) ─────────────────────────┐
+│                                                                              │
+│  Add your first credential to the vault. You can add more later with        │
+│  the [a] key in the main view.                                               │
+│                                                                              │
+│  Type:    [TOTP]  HOTP   CR   Static                                         │
+│                                                                              │
+│  Label:   <label input>                                                      │
+│  Secret:  <secret input, masked>                                             │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Tab] Switch type  [Enter] Add  [Esc] Skip                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Form filled with a credential**
+
+```
+┌─ Tegata setup — Add first credential (Step 4 of 4) ─────────────────────────┐
+│                                                                              │
+│  Add your first credential to the vault. You can add more later with        │
+│  the [a] key in the main view.                                               │
+│                                                                              │
+│  Type:    [TOTP]  HOTP   CR   Static                                         │
+│                                                                              │
+│  Label:   GitHub                                                             │
+│  Secret:  ································                                   │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Tab] Switch type  [Enter] Add  [Esc] Skip                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 3: Success state**
+
+```
+┌─ Tegata setup — Add first credential (Step 4 of 4) ─────────────────────────┐
+│                                                                              │
+│  Add your first credential to the vault. You can add more later with        │
+│  the [a] key in the main view.                                               │
+│                                                                              │
+│  Type:    [TOTP]  HOTP   CR   Static                                         │
+│                                                                              │
+│  Label:   GitHub                                                             │
+│  Secret:  ································                                   │
+│                                                                              │
+│  ✓ Credential 'GitHub' added.                                    (green)     │
+│                                                                              │
+│  Press Enter to finish setup.                                                │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Finish                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The type selector uses bracket notation to show which type is currently active: `[TOTP]` is highlighted (reverse video), while the others are uncolored plain text. Pressing Tab cycles through `TOTP → HOTP → CR → Static → TOTP`. The selected type determines which field label appears as the third input — for `CR` (challenge-response) the field reads `Shared key:` instead of `Secret:`. Static password types show `Password:`. The form fields are standard masked inputs; the secret is never shown in plaintext.
+
+**State:** `wizard_add_credential`
+
+**Transition:**
+
+| Action                       | Target state                   |
+|------------------------------|--------------------------------|
+| `Tab`                        | Cycle credential type          |
+| `Enter` (form filled)        | `wizard_success` → `main_view` |
+| `Enter` (after success msg)  | `main_view`                    |
+| `Esc`                        | `main_view` (skip adding)      |
 
 ---
 
 ## 6. TUI wireframes — daily use
 
-Content will be added in a subsequent plan.
+Daily use covers the three most common interactions: unlocking the vault, generating authentication codes, and returning to the unlock screen after idle timeout. The sidebar + main panel layout is introduced in section 6.2 and applies to all subsequent sections.
+
+### 6.1 Unlock vault
+
+The unlock screen appears at startup when a vault exists and has not yet been unlocked. It uses a full-width centered panel — no sidebar is displayed until the vault is open.
+
+**Frame 1: Passphrase prompt**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                    Vault: /Volumes/TEGATA/vault.tegata                       │
+│                                                                              │
+│                    Passphrase: <passphrase input>                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Unlock  [q] Quit                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Incorrect passphrase error**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                    Vault: /Volumes/TEGATA/vault.tegata                       │
+│                                                                              │
+│                    Passphrase: <passphrase input, cleared>                   │
+│                                                                              │
+│                    ✗ Incorrect passphrase. 2 attempts remaining. (red)       │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Unlock  [q] Quit                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The vault path is shown before the passphrase prompt so the user can confirm they are unlocking the correct vault — relevant when multiple vaults exist across different drives. The passphrase field is cleared after an incorrect attempt; only the input clears, not the vault path label. Rate-limiting follows the same pattern as the CLI: after the configured limit, the prompt displays a wait duration and re-enables after the cooldown expires.
+
+**State:** `unlock`
+
+**Transition:**
+
+| Action                 | Target state        |
+|------------------------|---------------------|
+| Correct passphrase + `Enter` | `main_view`   |
+| Wrong passphrase + `Enter`   | Stay (show error, clear input) |
+| `q`                    | Exit                |
+
+### 6.2 Main view with code generation
+
+The main view uses the sidebar + main panel layout. The left sidebar lists all credentials with their type badges. The right main panel shows the selected credential's output. The selected credential is highlighted in reverse video.
+
+**Frame 1: TOTP credential selected, code copied**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ > GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │   482 913  [████████░░] 18s               │
+│ │   WiFi-office        pw     │ │                                            │
+│ │                             │ │   ✓ Copied to clipboard        (green)     │
+│ │                             │ │     (auto-clear in 45s)                    │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: HOTP credential selected, code copied**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── AWS-prod ─────────────────────────────── │
+│ │   GitHub             totp   │ │                                            │
+│ │ > AWS-prod           hotp   │ │   483 029  (counter: 43)                  │
+│ │   WiFi-office        pw     │ │                                            │
+│ │                             │ │   ✓ Copied to clipboard        (green)     │
+│ │                             │ │     (auto-clear in 45s)                    │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 3: Static password selected, clipboard confirmed**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── WiFi-office ──────────────────────────── │
+│ │   GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │   ✓ Copied to clipboard        (green)     │
+│ │ > WiFi-office        pw     │ │     (auto-clear in 45s)                    │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The sidebar is fixed at 30 characters wide (28 content + 2 border characters), and labels truncate with `…` at 20 characters. The type badge is right-aligned at the far right of each sidebar row. The `>` marker on the selected row is supplemented by reverse video highlighting — the `>` ensures the selection is unambiguous under `NO_COLOR`. The TOTP countdown bar updates in place every second without redrawing the full frame (bubbletea's tick-based model). HOTP shows the counter value instead of a countdown bar because HOTP has no time window. Static password output matches the CLI `tegata get` behavior — no password is ever rendered in the panel.
+
+**State:** `main_view` with sub-states `main_totp_active`, `main_hotp_active`, `main_static_active`
+
+**Transition:**
+
+| Action   | Target state / effect                  |
+|----------|----------------------------------------|
+| `j`      | Select next credential in sidebar      |
+| `k`      | Select previous credential in sidebar  |
+| `Enter`  | Copy code / password to clipboard      |
+| `a`      | `overlay_add_credential`               |
+| `r`      | `overlay_remove_confirm`               |
+| `q`      | Exit TUI                               |
+
+### 6.3 Auto-lock
+
+After 5 minutes of idle time (no keystrokes), the vault locks automatically. The main view is replaced by the unlock screen with an additional idle-timeout notice above the passphrase prompt.
+
+**Frame 1: Auto-locked state**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                    ! Vault locked (idle timeout)              (yellow)       │
+│                                                                              │
+│                    Vault: /Volumes/TEGATA/vault.tegata                       │
+│                                                                              │
+│                    Passphrase: <passphrase input>                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Enter] Unlock  [q] Quit                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The auto-lock screen is identical to the initial unlock screen (section 6.1) with one addition: the yellow `! Vault locked (idle timeout)` notice above the vault path. This notice is yellow to signal a non-error condition — the lock was intentional and protective, not a failure. After unlocking, the main view returns to the same selection position the user was at before the timeout. The clipboard is also cleared on auto-lock if the 45-second auto-clear has not already fired.
+
+**State:** `locked_idle`
+
+**Transition:**
+
+| Action                       | Target state                   |
+|------------------------------|--------------------------------|
+| Correct passphrase + `Enter` | `main_view` (prior position)   |
+| Wrong passphrase + `Enter`   | Stay (show error, clear input) |
+| `q`                          | Exit                           |
 
 ---
 
 ## 7. TUI wireframes — credential management
 
-Content will be added in a subsequent plan.
+Credential management covers the three flows a user performs after the initial setup: viewing the full credential list, adding a new credential, and removing an existing credential. Add and remove operations use overlay panels (modals) that appear over the main view rather than replacing it.
+
+### 7.1 Credential list view
+
+The credential list is the sidebar component of the main view. This section documents it independently for the credential management context, specifically covering the scrolling behavior when the list exceeds the visible sidebar area.
+
+**Frame 1: Sidebar with many credentials (scrolling active)**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (8) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ > GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │   482 913  [████████░░] 18s               │
+│ │   SSH-signing        cr     │ │                                            │
+│ │   WiFi-office        pw     │ │   ✓ Copied to clipboard        (green)     │
+│ │   Work-VPN           totp   │ │     (auto-clear in 45s)                    │
+│ │   Bitwarden          totp   │ │                                            │
+│ │   ▼ 2 more                  │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Scrolled to bottom, last credentials visible**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (8) ──────────┐ ┌── DB-backup ────────────────────────────── │
+│ │   Bitwarden          totp   │ │                                            │
+│ │   ▲ 6 more above            │ │   ✓ Copied to clipboard        (green)     │
+│ │ > DB-backup          pw     │ │     (auto-clear in 45s)                    │
+│ │   Corp-LDAP          cr     │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The scroll indicator (`▼ 2 more` / `▲ 6 more above`) appears in the last visible row of the sidebar list area when additional items exist below or above the viewport. The indicator uses plain characters so it is readable without color. The sidebar scrolls independently of the main panel — the main panel always shows the currently selected credential regardless of scroll position. Selection wraps around: pressing `k` on the first credential moves to the last, and pressing `j` on the last credential moves to the first.
+
+**State:** `main_view` (credential list scrolled)
+
+**Transition:**
+
+| Action  | Target state / effect                          |
+|---------|------------------------------------------------|
+| `j`     | Move selection down (scroll sidebar if needed) |
+| `k`     | Move selection up (scroll sidebar if needed)   |
+| `Enter` | Copy code / password for selected credential   |
+
+### 7.2 Add credential
+
+Adding a credential opens an overlay panel centered over the main view. The overlay uses the same form as section 5.4 (wizard step 4) so the experience is consistent whether adding a credential during setup or after.
+
+**Frame 1: Add overlay, form empty**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ ┌─ Add credential ────────────────────────────────┐                       │
+│ │ │                                                  │                       │
+│ │ │  Type:    [TOTP]  HOTP   CR   Static             │                       │
+│ │ │                                                  │                       │
+│ │ │  Label:   <label input>                          │                       │
+│ │ │  Secret:  <secret input, masked>                 │                       │
+│ │ │                                                  │                       │
+│ │ │                                                  │                       │
+│ │ │                                                  │                       │
+│ │ │                                                  │                       │
+│ │ │  [Tab] Switch type  [Enter] Add  [Esc] Cancel    │                       │
+│ │ └──────────────────────────────────────────────────┘                       │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Credential added successfully**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (4) ──────────┐ ┌── NewService ───────────────────────────── │
+│ │   GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │   ✓ Credential 'NewService' added.(green)  │
+│ │   WiFi-office        pw     │ │                                            │
+│ │ > NewService         totp   │ │   Press Enter to generate a code.         │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The overlay panel is drawn using the same box-drawing characters as the outer frame — it visually floats over the main view. The background main view content remains partially visible around the overlay edges, which helps the user maintain spatial orientation. After a credential is successfully added, the overlay closes and the new credential is immediately selected in the sidebar and shown in the main panel. The success message in the main panel is temporary; pressing Enter or moving focus clears it and shows the normal code generation view.
+
+**State:** `overlay_add_credential`
+
+**Transition:**
+
+| Action                | Target state                              |
+|-----------------------|-------------------------------------------|
+| `Tab`                 | Cycle credential type in overlay          |
+| `Enter` (form filled) | Close overlay → `main_view` (new selected)|
+| `Esc`                 | Close overlay → `main_view` (unchanged)   |
+
+### 7.3 Remove credential (confirmation)
+
+Removing a credential requires explicit confirmation via a small confirmation dialog overlaying the main view. The default answer is no — the user must type `y` to confirm.
+
+**Frame 1: Confirmation dialog**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ > GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │                                            │
+│ │   WiFi-office        pw     │ │  ┌─ Remove credential? ──────────────┐    │
+│ │                             │ │  │                                    │    │
+│ │                             │ │  │  Remove credential 'GitHub'?       │    │
+│ │                             │ │  │  This cannot be undone.            │    │
+│ │                             │ │  │                                    │    │
+│ │                             │ │  │  [y] Yes, remove  [n] Cancel       │    │
+│ │                             │ │  │                                    │    │
+│ │                             │ │  └────────────────────────────────────┘    │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 2: Post-removal state**
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (2) ──────────┐ ┌── AWS-prod ─────────────────────────────── │
+│ │ > AWS-prod           hotp   │ │                                            │
+│ │   WiFi-office        pw     │ │   ✓ Credential 'GitHub' removed.(green)    │
+│ │                             │ │                                            │
+│ │                             │ │   Press Enter to generate a code.         │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Design notes:** The confirmation dialog is a small overlay within the main panel area, not a full-screen modal. The credential name appears in the dialog to confirm which credential will be deleted — this prevents accidental deletion when the user pressed `r` without looking at the sidebar selection. The default action is cancel (`n`), matching the CLI `tegata remove` behavior where `[y/N]` signals the default is no. After removal, the sidebar updates immediately (the count drops by one) and the selection moves to the next available credential. If the last credential is removed, the main panel shows the empty-vault prompt.
+
+**State:** `overlay_remove_confirm`
+
+**Transition:**
+
+| Action  | Target state                                     |
+|---------|--------------------------------------------------|
+| `y`     | Remove credential → `main_view` (next selected)  |
+| `n`     | Close dialog → `main_view` (unchanged)           |
+| `Esc`   | Close dialog → `main_view` (unchanged)           |
