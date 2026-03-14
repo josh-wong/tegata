@@ -17,6 +17,15 @@ This document is the visual specification for every CLI command output and TUI f
   - [2.4 tegata code](#24-tegata-code)
   - [2.5 tegata remove](#25-tegata-remove)
 - [3. CLI mockups — v0.3+ commands](#3-cli-mockups--v03-commands)
+  - [3.1 tegata sign](#31-tegata-sign)
+  - [3.2 tegata get](#32-tegata-get)
+  - [3.3 tegata export and tegata import](#33-tegata-export-and-tegata-import)
+  - [3.4 tegata resync](#34-tegata-resync)
+  - [3.5 tegata history](#35-tegata-history)
+  - [3.6 tegata verify](#36-tegata-verify)
+  - [3.7 tegata ledger setup](#37-tegata-ledger-setup)
+  - [3.8 tegata config show](#38-tegata-config-show)
+  - [3.9 tegata version](#39-tegata-version)
 - [4. CLI mockups — error states](#4-cli-mockups--error-states)
   - [4.1 Wrong passphrase (exit 2)](#41-wrong-passphrase-exit-2)
   - [4.2 Missing vault (exit 3)](#42-missing-vault-exit-3)
@@ -365,43 +374,386 @@ Remove credential 'GitHub'? This cannot be undone. [y/N] y
 
 ## 3. CLI mockups — v0.3+ commands
 
-Content for this section will be added in a subsequent plan. Subsection headings are listed here to establish the document structure.
+The commands in this section constitute the v0.3+ release scope: challenge-response signing, static password retrieval, vault portability, HOTP counter resynchronization, audit history and verification, ledger configuration, general configuration display, and version information. Each subsection follows the same structure as section 2: human-readable output, `--json` output, and design notes.
 
 ### 3.1 `tegata sign`
 
-Content will be added in a subsequent plan.
+The sign command performs HMAC-SHA256 challenge-response signing using a stored challenge-response credential. The challenge can be entered interactively or passed as a flag.
+
+**Variant (a) — Interactive challenge entry:**
+
+```
+$ tegata sign SSH-key
+Passphrase: ········
+Challenge: my-ssh-server-nonce-20260314
+
+✓ Signature: a3f8c2d9e1b7045f6a92c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718  (green)
+✓ Copied to clipboard (auto-clear in 45s)                                    (green)
+```
+
+**Variant (b) — Non-interactive with `--challenge` flag:**
+
+```
+$ tegata sign SSH-key --challenge my-ssh-server-nonce-20260314
+Passphrase: ········
+
+✓ Signature: a3f8c2d9e1b7045f6a92c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718  (green)
+✓ Copied to clipboard (auto-clear in 45s)                                    (green)
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "label": "SSH-key",
+  "type": "cr",
+  "algorithm": "SHA-256",
+  "signature": "a3f8c2d9e1b7045f6a92c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718"
+}
+```
+
+> **Design notes:** The signature is encoded as a lowercase hex string — 64 characters for a 32-byte HMAC-SHA256 output. Hex is used rather than base64 because hex strings are easier to visually inspect and compare, and SSH tooling commonly uses hex for fingerprints and challenge-response values. The signature is copied to clipboard by default; use `--no-clipboard` to suppress the copy. The `--challenge` flag enables non-interactive use in scripts. The JSON output includes `"algorithm"` so callers can verify the signing algorithm without reading the credential metadata separately.
 
 ### 3.2 `tegata get`
 
-Content will be added in a subsequent plan.
+The get command retrieves a static password from the vault and copies it to the clipboard. The password is never printed to the terminal.
+
+**Human-readable output:**
+
+```
+$ tegata get WiFi-office
+Passphrase: ········
+
+✓ Copied to clipboard (auto-clear in 45s)  (green)
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "label": "WiFi-office",
+  "type": "pw",
+  "copied": true
+}
+```
+
+> **Design notes:** The password value is intentionally absent from both the human-readable output and the JSON output. Printing a static password to the terminal exposes it to shoulder surfing and stores it permanently in terminal scrollback history. This is the strongest security guarantee Tegata can provide for static credentials: once added, the value leaves the vault only through the clipboard. The JSON output confirms the copy succeeded via `"copied": true` without revealing the value. The clipboard is automatically cleared after 45 seconds (configurable via `tegata.toml`).
 
 ### 3.3 `tegata export` and `tegata import`
 
-Content will be added in a subsequent plan.
+The export command writes an encrypted backup of the vault to a file. The import command reads that backup and merges its credentials into the current vault. Both commands use interactive prompts for passphrase entry; the export file uses a separate passphrase from the vault passphrase.
+
+**Export — human-readable output:**
+
+```
+$ tegata export backup-2026-03-14.tegata
+Vault passphrase: ········
+Export passphrase (for backup file): ········
+Confirm export passphrase:           ········
+
+✓ Exported 4 credentials to backup-2026-03-14.tegata  (green)
+```
+
+**Export — JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "path": "backup-2026-03-14.tegata",
+  "count": 4
+}
+```
+
+**Import — human-readable output (with merge conflict):**
+
+```
+$ tegata import backup-2026-03-14.tegata
+Export passphrase: ········
+
+Credential 'GitHub' already exists. [s]kip / [o]verwrite / [r]ename? s
+Credential 'AWS-prod' already exists. [s]kip / [o]verwrite / [r]ename? o
+
+✓ Imported 3 credentials (1 skipped, 1 overwritten)  (green)
+```
+
+**Import — JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "imported": 2,
+  "skipped": 1,
+  "overwritten": 1
+}
+```
+
+> **Design notes:** The export file uses a separate passphrase from the vault passphrase so that a backup stored in an untrusted location does not compromise the vault key. Both files are AES-256-GCM encrypted but derive their keys from different passphrases. During import, each conflicting credential label is resolved individually — there is no global skip-all or overwrite-all option in the interactive flow (use `--skip-conflicts` or `--overwrite-conflicts` flags for scripting). The rename option prompts for a new label immediately after the user types `r`. Import counts in both human-readable and JSON output distinguish between freshly imported, skipped, and overwritten credentials for auditability.
 
 ### 3.4 `tegata resync`
 
-Content will be added in a subsequent plan.
+The resync command resynchronizes the HOTP counter for a credential when the local counter has drifted from the server's expected counter. It requires two consecutive correct codes to confirm synchronization.
+
+**Variant (a) — Successful resync:**
+
+```
+$ tegata resync AWS-prod
+Passphrase: ········
+
+Enter code 1: 483029
+Enter code 2: 729401
+
+✓ HOTP counter resynchronized for 'AWS-prod' (counter: 47)  (green)
+```
+
+**Variant (b) — Failed resync:**
+
+```
+$ tegata resync AWS-prod
+Passphrase: ········
+
+Enter code 1: 123456
+Enter code 2: 789012
+
+✗ Codes do not match any counter in the search window (counters 43–143). Verify the codes and try again.  (red)
+```
+
+[exit 1]
+
+**JSON output (`--json`, success):**
+
+```json
+{
+  "status": "ok",
+  "label": "AWS-prod",
+  "type": "hotp",
+  "new_counter": 47
+}
+```
+
+> **Design notes:** Resync searches a window of 100 counters ahead of the current stored counter (for example, counters 43–143 if the stored counter is 43). Two consecutive codes are required — not one — because a single matching code could be a coincidental collision within the search window. Requiring two sequential codes eliminates that risk and confirms the server and client are genuinely synchronized at the same counter position. The confirmed new counter value appears in both the human-readable output and the JSON response so the user can verify the expected counter. The failure message shows the exact search window so the user can assess whether more drift has occurred than the window covers.
 
 ### 3.5 `tegata history`
 
-Content will be added in a subsequent plan.
+The history command retrieves recent audit events from the ScalarDL Ledger and displays them in a table. The `--around N` variant shows context surrounding a specific event number, useful when `tegata verify` reports an integrity violation.
+
+**Variant (a) — Default (recent events):**
+
+```
+$ tegata history
+Passphrase: ········
+
+#     Timestamp             Label (hashed)    Type  Status  (cyan)
+────  ────────────────────  ────────────────  ────  ──────  (cyan)
+843   2026-03-14 07:42:11   a3f8c2d9…        totp  ok
+844   2026-03-14 08:15:03   7b19e4f2…        cr    ok
+845   2026-03-14 09:30:47   a3f8c2d9…        totp  ok
+846   2026-03-14 11:02:18   c8d5e3a1…        hotp  ok
+847   2026-03-14 12:45:59   a3f8c2d9…        totp  ok
+
+847 events total
+```
+
+**Variant (b) — Context around a specific event (`--around 843`):**
+
+```
+$ tegata history --around 843
+Passphrase: ········
+
+#     Timestamp             Label (hashed)    Type  Status  (cyan)
+────  ────────────────────  ────────────────  ────  ──────  (cyan)
+840   2026-03-14 06:11:22   7b19e4f2…        cr    ok
+841   2026-03-14 06:44:09   a3f8c2d9…        totp  ok
+842   2026-03-14 07:15:33   c8d5e3a1…        hotp  ok
+>>> 843   2026-03-14 07:42:11   a3f8c2d9…   totp  ok
+844   2026-03-14 08:15:03   7b19e4f2…        cr    ok
+845   2026-03-14 09:30:47   a3f8c2d9…        totp  ok
+
+Showing 3 events before and after event #843
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "total": 847,
+  "events": [
+    {
+      "index": 843,
+      "timestamp": "2026-03-14T07:42:11Z",
+      "label_hash": "a3f8c2d9e1b7045f",
+      "type": "totp",
+      "status": "ok"
+    },
+    {
+      "index": 844,
+      "timestamp": "2026-03-14T08:15:03Z",
+      "label_hash": "7b19e4f2c8d5e3a1",
+      "type": "cr",
+      "status": "ok"
+    }
+  ]
+}
+```
+
+> **Design notes:** Labels are stored as hashed values in the audit log — the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text. The `--around N` flag is the primary investigation tool when `tegata verify` (section 3.6) reports an integrity violation at a specific event: the user runs `tegata history --around N` to see the surrounding context. The `>>>` marker on the target event makes it visually unambiguous even when the terminal has no color. The `history` command requires a reachable ScalarDL Ledger instance — it cannot operate from the offline queue.
 
 ### 3.6 `tegata verify`
 
-Content will be added in a subsequent plan.
+The verify command checks the full audit chain integrity by calling the ScalarDL Ledger's validate contract. It traverses all stored events and confirms that the hash chain is unbroken from event 1 to the latest event.
+
+**Variant (a) — Chain valid:**
+
+```
+$ tegata verify
+
+✓ Audit chain verified. 847 events, all hashes valid.  (green)
+```
+
+**Variant (b) — Integrity violation detected:**
+
+```
+$ tegata verify
+
+✗ Audit chain integrity violation at event #843. Expected hash does not match stored hash. Run 'tegata history --around 843' for details.  (red)
+```
+
+[exit 5]
+
+**JSON output (`--json`, success):**
+
+```json
+{
+  "status": "ok",
+  "events_verified": 847,
+  "valid": true
+}
+```
+
+**JSON output (`--json`, failure):**
+
+```json
+{
+  "status": "error",
+  "code": 5,
+  "category": "integrity",
+  "message": "Audit chain integrity violation at event #843. Expected hash does not match stored hash.",
+  "failed_event": 843
+}
+```
+
+> **Design notes:** Verification checks the complete chain from event 1 to the latest — partial verification is not supported in v0.3 because a partial check provides incomplete assurance. The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault). The failure output is identical to section 4.5 (integrity violation error state), ensuring consistency: whichever entry point leads to the integrity violation, the user sees the same message and the same recovery step. The `"failed_event"` field in the JSON error response is separate from the message string, making it easy for scripts to extract the event index without parsing text.
 
 ### 3.7 `tegata ledger setup`
 
-Content will be added in a subsequent plan.
+The ledger setup command configures the ScalarDL Ledger connection interactively. It prompts for the server address, TLS certificate paths, and certificate holder credentials, then validates the connection by registering the certificate and running a test contract call.
+
+**Human-readable output:**
+
+```
+$ tegata ledger setup
+
+ScalarDL Ledger configuration
+
+Host [localhost]: localhost
+Port [50051]:
+TLS CA certificate path: certs/ca.pem
+TLS client certificate path: certs/client.pem
+TLS client key path: certs/client-key.pem
+Certificate holder ID: my-tegata-user
+Certificate version [1]:
+
+Testing connection to localhost:50051...
+✓ Connected to ScalarDL Ledger    (green)
+Registering certificate...
+✓ Certificate registered           (green)
+
+✓ Ledger setup complete. Audit logging is now enabled.  (green)
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "host": "localhost",
+  "port": 50051,
+  "tls": true,
+  "cert_holder_id": "my-tegata-user",
+  "cert_version": 1
+}
+```
+
+> **Design notes:** Bracket notation on prompts (for example, `Port [50051]:`) indicates the default value — pressing Enter without typing accepts the default. The setup command writes all confirmed values to `tegata.toml` on the USB drive and sets `enabled = true` in the `[audit]` section. The `tegata ledger setup` command can be re-run to update any setting; subsequent runs overwrite the existing `[audit]` block in `tegata.toml`. The certificate registration step calls the ScalarDL `RegisterCertificate` RPC with the `CertHolderId` and `CertVersion` fields. If registration fails (for example, the certificate is already registered with a different version), the error is shown as a `✗` line with the specific reason from the gRPC status message.
 
 ### 3.8 `tegata config show`
 
-Content will be added in a subsequent plan.
+The config show command displays the current resolved configuration — vault path, config file path, audit settings, and timeout values. It does not require a passphrase because no vault data is accessed.
+
+**Human-readable output:**
+
+```
+$ tegata config show
+
+vault_path:        /Volumes/TEGATA/vault.tegata    (cyan)
+config_path:       /Volumes/TEGATA/tegata.toml     (cyan)
+idle_timeout:      300s                            (cyan)
+clipboard_timeout: 45s                             (cyan)
+audit_enabled:     true                            (cyan)
+ledger_host:       localhost:50051                 (cyan)
+cert_holder_id:    my-tegata-user                  (cyan)
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "vault_path": "/Volumes/TEGATA/vault.tegata",
+  "config_path": "/Volumes/TEGATA/tegata.toml",
+  "idle_timeout": 300,
+  "clipboard_timeout": 45,
+  "audit_enabled": true,
+  "ledger_host": "localhost:50051",
+  "cert_holder_id": "my-tegata-user"
+}
+```
+
+> **Design notes:** Labels (the left column) are colored cyan as structural elements; values (the right column) are uncolored, consistent with the convention established in section 1.2. Sensitive values such as TLS certificate file paths are shown because they are file paths, not secrets. Certificate key material is never displayed — only the path to the key file is shown, and only the holder ID (not the certificate contents) appears. When audit is disabled, `ledger_host` and `cert_holder_id` are omitted from both the human-readable output and the JSON response to avoid showing empty or default values that would mislead the user into thinking audit is configured.
 
 ### 3.9 `tegata version`
 
-Content will be added in a subsequent plan.
+The version command displays build information including the version number, Go runtime version, build date, commit hash, and target platform. It displays the same ASCII art logo as `tegata init`.
+
+**Human-readable output:**
+
+```
+$ tegata version
+ _                    _
+| |_ ___  __ _  __ _| |_ __ _     (cyan)
+| __/ _ \/ _` |/ _` | __/ _` |    (cyan)
+ \__\___/\__, |\__,_|\__\__,_|    (cyan)
+         |___/                     (cyan)
+
+tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
+```
+
+**JSON output (`--json`):**
+
+```json
+{
+  "status": "ok",
+  "version": "0.3.0",
+  "go_version": "go1.23.0",
+  "commit": "abc1234",
+  "platform": "linux/amd64",
+  "build_date": "2026-06-15"
+}
+```
+
+> **Design notes:** The ASCII art logo is identical to the one in `tegata init` (section 2.1) — a single shared constant in the codebase renders both. Build information is embedded at compile time using Go's `debug/buildinfo` package or `-ldflags` injection, providing debugging context when users report issues. The `"commit"` field is the short (7-character) Git commit hash. In development builds where commit information is unavailable, `"commit"` is `"dev"`. The version command does not require a passphrase and does not access the vault or config file.
 
 ---
 
