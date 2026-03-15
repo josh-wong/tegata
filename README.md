@@ -11,7 +11,8 @@ For project status, see [Projects](https://github.com/josh-wong/tegata/projects)
 Tegata provides a **low-cost alternative to hardware security keys** like YubiKey, with optional [ScalarDL Ledger](https://scalardl.scalar-labs.com/) integration for immutable authentication event logging:
 
 - **Encrypted vault storage**: AES-256-GCM encryption with Argon2id key derivation
-- **Multi-protocol support**: TOTP (RFC 6238), HOTP (RFC 4226), challenge-response signing (HMAC-SHA256), static passwords
+- **Recovery key**: A separately stored 256-bit key allows vault recovery if the passphrase is lost
+- **Multi-protocol support**: TOTP (RFC 6238), HOTP (RFC 4226), challenge-response signing (HMAC-SHA1/SHA256), static passwords
 - **Portable**: Single static binary runs from USB drives/microSD cards with no external dependencies
 - **Cross-platform**: Windows and macOS (v0.1+), Linux (v0.1+ if cross-compilation works without issues)
 - **Tamper-evident audit logging**: Optional ScalarDL Ledger integration for immutable authentication history
@@ -100,8 +101,8 @@ Installation instructions will be provided when the first release (v0.2 MVP) is 
 Planned CLI commands (subject to change during development):
 
 ```bash
-# Initialize a new vault
-tegata init /path/to/usb/vault.db
+# Initialize a new vault on the current drive
+tegata init
 
 # Add a TOTP secret
 tegata add --totp github "otpauth://totp/..."
@@ -160,6 +161,7 @@ For a detailed discussion of security tradeoffs, see [section "2.2 What Tegata d
 |----------|-------------|
 | [Product requirements document](docs/product-requirements-doc.md) | Complete project requirements, use cases, target audience, and release plan |
 | [Design document](docs/design-doc.md) | Technical architecture, component specifications, and integration guides |
+| [CLI/TUI mockups](docs/cli-tui-mockups.md)                | Character-level visual spec for all CLI commands and TUI wireframes      |
 | [Pull request template](.github/pull_request_template.md) | PR checklist including security considerations and testing requirements |
 
 ## Contributing
@@ -185,7 +187,7 @@ This project uses [ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (Co
 
 ## References
 
-- [ScalarDL 3.12 documentation](https://scalardl.scalar-labs.com/docs/3.12/)
+- [ScalarDL documentation](https://scalardl.scalar-labs.com/docs/latest/)
 - [TOTP RFC 6238](https://datatracker.ietf.org/doc/html/rfc6238)
 - [HOTP RFC 4226](https://datatracker.ietf.org/doc/html/rfc4226)
 - [HMAC RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104)
