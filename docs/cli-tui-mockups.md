@@ -28,8 +28,8 @@ The color semantics are:
 
 - **`(green)`:** success messages and positive confirmations
 - **`(red)`:** errors and failure messages
-- **`(yellow)`:** warnings and non-blocking notices
 - **`(cinnabar)` (`#E34234`):** Labels, column headers, structural elements, and the ASCII logo (brand color)
+- **`(amber)` (`#D97706`):** Warnings and non-blocking notices
 
 Data values (the credential label, the TOTP code, the vault path) are **never** colored. Color applies only to the structural text around data values. This ensures that data remains clearly readable at any color depth.
 
@@ -120,7 +120,7 @@ Step 2 of 3: Save your recovery key
 ──────────────────────────────────────────────────────
 ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZAB-CDEF-GHIJ-KLMN-OPQR-STUV-WX
 ──────────────────────────────────────────────────────
-! Store this key offline. It will not be shown again.         (yellow)
+! Store this key offline. It will not be shown again.         (amber)
 
 Step 3 of 3: Add your first credential (optional)
 Add a credential now? [Y/n] y
@@ -961,7 +961,7 @@ GitHub
 
 ✓ Copied to clipboard (auto-clear in 45s)                    (green)
 
-! Cannot reach ScalarDL Ledger at localhost:50051. Event queued locally (3 events pending).  (yellow)
+! Cannot reach ScalarDL Ledger at localhost:50051. Event queued locally (3 events pending).  (amber)
 ```
 
 [exit 0]
@@ -1184,7 +1184,7 @@ The recovery key step displays the generated recovery key and requires the user 
 │                                                                              │
 │  ────────────────────────────────────────────────────────────────────────── │
 │                                                                              │
-│  ! Store this key somewhere safe. It will not be shown again.   (yellow)    │
+│  ! Store this key somewhere safe. It will not be shown again.   (amber)    │
 │                                                                              │
 │                                                                              │
 │  [ ] I have saved my recovery key                                            │
@@ -1210,7 +1210,7 @@ The recovery key step displays the generated recovery key and requires the user 
 │                                                                              │
 │  ────────────────────────────────────────────────────────────────────────── │
 │                                                                              │
-│  ! Store this key somewhere safe. It will not be shown again.   (yellow)    │
+│  ! Store this key somewhere safe. It will not be shown again.   (amber)    │
 │                                                                              │
 │                                                                              │
 │  [x] I have saved my recovery key                                            │
@@ -1531,7 +1531,7 @@ After 5 minutes of idle time (no keystrokes), the vault locks automatically. The
 │                                                                              │
 │                                                                              │
 │                                                                              │
-│                    ! Vault locked (idle timeout)              (yellow)       │
+│                    ! Vault locked (idle timeout)              (amber)       │
 │                                                                              │
 │                    Vault: /Volumes/TEGATA/vault.tegata                       │
 │                                                                              │
@@ -1548,7 +1548,7 @@ After 5 minutes of idle time (no keystrokes), the vault locks automatically. The
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The auto-lock screen is identical to the initial unlock screen (section 6.1) with one addition: the yellow `! Vault locked (idle timeout)` notice above the vault path. This notice is yellow to signal a non-error condition—the lock was intentional and protective, not a failure. After unlocking, the main view returns to the same selection position the user was at before the timeout. The clipboard is also cleared on auto-lock if the 45-second auto-clear has not already fired.
+> **Design notes:** The auto-lock screen is identical to the initial unlock screen (section 6.1) with one addition: the amber `! Vault locked (idle timeout)` notice above the vault path. This notice is amber to signal a non-error condition—the lock was intentional and protective, not a failure. After unlocking, the main view returns to the same selection position the user was at before the timeout. The clipboard is also cleared on auto-lock if the 45-second auto-clear has not already fired.
 
 **State:** `locked_idle`
 
