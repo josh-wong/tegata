@@ -29,7 +29,7 @@ The color semantics are:
 - **`(green)`:** success messages and positive confirmations
 - **`(red)`:** errors and failure messages
 - **`(yellow)`:** warnings and non-blocking notices
-- **`(cyan)`:** labels, column headers, and structural elements
+- **`(cinnabar)` (`#E34234`):** Labels, column headers, structural elements, and the ASCII logo (brand color)
 
 Data values (the credential label, the TOTP code, the vault path) are **never** colored. Color applies only to the structural text around data values. This ensures that data remains clearly readable at any color depth.
 
@@ -103,10 +103,10 @@ The init command creates a new vault and guides the user through passphrase crea
 ```
 $ tegata init
  _                     _
-| |_  ___  __ _  __ _ | |_  __ _       (cyan)
-|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cyan)
- \__|\___|\__, |\__,_| \__|\__,_|       (cyan)
-          |___/                         (cyan)
+| |_  ___  __ _  __ _ | |_  __ _       (cinnabar)
+|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cinnabar)
+ \__|\___|\__, |\__,_| \__|\__,_|       (cinnabar)
+          |___/                         (cinnabar)
 
 Tegata – portable authenticator (v1.0.0)
 
@@ -167,7 +167,7 @@ Add a credential now? [Y/n] n
 }
 ```
 
-> **Design notes:** The ASCII art logo uses only standard Latin characters available in every terminal font. The four logo lines are colored cyan as structural decoration—they are the only decorative element in the CLI. The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize. The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`. The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged. Step 3 defaults to yes (`[Y/n]`) to encourage adding a credential immediately, matching the TUI wizard's step 4. The type prompt accepts the same short badge forms used in `tegata list` output. When skipped, the success message includes the `tegata add` hint; when a credential is added, no hint is needed.
+> **Design notes:** The ASCII art logo uses only standard Latin characters available in every terminal font. The four logo lines are colored cinnabar as structural decoration—they are the only decorative element in the CLI. The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize. The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`. The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged. Step 3 defaults to yes (`[Y/n]`) to encourage adding a credential immediately, matching the TUI wizard's step 4. The type prompt accepts the same short badge forms used in `tegata list` output. When skipped, the success message includes the `tegata add` hint; when a credential is added, no hint is needed.
 
 ### 2.2 `tegata add`
 
@@ -233,8 +233,8 @@ No credentials. Run 'tegata add --totp <label>' to add your first credential.
 $ tegata list
 Passphrase: ········
 
-Label               Type  Algorithm  Added       (cyan)
-──────────────────  ────  ─────────  ──────────  (cyan)
+Label               Type  Algorithm  Added       (cinnabar)
+──────────────────  ────  ─────────  ──────────  (cinnabar)
 GitHub              totp  SHA-1      2026-03-12
 AWS-prod            hotp  SHA-1      2026-03-12
 SSH-signing         cr    SHA-256    2026-03-13
@@ -249,8 +249,8 @@ WiFi-office         pw    —          2026-03-14
 $ tegata list
 Passphrase: ········
 
-Label               Type  Algorithm  Added       (cyan)
-──────────────────  ────  ─────────  ──────────  (cyan)
+Label               Type  Algorithm  Added       (cinnabar)
+──────────────────  ────  ─────────  ──────────  (cinnabar)
 AWS-production-acc… totp  SHA-1      2026-03-12
 GitHub              totp  SHA-1      2026-03-13
 
@@ -568,8 +568,8 @@ The history command retrieves recent audit events from the ScalarDL Ledger and d
 $ tegata history
 Passphrase: ········
 
-#     Timestamp             Label (hashed)    Type  Status  (cyan)
-────  ────────────────────  ────────────────  ────  ──────  (cyan)
+#     Timestamp             Label (hashed)    Type  Status  (cinnabar)
+────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
 843   2026-03-14 07:42:11   a3f8c2d9…        totp  ok
 844   2026-03-14 08:15:03   7b19e4f2…        cr    ok
 845   2026-03-14 09:30:47   a3f8c2d9…        totp  ok
@@ -585,8 +585,8 @@ Passphrase: ········
 $ tegata history --around 843
 Passphrase: ········
 
-#     Timestamp             Label (hashed)    Type  Status  (cyan)
-────  ────────────────────  ────────────────  ────  ──────  (cyan)
+#     Timestamp             Label (hashed)    Type  Status  (cinnabar)
+────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
 840   2026-03-14 06:11:22   7b19e4f2…        cr    ok
 841   2026-03-14 06:44:09   a3f8c2d9…        totp  ok
 842   2026-03-14 07:15:33   c8d5e3a1…        hotp  ok
@@ -721,13 +721,13 @@ The config show command displays the current resolved configuration—vault path
 ```
 $ tegata config show
 
-vault_path:        /Volumes/TEGATA/vault.tegata    (cyan)
-config_path:       /Volumes/TEGATA/tegata.toml     (cyan)
-idle_timeout:      300s                            (cyan)
-clipboard_timeout: 45s                             (cyan)
-audit_enabled:     true                            (cyan)
-ledger_host:       localhost:50051                 (cyan)
-cert_holder_id:    my-tegata-user                  (cyan)
+vault_path:        /Volumes/TEGATA/vault.tegata    (cinnabar)
+config_path:       /Volumes/TEGATA/tegata.toml     (cinnabar)
+idle_timeout:      300s                            (cinnabar)
+clipboard_timeout: 45s                             (cinnabar)
+audit_enabled:     true                            (cinnabar)
+ledger_host:       localhost:50051                 (cinnabar)
+cert_holder_id:    my-tegata-user                  (cinnabar)
 ```
 
 **JSON output (`--json`):**
@@ -745,7 +745,7 @@ cert_holder_id:    my-tegata-user                  (cyan)
 }
 ```
 
-> **Design notes:** Labels (the left column) are colored cyan as structural elements; values (the right column) are uncolored, consistent with the convention established in section 1.2. Sensitive values such as TLS certificate file paths are shown because they are file paths, not secrets. Certificate key material is never displayed—only the path to the key file is shown, and only the holder ID (not the certificate contents) appears. When audit is disabled, `ledger_host` and `cert_holder_id` are omitted from both the human-readable output and the JSON response to avoid showing empty or default values that would mislead the user into thinking audit is configured.
+> **Design notes:** Labels (the left column) are colored cinnabar as structural elements; values (the right column) are uncolored, consistent with the convention established in section 1.2. Sensitive values such as TLS certificate file paths are shown because they are file paths, not secrets. Certificate key material is never displayed—only the path to the key file is shown, and only the holder ID (not the certificate contents) appears. When audit is disabled, `ledger_host` and `cert_holder_id` are omitted from both the human-readable output and the JSON response to avoid showing empty or default values that would mislead the user into thinking audit is configured.
 
 ### 3.9 `tegata version`
 
@@ -756,10 +756,10 @@ The version command displays build information including the version number, Go 
 ```
 $ tegata version
  _                     _
-| |_  ___  __ _  __ _ | |_  __ _       (cyan)
-|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cyan)
- \__|\___|\__, |\__,_| \__|\__,_|       (cyan)
-          |___/                         (cyan)
+| |_  ___  __ _  __ _ | |_  __ _       (cinnabar)
+|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cinnabar)
+ \__|\___|\__, |\__,_| \__|\__,_|       (cinnabar)
+          |___/                         (cinnabar)
 
 tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 ```
