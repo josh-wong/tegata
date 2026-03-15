@@ -26,9 +26,9 @@ Human-readable output mockups use inline color annotations to indicate what colo
 
 The color semantics are:
 
-- **`(green)`:** success messages and positive confirmations
-- **`(red)`:** errors and failure messages
 - **`(cinnabar)` (`#E34234`):** Labels, column headers, structural elements, and the ASCII logo (brand color)
+- **`(green)` (`#34A853`):** Success messages and positive confirmations
+- **`(red)` (`#F04368`):** Errors and failure messages (rose-red, cool-shifted to distinguish from cinnabar)
 - **`(amber)` (`#D97706`):** Warnings and non-blocking notices
 
 Data values (the credential label, the TOTP code, the vault path) are **never** colored. Color applies only to the structural text around data values. This ensures that data remains clearly readable at any color depth.
