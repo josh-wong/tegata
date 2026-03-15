@@ -4,13 +4,13 @@
 - **Date:** March 12, 2026
 - **Last revised:** March 13, 2026
 - **Status:** Draft (Phase 2 complete)
-- **Companion document:** [Product requirements document](./product-requirements-doc.md)
+- **Companion document:** [Product requirements document](./v1-product-requirements-doc.md)
 
 ---
 
 ## 1. Scope and context
 
-This document describes the technical architecture, component design, and implementation strategy for Tegata, an open-source portable authenticator with optional tamper-evident audit logging. It serves as the companion to the [product requirements document](./product-requirements-doc.md) and provides the engineering detail needed to implement the system.
+This document describes the technical architecture, component design, and implementation strategy for Tegata, an open-source portable authenticator with optional tamper-evident audit logging. It serves as the companion to the [product requirements document](./v1-product-requirements-doc.md) and provides the engineering detail needed to implement the system.
 
 ### 1.1 Purpose
 

@@ -4,7 +4,7 @@
 - **Date:** March 8, 2026
 - **Last revised:** March 12, 2026
 - **Status:** Approved
-- **Companion document:** [Design document](./design-doc.md)
+- **Companion document:** [Design document](./v1-design-doc.md)
 
 ---
 

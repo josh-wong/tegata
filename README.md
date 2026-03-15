@@ -84,7 +84,7 @@ graph TB
 5. **CLI/TUI interface:** Command-line and terminal user interface for all operations
 6. **Clipboard manager:** Secure temporary code storage with auto-clear
 
-For detailed architecture documentation, see [section "2. Architecture overview" in the design document](docs/design-doc.md#2-architecture-overview).
+For detailed architecture documentation, see [section "2. Architecture overview" in the design document](docs/v1-design-doc.md#2-architecture-overview).
 
 ## Getting started
 
@@ -120,11 +120,11 @@ tegata history
 tegata verify
 ```
 
-For planned functionality details, see the [product requirements document](docs/product-requirements-doc.md) and [design document](docs/design-doc.md).
+For planned functionality details, see the [product requirements document](docs/v1-product-requirements-doc.md) and [design document](docs/v1-design-doc.md).
 
 ### Development environment
 
-For development environment setup, including Docker Compose configurations for local ScalarDL Ledger testing, see [section "11. Development and deployment" in the design document](docs/design-doc.md#11-development-and-deployment).
+For development environment setup, including Docker Compose configurations for local ScalarDL Ledger testing, see [section "11. Development and deployment" in the design document](docs/v1-design-doc.md#11-development-and-deployment).
 
 ## Security model
 
@@ -153,20 +153,20 @@ For development environment setup, including Docker Compose configurations for l
 - **NOT appropriate for:** High-security environments requiring hardware-level isolation, enterprise production systems with strict security mandates
 - **Best practices:** Use full-disk encryption on host machines, maintain physical security of USB drives, use strong vault passphrases (20+ characters), consider hardware keys for high-value accounts
 
-For a detailed discussion of security tradeoffs, see [section "2.2 What Tegata does NOT solve" in the product requirements document](docs/product-requirements-doc.md#22-what-tegata-does-not-solve) and [section "8. Security model" in the design document](docs/design-doc.md#8-security-model).
+For a detailed discussion of security tradeoffs, see [section "2.2 What Tegata does NOT solve" in the product requirements document](docs/v1-product-requirements-doc.md#22-what-tegata-does-not-solve) and [section "8. Security model" in the design document](docs/v1-design-doc.md#8-security-model).
 
 ## Project documents
 
 | Document                                                      | Description                                                                |
 |---------------------------------------------------------------|----------------------------------------------------------------------------|
-| [Product requirements document](docs/product-requirements-doc.md) | Complete project requirements, use cases, target audience, and release plan |
-| [Design document](docs/design-doc.md)                        | Technical architecture, component specifications, and integration guides   |
-| [CLI/TUI mockups](docs/cli-tui-mockups.md)                   | Character-level visual spec for all CLI commands and TUI wireframes        |
+| [Product requirements document](docs/v1-product-requirements-doc.md) | Complete project requirements, use cases, target audience, and release plan |
+| [Design document](docs/v1-design-doc.md)                        | Technical architecture, component specifications, and integration guides   |
+| [CLI/TUI mockups](docs/v1-cli-tui-mockups.md)                   | Character-level visual spec for all CLI commands and TUI wireframes        |
 | [Pull request template](.github/pull_request_template.md)    | PR checklist including security considerations and testing requirements    |
 
 ## Contributing
 
-Contributions are welcome! Please review the [product requirements document](docs/product-requirements-doc.md) and [design document](docs/design-doc.md) to understand project architecture and goals before contributing.
+Contributions are welcome! Please review the [product requirements document](docs/v1-product-requirements-doc.md) and [design document](docs/v1-design-doc.md) to understand project architecture and goals before contributing.
 
 Contribution guidelines will be published before v1.0. For now, feel free to:
 
@@ -183,7 +183,7 @@ See [LICENSE](LICENSE) for full license text.
 
 ## Acknowledgments
 
-This project uses [ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (Community Edition, Apache 2.0) for tamper-evident audit logging. For more information about the historical context of the Tegata name, see [section "1.2 Project name origin" in the product requirements document](docs/product-requirements-doc.md#12-project-name-origin).
+This project uses [ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (Community Edition, Apache 2.0) for tamper-evident audit logging. For more information about the historical context of the Tegata name, see [section "1.2 Project name origin" in the product requirements document](docs/v1-product-requirements-doc.md#12-project-name-origin).
 
 ## References
 
