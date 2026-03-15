@@ -1,0 +1,157 @@
+# Tegata .gitignore
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+/target/
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+tegata
+tegata-*
+
+# =============================================================================
+# Go
+# =============================================================================
+# Binaries for programs and plugins
+*.exe~
+*.test
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# =============================================================================
+# Project-specific
+# =============================================================================
+# Encrypted vault files (should never be committed)
+*.vault
+*.vault.enc
+*.tegata
+*.tegata.bak
+*.tegata.tmp
+vault.json
+vault.db
+
+# ScalarDL certificates and private keys
+*.key
+*.pem
+*.crt
+certs/
+*.p12
+*.jks
+
+# ScalarDL Ledger data
+ledger.db
+ledger.db-*
+ledger.properties
+scalar/
+
+# Event queue files
+*.queue
+queue/
+
+# Configuration files (may contain ScalarDL connection details)
+tegata.toml
+
+# Docker volumes and data
+docker/data/
+postgres_data/
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Test vaults and temporary files
+test-vault*
+tmp/
+temp/
+
+# =============================================================================
+# IDEs and editors
+# =============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# Operating systems
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# =============================================================================
+# Logs and databases
+# =============================================================================
+*.log
+*.sql
+*.sqlite
+*.sqlite3
+
+# =============================================================================
+# Backup files
+# =============================================================================
+*.bak
+*.backup
+*.old
+*~
+
+# =============================================================================
+# GSD planning (local-only)
+# =============================================================================
+.planning/
+
+# =============================================================================
+# Coverage and profiling
+# =============================================================================
+*.coverprofile
+coverage.txt
+*.prof
+*.out
