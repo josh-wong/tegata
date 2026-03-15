@@ -347,12 +347,13 @@ These parameters are stored in the vault header so that future versions can adju
 **Decryption (on vault unlock):**
 
 1. Read the plaintext header to extract salt, Argon2id parameters, write counter, and nonce.
-2. Verify the nonce matches `deriveNonce(write_counter)` — reject if mismatched (header corruption).
-3. Derive the DEK from the passphrase using the extracted parameters.
-4. Decrypt the blob using AES-256-GCM with the DEK and nonce.
-5. If decryption fails (GCM tag mismatch), the passphrase is incorrect — return an error.
-6. Deserialize the JSON into in-memory credential structs (within memguard `LockedBuffer`).
-7. Zero the DEK. The plaintext credentials remain in guarded memory until the vault locks.
+2. Verify the magic bytes and header checksum — reject with a corruption error (exit 3) if invalid.
+3. Verify the nonce matches `deriveNonce(write_counter)` — reject with a corruption error (exit 3) if mismatched.
+4. Derive the DEK from the passphrase using the extracted parameters.
+5. Decrypt the blob using AES-256-GCM with the DEK and nonce.
+6. If decryption fails (GCM tag mismatch) and the header passed validation in steps 2–3, the passphrase is incorrect — return an authentication error (exit 2). If the header was borderline (valid magic but unexpected field values), return a corruption error (exit 3) instead.
+7. Deserialize the JSON into in-memory credential structs (within memguard `LockedBuffer`).
+8. Zero the DEK. The plaintext credentials remain in guarded memory until the vault locks.
 
 The nonce derivation function ensures the counter and nonce are always consistent.
 
@@ -430,7 +431,7 @@ If step 2 or 3 fails, the code is never returned — the user retries with the s
 
 The counter is stored in the credential's `counter` field inside the encrypted vault. Because the entire vault is re-encrypted on every counter update, the write-temp-rename strategy (section 3.5) ensures atomicity.
 
-**Resynchronization:** If a user's counter drifts from the server, `tegata resync <label>` generates codes for a configurable look-ahead window (default 10) and prompts the user to confirm which code the server accepted, then updates the counter accordingly.
+**Resynchronization:** If a user's counter drifts from the server, `tegata resync <label>` generates codes for a configurable look-ahead window (default 100) and prompts the user to confirm which code the server accepted, then updates the counter accordingly.
 
 ### 4.3 Challenge-response (HMAC)
 
@@ -489,6 +490,8 @@ tegata
 
 ### 5.2 Global flags
 
+The following flags are available on all commands.
+
 | Flag                 | Short | Description                                   | Default        |
 |----------------------|-------|-----------------------------------------------|----------------|
 | `--vault <path>`     | `-v`  | Path to the vault file                        | Auto-detect    |
@@ -514,6 +517,8 @@ If no vault is found, Tegata prints a message suggesting `tegata init`.
 **JSON output (`--json` flag):** Machine-parseable output for scripting and integration. Every command produces a JSON object with at minimum `{ "status": "ok"|"error" }`.
 
 ### 5.5 Exit codes
+
+All commands return one of the following exit codes.
 
 | Code | Meaning                                    |
 |------|--------------------------------------------|
@@ -559,6 +564,8 @@ The bench command does not modify the vault. It is informational only.
 Tegata uses a TOML configuration file (`tegata.toml`) stored on the USB drive alongside the vault.
 
 ### 6.1 Configuration file
+
+The configuration file uses TOML format with the following sections.
 
 ```toml
 # tegata.toml — Tegata configuration
@@ -959,6 +966,8 @@ Tegata uses structured error categories and actionable messages to help users re
 
 ### 10.1 Error categories
 
+Every error returned by Tegata falls into one of the following categories, each mapped to a distinct exit code.
+
 | Category       | Exit code | Description                                     | Example                                      |
 |----------------|-----------|------------------------------------------------|----------------------------------------------|
 | `input`        | 1         | Invalid user input or missing arguments        | `"Label 'GitHub' not found. Run 'tegata list' to see available credentials."` |
@@ -1053,6 +1062,8 @@ GUI testing uses Wails' built-in test utilities for Go binding verification and 
 This section covers the developer setup, build process, cross-compilation strategy, and USB drive layout.
 
 ### 12.1 Development prerequisites
+
+The following tools are required for development.
 
 | Tool           | Version | Purpose                                        |
 |----------------|---------|------------------------------------------------|
@@ -1252,7 +1263,7 @@ Go libraries referenced in this document.
 
 ScalarDL documentation.
 
-- [ScalarDL 3.12 Documentation](https://scalardl.scalar-labs.com/docs/3.12/)
+- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/latest/)
 - [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/latest/getting-started-hashstore/)
 - [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/latest/how-to-write-applications-with-hashstore/)
 - [ScalarDL GitHub Repository](https://github.com/scalar-labs/scalardl)
