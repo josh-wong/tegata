@@ -77,6 +77,8 @@ This section defines the priority goals for Tegata and the metrics used to measu
 
 ### 4.1 Goals
 
+The following goals are ordered by priority.
+
 | Priority | Goal                         | Description                                                                                                                                                  |
 |----------|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | P0       | Functional authenticator     | Users can generate TOTP/HOTP codes, perform challenge-response signing, and retrieve static passwords from an encrypted vault on a USB drive or microSD card |
@@ -210,8 +212,8 @@ The vault must support initialization, credential management, and backup/restore
 #### FR-5: Vault initialization
 
 - `tegata init` creates a new encrypted vault on the USB drive or microSD card.
-- Prompts for PIN/passphrase with strength validation.
-- Generates a recovery key that the user must store separately.
+- Prompts for PIN/passphrase with strength validation. Minimum passphrase length is 8 characters; the CLI displays a strength indicator and recommends 20+ characters for strong security.
+- Generates a recovery key (256-bit, base32-encoded) that the user must store separately.
 - Creates platform-specific portable binaries directory on the drive.
 
 #### FR-6: Adding credentials
@@ -262,12 +264,15 @@ When ScalarDL integration is enabled, Tegata provides tamper-evident logging and
 - If the ScalarDL Ledger instance is unreachable, auth events are queued locally in an encrypted buffer on the USB drive.
 - Queued events are automatically submitted when connectivity is restored.
 - The queue itself is integrity-protected (local hash chain) to prevent tampering during the offline window.
+- A configurable maximum queue size (default 10,000 events) prevents unbounded growth. When the limit is reached, the oldest events are dropped with a warning.
 
 ## 7. Non-functional requirements
 
 These requirements define security, performance, compatibility, and usability constraints that Tegata must meet.
 
 ### 7.1 Security
+
+The following security requirements apply to all Tegata operations.
 
 | ID    | Requirement                                                                               |
 |-------|-------------------------------------------------------------------------------------------|
@@ -281,6 +286,8 @@ These requirements define security, performance, compatibility, and usability co
 
 ### 7.2 Performance
 
+Performance targets ensure a responsive user experience on commodity hardware.
+
 | ID     | Requirement                                                                      |
 |--------|----------------------------------------------------------------------------------|
 | NFR-8  | TOTP code generation completes in <100ms after vault unlock                      |
@@ -288,6 +295,8 @@ These requirements define security, performance, compatibility, and usability co
 | NFR-10 | Portable binary size is <20MB per platform                                       |
 
 ### 7.3 Compatibility
+
+Tegata must work across platforms and storage media without elevated permissions.
 
 | ID     | Requirement                                                                    |
 |--------|--------------------------------------------------------------------------------|
@@ -297,6 +306,8 @@ These requirements define security, performance, compatibility, and usability co
 | NFR-14 | ScalarDL integration is compatible with ScalarDL 3.12 Community Edition        |
 
 ### 7.4 Usability
+
+The CLI must be fast enough for daily use and clear enough for first-time setup.
 
 | ID     | Requirement                                                                        |
 |--------|------------------------------------------------------------------------------------|
@@ -508,7 +519,7 @@ All questions resolved as of March 12, 2026. Decisions and rationale are documen
 ## 13. References
 
 - [ScalarDL GitHub Repository](https://github.com/scalar-labs/scalardl) (Apache 2.0 + Commercial dual license)
-- [ScalarDL 3.12 Documentation](https://scalardl.scalar-labs.com/docs/latest/)
+- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/latest/)
   - [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/latest/getting-started-hashstore/)
   - [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/latest/how-to-write-applications-with-hashstore/)
 - [RFC 6238 – TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
