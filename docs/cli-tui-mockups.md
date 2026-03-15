@@ -14,7 +14,7 @@ The following Unicode symbols appear throughout this document. They are chosen b
 |--------|--------------------------------|--------------------|
 | `✓`    | Success or positive outcome    | U+2713             |
 | `✗`    | Error or negative outcome      | U+2717             |
-| `!`    | Warning (non-blocking)         | ASCII 0x21         |
+| `!`    | Warning (nonblocking)          | ASCII 0x21         |
 | `→`    | Pointer, flow, or continuation | U+2192             |
 | `•`    | Bullet point in lists          | U+2022             |
 
@@ -29,7 +29,7 @@ The color semantics are:
 - **`(cinnabar)` (`#E34234`):** Labels, column headers, structural elements, and the ASCII logo (brand color)
 - **`(green)` (`#34A853`):** Success messages and positive confirmations
 - **`(red)` (`#F04368`):** Errors and failure messages (rose-red, cool-shifted to distinguish from cinnabar)
-- **`(amber)` (`#D97706`):** Warnings and non-blocking notices
+- **`(amber)` (`#D97706`):** Warnings and nonblocking notices
 
 Data values (the credential label, the TOTP code, the vault path) are **never** colored. Color applies only to the structural text around data values. This ensures that data remains clearly readable at any color depth.
 
@@ -433,7 +433,7 @@ Challenge: my-ssh-server-nonce-20260314
 ✓ Copied to clipboard (auto-clear in 45s)                                    (green)
 ```
 
-**Variant (b) – Non-interactive with `--challenge` flag:**
+**Variant (b) – Noninteractive with `--challenge` flag:**
 
 ```
 $ tegata sign SSH-key --challenge my-ssh-server-nonce-20260314
@@ -1071,7 +1071,7 @@ Passphrase: ········
 
 This is a **warning**, not a blocking error. Authentication operations succeed normally; only the audit event is affected. The exit code remains 0 when the authentication itself succeeds.
 
-**Human-readable output (warning, non-blocking):**
+**Human-readable output (warning, nonblocking):**
 
 ```
 $ tegata code GitHub
