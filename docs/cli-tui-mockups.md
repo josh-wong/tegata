@@ -96,7 +96,7 @@ The commands in this section constitute the v0.2 release scope: vault initializa
 
 ### 2.1 `tegata init`
 
-The init command creates a new vault and guides the user through passphrase creation and recovery key display.
+The init command creates a new vault and guides the user through passphrase creation, recovery key display, and optionally adding a first credential. The three-step flow matches the TUI setup wizard (section 5) minus the welcome screen, which is replaced by the ASCII banner in CLI mode.
 
 **Human-readable output:**
 
@@ -110,17 +110,37 @@ $ tegata init
 
 Tegata – portable authenticator (v1.0.0)
 
-Step 1 of 2: Create your vault passphrase
+Step 1 of 3: Create your vault passphrase
 Passphrase: ········
 Confirm:    ········
 
 ✓ Vault created at ./vault.tegata                             (green)
 
-Step 2 of 2: Save your recovery key
+Step 2 of 3: Save your recovery key
 ──────────────────────────────────────────────────────
 ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZAB-CDEF-GHIJ-KLMN-OPQR-STUV-WX
 ──────────────────────────────────────────────────────
 ! Store this key offline. It will not be shown again.         (yellow)
+
+Step 3 of 3: Add your first credential (optional)
+Add a credential now? [Y/n] y
+Type [totp/hotp/cr/static]: totp
+Label: GitHub
+TOTP secret: ········
+
+✓ Credential 'GitHub' added (totp).                           (green)
+
+✓ Setup complete.                                             (green)
+```
+
+**Variant (b) – Skipping step 3:**
+
+```
+$ tegata init
+[... steps 1–2 as above ...]
+
+Step 3 of 3: Add your first credential (optional)
+Add a credential now? [Y/n] n
 
 ✓ Setup complete. Run 'tegata add --totp <label>' to add your first credential.  (green)
 ```
@@ -130,11 +150,24 @@ ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZAB-CDEF-GHIJ-KLMN-OPQR-STUV-WX
 ```json
 {
   "status": "ok",
-  "vault_path": "./vault.tegata"
+  "vault_path": "./vault.tegata",
+  "credential_added": true,
+  "credential_label": "GitHub",
+  "credential_type": "totp"
 }
 ```
 
-> **Design notes:** The ASCII art logo uses only standard Latin characters available in every terminal font. The four logo lines are colored cyan as structural decoration—they are the only decorative element in the CLI. The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize. The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`. The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged.
+**JSON output (step 3 skipped):**
+
+```json
+{
+  "status": "ok",
+  "vault_path": "./vault.tegata",
+  "credential_added": false
+}
+```
+
+> **Design notes:** The ASCII art logo uses only standard Latin characters available in every terminal font. The four logo lines are colored cyan as structural decoration—they are the only decorative element in the CLI. The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize. The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`. The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged. Step 3 defaults to yes (`[Y/n]`) to encourage adding a credential immediately, matching the TUI wizard's step 4. The type prompt accepts the same short badge forms used in `tegata list` output. When skipped, the success message includes the `tegata add` hint; when a credential is added, no hint is needed.
 
 ### 2.2 `tegata add`
 
@@ -150,7 +183,16 @@ TOTP secret: ········
 ✓ Credential 'GitHub' added (totp).  (green)
 ```
 
-**Variant (b) – Adding a static password:**
+**Variant (b) – Adding via `--scan` (otpauth URI):**
+
+```
+$ qrdecode photo.png | tegata add --scan
+Passphrase: ········
+
+✓ Credential 'GitHub:user@example.com' added (totp, SHA-1, 6-digit, 30s).  (green)
+```
+
+**Variant (c) – Adding a static password:**
 
 ```
 $ tegata add --static DB-pass
@@ -170,7 +212,7 @@ Password: ········
 }
 ```
 
-> **Design notes:** Secrets are prompted interactively regardless of credential type—the `[secret]` positional argument in the command tree is only for `--scan` mode (which accepts an `otpauth://` URI piped from a QR code decoder). The `--scan` variant follows the same output format as variant (a) above. The credential type in the confirmation message uses the short badge form (`totp`, `hotp`, `cr`, `pw`) that also appears in `tegata list` output, establishing visual consistency.
+> **Design notes:** Secrets are prompted interactively regardless of credential type—the `[secret]` positional argument in the command tree is only for `--scan` mode (which accepts an `otpauth://` URI piped from stdin). Variant (b) shows the `--scan` flow: the label is extracted from the URI's `issuer` and `account` fields, and the confirmation message includes the parsed algorithm, digit count, and period so the user can verify the import. The credential type in the confirmation message uses the short badge form (`totp`, `hotp`, `cr`, `pw`) that also appears in `tegata list` output, establishing visual consistency.
 
 ### 2.3 `tegata list`
 
@@ -342,7 +384,7 @@ The commands in this section constitute the v0.3+ release scope: challenge-respo
 
 ### 3.1 `tegata sign`
 
-The sign command performs HMAC-SHA256 challenge-response signing using a stored challenge-response credential. The challenge can be entered interactively or passed as a flag.
+The sign command performs HMAC-SHA256 challenge-response signing by using a stored challenge-response credential. The challenge can be entered interactively or passed as a flag.
 
 **Variant (a) – Interactive challenge entry:**
 
@@ -442,6 +484,24 @@ Credential 'AWS-prod' already exists. [s]kip / [o]verwrite / [r]ename? o
 ✓ Imported 3 credentials (1 skipped, 1 overwritten)  (green)
 ```
 
+**Import – scripting variant (`--skip-conflicts`):**
+
+```
+$ tegata import backup-2026-03-14.tegata --skip-conflicts
+Export passphrase: ········
+
+✓ Imported 2 credentials (2 skipped)  (green)
+```
+
+**Import – scripting variant (`--overwrite-conflicts`):**
+
+```
+$ tegata import backup-2026-03-14.tegata --overwrite-conflicts
+Export passphrase: ········
+
+✓ Imported 4 credentials (2 overwritten)  (green)
+```
+
 **Import – JSON output (`--json`):**
 
 ```json
@@ -453,7 +513,7 @@ Credential 'AWS-prod' already exists. [s]kip / [o]verwrite / [r]ename? o
 }
 ```
 
-> **Design notes:** The export file uses a separate passphrase from the vault passphrase so that a backup stored in an untrusted location does not compromise the vault key. Both files are AES-256-GCM encrypted but derive their keys from different passphrases. During import, each conflicting credential label is resolved individually—there is no global skip-all or overwrite-all option in the interactive flow (use `--skip-conflicts` or `--overwrite-conflicts` flags for scripting). The rename option prompts for a new label immediately after the user types `r`. Import counts in both human-readable and JSON output distinguish between freshly imported, skipped, and overwritten credentials for auditability.
+> **Design notes:** The export file uses a separate passphrase from the vault passphrase so that a backup stored in an untrusted location does not compromise the vault key. Both files are AES-256-GCM encrypted but derive their keys from different passphrases. During interactive import, each conflicting credential label is resolved individually—there is no global skip-all or overwrite-all option. The `--skip-conflicts` and `--overwrite-conflicts` flags provide non-interactive alternatives for scripting; they are mutually exclusive and the CLI exits with an error if both are specified. The rename option (interactive only) prompts for a new label immediately after the user types `r`. Import counts in both human-readable and JSON output distinguish between freshly imported, skipped, and overwritten credentials for auditability.
 
 ### 3.4 `tegata resync`
 
@@ -717,7 +777,66 @@ tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 }
 ```
 
-> **Design notes:** The ASCII art logo is identical to the one in `tegata init` (section 2.1)—a single shared constant in the codebase renders both. Build information is embedded at compile time using Go's `debug/buildinfo` package or `-ldflags` injection, providing debugging context when users report issues. The `"commit"` field is the short (7-character) Git commit hash. In development builds where commit information is unavailable, `"commit"` is `"dev"`. The version command does not require a passphrase and does not access the vault or config file.
+> **Design notes:** The ASCII art logo is identical to the one in `tegata init` (section 2.1)—a single shared constant in the codebase renders both. Build information is embedded at compile time by using Go's `debug/buildinfo` package or `-ldflags` injection, providing debugging context when users report issues. The `"commit"` field is the short (7-character) Git commit hash. In development builds where commit information is unavailable, `"commit"` is `"dev"`. The version command does not require a passphrase and does not access the vault or config file.
+
+### 3.10 `tegata bench`
+
+The bench command benchmarks Argon2id key derivation on the current machine by using the default parameters (t=3, m=64MiB, p=4). It reports the derivation time and, if it exceeds 3 seconds, recommends adjusted parameters. It does not modify the vault.
+
+**Variant (a) – Within target:**
+
+```
+$ tegata bench
+
+Benchmarking Argon2id (t=3, m=64MiB, p=4)...
+Derivation time: 2.1s ✓ (within 3s target)  (green)
+```
+
+**Variant (b) – Exceeds target:**
+
+```
+$ tegata bench
+
+Benchmarking Argon2id (t=3, m=64MiB, p=4)...
+Derivation time: 4.8s ✗ (exceeds 3s target)  (red)
+Recommended: t=3, m=32MiB, p=4 (estimated 2.4s)
+
+Run 'tegata init --time=3 --memory=32 --parallel=4' to use adjusted parameters.
+```
+
+**JSON output (`--json`, within target):**
+
+```json
+{
+  "status": "ok",
+  "time_cost": 3,
+  "memory_cost_mib": 64,
+  "parallelism": 4,
+  "derivation_seconds": 2.1,
+  "within_target": true
+}
+```
+
+**JSON output (`--json`, exceeds target):**
+
+```json
+{
+  "status": "ok",
+  "time_cost": 3,
+  "memory_cost_mib": 64,
+  "parallelism": 4,
+  "derivation_seconds": 4.8,
+  "within_target": false,
+  "recommended": {
+    "time_cost": 3,
+    "memory_cost_mib": 32,
+    "parallelism": 4,
+    "estimated_seconds": 2.4
+  }
+}
+```
+
+> **Design notes:** The bench command does not require a passphrase and does not access the vault—it runs a standalone Argon2id derivation with a random salt. The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance (design document section 3.3). The `"recommended"` object is only present in the JSON output when the target is exceeded. The suggested `tegata init` command in the human-readable output includes all three parameters explicitly so the user can copy-paste it directly. The bench command never allows recommendations below the OWASP minimums (t≥2, m≥19MiB).
 
 ---
 
@@ -759,7 +878,7 @@ Passphrase: ········
 }
 ```
 
-> **Design notes:** The remaining-attempts count counts down from the configured limit (default: 3 attempts before rate-limiting begins). The rate-limit message shows the wait duration in seconds. After the wait expires, the prompt reappears automatically. In `--json` mode the rate-limit state is conveyed in the `"message"` field using the same text as the human-readable output.
+> **Design notes:** The remaining-attempts count counts down from the configured limit (default: 3 attempts before rate-limiting begins). The rate-limit message shows the wait duration in seconds. After the wait expires, the prompt reappears automatically. In `--json` mode the rate-limit state is conveyed in the `"message"` field by using the same text as the human-readable output.
 
 ### 4.2 Missing vault (exit 3)
 
@@ -913,7 +1032,7 @@ Terminal too narrow (minimum 80 columns)
 
 **Help bar:** Always rendered at the bottom of the outer frame, showing context-sensitive keyboard shortcuts for the current state.
 
-**Selection highlight:** The currently selected item is highlighted using reverse video (lipgloss `Reverse` style)—a full-row background swap that remains visible without relying on color.
+**Selection highlight:** The currently selected item is highlighted by using reverse video (lipgloss `Reverse` style)—a full-row background swap that remains visible without relying on color.
 
 All wireframes in this document assume an 80-column terminal.
 
@@ -1170,7 +1289,32 @@ The final wizard step adds an initial credential. It can be skipped—the user g
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Frame 3: Success state**
+**Frame 3: CR (challenge-response) type selected**
+
+```
+┌─ Tegata setup – Add first credential (Step 4 of 4) ─────────────────────────┐
+│                                                                              │
+│  Add your first credential to the vault. You can add more later with        │
+│  the [a] key in the main view.                                               │
+│                                                                              │
+│  Type:    TOTP   HOTP   [CR]  Static                                         │
+│                                                                              │
+│  Label:   SSH-signing                                                        │
+│  Shared key:  ································                               │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  [Tab] Switch type  [Enter] Add  [Esc] Skip                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Frame 4: Success state**
 
 ```
 ┌─ Tegata setup – Add first credential (Step 4 of 4) ─────────────────────────┐
@@ -1195,7 +1339,7 @@ The final wizard step adds an initial credential. It can be skipped—the user g
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The type selector uses bracket notation to show which type is currently active: `[TOTP]` is highlighted (reverse video), while the others are uncolored plain text. Pressing Tab cycles through `TOTP → HOTP → CR → Static → TOTP`. The selected type determines which field label appears as the third input—for `CR` (challenge-response) the field reads `Shared key:` instead of `Secret:`. Static password types show `Password:`. The form fields are standard masked inputs; the secret is never shown in plaintext.
+> **Design notes:** The type selector uses bracket notation to show which type is currently active: `[TOTP]` is highlighted (reverse video), while the others are uncolored plain text. Pressing Tab cycles through `TOTP → HOTP → CR → Static → TOTP`. The selected type determines the third field label: TOTP and HOTP show `Secret:`, CR shows `Shared key:` (frame 3), and Static shows `Password:`. All secret fields are standard masked inputs; the value is never shown in plaintext.
 
 **State:** `wizard_add_credential`
 
@@ -1544,7 +1688,7 @@ Adding a credential opens an overlay panel centered over the main view. The over
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The overlay panel is drawn using the same box-drawing characters as the outer frame—it visually floats over the main view. The background main view content remains partially visible around the overlay edges, which helps the user maintain spatial orientation. After a credential is successfully added, the overlay closes and the new credential is immediately selected in the sidebar and shown in the main panel. The success message in the main panel is temporary; pressing Enter or moving focus clears it and shows the normal code generation view.
+> **Design notes:** The overlay panel is drawn by using the same box-drawing characters as the outer frame—it visually floats over the main view. The background main view content remains partially visible around the overlay edges, which helps the user maintain spatial orientation. After a credential is successfully added, the overlay closes and the new credential is immediately selected in the sidebar and shown in the main panel. The success message in the main panel is temporary; pressing Enter or moving focus clears it and shows the normal code generation view.
 
 **State:** `overlay_add_credential`
 
