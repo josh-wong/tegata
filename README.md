@@ -157,12 +157,12 @@ For a detailed discussion of security tradeoffs, see [section "2.2 What Tegata d
 
 ## Project documents
 
-| Document                                                      | Description                                                                |
-|---------------------------------------------------------------|----------------------------------------------------------------------------|
+| Document                                                             | Description                                                                |
+|----------------------------------------------------------------------|----------------------------------------------------------------------------|
 | [Product requirements document](docs/v1-product-requirements-doc.md) | Complete project requirements, use cases, target audience, and release plan |
-| [Design document](docs/v1-design-doc.md)                        | Technical architecture, component specifications, and integration guides   |
-| [CLI/TUI mockups](docs/v1-cli-tui-mockups.md)                   | Character-level visual spec for all CLI commands and TUI wireframes        |
-| [Pull request template](.github/pull_request_template.md)    | PR checklist including security considerations and testing requirements    |
+| [Design document](docs/v1-design-doc.md)                             | Technical architecture, component specifications, and integration guides   |
+| [CLI/TUI mockups](docs/v1-cli-tui-mockups.md)                        | Character-level visual spec for all CLI commands and TUI wireframes        |
+| [Pull request template](.github/pull_request_template.md)            | PR checklist including security considerations and testing requirements    |
 
 ## Contributing
 

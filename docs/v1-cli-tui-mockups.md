@@ -1,5 +1,12 @@
 # Tegata – CLI/TUI mockups
 
+- **Author:** [josh-wong](https://github.com/josh-wong)
+- **Date:** March 14, 2026
+- **Last revised:** March 15, 2026
+- **Status:** Draft
+
+---
+
 This document is the visual specification for every CLI command output and TUI flow in Tegata. A developer reading this document can match the output of any command character-for-character during implementation, without consulting the design document. Sections 1 through 4 cover conventions, v0.2 CLI commands, v0.3+ CLI commands (placeholder), and error states. Sections 5 through 7 cover TUI wireframes (placeholders, to be populated in subsequent plans).
 
 ## 1. Document conventions

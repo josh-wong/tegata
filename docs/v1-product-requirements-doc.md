@@ -188,7 +188,7 @@ Tegata must support the following authentication protocols for compatibility wit
 
 #### FR-2: HOTP (counter-based one-time passwords)
 
-- Implement RFC 4226.
+- Implement RFC 4226 (HMAC-SHA1 only, per the RFC specification).
 - Maintain counter state in the encrypted vault.
 - Support resynchronization.
 
@@ -329,7 +329,7 @@ These flows illustrate how users interact with Tegata during setup, daily use, a
 4. Tegata prompts for a PIN/passphrase.
 5. Tegata generates an encrypted vault and a recovery key.
 6. User stores recovery key in a safe location.
-7. User runs: `tegata add --scan "otpauth://totp/GitHub:josh?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"`
+7. User runs: `echo "otpauth://totp/GitHub:josh?secret=JBSWY3DPEHPK3PXP&issuer=GitHub" | tegata add --scan`
 8. Credential is encrypted and stored in the vault.
 9. Setup complete.
 ```
