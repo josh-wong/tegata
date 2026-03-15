@@ -167,7 +167,18 @@ Add a credential now? [Y/n] n
 }
 ```
 
-> **Design notes:** The ASCII art logo uses only standard Latin characters available in every terminal font. The four logo lines are colored cinnabar as structural decoration—they are the only decorative element in the CLI. The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize. The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`. The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged. Step 3 defaults to yes (`[Y/n]`) to encourage adding a credential immediately, matching the TUI wizard's step 4. The type prompt accepts the same short badge forms used in `tegata list` output. When skipped, the success message includes the `tegata add` hint; when a credential is added, no hint is needed.
+> [!NOTE]
+> 
+> Design notes:
+> 
+> - The ASCII art logo uses only standard Latin characters available in every terminal font.
+> - The four logo lines are colored cinnabar as structural decoration—they are the only decorative element in the CLI.
+> - The recovery key uses 4-character groups separated by hyphens (13 groups of 4 characters = 52 characters from the base32 alphabet, representing a 256-bit key with 4 bits of padding), matching the SSH key fingerprint convention users already recognize.
+> - The horizontal separator lines use the em-dash character (──) without color, so the key remains visually bracketed even under `NO_COLOR`.
+> - The recovery key is intentionally absent from the JSON output—never include key material in machine-parseable output where it could be logged.
+> - Step 3 defaults to yes (`[Y/n]`) to encourage adding a credential immediately, matching the TUI wizard's step 4.
+> - The type prompt accepts the same short badge forms used in `tegata list` output.
+> - When skipped, the success message includes the `tegata add` hint; when a credential is added, no hint is needed.
 
 ### 2.2 `tegata add`
 
@@ -212,7 +223,13 @@ Password: ········
 }
 ```
 
-> **Design notes:** Secrets are prompted interactively regardless of credential type—the `[secret]` positional argument in the command tree is only for `--scan` mode (which accepts an `otpauth://` URI piped from stdin). Variant (b) shows the `--scan` flow: the label is extracted from the URI's `issuer` and `account` fields, and the confirmation message includes the parsed algorithm, digit count, and period so the user can verify the import. The credential type in the confirmation message uses the short badge form (`totp`, `hotp`, `cr`, `pw`) that also appears in `tegata list` output, establishing visual consistency.
+> [!NOTE]
+> 
+> Design notes:
+> 
+> - Secrets are prompted interactively regardless of credential type—the `[secret]` positional argument in the command tree is only for `--scan` mode (which accepts an `otpauth://` URI piped from stdin).
+> - Variant (b) shows the `--scan` flow: the label is extracted from the URI's `issuer` and `account` fields, and the confirmation message includes the parsed algorithm, digit count, and period so the user can verify the import.
+> - The credential type in the confirmation message uses the short badge form (`totp`, `hotp`, `cr`, `pw`) that also appears in `tegata list` output, establishing visual consistency.
 
 ### 2.3 `tegata list`
 
@@ -291,7 +308,13 @@ GitHub              totp  SHA-1      2026-03-13
 }
 ```
 
-> **Design notes:** Column widths are fixed: Label is 18 characters (truncated with `…` at position 18 if longer), Type is 4 characters, Algorithm is 9 characters, Added is 10 characters (ISO date only, no time). The separator line uses the em-dash character (──) to fill each column width exactly. The empty-state output skips column headers entirely—headers with no rows create visual confusion. The Algorithm column shows `—` (em-dash) for static passwords since they have no algorithm. In JSON output, `"algorithm"` is `null` for static passwords.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Column widths are fixed: Label is 18 characters (truncated with `…` at position 18 if longer), Type is 4 characters, Algorithm is 9 characters, Added is 10 characters (ISO date only, no time). The separator line uses the em-dash character (──) to fill each column width exactly.
+> - The empty-state output skips column headers entirely—headers with no rows create visual confusion.
+> - The Algorithm column shows `—` (em-dash) for static passwords since they have no algorithm. In JSON output, `"algorithm"` is `null` for static passwords.
 
 ### 2.4 `tegata code`
 
@@ -347,7 +370,14 @@ AWS-prod
 }
 ```
 
-> **Design notes:** The TOTP code line overwrites itself in place by using ANSI cursor-up and carriage return—no scrolling history accumulates. When the 30-second window expires, the new code replaces the old one on the same line. The progress bar uses 10 blocks: at t=0 all 10 are filled (█); each 3 seconds one block becomes empty (░). The clipboard copy contains digits only—no space between the two 3-digit groups (`"482913"`, not `"482 913"`). HOTP has no countdown because the code does not expire on a time window; it shows the counter value instead so the user can verify counter synchronization. JSON output includes `"ttl"` for TOTP and `"counter"` for HOTP—never both.
+> [!NOTE]
+> 
+> Design notes:
+> 
+> - The TOTP code line overwrites itself in place by using ANSI cursor-up and carriage return—no scrolling history accumulates. When the 30-second window expires, the new code replaces the old one on the same line. The progress bar uses 10 blocks: at t=0 all 10 are filled (█); each 3 seconds one block becomes empty (░).
+> - The clipboard copy contains digits only—no space between the two 3-digit groups (`"482913"`, not `"482 913"`).
+> - HOTP has no countdown because the code does not expire on a time window; it shows the counter value instead so the user can verify counter synchronization.
+> - JSON output includes `"ttl"` for TOTP and `"counter"` for HOTP—never both.
 
 ### 2.5 `tegata remove`
 
@@ -374,7 +404,13 @@ Remove credential 'GitHub'? This cannot be undone. [y/N] y
 }
 ```
 
-> **Design notes:** The confirmation prompt uses `[y/N]` with uppercase `N` to signal that the default is no—pressing Enter without typing `y` aborts the operation. The `--force` flag skips the prompt entirely (useful for scripting). In `--json` mode, the confirmation prompt is suppressed; `--force` is required to proceed non-interactively, otherwise the command exits with code 1 and an error message.
+> [!NOTE]
+> 
+> Design notes:
+> 
+> - The confirmation prompt uses `[y/N]` with uppercase `N` to signal that the default is no—pressing Enter without typing `y` aborts the operation.
+> - The `--force` flag skips the prompt entirely (useful for scripting).
+> - In `--json` mode, the confirmation prompt is suppressed; `--force` is required to proceed interactively; otherwise, the command exits with code 1 and an error message.
 
 ---
 
@@ -419,7 +455,14 @@ Passphrase: ········
 }
 ```
 
-> **Design notes:** The signature is encoded as a lowercase hex string—64 characters for a 32-byte HMAC-SHA256 output. Hex is used rather than base64 because hex strings are easier to visually inspect and compare, and SSH tooling commonly uses hex for fingerprints and challenge-response values. The signature is copied to clipboard by default; use `--no-clipboard` to suppress the copy. The `--challenge` flag enables non-interactive use in scripts. The JSON output includes `"algorithm"` so callers can verify the signing algorithm without reading the credential metadata separately.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The signature is encoded as a lowercase hex string—64 characters for a 32-byte HMAC-SHA256 output. Hex is used rather than base64 because hex strings are easier to visually inspect and compare, and SSH tooling commonly uses hex for fingerprints and challenge-response values.
+> - The signature is copied to clipboard by default; use `--no-clipboard` to suppress the copy.
+> - The `--challenge` flag enables noninteractive use in scripts.
+> - The JSON output includes `"algorithm"` so callers can verify the signing algorithm without reading the credential metadata separately.
 
 ### 3.2 `tegata get`
 
@@ -445,7 +488,13 @@ Passphrase: ········
 }
 ```
 
-> **Design notes:** The password value is intentionally absent from both the human-readable output and the JSON output. Printing a static password to the terminal exposes it to shoulder surfing and stores it permanently in terminal scrollback history. This is the strongest security guarantee Tegata can provide for static credentials: once added, the value leaves the vault only through the clipboard. The JSON output confirms the copy succeeded via `"copied": true` without revealing the value. The clipboard is automatically cleared after 45 seconds (configurable via `tegata.toml`).
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The password value is intentionally absent from both the human-readable output and the JSON output. Printing a static password to the terminal exposes it to shoulder surfing and stores it permanently in terminal scrollback history. This is the strongest security guarantee Tegata can provide for static credentials: once added, the value leaves the vault only through the clipboard.
+> - The JSON output confirms the copy succeeded via `"copied": true` without revealing the value.
+> - The clipboard is automatically cleared after 45 seconds (configurable via `tegata.toml`).
 
 ### 3.3 `tegata export` and `tegata import`
 
@@ -513,7 +562,14 @@ Export passphrase: ········
 }
 ```
 
-> **Design notes:** The export file uses a separate passphrase from the vault passphrase so that a backup stored in an untrusted location does not compromise the vault key. Both files are AES-256-GCM encrypted but derive their keys from different passphrases. During interactive import, each conflicting credential label is resolved individually—there is no global skip-all or overwrite-all option. The `--skip-conflicts` and `--overwrite-conflicts` flags provide non-interactive alternatives for scripting; they are mutually exclusive and the CLI exits with an error if both are specified. The rename option (interactive only) prompts for a new label immediately after the user types `r`. Import counts in both human-readable and JSON output distinguish between freshly imported, skipped, and overwritten credentials for auditability.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The export file uses a separate passphrase from the vault passphrase so that a backup stored in an untrusted location does not compromise the vault key. Both files are AES-256-GCM encrypted but derive their keys from different passphrases.
+> - During interactive import, each conflicting credential label is resolved individually—there is no global skip-all or overwrite-all option. The `--skip-conflicts` and `--overwrite-conflicts` flags provide noninteractive alternatives for scripting; they are mutually exclusive and the CLI exits with an error if both are specified.
+> - The rename option (interactive only) prompts for a new label immediately after the user types `r`.
+> - Import counts in both human-readable and JSON output distinguish between freshly imported, skipped, and overwritten credentials for auditability.
 
 ### 3.4 `tegata resync`
 
@@ -556,7 +612,14 @@ Enter code 2: 789012
 }
 ```
 
-> **Design notes:** Resync searches a window of 100 counters ahead of the current stored counter (for example, counters 43–143 if the stored counter is 43). Two consecutive codes are required—not one—because a single matching code could be a coincidental collision within the search window. Requiring two sequential codes eliminates that risk and confirms the server and client are genuinely synchronized at the same counter position. The confirmed new counter value appears in both the human-readable output and the JSON response so the user can verify the expected counter. The failure message shows the exact search window so the user can assess whether more drift has occurred than the window covers.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Resync searches a window of 100 counters ahead of the current stored counter (for example, counters 43–143 if the stored counter is 43).
+> - Two consecutive codes are required—not one—because a single matching code could be a coincidental collision within the search window. Requiring two sequential codes eliminates that risk and confirms the server and client are genuinely synchronized at the same counter position.
+> - The confirmed new counter value appears in both the human-readable output and the JSON response so the user can verify the expected counter.
+> - The failure message shows the exact search window so the user can assess whether more drift has occurred than the window covers.
 
 ### 3.5 `tegata history`
 
@@ -622,7 +685,14 @@ Showing 3 events before and after event #843
 }
 ```
 
-> **Design notes:** Labels are stored as hashed values in the audit log—the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text. The `--around N` flag is the primary investigation tool when `tegata verify` (section 3.6) reports an integrity violation at a specific event: the user runs `tegata history --around N` to see the surrounding context. The `>>>` marker on the target event makes it visually unambiguous even when the terminal has no color. The `history` command requires a reachable ScalarDL Ledger instance—it cannot operate from the offline queue.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Labels are stored as hashed values in the audit log—the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text.
+> - The `--around N` flag is the primary investigation tool when `tegata verify` (section 3.6) reports an integrity violation at a specific event: the user runs `tegata history --around N` to see the surrounding context.
+> - The `>>>` marker on the target event makes it visually unambiguous even when the terminal has no color.
+> - The `history` command requires a reachable ScalarDL Ledger instance—it cannot operate from the offline queue.
 
 ### 3.6 `tegata verify`
 
@@ -668,7 +738,14 @@ $ tegata verify
 }
 ```
 
-> **Design notes:** Verification checks the complete chain from event 1 to the latest—partial verification is not supported in v0.3 because a partial check provides incomplete assurance. The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault). The failure output is identical to section 4.5 (integrity violation error state), ensuring consistency: whichever entry point leads to the integrity violation, the user sees the same message and the same recovery step. The `"event_index"` field in the JSON error response is separate from the message string, making it easy for scripts to extract the event index without parsing text.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Verification checks the complete chain from event 1 to the latest—partial verification is not supported in v0.3 because a partial check provides incomplete assurance.
+> - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault).
+> - The failure output is identical to section 4.5 (integrity violation error state), ensuring consistency: whichever entry point leads to the integrity violation, the user sees the same message and the same recovery step.
+> - The `"event_index"` field in the JSON error response is separate from the message string, making it easy for scripts to extract the event index without parsing text.
 
 ### 3.7 `tegata ledger setup`
 
@@ -710,7 +787,13 @@ Registering certificate...
 }
 ```
 
-> **Design notes:** Bracket notation on prompts (for example, `Port [50051]:`) indicates the default value—pressing Enter without typing accepts the default. The setup command writes all confirmed values to `tegata.toml` on the USB drive and sets `enabled = true` in the `[audit]` section. The `tegata ledger setup` command can be re-run to update any setting; subsequent runs overwrite the existing `[audit]` block in `tegata.toml`. The certificate registration step calls the ScalarDL `RegisterCertificate` RPC with the `CertHolderId` and `CertVersion` fields. If registration fails (for example, the certificate is already registered with a different version), the error is shown as a `✗` line with the specific reason from the gRPC status message.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Bracket notation on prompts (for example, `Port [50051]:`) indicates the default value—pressing Enter without typing accepts the default.
+> - The setup command writes all confirmed values to `tegata.toml` on the USB drive and sets `enabled = true` in the `[audit]` section. The `tegata ledger setup` command can be re-run to update any setting; subsequent runs overwrite the existing `[audit]` block in `tegata.toml`.
+> - The certificate registration step calls the ScalarDL `RegisterCertificate` RPC with the `CertHolderId` and `CertVersion` fields. If registration fails (for example, the certificate is already registered with a different version), the error is shown as a `✗` line with the specific reason from the gRPC status message.
 
 ### 3.8 `tegata config show`
 
@@ -745,7 +828,13 @@ cert_holder_id:    my-tegata-user                  (cinnabar)
 }
 ```
 
-> **Design notes:** Labels (the left column) are colored cinnabar as structural elements; values (the right column) are uncolored, consistent with the convention established in section 1.2. Sensitive values such as TLS certificate file paths are shown because they are file paths, not secrets. Certificate key material is never displayed—only the path to the key file is shown, and only the holder ID (not the certificate contents) appears. When audit is disabled, `ledger_host` and `cert_holder_id` are omitted from both the human-readable output and the JSON response to avoid showing empty or default values that would mislead the user into thinking audit is configured.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - Labels (the left column) are colored cinnabar as structural elements; values (the right column) are uncolored, consistent with the convention established in section 1.2.
+> - Sensitive values such as TLS certificate file paths are shown because they are file paths, not secrets. Certificate key material is never displayed—only the path to the key file is shown, and only the holder ID (not the certificate contents) appears.
+> - When audit is disabled, `ledger_host` and `cert_holder_id` are omitted from both the human-readable output and the JSON response to avoid showing empty or default values that would mislead the user into thinking audit is configured.
 
 ### 3.9 `tegata version`
 
@@ -777,7 +866,14 @@ tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 }
 ```
 
-> **Design notes:** The ASCII art logo is identical to the one in `tegata init` (section 2.1)—a single shared constant in the codebase renders both. Build information is embedded at compile time by using Go's `debug/buildinfo` package or `-ldflags` injection, providing debugging context when users report issues. The `"commit"` field is the short (7-character) Git commit hash. In development builds where commit information is unavailable, `"commit"` is `"dev"`. The version command does not require a passphrase and does not access the vault or config file.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The ASCII art logo is identical to the one in `tegata init` (section 2.1)—a single shared constant in the codebase renders both.
+> - Build information is embedded at compile time by using Go's `debug/buildinfo` package or `-ldflags` injection, providing debugging context when users report issues.
+> - The `"commit"` field is the short (7-character) Git commit hash. In development builds where commit information is unavailable, `"commit"` is `"dev"`.
+> - The version command does not require a passphrase and does not access the vault or config file.
 
 ### 3.10 `tegata bench`
 
@@ -836,7 +932,15 @@ Run 'tegata init --time=3 --memory=32 --parallel=4' to use adjusted parameters.
 }
 ```
 
-> **Design notes:** The bench command does not require a passphrase and does not access the vault—it runs a standalone Argon2id derivation with a random salt. The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance (design document section 3.3). The `"recommended"` object is only present in the JSON output when the target is exceeded. The suggested `tegata init` command in the human-readable output includes all three parameters explicitly so the user can copy-paste it directly. The bench command never allows recommendations below the OWASP minimums (t≥2, m≥19MiB).
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The bench command does not require a passphrase and does not access the vault—it runs a standalone Argon2id derivation with a random salt.
+> - The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance (design document section 3.3).
+> - The `"recommended"` object is only present in the JSON output when the target is exceeded.
+> - The suggested `tegata init` command in the human-readable output includes all three parameters explicitly so the user can copy-paste it directly.
+> - The bench command never allows recommendations below the OWASP minimums (t≥2, m≥19MiB).
 
 ---
 
@@ -878,7 +982,13 @@ Passphrase: ········
 }
 ```
 
-> **Design notes:** The remaining-attempts count counts down from the configured limit (default: 3 attempts before rate-limiting begins). The rate-limit message shows the wait duration in seconds. After the wait expires, the prompt reappears automatically. In `--json` mode the rate-limit state is conveyed in the `"message"` field by using the same text as the human-readable output.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The remaining-attempts count counts down from the configured limit (default: 3 attempts before rate-limiting begins).
+> - The rate-limit message shows the wait duration in seconds. After the wait expires, the prompt reappears automatically.
+> - In `--json` mode the rate-limit state is conveyed in the `"message"` field by using the same text as the human-readable output.
 
 ### 4.2 Missing vault (exit 3)
 
@@ -905,7 +1015,12 @@ $ tegata code GitHub
 }
 ```
 
-> **Design notes:** No passphrase prompt appears before this error—vault existence is checked before prompting for credentials. The error message provides two recovery paths: create a new vault or point to an existing one. This matches design doc section 5.3 vault auto-detection behavior.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - No passphrase prompt appears before this error—vault existence is checked before prompting for credentials.
+> - The error message provides two recovery paths: create a new vault or point to an existing one. This matches design doc section 5.3 vault auto-detection behavior.
 
 ### 4.3 Corrupted vault (exit 3)
 
@@ -944,7 +1059,13 @@ Passphrase: ········
 }
 ```
 
-> **Design notes:** The passphrase is prompted first because corruption is only detectable after attempting decryption (the GCM tag is verified during decrypt). The two variants differ only in their recovery suggestion. The backup path `vault.tegata.bak` is deterministic—Tegata writes a `.bak` file on each successful write before overwriting the main file.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The passphrase is prompted first because corruption is only detectable after attempting decryption (the GCM tag is verified during decrypt).
+> - The two variants differ only in their recovery suggestion.
+> - The backup path `vault.tegata.bak` is deterministic—Tegata writes a `.bak` file on each successful write before overwriting the main file.
 
 ### 4.4 ScalarDL unreachable (exit 4)
 
@@ -982,7 +1103,14 @@ GitHub
 }
 ```
 
-> **Design notes:** The warning appears after the authentication output, not before it, so the code is visible immediately. The exit code is 0 because authentication succeeded—only the audit submission was deferred. In `--json` mode, the audit warning is nested under `"audit_warning"` to keep the top-level fields unambiguous: `"status": "ok"` remains accurate, and scripts can check `audit_warning` separately. When ScalarDL is not configured, this warning is never shown.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The warning appears after the authentication output, not before it, so the code is visible immediately.
+> - The exit code is 0 because authentication succeeded—only the audit submission was deferred.
+> - In `--json` mode, the audit warning is nested under `"audit_warning"` to keep the top-level fields unambiguous: `"status": "ok"` remains accurate, and scripts can check `audit_warning` separately.
+> - When ScalarDL is not configured, this warning is never shown.
 
 ### 4.5 Integrity violation (exit 5)
 
@@ -1010,7 +1138,13 @@ $ tegata verify
 }
 ```
 
-> **Design notes:** The event index in the JSON response (`"event_index"`) is separate from the message string, making it easy for scripts to act on the specific index. The human-readable message includes the exact `tegata history` command to run next, reducing the steps required to investigate. This is the only Tegata error that directly implies a potential security incident rather than a user error or configuration issue.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The event index in the JSON response (`"event_index"`) is separate from the message string, making it easy for scripts to act on the specific index.
+> - The human-readable message includes the exact `tegata history` command to run next, reducing the steps required to investigate.
+> - This is the only Tegata error that directly implies a potential security incident rather than a user error or configuration issue.
 
 ---
 
@@ -1154,7 +1288,13 @@ The passphrase step collects and confirms the vault passphrase. Two frames are s
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The strength indicator (frame 2) is optional visual feedback computed from passphrase length and character variety—it does not enforce any minimum. The `✗` mismatch message (frame 3) is red when color is enabled; it remains clearly labeled by the `✗` prefix under `NO_COLOR`. The Confirm field is cleared after a mismatch so the user re-enters only the confirmation.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The strength indicator (frame 2) is optional visual feedback computed from passphrase length and character variety—it does not enforce any minimum.
+> - The `✗` mismatch message (frame 3) is red when color is enabled; it remains clearly labeled by the `✗` prefix under `NO_COLOR`.
+> - The Confirm field is cleared after a mismatch so the user re-enters only the confirmation.
 
 **State:** `wizard_passphrase`
 
@@ -1222,7 +1362,13 @@ The recovery key step displays the generated recovery key and requires the user 
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The recovery key uses 4-character groups separated by hyphens (13 groups, 52 characters total from the base32 alphabet). The horizontal separator lines visually bracket the key without color, so it is clearly set apart even under `NO_COLOR`. The `Enter` key is disabled while the checkbox is unchecked—the user must positively affirm they have saved the key before proceeding. This is a one-time display; navigating back to this step does not re-show the key.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The recovery key uses 4-character groups separated by hyphens (13 groups, 52 characters total from the base32 alphabet). The horizontal separator lines visually bracket the key without color, so it is clearly set apart even under `NO_COLOR`.
+> - The `Enter` key is disabled while the checkbox is unchecked—the user must positively affirm they have saved the key before proceeding.
+> - This is a one-time display; navigating back to this step does not re-show the key.
 
 **State:** `wizard_recovery_key`
 
@@ -1339,7 +1485,13 @@ The final wizard step adds an initial credential. It can be skipped—the user g
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The type selector uses bracket notation to show which type is currently active: `[TOTP]` is highlighted (reverse video), while the others are uncolored plain text. Pressing Tab cycles through `TOTP → HOTP → CR → Static → TOTP`. The selected type determines the third field label: TOTP and HOTP show `Secret:`, CR shows `Shared key:` (frame 3), and Static shows `Password:`. All secret fields are standard masked inputs; the value is never shown in plaintext.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The type selector uses bracket notation to show which type is currently active: `[TOTP]` is highlighted (reverse video), while the others are uncolored plain text. Pressing Tab cycles through `TOTP → HOTP → CR → Static → TOTP`.
+> - The selected type determines the third field label: TOTP and HOTP show `Secret:`, CR shows `Shared key:` (frame 3), and Static shows `Password:`.
+> - All secret fields are standard masked inputs; the value is never shown in plaintext.
 
 **State:** `wizard_add_credential`
 
@@ -1412,7 +1564,13 @@ The unlock screen appears at startup when a vault exists and has not yet been un
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The vault path is shown before the passphrase prompt so the user can confirm they are unlocking the correct vault—relevant when multiple vaults exist across different drives. The passphrase field is cleared after an incorrect attempt; only the input clears, not the vault path label. Rate-limiting follows the same pattern as the CLI: after the configured limit, the prompt displays a wait duration and re-enables after the cooldown expires.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The vault path is shown before the passphrase prompt so the user can confirm they are unlocking the correct vault—relevant when multiple vaults exist across different drives.
+> - The passphrase field is cleared after an incorrect attempt; only the input clears, not the vault path label.
+> - Rate-limiting follows the same pattern as the CLI: after the configured limit, the prompt displays a wait duration and re-enables after the cooldown expires.
 
 **State:** `unlock`
 
@@ -1504,7 +1662,15 @@ The main view uses the sidebar + main panel layout. The left sidebar lists all c
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The sidebar is fixed at 30 characters wide (28 content + 2 border characters), and labels truncate with `…` at 20 characters. The type badge is right-aligned at the far right of each sidebar row. The `>` marker on the selected row is supplemented by reverse video highlighting—the `>` ensures the selection is unambiguous under `NO_COLOR`. The TOTP countdown bar updates in place every second without redrawing the full frame (bubbletea's tick-based model). HOTP shows the counter value instead of a countdown bar because HOTP has no time window. Static password output matches the CLI `tegata get` behavior—no password is ever rendered in the panel.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The sidebar is fixed at 30 characters wide (28 content + 2 border characters), and labels truncate with `…` at 20 characters. The type badge is right-aligned at the far right of each sidebar row.
+> - The `>` marker on the selected row is supplemented by reverse video highlighting—the `>` ensures the selection is unambiguous under `NO_COLOR`.
+> - The TOTP countdown bar updates in place every second without redrawing the full frame (bubbletea's tick-based model).
+> - HOTP shows the counter value instead of a countdown bar because HOTP has no time window.
+> - Static password output matches the CLI `tegata get` behavior—no password is ever rendered in the panel.
 
 **State:** `main_view` with sub-states `main_totp_active`, `main_hotp_active`, `main_static_active`
 
@@ -1548,7 +1714,13 @@ After 5 minutes of idle time (no keystrokes), the vault locks automatically. The
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The auto-lock screen is identical to the initial unlock screen (section 6.1) with one addition: the amber `! Vault locked (idle timeout)` notice above the vault path. This notice is amber to signal a non-error condition—the lock was intentional and protective, not a failure. After unlocking, the main view returns to the same selection position the user was at before the timeout. The clipboard is also cleared on auto-lock if the 45-second auto-clear has not already fired.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The auto-lock screen is identical to the initial unlock screen (section 6.1) with one addition: the amber `! Vault locked (idle timeout)` notice above the vault path. This notice is amber to signal a non-error condition—the lock was intentional and protective, not a failure.
+> - After unlocking, the main view returns to the same selection position the user was at before the timeout.
+> - The clipboard is also cleared on auto-lock if the 45-second auto-clear has not already fired.
 
 **State:** `locked_idle`
 
@@ -1622,7 +1794,13 @@ The credential list is the sidebar component of the main view. This section docu
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The scroll indicator (`▼ 2 more` / `▲ 6 more above`) appears in the last visible row of the sidebar list area when additional items exist below or above the viewport. The indicator uses plain characters so it is readable without color. The sidebar scrolls independently of the main panel—the main panel always shows the currently selected credential regardless of scroll position. Selection wraps around: pressing `k` on the first credential moves to the last, and pressing `j` on the last credential moves to the first.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The scroll indicator (`▼ 2 more` / `▲ 6 more above`) appears in the last visible row of the sidebar list area when additional items exist below or above the viewport. The indicator uses plain characters so it is readable without color.
+> - The sidebar scrolls independently of the main panel—the main panel always shows the currently selected credential regardless of scroll position.
+> - Selection wraps around: pressing `k` on the first credential moves to the last, and pressing `j` on the last credential moves to the first.
 
 **State:** `main_view` (credential list scrolled)
 
@@ -1688,7 +1866,13 @@ Adding a credential opens an overlay panel centered over the main view. The over
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The overlay panel is drawn by using the same box-drawing characters as the outer frame—it visually floats over the main view. The background main view content remains partially visible around the overlay edges, which helps the user maintain spatial orientation. After a credential is successfully added, the overlay closes and the new credential is immediately selected in the sidebar and shown in the main panel. The success message in the main panel is temporary; pressing Enter or moving focus clears it and shows the normal code generation view.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The overlay panel is drawn by using the same box-drawing characters as the outer frame—it visually floats over the main view. The background main view content remains partially visible around the overlay edges, which helps the user maintain spatial orientation.
+> - After a credential is successfully added, the overlay closes and the new credential is immediately selected in the sidebar and shown in the main panel.
+> - The success message in the main panel is temporary; pressing Enter or moving focus clears it and shows the normal code generation view.
 
 **State:** `overlay_add_credential`
 
@@ -1755,7 +1939,14 @@ Removing a credential requires explicit confirmation via a small confirmation di
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Design notes:** The confirmation dialog is a small overlay within the main panel area, not a full-screen modal. The credential name appears in the dialog to confirm which credential will be deleted—this prevents accidental deletion when the user pressed `r` without looking at the sidebar selection. The default action is cancel (`n`), matching the CLI `tegata remove` behavior where `[y/N]` signals the default is no. After removal, the sidebar updates immediately (the count drops by one) and the selection moves to the next available credential. If the last credential is removed, the main panel shows the empty-vault prompt.
+> [!NOTE]
+>
+> Design notes:
+> 
+> - The confirmation dialog is a small overlay within the main panel area, not a full-screen modal.
+> - The credential name appears in the dialog to confirm which credential will be deleted—this prevents accidental deletion when the user pressed `r` without looking at the sidebar selection.
+> - The default action is cancel (`n`), matching the CLI `tegata remove` behavior where `[y/N]` signals the default is no.
+> - After removal, the sidebar updates immediately (the count drops by one) and the selection moves to the next available credential. If the last credential is removed, the main panel shows the empty-vault prompt.
 
 **State:** `overlay_remove_confirm`
 
