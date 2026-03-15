@@ -28,15 +28,6 @@ go.work
 vendor/
 
 # =============================================================================
-# Rust
-# =============================================================================
-# Cargo lock file (typically committed for binaries, but keeping it out for now)
-Cargo.lock
-
-# Rust debug builds
-debug/
-
-# =============================================================================
 # Project-specific
 # =============================================================================
 # Encrypted vault files (should never be committed)

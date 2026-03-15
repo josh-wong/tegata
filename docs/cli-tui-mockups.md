@@ -108,7 +108,7 @@ $ tegata init
  \__|\___|\__, |\__,_| \__|\__,_|       (cinnabar)
           |___/                         (cinnabar)
 
-Tegata – portable authenticator (v1.0.0)
+Tegata – portable authenticator (vX.Y.Z)
 
 Step 1 of 3: Create your vault passphrase
 Passphrase: ········
@@ -416,11 +416,11 @@ Remove credential 'GitHub'? This cannot be undone. [y/N] y
 
 ## 3. CLI mockups – v0.3+ commands
 
-The commands in this section constitute the v0.3+ release scope: challenge-response signing, static password retrieval, vault portability, HOTP counter resynchronization, audit history and verification, ledger configuration, general configuration display, and version information. Each subsection follows the same structure as section 2: human-readable output, `--json` output, and design notes.
+The commands in this section span the v0.3 and v0.4 release scopes. The v0.3 commands are: challenge-response signing, static password retrieval, vault export/import, HOTP counter resynchronization, configuration display, and version information. The v0.4 commands are: audit history, audit verification, and ledger setup (all requiring ScalarDL integration). Each subsection follows the same structure as section 2: human-readable output, `--json` output, and design notes.
 
 ### 3.1 `tegata sign`
 
-The sign command performs HMAC-SHA256 challenge-response signing by using a stored challenge-response credential. The challenge can be entered interactively or passed as a flag.
+The sign command performs HMAC challenge-response signing (SHA-256 or SHA-1, depending on the credential's `algorithm` field) by using a stored challenge-response credential. The challenge can be entered interactively or passed as a flag.
 
 **Variant (a) – Interactive challenge entry:**
 
@@ -459,7 +459,7 @@ Passphrase: ········
 >
 > Design notes:
 > 
-> - The signature is encoded as a lowercase hex string—64 characters for a 32-byte HMAC-SHA256 output. Hex is used rather than base64 because hex strings are easier to visually inspect and compare, and SSH tooling commonly uses hex for fingerprints and challenge-response values.
+> - The signature is encoded as a lowercase hex string—64 characters for a 32-byte HMAC-SHA256 output, or 40 characters for a 20-byte HMAC-SHA1 output. The algorithm is determined by the credential's stored `algorithm` field. Hex is used rather than base64 because hex strings are easier to visually inspect and compare, and SSH tooling commonly uses hex for fingerprints and challenge-response values.
 > - The signature is copied to clipboard by default; use `--no-clipboard` to suppress the copy.
 > - The `--challenge` flag enables noninteractive use in scripts.
 > - The JSON output includes `"algorithm"` so callers can verify the signing algorithm without reading the credential metadata separately.
@@ -629,7 +629,6 @@ The history command retrieves recent audit events from the ScalarDL Ledger and d
 
 ```
 $ tegata history
-Passphrase: ········
 
 #     Timestamp             Label (hashed)    Type  Status  (cinnabar)
 ────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
@@ -646,7 +645,6 @@ Passphrase: ········
 
 ```
 $ tegata history --around 843
-Passphrase: ········
 
 #     Timestamp             Label (hashed)    Type  Status  (cinnabar)
 ────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
@@ -692,6 +690,7 @@ Showing 3 events before and after event #843
 > - Labels are stored as hashed values in the audit log—the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text.
 > - The `--around N` flag is the primary investigation tool when `tegata verify` (section 3.6) reports an integrity violation at a specific event: the user runs `tegata history --around N` to see the surrounding context.
 > - The `>>>` marker on the target event makes it visually unambiguous even when the terminal has no color.
+> - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault), same as `tegata verify`.
 > - The `history` command requires a reachable ScalarDL Ledger instance—it cannot operate from the offline queue.
 
 ### 3.6 `tegata verify`
@@ -850,7 +849,7 @@ $ tegata version
  \__|\___|\__, |\__,_| \__|\__,_|       (cinnabar)
           |___/                         (cinnabar)
 
-tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
+tegata vX.Y.Z (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 ```
 
 **JSON output (`--json`):**
@@ -858,7 +857,7 @@ tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 ```json
 {
   "status": "ok",
-  "version": "0.3.0",
+  "version": "X.Y.Z",
   "go_version": "go1.23.0",
   "commit": "abc1234",
   "platform": "linux/amd64",
@@ -1185,7 +1184,7 @@ The welcome step displays the Tegata logo and tagline and prompts the user to be
 │                          \__\___/\__, |\__,_|\__\__,_|                      │
 │                                  |___/                                       │
 │                                                                              │
-│                   Tegata – portable authenticator (v1.0.0)                  │
+│                   Tegata – portable authenticator (vX.Y.Z)                  │
 │                   Your authentication history. Integrity checked.           │
 │                                                                              │
 │                         Press Enter to begin setup.                         │

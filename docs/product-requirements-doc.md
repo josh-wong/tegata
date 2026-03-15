@@ -1,10 +1,10 @@
 # Tegata – Product requirements document
 
-**Author:** [josh-wong](https://github.com/josh-wong)
-**Date:** March 8, 2026
-**Last revised:** March 12, 2026
-**Status:** Approved
-**Companion document:** [Design document](./design-doc.md)
+- **Author:** [josh-wong](https://github.com/josh-wong)
+- **Date:** March 8, 2026
+- **Last revised:** March 12, 2026
+- **Status:** Approved
+- **Companion document:** [Design document](./design-doc.md)
 
 ---
 
@@ -125,9 +125,9 @@ The following subsections detail each major component of the Tegata system.
 
 #### 5.2.2 CLI binary (portable)
 
-- **Language:** Go, compiling to a single static binary per platform with CGO_ENABLED=0 — no runtime dependencies.
+- **Language:** Go, compiling to a single static binary per platform with CGO_ENABLED=0—no runtime dependencies.
 - **Functionality:**
-  - Decrypts the key vault using the user's PIN/passphrase.
+  - Decrypts the key vault by using the user's PIN/passphrase.
   - Generates TOTP/HOTP codes.
   - Performs challenge-response signing (HMAC-SHA1/SHA256).
   - Retrieves static passwords.
@@ -138,7 +138,7 @@ The following subsections detail each major component of the Tegata system.
 #### 5.2.3 Desktop GUI (host-installed)
 
 - **Framework:** Wails desktop application (CGO required; system WebView used as frontend).
-- **Feature parity:** Full feature parity with the CLI — all authentication operations, vault management, and optional audit logging available via a graphical interface.
+- **Feature parity:** Full feature parity with the CLI—all authentication operations, vault management, and optional audit logging available via a graphical interface.
 - **Shared service layer:** The same internal Go packages handle vault, auth, and audit operations in both the CLI and GUI binaries.
 - **Distribution:** Platform-specific installer; installed on the host machine, not carried on the USB drive.
 - **Architecture details:** App struct design, frontend framework selection, and build flags are deferred to the design document.
@@ -195,7 +195,7 @@ Tegata must support the following authentication protocols for compatibility wit
 #### FR-3: Challenge-response signing
 
 - Support HMAC-SHA1 and HMAC-SHA256 challenge-response.
-- Accept challenges via CLI argument or stdin.
+- Accept challenges via interactive prompt, `--challenge` flag, or stdin.
 - Output signed response to stdout.
 - Suitable for use as an SSH authentication helper or custom protocol integration.
 
@@ -230,7 +230,7 @@ The vault must support initialization, credential management, and backup/restore
 #### FR-8: Removing credentials
 
 - `tegata remove <label>` deletes a credential from the vault.
-- Requires PIN/passphrase re-entry for confirmation.
+- Requires explicit `[y/N]` confirmation before deletion (the standard vault unlock passphrase is sufficient; no additional passphrase re-entry is required).
 
 #### FR-9: Vault export/import
 
@@ -403,7 +403,6 @@ Tegata will use **HashStore** (generic contracts) in ScalarDL 3.12 rather than c
 - `object.Put`. Store a hash of each authentication event.
 - `object.Get`. Retrieve event records.
 - `object.Validate`. Verify hash chain integrity.
-- `collection.Create` / `collection.Add`. Group events by user, device, or time period.
 
 This avoids requiring users to write, compile, and deploy Java contracts (which would need a JDK 8-compatible toolchain), keeping the setup lightweight.
 
@@ -498,7 +497,7 @@ All questions resolved as of March 12, 2026. Decisions and rationale are documen
 
 1. **Language choice: Go vs. Rust?** Go offers faster development and simpler cross-compilation. Rust offers better memory safety guarantees (important for crypto operations) and smaller binaries. Decision needed before v0.1.
 
-   ✅ Resolved: Go. Pros: faster development velocity, simpler cross-compilation (GOOS/GOARCH flags), mature ecosystem for CLI tools and gRPC. Tradeoff: Rust's stronger memory safety deferred — mitigated by memguard for key material lifecycle.
+   ✅ Resolved: Go. Pros: faster development velocity, simpler cross-compilation (GOOS/GOARCH flags), mature ecosystem for CLI tools and gRPC. Tradeoff: Rust's stronger memory safety deferred—mitigated by memguard for key material lifecycle.
 
 2. **Should Tegata support FIDO2/WebAuthn in software?** This is technically possible (software-based FIDO2 authenticator) but controversial—the FIDO Alliance specifically designed FIDO2 to require hardware attestation. Including it could create false security expectations.
 
@@ -510,7 +509,7 @@ All questions resolved as of March 12, 2026. Decisions and rationale are documen
 
 4. **Vault format: JSON vs. SQLite?** JSON is simpler and more portable. SQLite handles larger vaults more efficiently and supports atomic writes. Decision needed before v0.1.
 
-   ✅ Resolved: JSON (whole-blob AES-256-GCM). Pros: no CGO dependency (encoding/json is pure Go), simpler implementation, adequate for expected vault size (tens to low hundreds of credentials). Tradeoff: SQLite would handle larger vaults more efficiently — revisit if vault size becomes a bottleneck.
+   ✅ Resolved: JSON (whole-blob AES-256-GCM). Pros: no CGO dependency (encoding/json is pure Go), simpler implementation, adequate for expected vault size (tens to low hundreds of credentials). Tradeoff: SQLite would handle larger vaults more efficiently—revisit if vault size becomes a bottleneck.
 
 5. **Should v1.0 include a GUI application in addition to CLI/TUI?** A GUI would improve accessibility for non-developer users but significantly increases development and maintenance scope.
 

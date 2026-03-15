@@ -52,7 +52,7 @@
 ## Code quality
 
 <!-- Verify these items -->
-- [ ] Code follows project conventions (Go/Rust style guidelines)
+- [ ] Code follows project conventions (Go style guidelines)
 - [ ] Added appropriate comments for complex cryptographic or security logic
 - [ ] No hardcoded secrets or configuration values
 - [ ] Proper error handling and user-friendly error messages

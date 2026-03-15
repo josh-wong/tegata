@@ -1,14 +1,14 @@
 # Tegata – Design document
 
-**Author:** [josh-wong](https://github.com/josh-wong)
-**Date:** March 12, 2026
-**Last revised:** March 13, 2026
-**Status:** Draft (Phase 2 complete)
-**Companion document:** [Product requirements document](./product-requirements-doc.md)
+- **Author:** [josh-wong](https://github.com/josh-wong)
+- **Date:** March 12, 2026
+- **Last revised:** March 13, 2026
+- **Status:** Draft (Phase 2 complete)
+- **Companion document:** [Product requirements document](./product-requirements-doc.md)
 
 ---
 
-## 1. Introduction
+## 1. Scope and context
 
 This document describes the technical architecture, component design, and implementation strategy for Tegata, an open-source portable authenticator with optional tamper-evident audit logging. It serves as the companion to the [product requirements document](./product-requirements-doc.md) and provides the engineering detail needed to implement the system.
 
@@ -27,7 +27,7 @@ The following terms are used throughout this document.
 | **Label**         | A user-assigned name for a credential (for example, `GitHub` or `AWS-prod`)                          |
 | **Passphrase**    | The user-provided secret used with Argon2id to derive the vault encryption key                       |
 | **Recovery key**  | A randomly generated key stored offline that can decrypt the vault if the passphrase is lost          |
-| **DEK**           | Data encryption key — the AES-256 key derived from the passphrase via Argon2id                       |
+| **DEK**           | Data encryption key – the AES-256 key derived from the passphrase via Argon2id                       |
 | **Event**         | A single authentication operation record submitted to ScalarDL Ledger                                |
 | **HashStore**     | ScalarDL's built-in generic contract abstraction for storing and validating hash-chained records      |
 | **Offline queue** | An encrypted local buffer that stores audit events when the ScalarDL Ledger instance is unreachable   |
@@ -243,7 +243,7 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 │  │ Recovery key salt: [32]byte  (32B)  ││
 │  │ Write counter: uint64        (8B)   ││
 │  │ Nonce: [12]byte              (12B)  ││
-│  │ Reserved: [13]byte           (13B)  ││
+│  │ Reserved: [25]byte           (25B)  ││
 │  └─────────────────────────────────────┘│
 ├─────────────────────────────────────────┤
 │  Encrypted blob (variable size)         │
@@ -252,7 +252,7 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 └─────────────────────────────────────────┘
 ```
 
-The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the 12-byte nonce is derived deterministically from it as `counter_be8 || zeros4`. Storing both the counter and derived nonce in the header allows direct nonce validation during decryption without recomputation. The reserved bytes allow future header extensions without breaking compatibility.
+The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the 12-byte nonce is derived deterministically from it as `counter_be8 || zeros4`. Storing both the counter and derived nonce in the header allows direct nonce validation during decryption without recomputation. The 25 reserved bytes allow future header extensions without breaking compatibility.
 
 ### 3.2 Inner JSON schema
 
@@ -316,6 +316,8 @@ After decryption, the blob contains a JSON document with the following structure
 
 Fields vary by credential type. TOTP credentials include `algorithm`, `digits`, and `period`. HOTP credentials include `algorithm`, `digits`, and `counter`. Challenge-response credentials include `algorithm`. Static passwords have only `secret`. All types share `id`, `label`, `type`, `secret`, `tags`, `created_at`, and `modified_at`.
 
+The `type` field uses the full string in the vault JSON schema (`"totp"`, `"hotp"`, `"challenge-response"`, `"static"`). CLI human-readable output and JSON output use the abbreviated form `"cr"` for display. The mapping is: `"challenge-response"` (storage) ↔ `"cr"` (CLI output).
+
 ### 3.3 Argon2id parameters
 
 The following parameters are used for key derivation from the user's passphrase.
@@ -336,22 +338,22 @@ These parameters are stored in the vault header so that future versions can adju
 
 1. Serialize credentials to JSON.
 2. Read the salt from the vault header (or generate a new one for `init`).
-3. Derive the DEK from the passphrase using Argon2id with the stored parameters and salt.
+3. Derive the DEK from the passphrase by using Argon2id with the stored parameters and salt.
 4. Increment the write counter in the header.
 5. Derive the 12-byte nonce from the write counter: `nonce = counter_be8 || zeros4`.
-6. Encrypt the JSON blob using AES-256-GCM with the DEK and derived nonce.
+6. Encrypt the JSON blob by using AES-256-GCM with the DEK and derived nonce.
 7. Write the header (with updated write counter and derived nonce) and encrypted blob to a temporary file.
 8. Rename the temporary file over the vault file (atomic on all target file systems).
-9. Zero the DEK and plaintext JSON from memory using memguard.
+9. Zero the DEK and plaintext JSON from memory by using memguard.
 
 **Decryption (on vault unlock):**
 
 1. Read the plaintext header to extract salt, Argon2id parameters, write counter, and nonce.
-2. Verify the magic bytes and header checksum — reject with a corruption error (exit 3) if invalid.
-3. Verify the nonce matches `deriveNonce(write_counter)` — reject with a corruption error (exit 3) if mismatched.
-4. Derive the DEK from the passphrase using the extracted parameters.
-5. Decrypt the blob using AES-256-GCM with the DEK and nonce.
-6. If decryption fails (GCM tag mismatch) and the header passed validation in steps 2–3, the passphrase is incorrect — return an authentication error (exit 2). If the header was borderline (valid magic but unexpected field values), return a corruption error (exit 3) instead.
+2. Verify the magic bytes and version field—reject with a corruption error (exit 3) if invalid.
+3. Verify the nonce matches `deriveNonce(write_counter)`—reject with a corruption error (exit 3) if mismatched.
+4. Derive the DEK from the passphrase by using the extracted parameters.
+5. Decrypt the blob by using AES-256-GCM with the DEK and nonce.
+6. If decryption fails (GCM tag mismatch) and the header passed validation in steps 2–3, the passphrase is incorrect—return an authentication error (exit 2). If the header was borderline (valid magic but unexpected field values), return a corruption error (exit 3) instead.
 7. Deserialize the JSON into in-memory credential structs (within memguard `LockedBuffer`).
 8. Zero the DEK. The plaintext credentials remain in guarded memory until the vault locks.
 
@@ -366,7 +368,7 @@ func deriveNonce(counter uint64) [12]byte {
 }
 ```
 
-The write counter starts at 1 on `tegata init` (counter 0 is reserved as an invalid state). The counter is stored as both the uint64 value and the derived 12-byte nonce in the header. Storing both allows direct nonce validation during decryption without recomputing. If the counter reaches 2^63, the vault format mandates key rotation via `tegata init` with a new salt — this bound is astronomically unreachable in practice but specified for format completeness.
+The write counter starts at 1 on `tegata init` (counter 0 is reserved as an invalid state). The counter is stored as both the uint64 value and the derived 12-byte nonce in the header. Storing both allows direct nonce validation during decryption without recomputing. If the counter reaches 2^63, the vault format mandates key rotation via `tegata init` with a new salt—this bound is astronomically unreachable in practice but specified for format completeness.
 
 ### 3.5 Write strategy: temp-file rename with backup
 
@@ -381,7 +383,7 @@ If the process crashes between steps 3 and 4, the backup file preserves the prev
 
 ### 3.6 Recovery key
 
-During `tegata init`, Tegata generates a 256-bit random recovery key encoded as a base32 string (52 characters, grouped for readability). The recovery key is a secondary DEK — the vault can be decrypted with either the passphrase-derived key or the recovery key. A SHA-256 hash of the recovery key is stored inside the encrypted vault to validate it without storing the key itself on disk.
+During `tegata init`, Tegata generates a 256-bit random recovery key encoded as a base32 string (52 characters, grouped for readability). The recovery key is used via a key-wrapping mechanism: during `tegata init`, the DEK is encrypted twice—once with the passphrase-derived key (stored as the main encrypted blob) and once with the recovery key (stored as a separate encrypted DEK blob appended after the main encrypted blob). On recovery, Tegata decrypts the wrapped DEK by using the recovery key, then uses that DEK to decrypt the vault blob. A SHA-256 hash of the recovery key is stored inside the encrypted vault to validate it without storing the key itself on disk.
 
 Users must store the recovery key offline (printed, in a password manager, etc.). Tegata displays it once during init and never again.
 
@@ -427,19 +429,19 @@ The HOTP engine generates counter-based one-time passwords as specified in RFC 4
 3. Atomic rename the temporary file over the vault file.
 4. Generate and return the code to the caller.
 
-If step 2 or 3 fails, the code is never returned — the user retries with the same counter value. This ordering ensures that a displayed code always corresponds to a persisted counter. See section 9 (Security model), cryptographic pitfall #4 for the rationale behind this ordering, and section 3.5 for the atomic write strategy.
+If step 2 or 3 fails, the code is never returned—the user retries with the same counter value. This ordering ensures that a displayed code always corresponds to a persisted counter. See section 9 (Security model), cryptographic pitfall #4 for the rationale behind this ordering, and section 3.5 for the atomic write strategy.
 
 The counter is stored in the credential's `counter` field inside the encrypted vault. Because the entire vault is re-encrypted on every counter update, the write-temp-rename strategy (section 3.5) ensures atomicity.
 
-**Resynchronization:** If a user's counter drifts from the server, `tegata resync <label>` generates codes for a configurable look-ahead window (default 100) and prompts the user to confirm which code the server accepted, then updates the counter accordingly.
+**Resynchronization:** If a user's counter drifts from the server, `tegata resync <label>` prompts the user to enter two consecutive codes currently displayed by the server. Tegata searches the look-ahead window (default 100) for a counter position where both codes match consecutively, then updates the stored counter accordingly. Requiring two consecutive codes eliminates false matches from coincidental collisions within the search window.
 
 ### 4.3 Challenge-response (HMAC)
 
-The challenge-response engine signs arbitrary challenges using HMAC.
+The challenge-response engine signs arbitrary challenges by using HMAC.
 
 **Implementation details:**
 
-- Accept a challenge via CLI argument (`tegata sign <label> <challenge>`) or stdin.
+- Accept a challenge via the `--challenge` flag (`tegata sign <label> --challenge <value>`), interactive prompt, or stdin.
 - Compute `HMAC(algorithm, secret, challenge)` where `algorithm` is SHA-1 or SHA-256.
 - Output the hex-encoded signature to stdout.
 
@@ -460,7 +462,7 @@ The static password engine retrieves stored passwords and manages clipboard inte
 
 ## 5. CLI design
 
-The CLI is built with Cobra and follows conventional Unix command-line patterns. All commands support `--help` with usage examples.
+The CLI is built with Cobra and follows conventional Unix command-line patterns. All commands support `--help` with usage examples. Each CLI invocation is stateless: it unlocks the vault, performs the requested operation, and immediately zeros all key material. There is no persistent "unlocked session" in CLI mode—only the TUI (v0.5) and GUI (v0.6) maintain session state with idle timeout-based auto-lock.
 
 ### 5.1 Command tree
 
@@ -471,7 +473,7 @@ tegata
 │                           # Add a credential
 ├── list                    # List all credentials
 ├── code <label>            # Generate TOTP/HOTP code
-├── sign <label> [challenge]
+├── sign <label> [--challenge <value>]
 │                           # Challenge-response signing
 ├── get <label>             # Retrieve static password (clipboard)
 ├── remove <label>          # Remove a credential
@@ -538,7 +540,7 @@ The CLI workflow is designed to meet two usability benchmarks from the PRD.
 
 ### 5.7 Bench command
 
-**`tegata bench`** benchmarks Argon2id key derivation on the current machine using the default parameters (t=3, m=64MiB, p=4). It reports the derivation time and, if it exceeds 3 seconds, recommends adjusted parameters. The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance.
+**`tegata bench`** benchmarks Argon2id key derivation on the current machine by using the default parameters (t=3, m=64MiB, p=4). It reports the derivation time and, if it exceeds 3 seconds, recommends adjusted parameters. The recommendation prioritizes reducing memory cost before time cost, since memory cost provides stronger GPU attack resistance.
 
 Example output when within target:
 
@@ -568,7 +570,7 @@ Tegata uses a TOML configuration file (`tegata.toml`) stored on the USB drive al
 The configuration file uses TOML format with the following sections.
 
 ```toml
-# tegata.toml — Tegata configuration
+# tegata.toml – Tegata configuration
 
 [vault]
 # Idle timeout before auto-lock (seconds)
@@ -591,17 +593,16 @@ ca = "certs/ca.pem"
 
 # Offline queue settings
 queue_max_events = 10000
-queue_flush_interval = 60
 ```
 
 ### 6.2 Precedence rules
 
 Configuration values are resolved in the following order (highest priority first):
 
-1. **CLI flags** — override everything for the current command.
-2. **Environment variables** — prefixed with `TEGATA_` (for example, `TEGATA_VAULT_IDLE_TIMEOUT=600`).
-3. **Config file** — `tegata.toml` located via auto-detection (same search order as vault).
-4. **Built-in defaults** — the values shown in the example above.
+1. **CLI flags.** Override everything for the current command.
+2. **Environment variables.** Prefixed with `TEGATA_` (for example, `TEGATA_VAULT_IDLE_TIMEOUT=600`).
+3. **Config file.** `tegata.toml` located via auto-detection (same search order as vault).
+4. **Built-in defaults.** The values shown in the example above.
 
 ### 6.3 ScalarDL connection settings
 
@@ -617,11 +618,11 @@ When enabled, the gRPC client requires:
 
 Tegata provides an optional desktop GUI application built with Wails v2, planned for v0.6. The GUI binary is a separate executable installed on the host machine (not carried on the USB drive like the CLI binary). It shares the same internal service packages as the CLI, ensuring feature parity without code duplication. This section specifies the architecture in enough detail that v0.6 implementation can begin without further design work.
 
-The `frontend/` directory within `cmd/tegata-gui/` is managed by Wails and uses npm for dependency management. It is only relevant to the GUI binary — the CLI build ignores it entirely.
+The `frontend/` directory within `cmd/tegata-gui/` is managed by Wails and uses npm for dependency management. It is only relevant to the GUI binary—the CLI build ignores it entirely.
 
 ### 7.1 App struct as thin adapter
 
-The Wails v2 application entry point is an `App` struct registered with `wails.Run()`. Exported methods on the App struct are automatically bound to the JavaScript frontend. The App struct is a thin adapter — it holds references to the same internal service instances (`vault.Manager`, `auth.Registry`, `audit.EventBuilder`) used by the CLI's Cobra command handlers.
+The Wails v2 application entry point is an `App` struct registered with `wails.Run()`. Exported methods on the App struct are automatically bound to the JavaScript frontend. The App struct is a thin adapter—it holds references to the same internal service instances (`vault.Manager`, `auth.Registry`, `audit.EventBuilder`) used by the CLI's Cobra command handlers.
 
 ```go
 // cmd/tegata-gui/app.go
@@ -655,15 +656,15 @@ func (a *App) GetTOTPCode(label string) (TOTPResult, error) {
 }
 ```
 
-The CLI's Cobra commands call the same `vault.Manager.Unlock()` and `auth.Registry.GenerateTOTP()` methods. The GUI adapter adds no business logic — it translates frontend calls to internal package calls.
+The CLI's Cobra commands call the same `vault.Manager.Unlock()` and `auth.Registry.GenerateTOTP()` methods. The GUI adapter adds no business logic—it translates frontend calls to internal package calls.
 
 ### 7.2 Frontend framework
 
 The GUI frontend uses React 18 with TypeScript 5, initialized from the official Wails react-ts template. React was chosen because the developer has existing React experience and the bundle size difference between React and lighter alternatives (Svelte, Preact) is negligible for an embedded desktop application where the assets are bundled into the binary.
 
-Wails v2 automatically generates TypeScript bindings in `frontend/wailsjs/go/` from exported Go types. Developers do not manually maintain Go/TypeScript type parity — the build step regenerates bindings on each `wails build` or `wails dev` invocation.
+Wails v2 automatically generates TypeScript bindings in `frontend/wailsjs/go/` from exported Go types. Developers do not manually maintain Go/TypeScript type parity—the build step regenerates bindings on each `wails build` or `wails dev` invocation.
 
-The specific component library is deferred to v0.6 planning. UI frameworks evolve rapidly; locking in a component library now risks choosing one that is outdated by the time implementation begins. The architecture is framework-agnostic — any React component library can be added at v0.6.
+The specific component library is deferred to v0.6 planning. UI frameworks evolve rapidly; locking in a component library now risks choosing one that is outdated by the time implementation begins. The architecture is framework-agnostic—any React component library can be added at v0.6.
 
 ### 7.3 CGO build requirements
 
@@ -672,7 +673,7 @@ The GUI binary requires CGO (unlike the CLI binary which uses `CGO_ENABLED=0`). 
 | Platform      | WebView dependency                         | Installation                                     |
 |---------------|--------------------------------------------|--------------------------------------------------|
 | Windows 10+   | WebView2 (Microsoft Edge Chromium runtime) | Bundled with Windows 10 1903+ by default         |
-| macOS 12+     | WKWebView                                  | System framework — no installation needed        |
+| macOS 12+     | WKWebView                                  | System framework—no installation needed        |
 | Linux (amd64) | WebKitGTK                                  | `apt install libgtk-3-dev libwebkit2gtk-4.0-dev` |
 
 Because CGO is required, the GUI binary cannot be cross-compiled. Each platform binary must be built natively on that platform. This is the primary operational distinction from the CLI (which cross-compiles freely with `GOOS`/`GOARCH`).
@@ -703,15 +704,15 @@ The GUI binary is installed on the host machine (unlike the CLI, which runs from
 | macOS    | DMG              | `create-dmg`        | Wails v2 does not natively produce DMG files                                   |
 | Linux    | .deb / .rpm      | `nfpm`              | AppImage has known WebKitNetworkProcess issues with Wails; prefer native packages |
 
-The installer bundles only the GUI binary and frontend assets. It does not bundle the vault, config, or CLI binary — those remain on the USB drive. The GUI discovers the vault file using the same auto-detection logic as the CLI (section 5.3).
+The installer bundles only the GUI binary and frontend assets. It does not bundle the vault, config, or CLI binary—those remain on the USB drive. The GUI discovers the vault file by using the same auto-detection logic as the CLI (section 5.3).
 
 ## 8. ScalarDL integration
 
-This section details how Tegata communicates with ScalarDL Ledger for tamper-evident audit logging. All functionality in this section is optional — Tegata operates as a fully functional authenticator without it.
+This section details how Tegata communicates with ScalarDL Ledger for tamper-evident audit logging. All functionality in this section is optional—Tegata operates as a fully functional authenticator without it.
 
 ### 8.1 gRPC client
 
-Tegata implements a lightweight gRPC client using `grpc-go` against ScalarDL's protobuf service definitions. The client communicates with the `Ledger` gRPC service using a single RPC method — `ExecuteContract` — and varies behavior by passing different contract identifiers.
+Tegata implements a lightweight gRPC client by using `grpc-go` against ScalarDL's protobuf service definitions. The client communicates with the `Ledger` gRPC service by using a single RPC method—`ExecuteContract`—and varies behavior by passing different contract identifiers.
 
 | Operation  | Contract identifier | Purpose                                       |
 |------------|---------------------|-----------------------------------------------|
@@ -775,7 +776,7 @@ type AuthEvent struct {
 }
 ```
 
-Labels, service names, and host identifiers are always hashed before transmission. This protects privacy even if the audit log is compromised — an attacker cannot determine which services the user authenticates with.
+Labels, service names, and host identifiers are always hashed before transmission. This protects privacy even if the audit log is compromised—an attacker cannot determine which services the user authenticates with.
 
 ### 8.3 HashStore contract usage
 
@@ -798,7 +799,7 @@ Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. 
 
 When the ScalarDL Ledger instance is unreachable, events are stored in an encrypted local queue (`queue.tegata`) on the USB drive.
 
-**Queue format:** The queue file uses AES-256-GCM encryption with random 96-bit nonces (not the vault's write-counter approach). Random nonces are safe for the queue because queue writes are bounded by authentication frequency — at a realistic rate of 100 operations per day, it would take over 100 years to approach the birthday-bound collision risk of approximately 2^32 encryptions. Using random nonces avoids the complexity of shared counter state between the vault and queue files. Each queue entry stores its own nonce alongside the ciphertext.
+**Queue format:** The queue file uses AES-256-GCM encryption with random 96-bit nonces (not the vault's write-counter approach). Random nonces are safe for the queue because queue writes are bounded by authentication frequency—at a realistic rate of 100 operations per day, it would take over 100 years to approach the birthday-bound collision risk of approximately 2^32 encryptions. Using random nonces avoids the complexity of shared counter state between the vault and queue files. Each queue entry stores its own nonce alongside the ciphertext.
 
 The queue uses a key derived from the same passphrase but with a distinct salt (stored in the queue file header), ensuring cryptographic separation from the vault. Events are stored as a JSON array of `AuthEvent` objects. A local hash chain (each event includes a hash of the previous event) protects integrity during the offline window.
 
@@ -815,7 +816,7 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 **`tegata history`:** Calls `ExecuteContract` with the `object.Get` contract to retrieve event records. Supports filtering by date range (`--from`, `--to`), credential label (`--label`), and operation type (`--type`). Displays results in a human-readable table or JSON (`--json`).
 
-**`tegata ledger setup`:** Performs `RegisterCertificate` to register the user's TLS certificate with the ScalarDL Ledger, followed by a test `ExecuteContract` call using `object.Put` with a sentinel value to confirm connectivity. The exact `RegisterCertificate` proto message fields (`CertHolderId`, `CertVersion`) require integration-test validation against ScalarDL 3.12 before implementation.
+**`tegata ledger setup`:** Performs `RegisterCertificate` to register the user's TLS certificate with the ScalarDL Ledger, followed by a test `ExecuteContract` call that uses `object.Put` with a sentinel value to confirm connectivity. The exact `RegisterCertificate` proto message fields (`CertHolderId`, `CertVersion`) require integration-test validation against ScalarDL 3.12 before implementation.
 
 ## 9. Security model
 
@@ -859,10 +860,10 @@ The following table documents the five most critical cryptographic pitfalls iden
 
 | Pitfall                              | Risk                                                                                                                                                                              | Mitigation                                                                                                                                                                                                                                                          |
 |--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Nonce reuse in AES-256-GCM           | Two encryptions with the same key and nonce break GCM security — the authentication key can be recovered and all prior messages can be forged                                     | Write-counter nonce: monotonic uint64 counter in vault header, incremented before each write, nonce derived deterministically as `counter_be8 \|\| zeros4`. Counter starts at 1; reads never increment; a crashed write leaves an incremented counter on the next successful write. See section 3.4. |
-| Key material copies escaping guarded memory | Go's garbage collector does not zero freed memory. Key bytes copied into plain `[]byte` slices survive in memory after vault locks.                                        | All key material access goes through `internal/crypto/guard`. `KeyEnclave.Open(fn func([]byte) error)` ensures key bytes exist only inside the callback; the buffer is destroyed on return. No function should accept `key []byte` parameters — use `*guard.KeyEnclave` instead.               |
+| Nonce reuse in AES-256-GCM           | Two encryptions with the same key and nonce break GCM security—the authentication key can be recovered and all prior messages can be forged                                     | Write-counter nonce: monotonic uint64 counter in vault header, incremented before each write, nonce derived deterministically as `counter_be8 \|\| zeros4`. Counter starts at 1; reads never increment; a crashed write leaves an incremented counter on the next successful write. See section 3.4. |
+| Key material copies escaping guarded memory | Go's garbage collector does not zero freed memory. Key bytes copied into plain `[]byte` slices survive in memory after vault locks.                                        | All key material access goes through `internal/crypto/guard`. `KeyEnclave.Open(fn func([]byte) error)` ensures key bytes exist only inside the callback; the buffer is destroyed on return. No function should accept `key []byte` parameters—use `*guard.KeyEnclave` instead.               |
 | Weak Argon2id parameters             | Using insufficient memory cost (e.g., t=1, m=4MiB, p=1) defeats GPU-resistance. Copy-pasted defaults from documentation examples are often dangerously low.                      | Defaults locked in vault header at creation: t=3, m=64MiB, p=4 (above OWASP minimums). `tegata bench` warns if derivation exceeds 3 seconds. Never allow t < 2 or m < 19 MiB without explicit override. See section 3.3.                                                                       |
-| HOTP counter race condition          | If the counter is incremented in memory but the vault write fails, the in-memory and on-disk counters diverge, causing authentication failures.                                    | Correct order: (1) increment counter in-memory, (2) write vault with new counter to temp file, (3) atomic rename over vault, (4) generate and return code. If step 2 or 3 fails, the code is never displayed — user retries with same counter. See section 3.5 for atomic write strategy.        |
+| HOTP counter race condition          | If the counter is incremented in memory but the vault write fails, the in-memory and on-disk counters diverge, causing authentication failures.                                    | Correct order: (1) increment counter in-memory, (2) write vault with new counter to temp file, (3) atomic rename over vault, (4) generate and return code. If step 2 or 3 fails, the code is never displayed—user retries with same counter. See section 3.5 for atomic write strategy.        |
 | memguard pre-v1 API instability      | memguard explicitly warns its API may change. Direct usage throughout the codebase means a breaking change requires updates across all packages.                                   | All memguard usage MUST go through `internal/crypto/guard`. This is an architectural rule, not a recommendation. Only `internal/crypto/guard` may import `github.com/awnumar/memguard`.                                                                                                          |
 
 ### 9.4 memguard key lifecycle
@@ -934,7 +935,7 @@ func (e *KeyEnclave) Open(fn func([]byte) error) error  // unseals, calls fn, re
 func (e *KeyEnclave) Destroy()
 ```
 
-The `Open(fn)` pattern is the only way to access DEK bytes. This ensures the key is never stored in a local variable — the callback receives a slice backed by the guarded buffer, and the buffer is destroyed when the callback returns.
+The `Open(fn)` pattern is the only way to access DEK bytes. This ensures the key is never stored in a local variable—the callback receives a slice backed by the guarded buffer, and the buffer is destroyed when the callback returns.
 
 ### 9.6 Passphrase rate-limiting
 
@@ -972,7 +973,7 @@ Every error returned by Tegata falls into one of the following categories, each 
 |----------------|-----------|------------------------------------------------|----------------------------------------------|
 | `input`        | 1         | Invalid user input or missing arguments        | `"Label 'GitHub' not found. Run 'tegata list' to see available credentials."` |
 | `auth`         | 2         | Authentication failure                         | `"Incorrect passphrase. 2 attempts remaining before rate-limiting."` |
-| `vault`        | 3         | Vault file issues                              | `"Vault file is corrupted. A backup exists at vault.tegata.bak — run 'tegata recover' to restore."` |
+| `vault`        | 3         | Vault file issues                              | `"Vault file is corrupted. A backup exists at vault.tegata.bak—run 'tegata import vault.tegata.bak' to restore."` |
 | `network`      | 4         | ScalarDL connectivity issues                   | `"Cannot reach ScalarDL Ledger at localhost:50051. Event queued locally (3 events pending)."` |
 | `integrity`    | 5         | Audit chain integrity violation                | `"Hash chain broken at event #843. Run 'tegata history --around 843' for details."` |
 
@@ -980,8 +981,8 @@ Every error returned by Tegata falls into one of the following categories, each 
 
 Every error message follows this structure:
 
-1. **What happened** — a clear description of the problem.
-2. **What to do** — a concrete next step the user can take.
+1. **What happened.** A clear description of the problem.
+2. **What to do.** A concrete next step the user can take.
 
 Error messages never display raw stack traces, internal error codes, or technical jargon without explanation.
 
@@ -1045,11 +1046,11 @@ The platform testing matrix differs between the CLI binary (cross-compiled, no C
 | macOS 12+ (amd64)   | GitHub Actions     | Platform runner | —                  |
 | Linux (amd64)       | GitHub Actions     | Platform runner | Docker/WSL         |
 
-CLI cross-compilation is verified in CI using `GOOS`/`GOARCH` flags with `CGO_ENABLED=0`.
+CLI cross-compilation is verified in CI by using `GOOS`/`GOARCH` flags with `CGO_ENABLED=0`.
 
 ### 11.4 GUI and CGO testing
 
-GUI testing uses Wails' built-in test utilities for Go binding verification and Playwright (or similar browser automation) for end-to-end frontend tests. Because the GUI binary requires CGO, GUI-specific tests cannot run on `CGO_ENABLED=0` CI runners. GUI tests run on platform-specific CI runners or during manual testing. The shared service layer (`internal/`) is fully tested by the CLI test suite — GUI-specific tests focus on the binding layer and frontend interactions.
+GUI testing uses Wails' built-in test utilities for Go binding verification and Playwright (or similar browser automation) for end-to-end frontend tests. Because the GUI binary requires CGO, GUI-specific tests cannot run on `CGO_ENABLED=0` CI runners. GUI tests run on platform-specific CI runners or during manual testing. The shared service layer (`internal/`) is fully tested by the CLI test suite—GUI-specific tests focus on the binding layer and frontend interactions.
 
 ### 11.5 Security and fuzz testing
 
@@ -1119,7 +1120,7 @@ The following build matrix summarizes the key differences.
 | Binary             | CGO                   | Cross-compile | Build tool    | Platforms                                       |
 |--------------------|-----------------------|---------------|---------------|-------------------------------------------------|
 | CLI (`tegata`)     | Disabled (CGO_ENABLED=0) | Yes        | `go build`    | Windows amd64, macOS arm64/amd64, Linux amd64   |
-| GUI (`tegata-gui`) | Required              | No — native only | `wails build` | Windows amd64, macOS arm64/amd64, Linux amd64   |
+| GUI (`tegata-gui`) | Required              | No, native only | `wails build` | Windows amd64, macOS arm64/amd64, Linux amd64   |
 
 The CLI binary cross-compiles freely because all dependencies are pure Go. The GUI binary requires CGO for Wails/WebView integration and must be built natively on each target platform. In CI, the CLI is cross-compiled from a single Linux runner; the GUI requires per-platform runners (or is built in platform-specific release workflows).
 
@@ -1129,10 +1130,10 @@ CLI cross-compilation commands:
 # Windows (amd64)
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o tegata.exe ./cmd/tegata
 
-# macOS (arm64 — Apple Silicon)
+# macOS (arm64 – Apple Silicon)
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o tegata-darwin-arm64 ./cmd/tegata
 
-# macOS (amd64 — Intel)
+# macOS (amd64 – Intel)
 GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o tegata-darwin-amd64 ./cmd/tegata
 
 # Linux (amd64)
@@ -1229,7 +1230,7 @@ Release builds use `goreleaser` to produce tagged, checksummed binaries for each
 
 The following features are explicitly deferred from v1.0 but may be considered in future versions.
 
-**Terminal user interface (TUI):** A guided interactive interface using a library such as `bubbletea` for users who prefer visual navigation over CLI commands. Planned for v1.0 per the release plan.
+**Terminal user interface (TUI):** A guided interactive interface that uses a library such as `bubbletea` for users who prefer visual navigation over CLI commands. Planned for v0.5 per the release plan.
 
 **FIDO2/WebAuthn:** FIDO2/WebAuthn is excluded from all Tegata versions. FIDO2 is designed for hardware attestation, and a software implementation would not provide the security guarantees that relying parties expect. See PRD section 12 Q4 for the full rationale.
 
