@@ -148,11 +148,11 @@ The init command creates a new vault and guides the user through passphrase crea
 
 ```
 $ tegata init
- _                    _
-| |_ ___  __ _  __ _| |_ __ _     (cyan)
-| __/ _ \/ _` |/ _` | __/ _` |    (cyan)
- \__\___/\__, |\__,_|\__\__,_|    (cyan)
-         |___/                     (cyan)
+ _                     _
+| |_  ___  __ _  __ _ | |_  __ _       (cyan)
+|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cyan)
+ \__|\___|\__, |\__,_| \__|\__,_|       (cyan)
+          |___/                         (cyan)
 
 Tegata — portable authenticator (v1.0.0)
 
@@ -741,11 +741,11 @@ The version command displays build information including the version number, Go 
 
 ```
 $ tegata version
- _                    _
-| |_ ___  __ _  __ _| |_ __ _     (cyan)
-| __/ _ \/ _` |/ _` | __/ _` |    (cyan)
- \__\___/\__, |\__,_|\__\__,_|    (cyan)
-         |___/                     (cyan)
+ _                     _
+| |_  ___  __ _  __ _ | |_  __ _       (cyan)
+|  _|/ -_)/ _` |/ _` ||  _|/ _` |      (cyan)
+ \__|\___|\__, |\__,_| \__|\__,_|       (cyan)
+          |___/                         (cyan)
 
 tegata v0.3.0 (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 ```
