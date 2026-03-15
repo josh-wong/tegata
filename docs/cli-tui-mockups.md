@@ -2,52 +2,6 @@
 
 This document is the visual specification for every CLI command output and TUI flow in Tegata. A developer reading this document can match the output of any command character-for-character during implementation, without consulting the design document. Sections 1 through 4 cover conventions, v0.2 CLI commands, v0.3+ CLI commands (placeholder), and error states. Sections 5 through 7 cover TUI wireframes (placeholders, to be populated in subsequent plans).
 
-## Table of contents
-
-- [1. Document conventions](#1-document-conventions)
-  - [1.1 Symbol table](#11-symbol-table)
-  - [1.2 Color annotations](#12-color-annotations)
-  - [1.3 JSON envelope](#13-json-envelope)
-  - [1.4 Exit codes](#14-exit-codes)
-  - [1.5 NO\_COLOR behavior](#15-no_color-behavior)
-- [2. CLI mockups — v0.2 commands](#2-cli-mockups--v02-commands)
-  - [2.1 tegata init](#21-tegata-init)
-  - [2.2 tegata add](#22-tegata-add)
-  - [2.3 tegata list](#23-tegata-list)
-  - [2.4 tegata code](#24-tegata-code)
-  - [2.5 tegata remove](#25-tegata-remove)
-- [3. CLI mockups — v0.3+ commands](#3-cli-mockups--v03-commands)
-  - [3.1 tegata sign](#31-tegata-sign)
-  - [3.2 tegata get](#32-tegata-get)
-  - [3.3 tegata export and tegata import](#33-tegata-export-and-tegata-import)
-  - [3.4 tegata resync](#34-tegata-resync)
-  - [3.5 tegata history](#35-tegata-history)
-  - [3.6 tegata verify](#36-tegata-verify)
-  - [3.7 tegata ledger setup](#37-tegata-ledger-setup)
-  - [3.8 tegata config show](#38-tegata-config-show)
-  - [3.9 tegata version](#39-tegata-version)
-- [4. CLI mockups — error states](#4-cli-mockups--error-states)
-  - [4.1 Wrong passphrase (exit 2)](#41-wrong-passphrase-exit-2)
-  - [4.2 Missing vault (exit 3)](#42-missing-vault-exit-3)
-  - [4.3 Corrupted vault (exit 3)](#43-corrupted-vault-exit-3)
-  - [4.4 ScalarDL unreachable (exit 4)](#44-scalardl-unreachable-exit-4)
-  - [4.5 Integrity violation (exit 5)](#45-integrity-violation-exit-5)
-- [5. TUI wireframes — first-time setup](#5-tui-wireframes--first-time-setup)
-  - [5.1 Step 1 of 4 — Welcome](#51-step-1-of-4--welcome)
-  - [5.2 Step 2 of 4 — Create passphrase](#52-step-2-of-4--create-passphrase)
-  - [5.3 Step 3 of 4 — Recovery key](#53-step-3-of-4--recovery-key)
-  - [5.4 Step 4 of 4 — Add first credential](#54-step-4-of-4--add-first-credential)
-- [6. TUI wireframes — daily use](#6-tui-wireframes--daily-use)
-  - [6.1 Unlock vault](#61-unlock-vault)
-  - [6.2 Main view with code generation](#62-main-view-with-code-generation)
-  - [6.3 Auto-lock](#63-auto-lock)
-- [7. TUI wireframes — credential management](#7-tui-wireframes--credential-management)
-  - [7.1 Credential list view](#71-credential-list-view)
-  - [7.2 Add credential](#72-add-credential)
-  - [7.3 Remove credential (confirmation)](#73-remove-credential-confirmation)
-
----
-
 ## 1. Document conventions
 
 This section defines the rules that all mockups in this document follow. Conventions established here apply uniformly to every subsequent section.
