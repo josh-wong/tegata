@@ -154,7 +154,7 @@ $ tegata init
  \__\___/\__, |\__,_|\__\__,_|    (cyan)
          |___/                     (cyan)
 
-Tegata — portable authenticator (v0.2.0)
+Tegata — portable authenticator (v1.0.0)
 
 Step 1 of 2: Create your vault passphrase
 Passphrase: ········
@@ -978,7 +978,7 @@ The welcome step displays the Tegata logo and tagline and prompts the user to be
 │                          \__\___/\__, |\__,_|\__\__,_|                      │
 │                                  |___/                                       │
 │                                                                              │
-│                   Tegata — portable authenticator (v0.2.0)                  │
+│                   Tegata — portable authenticator (v1.0.0)                  │
 │                   Your authentication history. Integrity checked.           │
 │                                                                              │
 │                         Press Enter to begin setup.                         │
