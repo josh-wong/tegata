@@ -58,8 +58,14 @@ type VaultPayload struct {
 }
 
 // VaultHeader represents the plaintext header of a vault file as specified in
-// design doc section 3.1. This is a binary format; binary serialization will be
-// implemented in Phase 2 when the vault manager is built.
+// design doc section 3.1. The header serializes to exactly 128 bytes in
+// big-endian format at explicit byte offsets.
+//
+// Layout (128 bytes total):
+//
+//	magic(8) + version(2) + argonTime(4) + argonMemory(4) + argonParallelism(1)
+//	+ salt(32) + recoverySalt(32) + writeCounter(8) + nonce(12)
+//	+ failedAttempts(1) + lastAttemptTime(8) + reserved(16) = 128
 type VaultHeader struct {
 	Magic            [8]byte
 	Version          uint16
@@ -70,4 +76,7 @@ type VaultHeader struct {
 	RecoveryKeySalt  [32]byte
 	WriteCounter     uint64
 	Nonce            [12]byte
+	FailedAttempts   uint8
+	LastAttemptTime  int64
+	Reserved         [16]byte
 }
