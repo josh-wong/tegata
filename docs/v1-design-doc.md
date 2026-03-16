@@ -342,6 +342,11 @@ These parameters are stored in the vault header so that future versions can adju
 4. Increment the write counter in the header.
 5. Derive the 12-byte nonce from the write counter: `nonce = counter_be8 || zeros4`.
 6. Encrypt the JSON blob by using AES-256-GCM with the DEK and derived nonce.
+
+> [!NOTE]
+> 
+> **Implementation note:** The `crypto.Seal()` and `crypto.Open()` functions encapsulate nonce derivation and the AES-256-GCM operation. Callers pass the key, write counter, plaintext/ciphertext, and the vault header as AAD. Nonce derivation from the counter is handled internally—callers never construct or pass nonces directly.
+
 7. Write the header (with updated write counter and derived nonce) and encrypted blob to a temporary file.
 8. Rename the temporary file over the vault file (atomic on all target file systems).
 9. Zero the DEK and plaintext JSON from memory by using memguard.
