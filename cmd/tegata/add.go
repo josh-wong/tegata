@@ -1,0 +1,113 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/josh-wong/tegata/internal/auth"
+	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/pkg/model"
+	"github.com/spf13/cobra"
+)
+
+func newAddCmd() *cobra.Command {
+	var (
+		scan      bool
+		credType  string
+		issuer    string
+		algorithm string
+		digits    int
+		period    int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "add <label>",
+		Short: "Add a credential to the vault",
+		Args:  cobra.ExactArgs(1),
+		Example: `  tegata add GitHub --scan
+  tegata add GitHub --type totp --issuer GitHub`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			label := args[0]
+
+			vaultPath, err := resolveVaultPath(cmd)
+			if err != nil {
+				return err
+			}
+
+			passphrase, err := promptPassphrase("Passphrase: ")
+			if err != nil {
+				return err
+			}
+			defer zeroBytes(passphrase)
+
+			mgr, err := openAndUnlock(vaultPath, passphrase)
+			if err != nil {
+				return err
+			}
+			defer mgr.Close()
+
+			var cred model.Credential
+
+			if scan {
+				// Prompt for otpauth:// URI.
+				uri, promptErr := promptSecret("Paste otpauth:// URI: ")
+				if promptErr != nil {
+					return promptErr
+				}
+				parsed, parseErr := auth.ParseOTPAuthURI(strings.TrimSpace(uri))
+				if parseErr != nil {
+					return fmt.Errorf("parsing URI: %w", parseErr)
+				}
+				cred = *parsed
+				cred.Label = label
+			} else {
+				// Validate type.
+				ct := model.CredentialType(credType)
+				switch ct {
+				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic:
+				default:
+					return fmt.Errorf("invalid credential type %q (use totp, hotp, or static): %w",
+						credType, errors.ErrInvalidInput)
+				}
+
+				secret, promptErr := promptSecret("Secret: ")
+				if promptErr != nil {
+					return promptErr
+				}
+
+				cred = model.Credential{
+					Label:     label,
+					Issuer:    issuer,
+					Type:      ct,
+					Algorithm: algorithm,
+					Digits:    digits,
+					Period:    period,
+					Secret:    strings.TrimSpace(secret),
+				}
+			}
+
+			id, err := mgr.AddCredential(cred)
+			if err != nil {
+				return err
+			}
+			_ = id
+
+			displayIssuer := cred.Issuer
+			if displayIssuer == "" {
+				displayIssuer = "--"
+			}
+			fmt.Printf("Added %s credential: %s (%s)\n", cred.Type, cred.Label, displayIssuer)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&scan, "scan", false, "paste an otpauth:// URI")
+	cmd.Flags().StringVar(&credType, "type", "totp", "credential type (totp, hotp, static)")
+	cmd.Flags().StringVar(&issuer, "issuer", "", "credential issuer")
+	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
+	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
+	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
+
+	return cmd
+}
