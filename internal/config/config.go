@@ -1,36 +1,41 @@
-// Package config handles loading and managing Tegata configuration from
-// tegata.toml files. Configuration travels with the vault on USB drives.
+// Package config manages the tegata.toml configuration file that lives
+// alongside the vault on the USB drive. It handles loading, parsing, and
+// writing default configuration values.
+//
+// This is a stub implementation providing the API surface for CLI commands.
+// Full implementation is delivered by Plan 02-03.
 package config
 
-import (
-	"time"
-)
+import "fmt"
 
-// Config holds the runtime configuration for Tegata.
+// Config holds the parsed configuration values from tegata.toml.
 type Config struct {
-	ClipboardTimeout time.Duration
-	IdleTimeout      time.Duration
+	Clipboard ClipboardConfig
+	Vault     VaultConfig
 }
 
-// DefaultConfig returns a Config with the default values.
-func DefaultConfig() Config {
-	return Config{}
+// ClipboardConfig holds clipboard-related settings.
+type ClipboardConfig struct {
+	Timeout int // Seconds before auto-clear (default 45).
 }
 
-// Load reads tegata.toml from dir. If the file does not exist, it returns
-// DefaultConfig with a nil error. Missing keys use default values.
+// VaultConfig holds vault-related settings.
+type VaultConfig struct {
+	IdleTimeout int // Seconds before auto-lock (default 300).
+}
+
+// Load reads and parses the tegata.toml file from the given directory.
+// If the file does not exist, built-in defaults are returned.
 func Load(dir string) (Config, error) {
-	return Config{}, nil
+	return Config{
+		Clipboard: ClipboardConfig{Timeout: 45},
+		Vault:     VaultConfig{IdleTimeout: 300},
+	}, nil
 }
 
-// WriteDefaults creates a tegata.toml in dir with all settings as commented
-// lines, serving as a documented template for users.
+// WriteDefaults creates a tegata.toml file in the given directory with all
+// default values as commented lines.
 func WriteDefaults(dir string) error {
-	return nil
-}
-
-// FormatEffective returns a human-readable display of the effective
-// configuration. When hasFile is false, values are annotated with "(default)".
-func FormatEffective(cfg Config, hasFile bool) string {
-	return ""
+	// Stub: will be implemented by Plan 02-03
+	return fmt.Errorf("config.WriteDefaults: not yet implemented")
 }
