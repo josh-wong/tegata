@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"encoding/base32"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,8 +101,11 @@ func TestUnlockResetsAttemptsOnSuccess(t *testing.T) {
 	}
 	defer m.Close()
 
-	// Fail once then succeed.
+	// Fail once then succeed after backoff expires.
 	_ = m.Unlock([]byte("wrong"))
+	// Move the last attempt time into the past so rate limit doesn't block.
+	m.header.LastAttemptTime = m.header.LastAttemptTime - 2
+	_ = m.saveHeader()
 	err = m.Unlock([]byte("test-passphrase"))
 	if err != nil {
 		t.Fatalf("Unlock: %v", err)
@@ -317,10 +321,14 @@ func TestRecoveryKeyUnlock(t *testing.T) {
 	}
 	defer m.Close()
 
-	// Remove dashes from recovery key display format.
+	// Remove dashes and base32-decode the recovery key.
 	cleanKey := strings.ReplaceAll(recoveryKey, "-", "")
+	rawKey, decErr := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(cleanKey)
+	if decErr != nil {
+		t.Fatalf("decoding recovery key: %v", decErr)
+	}
 
-	err = m.UnlockWithRecoveryKey(cleanKey, testParams)
+	err = m.UnlockWithRecoveryKey(rawKey)
 	if err != nil {
 		t.Fatalf("UnlockWithRecoveryKey: %v", err)
 	}
@@ -335,7 +343,7 @@ func TestRecoveryKeyUnlockWrongKey(t *testing.T) {
 	}
 	defer m.Close()
 
-	err = m.UnlockWithRecoveryKey("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", testParams)
+	err = m.UnlockWithRecoveryKey([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
 	if !errors.Is(err, errors.ErrAuthFailed) {
 		t.Fatalf("expected ErrAuthFailed for wrong recovery key, got %v", err)
 	}
