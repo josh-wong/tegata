@@ -1,41 +1,111 @@
-// Package config manages the tegata.toml configuration file that lives
-// alongside the vault on the USB drive. It handles loading, parsing, and
-// writing default configuration values.
-//
-// This is a stub implementation providing the API surface for CLI commands.
-// Full implementation is delivered by Plan 02-03.
+// Package config handles loading and managing Tegata configuration from
+// tegata.toml files. Configuration travels with the vault on USB drives.
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
-// Config holds the parsed configuration values from tegata.toml.
+	"github.com/BurntSushi/toml"
+)
+
+// Config holds the runtime configuration for Tegata.
 type Config struct {
-	Clipboard ClipboardConfig
-	Vault     VaultConfig
+	ClipboardTimeout time.Duration
+	IdleTimeout      time.Duration
 }
 
-// ClipboardConfig holds clipboard-related settings.
-type ClipboardConfig struct {
-	Timeout int // Seconds before auto-clear (default 45).
+// tomlConfig is the intermediate deserialization struct. Pointer fields
+// distinguish "not set" from "zero value".
+type tomlConfig struct {
+	Clipboard struct {
+		Timeout *int `toml:"timeout"`
+	} `toml:"clipboard"`
+	Vault struct {
+		IdleTimeout *int `toml:"idle_timeout"`
+	} `toml:"vault"`
 }
 
-// VaultConfig holds vault-related settings.
-type VaultConfig struct {
-	IdleTimeout int // Seconds before auto-lock (default 300).
-}
+const (
+	defaultClipboardTimeout = 45
+	defaultIdleTimeout      = 300
+	configFileName          = "tegata.toml"
+)
 
-// Load reads and parses the tegata.toml file from the given directory.
-// If the file does not exist, built-in defaults are returned.
-func Load(dir string) (Config, error) {
+// DefaultConfig returns a Config with the default values: 45-second clipboard
+// timeout and 300-second (5-minute) idle timeout.
+func DefaultConfig() Config {
 	return Config{
-		Clipboard: ClipboardConfig{Timeout: 45},
-		Vault:     VaultConfig{IdleTimeout: 300},
-	}, nil
+		ClipboardTimeout: time.Duration(defaultClipboardTimeout) * time.Second,
+		IdleTimeout:      time.Duration(defaultIdleTimeout) * time.Second,
+	}
 }
 
-// WriteDefaults creates a tegata.toml file in the given directory with all
-// default values as commented lines.
+// Load reads tegata.toml from dir. If the file does not exist, it returns
+// DefaultConfig with a nil error. Missing keys use default values.
+func Load(dir string) (Config, error) {
+	path := filepath.Join(dir, configFileName)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return DefaultConfig(), nil
+		}
+		return Config{}, fmt.Errorf("reading config: %w", err)
+	}
+
+	var tc tomlConfig
+	if err := toml.Unmarshal(data, &tc); err != nil {
+		return Config{}, fmt.Errorf("parsing %s: %w", configFileName, err)
+	}
+
+	cfg := DefaultConfig()
+	if tc.Clipboard.Timeout != nil {
+		cfg.ClipboardTimeout = time.Duration(*tc.Clipboard.Timeout) * time.Second
+	}
+	if tc.Vault.IdleTimeout != nil {
+		cfg.IdleTimeout = time.Duration(*tc.Vault.IdleTimeout) * time.Second
+	}
+
+	return cfg, nil
+}
+
+// WriteDefaults creates a tegata.toml in dir with all settings as commented
+// lines, serving as a documented template for users.
 func WriteDefaults(dir string) error {
-	// Stub: will be implemented by Plan 02-03
-	return fmt.Errorf("config.WriteDefaults: not yet implemented")
+	content := `# Tegata configuration
+# Settings travel with the vault on USB.
+
+[clipboard]
+# Auto-clear timeout in seconds (default: 45)
+# timeout = 45
+
+[vault]
+# Auto-lock timeout in seconds (default: 300)
+# idle_timeout = 300
+`
+	path := filepath.Join(dir, configFileName)
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// FormatEffective returns a human-readable display of the effective
+// configuration. When hasFile is false, values are annotated with "(default)".
+func FormatEffective(cfg Config, hasFile bool) string {
+	var b strings.Builder
+
+	clipSec := int(cfg.ClipboardTimeout.Seconds())
+	idleSec := int(cfg.IdleTimeout.Seconds())
+
+	suffix := ""
+	if !hasFile {
+		suffix = "  (default)"
+	}
+
+	fmt.Fprintf(&b, "clipboard.timeout = %d%s\n", clipSec, suffix)
+	fmt.Fprintf(&b, "vault.idle_timeout = %d%s\n", idleSec, suffix)
+
+	return b.String()
 }
