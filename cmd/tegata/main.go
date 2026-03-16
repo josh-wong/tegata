@@ -45,6 +45,7 @@ via ScalarDL Ledger.`,
 	}
 
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug logging")
+	rootCmd.PersistentFlags().String("vault", "", "path to vault file or directory")
 
 	versionCmd := &cobra.Command{
 		Use:     "version",
@@ -55,7 +56,18 @@ via ScalarDL Ledger.`,
 		},
 	}
 
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(
+		versionCmd,
+		newInitCmd(),
+		newAddCmd(),
+		newListCmd(),
+		newRemoveCmd(),
+		newCodeCmd(),
+		newGetCmd(),
+		newResyncCmd(),
+		newBenchCmd(),
+		newConfigCmd(),
+	)
 
 	return rootCmd.Execute()
 }
