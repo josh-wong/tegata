@@ -19,6 +19,15 @@ import (
 	"github.com/josh-wong/tegata/pkg/model"
 )
 
+// exportEnvelope is the inner JSON document written into a .tegata-backup file.
+// It contains only the credentials array, not the vault header, DEK, or
+// rate-limit state, so the backup is fully self-contained and portable.
+type exportEnvelope struct {
+	Version     int               `json:"version"`
+	ExportedAt  time.Time         `json:"exported_at"`
+	Credentials []model.Credential `json:"credentials"`
+}
+
 // zeroBytes overwrites a byte slice with zeroes to limit the lifetime of
 // sensitive data (plaintext JSON, assembled file buffers) on the regular heap.
 func zeroBytes(b []byte) {
@@ -550,6 +559,137 @@ func (m *Manager) saveHeader() error {
 
 	copy(data[:headerSize], headerBytes)
 	return atomicWrite(m.path, data)
+}
+
+// ExportCredentials produces an encrypted .tegata-backup payload containing all
+// credentials in the vault. The output is self-contained: it does not include
+// the vault header, the data encryption key, or rate-limit state. The caller
+// provides a new exportPassphrase independent of the vault passphrase.
+//
+// Binary layout (outer wrapper):
+//
+//	salt[32] | time_BE4[4] | memory_BE4[4] | parallelism[1] | ciphertext[...]
+//
+// The KDF always uses crypto.DefaultParams (not the vault's own params) so
+// the backup can be imported on machines with different vault KDF settings.
+// The encryption counter is fixed at 1 — safe because each export uses a
+// freshly generated random salt, guaranteeing a unique key per export.
+func (m *Manager) ExportCredentials(exportPassphrase []byte) ([]byte, error) {
+	if m.payload == nil {
+		return nil, fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	creds := m.ListCredentials()
+
+	envelope := exportEnvelope{
+		Version:     1,
+		ExportedAt:  time.Now().UTC(),
+		Credentials: creds,
+	}
+
+	envelopeJSON, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling export envelope: %w", err)
+	}
+
+	salt, err := crypto.GenerateSalt()
+	if err != nil {
+		zeroBytes(envelopeJSON)
+		return nil, err
+	}
+
+	// Always use DefaultParams so the backup is portable across machines with
+	// different vault KDF tuning.
+	params := crypto.DefaultParams
+	exportKey := crypto.DeriveKey(exportPassphrase, salt, params)
+	defer exportKey.Destroy()
+
+	ciphertext, err := crypto.Seal(exportKey, 1, envelopeJSON, nil)
+	zeroBytes(envelopeJSON)
+	if err != nil {
+		return nil, fmt.Errorf("encrypting export: %w", err)
+	}
+
+	// Assemble: salt(32) + time_BE4(4) + memory_BE4(4) + parallelism(1) + ciphertext
+	out := make([]byte, 0, 41+len(ciphertext))
+	out = append(out, salt...)
+	timeBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(timeBuf, params.Time)
+	out = append(out, timeBuf...)
+	memBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(memBuf, params.Memory)
+	out = append(out, memBuf...)
+	out = append(out, params.Threads)
+	out = append(out, ciphertext...)
+
+	return out, nil
+}
+
+// ImportCredentials restores credentials from an encrypted .tegata-backup
+// payload (produced by ExportCredentials) into the unlocked vault. Credentials
+// whose label already exists in the vault are silently skipped. Nil Tags fields
+// are normalized to []string{} for consistency with AddCredential behaviour.
+//
+// The importPassphrase must match the passphrase used during export. It is
+// independent of the vault passphrase. Returns the count of newly imported
+// and skipped (duplicate) credentials.
+func (m *Manager) ImportCredentials(data, importPassphrase []byte) (imported, skipped int, err error) {
+	if m.payload == nil {
+		return 0, 0, fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	const prefixLen = 41 // salt(32) + time(4) + memory(4) + parallelism(1)
+	if len(data) <= prefixLen {
+		return 0, 0, fmt.Errorf("backup data too short: %w", errors.ErrVaultCorrupt)
+	}
+
+	salt := data[0:32]
+	timeVal := binary.BigEndian.Uint32(data[32:36])
+	memVal := binary.BigEndian.Uint32(data[36:40])
+	parallelism := data[40]
+
+	params := crypto.KDFParams{
+		Time:    timeVal,
+		Memory:  memVal,
+		Threads: parallelism,
+		KeyLen:  32,
+	}
+
+	importKey := crypto.DeriveKey(importPassphrase, salt, params)
+	defer importKey.Destroy()
+
+	plaintext, err := crypto.Open(importKey, 1, data[prefixLen:], nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("decrypting backup: %w", err)
+	}
+
+	var envelope exportEnvelope
+	if err := json.Unmarshal(plaintext, &envelope); err != nil {
+		zeroBytes(plaintext)
+		return 0, 0, fmt.Errorf("parsing backup envelope: %w", errors.ErrVaultCorrupt)
+	}
+	zeroBytes(plaintext)
+
+	if envelope.Version != 1 {
+		return 0, 0, fmt.Errorf("unsupported backup version %d: %w", envelope.Version, errors.ErrVaultCorrupt)
+	}
+
+	for _, cred := range envelope.Credentials {
+		if _, gerr := m.GetCredential(cred.Label); gerr == nil {
+			// Label already exists — skip.
+			skipped++
+			continue
+		}
+		if cred.Tags == nil {
+			cred.Tags = []string{}
+		}
+		if _, aerr := m.AddCredential(cred); aerr != nil {
+			return imported, skipped, fmt.Errorf("importing credential %q: %w", cred.Label, aerr)
+		}
+		imported++
+	}
+
+	return imported, skipped, nil
 }
 
 // atomicWrite writes data to path using temp-file-rename for crash safety.
