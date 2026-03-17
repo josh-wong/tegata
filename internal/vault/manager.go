@@ -195,7 +195,7 @@ func Open(path string) (*Manager, error) {
 	if header.ArgonTime < 1 || header.ArgonTime > 100 {
 		return nil, fmt.Errorf("invalid argon2 time parameter %d: %w", header.ArgonTime, errors.ErrVaultCorrupt)
 	}
-	if header.ArgonMemory < 1024 || header.ArgonMemory > 4*1024*1024 {
+	if header.ArgonMemory < 8 || header.ArgonMemory > 4*1024*1024 {
 		return nil, fmt.Errorf("invalid argon2 memory parameter %d KiB: %w", header.ArgonMemory, errors.ErrVaultCorrupt)
 	}
 	if header.ArgonParallelism < 1 || header.ArgonParallelism > 255 {
@@ -428,19 +428,16 @@ func (m *Manager) Save() error {
 	}
 
 	encryptedPayload, err := crypto.Seal(dekBuf, m.header.WriteCounter, payloadJSON, nil)
-
-	// Re-wrap DEK with passphrase key for consistency. Actually, we need the
-	// passphrase-derived key to do this, but we don't store it. The
-	// passphrase-wrapped DEK doesn't change unless the passphrase changes.
-	// We need to preserve the original passphrase-wrapped DEK from the file.
-	// Let me read it from disk.
-	oldData, readErr := os.ReadFile(m.path)
 	dekBuf.Destroy()
 	if err != nil {
 		return fmt.Errorf("encrypting payload: %w", err)
 	}
-	if readErr != nil {
-		return fmt.Errorf("reading vault for save: %w", readErr)
+
+	// Read the existing file to preserve the passphrase-wrapped DEK, which
+	// only changes on passphrase change (we don't hold the derived key).
+	oldData, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault for save: %w", err)
 	}
 
 	// Extract the passphrase-wrapped DEK from the existing file.
