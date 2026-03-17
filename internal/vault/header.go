@@ -14,6 +14,9 @@ import (
 // headerSize is the fixed size of a serialized vault header in bytes.
 const headerSize = 128
 
+// currentVersion is the vault format version written by this binary.
+const currentVersion = 1
+
 // magic is the 8-byte file signature for Tegata vault files.
 var magic = [8]byte{'T', 'E', 'G', 'A', 'T', 'A', 0, 0}
 
@@ -99,6 +102,9 @@ func Unmarshal(data []byte) (*model.VaultHeader, error) {
 	// version (2 bytes)
 	h.Version = binary.BigEndian.Uint16(data[off : off+2])
 	off += 2
+	if h.Version != currentVersion {
+		return nil, fmt.Errorf("unsupported vault version %d (expected %d): %w", h.Version, currentVersion, errors.ErrVaultCorrupt)
+	}
 
 	// argonTime (4 bytes)
 	h.ArgonTime = binary.BigEndian.Uint32(data[off : off+4])

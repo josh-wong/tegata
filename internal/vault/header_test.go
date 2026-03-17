@@ -84,6 +84,19 @@ func TestHeaderRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHeaderUnsupportedVersion(t *testing.T) {
+	h := testHeader()
+	h.Version = 99
+	data, err := Marshal(h)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	_, err = Unmarshal(data)
+	if err == nil {
+		t.Fatal("expected error for unsupported version, got nil")
+	}
+}
+
 func TestHeaderInvalidMagic(t *testing.T) {
 	h := testHeader()
 	data, err := Marshal(h)
