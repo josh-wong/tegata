@@ -554,6 +554,16 @@ func atomicWrite(path string, data []byte) error {
 		return fmt.Errorf("renaming temp file: %w", err)
 	}
 
+	// Zero the backup file contents before removal so the encrypted vault
+	// bytes do not persist in unallocated disk blocks (defense in depth).
+	if f, err := os.OpenFile(bakPath, os.O_WRONLY, 0600); err == nil {
+		if info, err := f.Stat(); err == nil {
+			zeros := make([]byte, info.Size())
+			_, _ = f.Write(zeros)
+			_ = f.Sync()
+		}
+		_ = f.Close()
+	}
 	_ = os.Remove(bakPath)
 	return nil
 }
