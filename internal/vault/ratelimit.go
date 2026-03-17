@@ -19,7 +19,15 @@ func CheckRateLimit(h *model.VaultHeader) (time.Duration, error) {
 		return 0, nil
 	}
 
-	backoffSec := int64(1) << (h.FailedAttempts - 1)
+	// Cap the shift count to 8 before shifting: 2^8 = 256 > maxBackoff = 300,
+	// so the cap kicks in at attempt 9. Without this guard, shift counts >= 63
+	// overflow int64, and on amd64 the SHL instruction masks counts >= 64 to
+	// their lower 6 bits, silently producing small (or negative) backoff values.
+	shift := h.FailedAttempts - 1
+	if shift > 8 {
+		shift = 8
+	}
+	backoffSec := int64(1) << shift
 	if backoffSec > maxBackoff {
 		backoffSec = maxBackoff
 	}
