@@ -725,6 +725,211 @@ func TestImportCredentials_EmptyBackup(t *testing.T) {
 	}
 }
 
+func TestChangePassphrase_UnlockWithNewPassphrase(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	// Reopen and unlock with new passphrase.
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("new-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+}
+
+func TestChangePassphrase_OldPassphraseFails(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	err = m2.Unlock([]byte("test-passphrase"))
+	if err == nil {
+		t.Fatal("expected error unlocking with old passphrase, got nil")
+	}
+}
+
+func TestChangePassphrase_RecoveryKeyStillValid(t *testing.T) {
+	path, recoveryKey := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+
+	cleanKey := strings.ReplaceAll(recoveryKey, "-", "")
+	rawKey, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(cleanKey)
+	if err != nil {
+		t.Fatalf("decoding recovery key: %v", err)
+	}
+	if err := m2.UnlockWithRecoveryKey(rawKey); err != nil {
+		t.Fatalf("UnlockWithRecoveryKey after ChangePassphrase: %v", err)
+	}
+}
+
+func TestChangePassphrase_CredentialsPreserved(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	_, err = m.AddCredential(model.Credential{
+		Label:  "MyService",
+		Type:   model.CredentialTOTP,
+		Secret: "JBSWY3DPEHPK3PXP",
+	})
+	if err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("new-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+	list := m2.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials after passphrase change: got %d, want 1", len(list))
+	}
+	if list[0].Label != "MyService" {
+		t.Errorf("Label: got %q, want %q", list[0].Label, "MyService")
+	}
+}
+
+func TestChangePassphrase_WriteCounterUnchanged(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	counterBefore := m.header.WriteCounter
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	if m.header.WriteCounter != counterBefore {
+		t.Errorf("WriteCounter changed during ChangePassphrase: got %d, want %d",
+			m.header.WriteCounter, counterBefore)
+	}
+	m.Close()
+}
+
+func TestVerifyRecoveryKey_ValidKey(t *testing.T) {
+	path, recoveryKey := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	cleanKey := strings.ReplaceAll(recoveryKey, "-", "")
+	rawKey, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(cleanKey)
+	if err != nil {
+		t.Fatalf("decoding recovery key: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey(rawKey)
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("VerifyRecoveryKey: expected true for valid key, got false")
+	}
+}
+
+func TestVerifyRecoveryKey_InvalidKey(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey([]byte("this-is-the-wrong-key-entirely"))
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error for mismatch: %v", err)
+	}
+	if ok {
+		t.Error("VerifyRecoveryKey: expected false for invalid key, got true")
+	}
+}
+
+func TestVerifyRecoveryKey_EmptyKey(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey([]byte{})
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error for empty key: %v", err)
+	}
+	if ok {
+		t.Error("VerifyRecoveryKey: expected false for empty key, got true")
+	}
+}
+
 func TestFullLifecycle(t *testing.T) {
 	path, recoveryKey := createTestVault(t)
 	if recoveryKey == "" {
