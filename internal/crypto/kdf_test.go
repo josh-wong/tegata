@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/josh-wong/tegata/internal/crypto"
-	"github.com/josh-wong/tegata/internal/crypto/guard"
 )
 
 func TestDeriveKey_Deterministic(t *testing.T) {
@@ -66,8 +65,6 @@ func TestDeriveKey_ReturnsSecretBuffer(t *testing.T) {
 	key := crypto.DeriveKey(passphrase, salt, params)
 	defer key.Destroy()
 
-	// Type assertion: key must be *guard.SecretBuffer.
-	var _ *guard.SecretBuffer = key
 }
 
 func TestGenerateSalt(t *testing.T) {

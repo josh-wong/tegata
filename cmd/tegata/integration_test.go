@@ -409,7 +409,7 @@ func TestIntegration_StaticBinaryBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open binary: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	magic := make([]byte, 4)
 	if _, err := f.Read(magic); err != nil {

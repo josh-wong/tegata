@@ -54,7 +54,7 @@ func newGetCmd() *cobra.Command {
 			cm := clipboard.NewManager()
 			defer cm.Close()
 			if err := cm.CopyWithAutoClear(password, cfg.ClipboardTimeout); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: clipboard copy failed: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: clipboard copy failed: %v\n", err)
 			} else {
 				fmt.Printf("Copied to clipboard (auto-clear in %ds)\n",
 					int(cfg.ClipboardTimeout.Seconds()))

@@ -38,13 +38,13 @@ func newListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 3, ' ', 0)
-			fmt.Fprintln(w, "LABEL\tISSUER\tTYPE")
+			_, _ = fmt.Fprintln(w, "LABEL\tISSUER\tTYPE")
 			for _, c := range creds {
 				issuer := c.Issuer
 				if issuer == "" {
 					issuer = "--"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\n", c.Label, issuer, c.Type)
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", c.Label, issuer, c.Type)
 			}
 			return w.Flush()
 		},

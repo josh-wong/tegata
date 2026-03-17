@@ -91,7 +91,7 @@ func newCodeCmd() *cobra.Command {
 				cm := clipboard.NewManager()
 				defer cm.Close()
 				if err := cm.CopyWithAutoClear(code, cfg.ClipboardTimeout); err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %v\n", err)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %v\n", err)
 				} else {
 					fmt.Printf("Copied to clipboard (auto-clear in %ds)\n",
 						int(cfg.ClipboardTimeout.Seconds()))

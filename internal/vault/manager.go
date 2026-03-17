@@ -203,7 +203,7 @@ func Open(path string) (*Manager, error) {
 	if header.ArgonMemory < 8 || header.ArgonMemory > 4*1024*1024 {
 		return nil, fmt.Errorf("invalid argon2 memory parameter %d KiB: %w", header.ArgonMemory, errors.ErrVaultCorrupt)
 	}
-	if header.ArgonParallelism < 1 || header.ArgonParallelism > 255 {
+	if header.ArgonParallelism < 1 {
 		return nil, fmt.Errorf("invalid argon2 parallelism parameter %d: %w", header.ArgonParallelism, errors.ErrVaultCorrupt)
 	}
 
