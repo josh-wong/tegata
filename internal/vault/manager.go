@@ -72,7 +72,11 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 	// Derive passphrase key.
 	passphraseKey := crypto.DeriveKey(passphrase, salt, params)
 
-	// Encrypt DEK with passphrase key (key wrapping).
+	// Encrypt DEK with passphrase key (key wrapping). Counter=1 is safe here
+	// because each wrapping operation uses a freshly derived key (different
+	// salt → different key), so the same counter value never reuses a
+	// (key, nonce) pair. Counter-based nonce reuse is only dangerous when the
+	// same key is used more than once with the same counter.
 	passphraseWrappedDEK, err := crypto.Seal(passphraseKey, 1, dekRaw, nil)
 	passphraseKey.Destroy()
 	if err != nil {
@@ -523,7 +527,11 @@ func (m *Manager) Save() error {
 	return err
 }
 
-// saveHeader writes only the header portion of the vault file.
+// saveHeader writes only the header portion of the vault file. It must read
+// the full file and rewrite it atomically because atomicWrite uses
+// temp-file-rename, which is the only crash-safe write strategy on FAT32.
+// In-place partial writes (e.g., pwrite) are not atomic on FAT32 and could
+// leave the vault in a torn state if power is lost mid-write.
 func (m *Manager) saveHeader() error {
 	headerBytes, err := Marshal(m.header)
 	if err != nil {
