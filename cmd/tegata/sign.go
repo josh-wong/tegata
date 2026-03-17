@@ -7,6 +7,7 @@ import (
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -26,8 +27,7 @@ func newSignCmd() *cobra.Command {
 			label := args[0]
 
 			if challenge == "" {
-				return fmt.Errorf("--challenge is required: %w",
-					fmt.Errorf("provide a challenge string with --challenge"))
+				return fmt.Errorf("--challenge is required: %w", errors.ErrInvalidInput)
 			}
 
 			vaultPath, err := resolveVaultPath(cmd)
