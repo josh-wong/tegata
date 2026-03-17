@@ -24,7 +24,6 @@ func testHeader() *model.VaultHeader {
 	for i := range h.RecoveryKeySalt {
 		h.RecoveryKeySalt[i] = byte(i + 100)
 	}
-	copy(h.Nonce[:], []byte("123456789012"))
 	return h
 }
 
@@ -72,9 +71,6 @@ func TestHeaderRoundTrip(t *testing.T) {
 	}
 	if got.WriteCounter != h.WriteCounter {
 		t.Errorf("WriteCounter: got %d, want %d", got.WriteCounter, h.WriteCounter)
-	}
-	if got.Nonce != h.Nonce {
-		t.Errorf("Nonce mismatch")
 	}
 	if got.FailedAttempts != h.FailedAttempts {
 		t.Errorf("FailedAttempts: got %d, want %d", got.FailedAttempts, h.FailedAttempts)

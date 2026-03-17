@@ -64,8 +64,11 @@ type VaultPayload struct {
 // Layout (128 bytes total):
 //
 //	magic(8) + version(2) + argonTime(4) + argonMemory(4) + argonParallelism(1)
-//	+ salt(32) + recoverySalt(32) + writeCounter(8) + nonce(12)
-//	+ failedAttempts(1) + lastAttemptTime(8) + reserved(16) = 128
+//	+ salt(32) + recoverySalt(32) + writeCounter(8)
+//	+ failedAttempts(1) + lastAttemptTime(8) + reserved(28) = 128
+//
+// The nonce is never stored on disk; it is derived deterministically from
+// WriteCounter as counter_be8 || zeros4.
 type VaultHeader struct {
 	Magic            [8]byte
 	Version          uint16
@@ -75,8 +78,7 @@ type VaultHeader struct {
 	Salt             [32]byte
 	RecoveryKeySalt  [32]byte
 	WriteCounter     uint64
-	Nonce            [12]byte
 	FailedAttempts   uint8
 	LastAttemptTime  int64
-	Reserved         [16]byte
+	Reserved         [28]byte
 }

@@ -59,10 +59,6 @@ func Marshal(h *model.VaultHeader) ([]byte, error) {
 	binary.BigEndian.PutUint64(buf[off:off+8], h.WriteCounter)
 	off += 8
 
-	// nonce (12 bytes)
-	copy(buf[off:off+12], h.Nonce[:])
-	off += 12
-
 	// failedAttempts (1 byte)
 	buf[off] = h.FailedAttempts
 	off++
@@ -71,9 +67,9 @@ func Marshal(h *model.VaultHeader) ([]byte, error) {
 	binary.BigEndian.PutUint64(buf[off:off+8], uint64(h.LastAttemptTime))
 	off += 8
 
-	// reserved (16 bytes) - already zeroed from make
-	copy(buf[off:off+16], h.Reserved[:])
-	off += 16
+	// reserved (28 bytes) - already zeroed from make
+	copy(buf[off:off+28], h.Reserved[:])
+	off += 28
 
 	if off != headerSize {
 		return nil, fmt.Errorf("header serialization offset %d != %d", off, headerSize)
@@ -130,10 +126,6 @@ func Unmarshal(data []byte) (*model.VaultHeader, error) {
 	h.WriteCounter = binary.BigEndian.Uint64(data[off : off+8])
 	off += 8
 
-	// nonce (12 bytes)
-	copy(h.Nonce[:], data[off:off+12])
-	off += 12
-
 	// failedAttempts (1 byte)
 	h.FailedAttempts = data[off]
 	off++
@@ -142,8 +134,8 @@ func Unmarshal(data []byte) (*model.VaultHeader, error) {
 	h.LastAttemptTime = int64(binary.BigEndian.Uint64(data[off : off+8]))
 	off += 8
 
-	// reserved (16 bytes)
-	copy(h.Reserved[:], data[off:off+16])
+	// reserved (28 bytes)
+	copy(h.Reserved[:], data[off:off+28])
 
 	return h, nil
 }

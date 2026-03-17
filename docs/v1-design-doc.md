@@ -242,8 +242,9 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 │  │ Salt: [32]byte               (32B)  ││
 │  │ Recovery key salt: [32]byte  (32B)  ││
 │  │ Write counter: uint64        (8B)   ││
-│  │ Nonce: [12]byte              (12B)  ││
-│  │ Reserved: [25]byte           (25B)  ││
+│  │ Failed attempts: uint8       (1B)   ││
+│  │ Last attempt time: int64     (8B)   ││
+│  │ Reserved: [28]byte           (28B)  ││
 │  └─────────────────────────────────────┘│
 ├─────────────────────────────────────────┤
 │  Encrypted blob (variable size)         │
@@ -252,7 +253,7 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 └─────────────────────────────────────────┘
 ```
 
-The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the 12-byte nonce is derived deterministically from it as `counter_be8 || zeros4`. Storing both the counter and derived nonce in the header allows direct nonce validation during decryption without recomputation. The 25 reserved bytes allow future header extensions without breaking compatibility.
+The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the GCM nonce is derived deterministically from it as `counter_be8 || zeros4` and is never stored on disk. The 28 reserved bytes allow future header extensions without breaking compatibility.
 
 ### 3.2 Inner JSON schema
 

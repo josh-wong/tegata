@@ -8,6 +8,7 @@ import (
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +49,7 @@ func newCodeCmd() *cobra.Command {
 				return err
 			}
 
-			if cred.Type != "totp" && cred.Type != "hotp" {
+			if cred.Type != model.CredentialTOTP && cred.Type != model.CredentialHOTP {
 				return fmt.Errorf("credential %q is type %s, expected totp or hotp: %w",
 					label, cred.Type, errors.ErrInvalidInput)
 			}
@@ -66,7 +67,7 @@ func newCodeCmd() *cobra.Command {
 			var code string
 
 			switch cred.Type {
-			case "totp":
+			case model.CredentialTOTP:
 				var remaining int
 				code, remaining = auth.GenerateTOTP(secret, time.Now(), cred.Period, cred.Digits, cred.Algorithm)
 				if show {
@@ -74,7 +75,7 @@ func newCodeCmd() *cobra.Command {
 				}
 				fmt.Printf("Expires in %ds\n", remaining)
 
-			case "hotp":
+			case model.CredentialHOTP:
 				// Counter-before-code: save the incremented counter BEFORE
 				// displaying the code to prevent counter desync on crash.
 				code = auth.GenerateHOTP(secret, cred.Counter, cred.Digits, cred.Algorithm)
