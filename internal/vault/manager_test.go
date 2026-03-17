@@ -413,6 +413,42 @@ func TestOperationsOnLockedVault(t *testing.T) {
 	}
 }
 
+func TestAddCredentialDuplicateLabel(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	cred := model.Credential{Label: "GitHub", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"}
+	if _, err := m.AddCredential(cred); err != nil {
+		t.Fatalf("AddCredential first: %v", err)
+	}
+
+	// Exact duplicate.
+	_, err = m.AddCredential(cred)
+	if !errors.Is(err, errors.ErrInvalidInput) {
+		t.Errorf("exact duplicate: expected ErrInvalidInput, got %v", err)
+	}
+
+	// Case-insensitive duplicate.
+	cred.Label = "github"
+	_, err = m.AddCredential(cred)
+	if !errors.Is(err, errors.ErrInvalidInput) {
+		t.Errorf("case-insensitive duplicate: expected ErrInvalidInput, got %v", err)
+	}
+
+	// Vault should still have only the original credential.
+	if got := len(m.ListCredentials()); got != 1 {
+		t.Errorf("ListCredentials: got %d, want 1", got)
+	}
+}
+
 func TestFullLifecycle(t *testing.T) {
 	path, recoveryKey := createTestVault(t)
 	if recoveryKey == "" {
