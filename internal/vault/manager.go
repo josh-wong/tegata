@@ -794,7 +794,7 @@ func (m *Manager) VerifyRecoveryKey(recoveryRaw []byte) (bool, error) {
 	hash := sha256.Sum256(recoveryRaw)
 	hashHex := hex.EncodeToString(hash[:])
 
-	return strings.EqualFold(hashHex, m.payload.RecoveryKeyHash), nil
+	return hashHex == m.payload.RecoveryKeyHash, nil
 }
 
 // atomicWrite writes data to path using temp-file-rename for crash safety.
