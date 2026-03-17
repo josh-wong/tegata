@@ -19,6 +19,14 @@ import (
 	"github.com/josh-wong/tegata/pkg/model"
 )
 
+// zeroBytes overwrites a byte slice with zeroes to limit the lifetime of
+// sensitive data (plaintext JSON, assembled file buffers) on the regular heap.
+func zeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}
+
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
@@ -112,8 +120,9 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 		return "", fmt.Errorf("marshaling payload: %w", err)
 	}
 
-	// Encrypt payload with DEK.
+	// Encrypt payload with DEK, then zero the plaintext JSON immediately.
 	encryptedPayload, err := crypto.Seal(dekBuf, 1, payloadJSON, nil)
+	zeroBytes(payloadJSON)
 	dekBuf.Destroy()
 	if err != nil {
 		return "", fmt.Errorf("encrypting payload: %w", err)
@@ -153,8 +162,10 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 	fileData = append(fileData, recoveryWrappedDEK...)
 
 	if err := atomicWrite(path, fileData); err != nil {
+		zeroBytes(fileData)
 		return "", err
 	}
+	zeroBytes(fileData)
 
 	return recoveryDisplay, nil
 }
@@ -273,9 +284,11 @@ func (m *Manager) Unlock(passphrase []byte) error {
 
 	var payload model.VaultPayload
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		zeroBytes(plaintext)
 		dekBuf.Destroy()
 		return fmt.Errorf("parsing payload: %w", errors.ErrVaultCorrupt)
 	}
+	zeroBytes(plaintext)
 
 	m.payload = &payload
 	m.dek = guard.Seal(dekBuf)
@@ -289,7 +302,18 @@ func (m *Manager) Unlock(passphrase []byte) error {
 }
 
 // UnlockWithRecoveryKey decrypts the vault using a raw recovery key (32 bytes).
+// Recovery key unlock is subject to the same rate limiting as passphrase unlock
+// to prevent brute-force attempts.
 func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
+	// Check rate limit (shared with passphrase unlock).
+	wait, err := CheckRateLimit(m.header)
+	if err != nil {
+		return err
+	}
+	if wait > 0 {
+		return fmt.Errorf("rate-limited for %v: %w", wait.Round(time.Second), errors.ErrAuthFailed)
+	}
+
 	// Derive key from recovery key using recovery salt.
 	recoveryDerivedKey := crypto.DeriveKey(recoveryRaw, m.header.RecoveryKeySalt[:], m.params)
 
@@ -297,6 +321,10 @@ func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
 	dekBytes, err := crypto.Open(recoveryDerivedKey, 1, m.recoveryWrapped, nil)
 	recoveryDerivedKey.Destroy()
 	if err != nil {
+		RecordFailure(m.header)
+		if herr := m.saveHeader(); herr != nil {
+			slog.Warn("failed to persist header", "error", herr)
+		}
 		return fmt.Errorf("recovery key invalid: %w", errors.ErrAuthFailed)
 	}
 
@@ -320,9 +348,11 @@ func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
 
 	var payload model.VaultPayload
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		zeroBytes(plaintext)
 		dekBuf.Destroy()
 		return fmt.Errorf("parsing payload: %w", errors.ErrVaultCorrupt)
 	}
+	zeroBytes(plaintext)
 
 	m.payload = &payload
 	m.dek = guard.Seal(dekBuf)
@@ -440,7 +470,9 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("marshaling payload: %w", err)
 	}
 
+	// Encrypt payload, then zero the plaintext JSON immediately.
 	encryptedPayload, err := crypto.Seal(dekBuf, m.header.WriteCounter, payloadJSON, nil)
+	zeroBytes(payloadJSON)
 	dekBuf.Destroy()
 	if err != nil {
 		return fmt.Errorf("encrypting payload: %w", err)
@@ -478,7 +510,9 @@ func (m *Manager) Save() error {
 	fileData = append(fileData, passphraseWrappedDEK...)
 	fileData = append(fileData, m.recoveryWrapped...)
 
-	return atomicWrite(m.path, fileData)
+	err = atomicWrite(m.path, fileData)
+	zeroBytes(fileData)
+	return err
 }
 
 // saveHeader writes only the header portion of the vault file.
