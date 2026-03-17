@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/errors"
@@ -346,6 +347,46 @@ func TestRecoveryKeyUnlockWrongKey(t *testing.T) {
 	err = m.UnlockWithRecoveryKey([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
 	if !errors.Is(err, errors.ErrAuthFailed) {
 		t.Fatalf("expected ErrAuthFailed for wrong recovery key, got %v", err)
+	}
+}
+
+func TestRecoveryKeyUnlockRecordsFailedAttempt(t *testing.T) {
+	path, _ := createTestVault(t)
+
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	_ = m.UnlockWithRecoveryKey([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+	if m.header.FailedAttempts != 1 {
+		t.Errorf("FailedAttempts: got %d, want 1", m.header.FailedAttempts)
+	}
+}
+
+func TestRecoveryKeyUnlockRateLimited(t *testing.T) {
+	path, _ := createTestVault(t)
+
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	// Simulate a recent failed attempt so rate limiting kicks in.
+	m.header.FailedAttempts = 3
+	m.header.LastAttemptTime = time.Now().Unix()
+	_ = m.saveHeader()
+
+	err = m.UnlockWithRecoveryKey([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+	if !errors.Is(err, errors.ErrAuthFailed) {
+		t.Fatalf("expected ErrAuthFailed from rate limit, got %v", err)
+	}
+	// Attempt counter should not have increased because rate limiting
+	// rejected the attempt before any crypto work.
+	if m.header.FailedAttempts != 3 {
+		t.Errorf("FailedAttempts should stay at 3 during rate limit, got %d", m.header.FailedAttempts)
 	}
 }
 
