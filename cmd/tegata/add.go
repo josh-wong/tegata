@@ -18,6 +18,7 @@ func newAddCmd() *cobra.Command {
 		algorithm string
 		digits    int
 		period    int
+		tags      []string
 	)
 
 	cmd := &cobra.Command{
@@ -60,6 +61,7 @@ func newAddCmd() *cobra.Command {
 				}
 				cred = *parsed
 				cred.Label = label
+				cred.Tags = tags
 			} else {
 				// Validate type.
 				ct := model.CredentialType(credType)
@@ -84,6 +86,7 @@ func newAddCmd() *cobra.Command {
 					Digits:    digits,
 					Period:    period,
 					Secret:    strings.TrimSpace(secret),
+					Tags:      tags,
 				}
 			}
 
@@ -109,6 +112,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
 	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
 	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g. --tag work --tag totp)")
 
 	return cmd
 }

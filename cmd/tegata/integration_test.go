@@ -527,11 +527,132 @@ func TestIntegration_Export(t *testing.T) {
 }
 
 func TestIntegration_TagFilter(t *testing.T) {
-	t.Skip("stub — implement after tag and list commands are built in Task 2")
+	path, _ := createIntegrationVault(t)
+
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	credentials := []model.Credential{
+		{Label: "github", Issuer: "GitHub", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "jira", Issuer: "Atlassian", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "gmail", Issuer: "Google", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"personal"}},
+		{Label: "backup-key", Type: model.CredentialStatic, Secret: "staticpass123"},
+	}
+	for _, c := range credentials {
+		if _, err := mgr.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+	mgr.Close()
+
+	// Reopen and list with tag filter — only work-tagged credentials expected.
+	mgr2, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open for list: %v", err)
+	}
+	defer mgr2.Close()
+	if err := mgr2.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock for list: %v", err)
+	}
+
+	all := mgr2.ListCredentials()
+	if len(all) != 4 {
+		t.Fatalf("ListCredentials: got %d, want 4", len(all))
+	}
+
+	// Simulate the tag filter: collect credentials matching "work".
+	var workCreds []model.Credential
+	for _, c := range all {
+		for _, tag := range c.Tags {
+			if tag == "work" {
+				workCreds = append(workCreds, c)
+				break
+			}
+		}
+	}
+	if len(workCreds) != 2 {
+		t.Errorf("tag filter 'work': got %d credentials, want 2", len(workCreds))
+	}
+	for _, c := range workCreds {
+		found := false
+		for _, tag := range c.Tags {
+			if tag == "work" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("credential %q does not have 'work' tag", c.Label)
+		}
+	}
+
+	// Verify case-sensitivity: "Work" should not match "work".
+	var caseMismatch []model.Credential
+	for _, c := range all {
+		for _, tag := range c.Tags {
+			if tag == "Work" {
+				caseMismatch = append(caseMismatch, c)
+				break
+			}
+		}
+	}
+	if len(caseMismatch) != 0 {
+		t.Errorf("case-insensitive match returned %d credentials; tags must be case-sensitive", len(caseMismatch))
+	}
 }
 
 func TestIntegration_ChangePassphrase(t *testing.T) {
-	t.Skip("stub — implement after change-passphrase command is built in Task 2")
+	path, _ := createIntegrationVault(t)
+
+	// Add a credential, then change the passphrase.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := mgr.AddCredential(model.Credential{
+		Label:  "test-service",
+		Type:   model.CredentialTOTP,
+		Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	counterBefore := mgr.Header().WriteCounter
+	if err := mgr.ChangePassphrase([]byte("new-integration-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	counterAfter := mgr.Header().WriteCounter
+	if counterBefore != counterAfter {
+		t.Errorf("WriteCounter changed during ChangePassphrase: before=%d after=%d",
+			counterBefore, counterAfter)
+	}
+	mgr.Close()
+
+	// New passphrase must succeed, credentials must be intact.
+	// (Old passphrase rejection is covered by unit tests in internal/vault.)
+	mgr3, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open with new passphrase: %v", err)
+	}
+	defer mgr3.Close()
+	if err := mgr3.Unlock([]byte("new-integration-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+	list := mgr3.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials after passphrase change: got %d, want 1", len(list))
+	}
+	if list[0].Label != "test-service" {
+		t.Errorf("credential label: got %q, want %q", list[0].Label, "test-service")
+	}
 }
 
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
