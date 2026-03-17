@@ -131,6 +131,9 @@ func ParseOTPAuthURI(uri string) (*model.Credential, error) {
 			return nil, fmt.Errorf("invalid digits %q: %w", d, errors.ErrInvalidInput)
 		}
 	}
+	if digits < 6 || digits > 8 {
+		return nil, fmt.Errorf("digits must be 6-8, got %d: %w", digits, errors.ErrInvalidInput)
+	}
 
 	period := 30
 	if p := q.Get("period"); p != "" {
@@ -138,6 +141,9 @@ func ParseOTPAuthURI(uri string) (*model.Credential, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid period %q: %w", p, errors.ErrInvalidInput)
 		}
+	}
+	if period < 1 {
+		return nil, fmt.Errorf("period must be positive, got %d: %w", period, errors.ErrInvalidInput)
 	}
 
 	var counter uint64
