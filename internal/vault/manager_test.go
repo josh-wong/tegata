@@ -449,6 +449,282 @@ func TestAddCredentialDuplicateLabel(t *testing.T) {
 	}
 }
 
+func TestExportCredentials_RoundTrip(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	creds := []model.Credential{
+		{Label: "service-a", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
+		{Label: "service-b", Type: model.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
+		{Label: "service-c", Type: model.CredentialStatic, Secret: "staticpass"},
+	}
+	for _, c := range creds {
+		if _, err := m.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+
+	exportPassphrase := []byte("export-pass-1234")
+	data, err := m.ExportCredentials(exportPassphrase)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("ExportCredentials returned empty bytes")
+	}
+
+	// Import into a fresh vault.
+	path2, _ := createTestVault(t)
+	m2, err := Open(path2)
+	if err != nil {
+		t.Fatalf("Open fresh vault: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock fresh vault: %v", err)
+	}
+
+	imported, skipped, err := m2.ImportCredentials(data, exportPassphrase)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 3 {
+		t.Errorf("imported: got %d, want 3", imported)
+	}
+	if skipped != 0 {
+		t.Errorf("skipped: got %d, want 0", skipped)
+	}
+
+	list := m2.ListCredentials()
+	if len(list) != 3 {
+		t.Fatalf("ListCredentials after import: got %d, want 3", len(list))
+	}
+}
+
+func TestExportCredentials_WrongPassphrase(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	if _, err := m.AddCredential(model.Credential{
+		Label: "test", Type: model.CredentialStatic, Secret: "secret",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	data, err := m.ExportCredentials([]byte("correct-export-pass"))
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	path2, _ := createTestVault(t)
+	m2, err := Open(path2)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	_, _, err = m2.ImportCredentials(data, []byte("wrong-export-pass"))
+	if err == nil {
+		t.Fatal("ImportCredentials with wrong passphrase: expected error, got nil")
+	}
+}
+
+func TestExportCredentials_ContainsOnlyCredentials(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	data, err := m.ExportCredentials([]byte("export-pass-1234"))
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	// Export bytes must NOT contain the vault magic bytes.
+	vaultMagic := []byte{'T', 'E', 'G', 'A', 'T', 'A'}
+	for i := 0; i <= len(data)-len(vaultMagic); i++ {
+		if string(data[i:i+len(vaultMagic)]) == string(vaultMagic) {
+			t.Error("Export data contains vault magic bytes — export is not self-contained")
+			break
+		}
+	}
+
+	// Export bytes must NOT contain the passphrase.
+	pass := []byte("test-passphrase")
+	for i := 0; i <= len(data)-len(pass); i++ {
+		if string(data[i:i+len(pass)]) == string(pass) {
+			t.Error("Export data contains the vault passphrase — security failure")
+			break
+		}
+	}
+}
+
+func TestImportCredentials_SkipsDuplicates(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	// Pre-populate vault with "github".
+	if _, err := m.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	// Build an export envelope containing "github" (duplicate) and "gitlab" (new).
+	// We do this by creating a separate vault, adding both creds, and exporting.
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open source: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock source: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential github in src: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "gitlab", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential gitlab in src: %v", err)
+	}
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	imported, skipped, err := m.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 1 {
+		t.Errorf("imported: got %d, want 1", imported)
+	}
+	if skipped != 1 {
+		t.Errorf("skipped: got %d, want 1", skipped)
+	}
+}
+
+func TestImportCredentials_NilTagsNormalized(t *testing.T) {
+	// Build export data manually via a vault, but verify Tags are non-nil after import.
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open source: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "notags", Type: model.CredentialStatic, Secret: "pass",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	pathDst, _ := createTestVault(t)
+	dst, err := Open(pathDst)
+	if err != nil {
+		t.Fatalf("Open dest: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest: %v", err)
+	}
+
+	_, _, err = dst.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+
+	list := dst.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials: got %d, want 1", len(list))
+	}
+	if list[0].Tags == nil {
+		t.Error("Tags is nil after import; expected []string{}")
+	}
+}
+
+func TestImportCredentials_EmptyBackup(t *testing.T) {
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	// Export from an empty vault.
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	pathDst, _ := createTestVault(t)
+	dst, err := Open(pathDst)
+	if err != nil {
+		t.Fatalf("Open dest: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest: %v", err)
+	}
+
+	imported, skipped, err := dst.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials empty backup: %v", err)
+	}
+	if imported != 0 {
+		t.Errorf("imported: got %d, want 0", imported)
+	}
+	if skipped != 0 {
+		t.Errorf("skipped: got %d, want 0", skipped)
+	}
+}
+
 func TestFullLifecycle(t *testing.T) {
 	path, recoveryKey := createTestVault(t)
 	if recoveryKey == "" {
