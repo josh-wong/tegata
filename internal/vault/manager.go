@@ -389,6 +389,11 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 	if m.payload == nil {
 		return "", fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
+	for _, existing := range m.payload.Credentials {
+		if strings.EqualFold(existing.Label, cred.Label) {
+			return "", fmt.Errorf("credential %q already exists: %w", cred.Label, errors.ErrInvalidInput)
+		}
+	}
 	cred.ID = uuid.New().String()
 	now := time.Now().UTC()
 	cred.CreatedAt = now
