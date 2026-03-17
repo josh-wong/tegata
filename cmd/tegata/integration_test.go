@@ -379,7 +379,62 @@ func TestIntegration_ConfigDefaults(t *testing.T) {
 }
 
 func TestIntegration_Sign(t *testing.T) {
-	t.Skip("stub — implement after sign command is built in Task 2")
+	path, _ := createIntegrationVault(t)
+
+	// Add a challenge-response credential.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	cr := model.Credential{
+		Label:     "mykey",
+		Type:      model.CredentialChallengeResponse,
+		Algorithm: "SHA1",
+		Secret:    "JBSWY3DPEHPK3PXP",
+	}
+	if _, err := mgr.AddCredential(cr); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	mgr.Close()
+
+	// Invoke the sign command directly via the auth engine (same path as sign.go).
+	mgr2, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open for sign: %v", err)
+	}
+	defer mgr2.Close()
+	if err := mgr2.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock for sign: %v", err)
+	}
+
+	cred, err := mgr2.GetCredential("mykey")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+
+	secretBytes, err := decodeBase32Secret(cred.Secret)
+	if err != nil {
+		t.Fatalf("decodeBase32Secret: %v", err)
+	}
+
+	result, err := auth.SignChallenge(cred, secretBytes, []byte("abc123"))
+	if err != nil {
+		t.Fatalf("SignChallenge: %v", err)
+	}
+
+	// Result must be a 40-character lowercase hex string (SHA1 output).
+	if len(result) != 40 {
+		t.Errorf("sign output length: got %d, want 40", len(result))
+	}
+	for i, c := range result {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			t.Errorf("non-lowercase-hex char %q at position %d in result %q", c, i, result)
+			break
+		}
+	}
 }
 
 func TestIntegration_StaticBinaryBuild(t *testing.T) {

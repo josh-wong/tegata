@@ -64,9 +64,10 @@ func newAddCmd() *cobra.Command {
 				// Validate type.
 				ct := model.CredentialType(credType)
 				switch ct {
-				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic:
+				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic,
+					model.CredentialChallengeResponse:
 				default:
-					return fmt.Errorf("invalid credential type %q (use totp, hotp, or static): %w",
+					return fmt.Errorf("invalid credential type %q (use totp, hotp, static, or challenge-response): %w",
 						credType, errors.ErrInvalidInput)
 				}
 
