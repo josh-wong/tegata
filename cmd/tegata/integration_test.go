@@ -431,7 +431,7 @@ func TestIntegration_Sign(t *testing.T) {
 		t.Errorf("sign output length: got %d, want 40", len(result))
 	}
 	for i, c := range result {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Errorf("non-lowercase-hex char %q at position %d in result %q", c, i, result)
 			break
 		}
