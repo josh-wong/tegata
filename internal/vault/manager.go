@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -252,7 +253,9 @@ func (m *Manager) Unlock(passphrase []byte) error {
 	derivedKey.Destroy()
 	if err != nil {
 		RecordFailure(m.header)
-		_ = m.saveHeader()
+		if herr := m.saveHeader(); herr != nil {
+			slog.Warn("failed to persist header", "error", herr)
+		}
 		return fmt.Errorf("wrong passphrase: %w", errors.ErrAuthFailed)
 	}
 
@@ -262,7 +265,9 @@ func (m *Manager) Unlock(passphrase []byte) error {
 	if err != nil {
 		dekBuf.Destroy()
 		RecordFailure(m.header)
-		_ = m.saveHeader()
+		if herr := m.saveHeader(); herr != nil {
+			slog.Warn("failed to persist header", "error", herr)
+		}
 		return fmt.Errorf("decrypting payload: %w", errors.ErrAuthFailed)
 	}
 
@@ -276,7 +281,9 @@ func (m *Manager) Unlock(passphrase []byte) error {
 	m.dek = guard.Seal(dekBuf)
 
 	ResetAttempts(m.header)
-	_ = m.saveHeader()
+	if herr := m.saveHeader(); herr != nil {
+		slog.Warn("failed to persist header", "error", herr)
+	}
 
 	return nil
 }
@@ -321,7 +328,9 @@ func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
 	m.dek = guard.Seal(dekBuf)
 
 	ResetAttempts(m.header)
-	_ = m.saveHeader()
+	if herr := m.saveHeader(); herr != nil {
+		slog.Warn("failed to persist header", "error", herr)
+	}
 
 	return nil
 }
