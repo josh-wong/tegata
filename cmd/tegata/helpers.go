@@ -1,0 +1,226 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/base32"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/vault"
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+)
+
+const vaultFilename = "vault.tegata"
+
+// resolveVaultPath determines the vault file path using the resolution order:
+// 1. --vault flag (directory or file path)
+// 2. TEGATA_VAULT env var (directory or file path)
+// 3. ./vault.tegata in the current working directory
+func resolveVaultPath(cmd *cobra.Command) (string, error) {
+	// Check --vault flag.
+	if flagVal, _ := cmd.Flags().GetString("vault"); flagVal != "" {
+		return resolvePathArg(flagVal)
+	}
+
+	// Check TEGATA_VAULT env var.
+	if envVal := os.Getenv("TEGATA_VAULT"); envVal != "" {
+		return resolvePathArg(envVal)
+	}
+
+	// Fall back to current working directory.
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("getting working directory: %w", err)
+	}
+	path := filepath.Join(cwd, vaultFilename)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("%s: %w",
+			errors.UserMessage("No vault found",
+				"Run tegata init to create one, or use --vault /path to specify a location"),
+			errors.ErrNotFound)
+	}
+	return path, nil
+}
+
+// resolvePathArg resolves a user-provided path argument to a vault file path.
+// If the path is a directory, it appends the vault filename. If it is a file
+// path, it is used as-is.
+func resolvePathArg(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err == nil && info.IsDir() {
+		return filepath.Join(path, vaultFilename), nil
+	}
+	// If it's a file or doesn't exist yet (for init), return as-is.
+	// If it looks like a directory path (ends with separator), append filename.
+	if strings.HasSuffix(path, string(filepath.Separator)) {
+		return filepath.Join(path, vaultFilename), nil
+	}
+	return path, nil
+}
+
+// promptPassphrase reads a passphrase using the precedence:
+// 1. TEGATA_PASSPHRASE env var (with warning)
+// 2. stdin pipe (if not a terminal)
+// 3. Interactive prompt (echo disabled)
+func promptPassphrase(prompt string) ([]byte, error) {
+	// Check env var first.
+	if envPass := os.Getenv("TEGATA_PASSPHRASE"); envPass != "" {
+		fmt.Fprintln(os.Stderr, "! Using passphrase from TEGATA_PASSPHRASE")
+		return []byte(envPass), nil
+	}
+
+	// Check if stdin is piped.
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		reader := bufio.NewReader(os.Stdin)
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("reading passphrase from stdin: %w", err)
+		}
+		// Trim trailing newline from piped input.
+		return []byte(strings.TrimRight(string(data), "\r\n")), nil
+	}
+
+	// Interactive prompt.
+	fmt.Fprint(os.Stderr, prompt)
+	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr) // newline after hidden input
+	if err != nil {
+		return nil, fmt.Errorf("reading passphrase: %w", err)
+	}
+	return pass, nil
+}
+
+// promptNewPassphrase handles passphrase creation for tegata init. It displays
+// a tip, prompts for the passphrase with a strength meter, enforces a minimum
+// length, and confirms the passphrase.
+func promptNewPassphrase() ([]byte, error) {
+	fmt.Fprintln(os.Stderr, `! Tip: Use a memorable phrase (e.g., "correct horse battery staple")`)
+
+	pass, err := promptPassphrase("Passphrase: ")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pass) < 8 {
+		return nil, fmt.Errorf("passphrase must be at least 8 characters: %w", errors.ErrInvalidInput)
+	}
+
+	// Display strength meter.
+	displayStrengthMeter(len(pass))
+
+	// Confirm passphrase (skip for non-interactive modes).
+	if os.Getenv("TEGATA_PASSPHRASE") != "" || !term.IsTerminal(int(os.Stdin.Fd())) {
+		return pass, nil
+	}
+
+	confirm, err := promptPassphrase("Confirm passphrase: ")
+	if err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(pass, confirm) {
+		// Zero both copies before returning the error.
+		for i := range pass {
+			pass[i] = 0
+		}
+		for i := range confirm {
+			confirm[i] = 0
+		}
+		return nil, fmt.Errorf("passphrases do not match: %w", errors.ErrInvalidInput)
+	}
+
+	// Zero the confirmation copy.
+	for i := range confirm {
+		confirm[i] = 0
+	}
+
+	return pass, nil
+}
+
+// displayStrengthMeter prints a passphrase strength meter to stderr based on
+// character count. The meter is informational only; all lengths >= 8 are
+// accepted.
+func displayStrengthMeter(length int) {
+	var bar, label string
+	switch {
+	case length >= 20:
+		bar = "[XXXXX]"
+		label = "Strong"
+	case length >= 12:
+		bar = "[XXX__]"
+		label = "Fair"
+	default:
+		bar = "[X____]"
+		label = "Weak"
+	}
+	fmt.Fprintf(os.Stderr, "  Strength: %s %s\n", bar, label)
+}
+
+// vaultDir returns the directory containing the vault file at the given path.
+func vaultDir(vaultPath string) string {
+	return filepath.Dir(vaultPath)
+}
+
+// promptConfirmation prompts the user with a yes/no question and returns true
+// only if the user types "y" or "yes" (case-insensitive). Defaults to no.
+func promptConfirmation(prompt string) bool {
+	fmt.Fprint(os.Stderr, prompt)
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
+		return answer == "y" || answer == "yes"
+	}
+	return false
+}
+
+// promptSecret reads a secret value with echo disabled. Used for interactive
+// credential entry.
+func promptSecret(prompt string) (string, error) {
+	fmt.Fprint(os.Stderr, prompt)
+	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr) // newline after hidden input
+	if err != nil {
+		return "", fmt.Errorf("reading secret: %w", err)
+	}
+	return string(secret), nil
+}
+
+// openAndUnlock opens a vault and unlocks it with the given passphrase.
+func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) {
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := mgr.Unlock(passphrase); err != nil {
+		mgr.Close()
+		return nil, err
+	}
+	return mgr, nil
+}
+
+// zeroBytes overwrites a byte slice with zeros for memory hygiene.
+func zeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}
+
+// decodeBase32Secret decodes a base32-encoded OTP secret, tolerating spaces,
+// hyphens, lowercase, and missing padding.
+func decodeBase32Secret(secret string) ([]byte, error) {
+	// Strip spaces and hyphens that users or QR scanners may include.
+	s := strings.ToUpper(strings.NewReplacer(" ", "", "-", "", "=", "").Replace(secret))
+
+	// Add padding if needed. Base32 blocks are 8 chars.
+	if pad := len(s) % 8; pad != 0 {
+		s += strings.Repeat("=", 8-pad)
+	}
+
+	return base32.StdEncoding.DecodeString(s)
+}

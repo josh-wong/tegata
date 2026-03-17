@@ -2,7 +2,7 @@
 
 - **Author:** [josh-wong](https://github.com/josh-wong)
 - **Date:** March 12, 2026
-- **Last revised:** March 13, 2026
+- **Last revised:** March 17, 2026
 - **Status:** Draft (Phase 2 complete)
 - **Companion document:** [Product requirements document](./v1-product-requirements-doc.md)
 
@@ -242,8 +242,9 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 │  │ Salt: [32]byte               (32B)  ││
 │  │ Recovery key salt: [32]byte  (32B)  ││
 │  │ Write counter: uint64        (8B)   ││
-│  │ Nonce: [12]byte              (12B)  ││
-│  │ Reserved: [25]byte           (25B)  ││
+│  │ Failed attempts: uint8       (1B)   ││
+│  │ Last attempt time: int64     (8B)   ││
+│  │ Reserved: [28]byte           (28B)  ││
 │  └─────────────────────────────────────┘│
 ├─────────────────────────────────────────┤
 │  Encrypted blob (variable size)         │
@@ -252,7 +253,7 @@ The vault file (`vault.tegata`) consists of a plaintext header followed by an en
 └─────────────────────────────────────────┘
 ```
 
-The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the 12-byte nonce is derived deterministically from it as `counter_be8 || zeros4`. Storing both the counter and derived nonce in the header allows direct nonce validation during decryption without recomputation. The 25 reserved bytes allow future header extensions without breaking compatibility.
+The plaintext header stores only the parameters needed to derive the decryption key. It reveals no information about the vault contents (number of credentials, labels, or types). The write counter is a monotonic uint64 incremented on each vault write; the GCM nonce is derived deterministically from it as `counter_be8 || zeros4` and is never stored on disk. The 28 reserved bytes allow future header extensions without breaking compatibility.
 
 ### 3.2 Inner JSON schema
 
@@ -342,6 +343,11 @@ These parameters are stored in the vault header so that future versions can adju
 4. Increment the write counter in the header.
 5. Derive the 12-byte nonce from the write counter: `nonce = counter_be8 || zeros4`.
 6. Encrypt the JSON blob by using AES-256-GCM with the DEK and derived nonce.
+
+> [!NOTE]
+> 
+> **Implementation note:** The `crypto.Seal()` and `crypto.Open()` functions encapsulate nonce derivation and the AES-256-GCM operation. Callers pass the key, write counter, plaintext/ciphertext, and the vault header as AAD. Nonce derivation from the counter is handled internally—callers never construct or pass nonces directly.
+
 7. Write the header (with updated write counter and derived nonce) and encrypted blob to a temporary file.
 8. Rename the temporary file over the vault file (atomic on all target file systems).
 9. Zero the DEK and plaintext JSON from memory by using memguard.
@@ -386,6 +392,31 @@ If the process crashes between steps 3 and 4, the backup file preserves the prev
 During `tegata init`, Tegata generates a 256-bit random recovery key encoded as a base32 string (52 characters, grouped for readability). The recovery key is used via a key-wrapping mechanism: during `tegata init`, the DEK is encrypted twice—once with the passphrase-derived key (stored as the main encrypted blob) and once with the recovery key (stored as a separate encrypted DEK blob appended after the main encrypted blob). On recovery, Tegata decrypts the wrapped DEK by using the recovery key, then uses that DEK to decrypt the vault blob. A SHA-256 hash of the recovery key is stored inside the encrypted vault to validate it without storing the key itself on disk.
 
 Users must store the recovery key offline (printed, in a password manager, etc.). Tegata displays it once during init and never again.
+
+**Recovery key verification (`tegata verify-recovery`):** Users can confirm a stored recovery key string is still intact without performing a full emergency unlock. The flow is:
+
+1. Unlock the vault with the regular passphrase.
+2. Prompt the user to paste or type their recovery key string.
+3. Decode the base32 string, compute `SHA-256(recoveryRaw)`, and compare the result against the `recovery_key_hash` stored in the decrypted vault payload.
+4. Report whether the key matches.
+
+The hash comparison approach is preferred over attempting a live `UnlockWithRecoveryKey` call because it avoids a full Argon2id derivation and GCM decryption cycle. It also avoids incrementing the rate-limit counter on a verification that is expected to succeed. Users are encouraged to run `tegata verify-recovery` periodically—for example, when rotating their password manager or testing a printed backup.
+
+### 3.7 Passphrase rotation
+
+`tegata change-passphrase` rewraps the DEK under a new passphrase without re-encrypting the payload. The existing recovery-wrapped DEK is preserved unchanged, so the recovery key continues to work after rotation.
+
+**Flow:**
+
+1. Unlock the vault with the current passphrase (full `Unlock` path, including rate-limit check).
+2. Prompt for the new passphrase and confirmation; enforce the same 8-character minimum and display the strength meter.
+3. Generate a new 32-byte Argon2id salt.
+4. Derive a new passphrase key: `newKey = DeriveKey(newPassphrase, newSalt, params)`.
+5. Rewrap the DEK: `newPassphraseWrappedDEK = Seal(newKey, counter=1, dekRaw, nil)`.
+6. Update the header salt field with `newSalt`.
+7. Write the vault atomically (temp-file rename) with the updated header, the existing encrypted payload and write counter unchanged, the new passphrase-wrapped DEK, and the unchanged recovery-wrapped DEK.
+
+Because the DEK and payload are unchanged, the write counter does not need to be incremented. The only fields that change on disk are the header salt and the passphrase-wrapped DEK blob. The recovery key salt in the header and the recovery-wrapped DEK are left as-is.
 
 ## 4. Authentication engines
 
@@ -892,7 +923,7 @@ Passphrase entry (stdin)
          │
          ▼  (on vault access)
 ┌─────────────────────────┐
-│  KeyEnclave.Open(fn)     │  DEK temporarily unsealed inside callback, re-sealed on return
+│  KeyEnclave.Open(fn)     │  DEK temporarily unsealed inside callback, resealed on return
 └────────┬────────────────┘
          │
          ▼
@@ -905,7 +936,7 @@ Passphrase entry (stdin)
 
 - Plaintext passphrases never exist outside of a `guard.SecretBuffer`.
 - The DEK is stored in a `guard.KeyEnclave` (encrypted in RAM) between operations.
-- After each vault operation, the unsealed DEK buffer is re-sealed immediately.
+- After each vault operation, the unsealed DEK buffer is resealed immediately.
 - On vault lock (idle timeout or explicit lock), the `KeyEnclave` is destroyed and all memory is zeroed.
 
 ### 9.5 Guard wrapper package
@@ -931,7 +962,7 @@ type KeyEnclave struct {
 }
 
 func NewKeyEnclave(key []byte) (*KeyEnclave, error)
-func (e *KeyEnclave) Open(fn func([]byte) error) error  // unseals, calls fn, re-seals
+func (e *KeyEnclave) Open(fn func([]byte) error) error  // unseals, calls fn, reseals
 func (e *KeyEnclave) Destroy()
 ```
 
@@ -1068,7 +1099,7 @@ The following tools are required for development.
 
 | Tool           | Version | Purpose                                        |
 |----------------|---------|------------------------------------------------|
-| Go             | 1.23+   | Compiler and toolchain                         |
+| Go             | 1.25+   | Compiler and toolchain                         |
 | Docker         | 24+     | ScalarDL integration testing                   |
 | Docker Compose | 2.20+   | Local ScalarDL Ledger environment              |
 | Git            | 2.40+   | Version control                                |
