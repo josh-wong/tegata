@@ -2,7 +2,7 @@
 
 - **Author:** [josh-wong](https://github.com/josh-wong)
 - **Date:** March 8, 2026
-- **Last revised:** March 12, 2026
+- **Last revised:** March 17, 2026
 - **Status:** Approved
 - **Companion document:** [Design document](./v1-design-doc.md)
 
@@ -238,6 +238,21 @@ The vault must support initialization, credential management, and backup/restore
 - `tegata import` imports from a previously exported backup.
 - Export format is Tegata-specific (not interoperable with other tools in v1).
 
+#### FR-14: Passphrase rotation
+
+- `tegata change-passphrase` allows a user to replace their current vault passphrase with a new one.
+- The vault data encryption key (DEK) is unwrapped by using the current passphrase-derived key, then re-wrapped with a new passphrase-derived key and a freshly generated salt.
+- The recovery-wrapped DEK is preserved unchanged, so the existing recovery key continues to work after a passphrase change.
+- Requires the user to provide the current passphrase and enter the new passphrase twice for confirmation.
+- The new passphrase is subject to the same strength validation as `tegata init`.
+
+#### FR-15: Recovery key verification
+
+- `tegata verify-recovery` lets a user confirm that a stored recovery key string is still valid for their vault.
+- After unlocking the vault with the regular passphrase, Tegata computes the SHA-256 hash of the provided recovery key and compares it against the hash stored inside the encrypted vault payload.
+- A match confirms the recovery key is intact and would succeed in an emergency unlock. A mismatch warns the user to generate a replacement.
+- This command exists because users may store their recovery key in a password manager, on paper, or on a separate USB drive—and its integrity could degrade over time (damaged media, transcription errors, accidental truncation). Running `tegata verify-recovery` periodically is recommended as a health check.
+
 ### 6.3 Audit logging (optional – requires ScalarDL Ledger)
 
 When ScalarDL integration is enabled, Tegata provides tamper-evident logging and verification capabilities.
@@ -440,6 +455,8 @@ Tegata will be developed across nine versions, progressing from planning through
 - Challenge-response signing (HMAC-SHA1/SHA256)
 - Clipboard integration with auto-clear
 - Vault export/import
+- Passphrase rotation (`tegata change-passphrase`)
+- Recovery key verification (`tegata verify-recovery`)
 - QR code scanning support (from terminal-pasted `otpauth://` URIs)
 
 ### 10.4 v0.4 – ScalarDL audit layer
