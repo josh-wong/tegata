@@ -48,7 +48,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	mgr, err := openAndUnlock(vaultPath, vaultPass)
 	if err != nil {
-		return fmt.Errorf("Error: could not unlock vault. Check your passphrase and try again.")
+		return fmt.Errorf("could not unlock vault: %w", err)
 	}
 	defer mgr.Close()
 
@@ -94,11 +94,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	data, err := mgr.ExportCredentials(exportPass)
 	if err != nil {
-		return fmt.Errorf("Error: export failed. %w", err)
+		return fmt.Errorf("export failed: %w", err)
 	}
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
-		return fmt.Errorf("Error: could not write backup file. Check the output path and try again.")
+		return fmt.Errorf("writing backup file %q: %w", outPath, err)
 	}
 
 	credCount := len(mgr.ListCredentials())

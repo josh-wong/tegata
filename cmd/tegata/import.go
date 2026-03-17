@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func newImportCmd() *cobra.Command {
@@ -40,29 +41,36 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	mgr, err := openAndUnlock(vaultPath, vaultPass)
 	if err != nil {
-		return fmt.Errorf("Error: could not unlock vault. Check your passphrase and try again.")
+		return fmt.Errorf("could not unlock vault: %w", err)
 	}
 	defer mgr.Close()
 
 	// Read backup file.
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
-		return fmt.Errorf("Error: could not read backup file %q. Check the path and try again.", backupPath)
+		return fmt.Errorf("reading backup file %q: %w", backupPath, err)
 	}
 
-	// Prompt for the backup passphrase via promptPassphrase. The backup
-	// passphrase is independent of the vault passphrase and is read using
-	// the standard passphrase prompt (supports env var and piped input for
-	// scripted restore flows).
-	importPass, err := promptPassphrase("Backup passphrase: ")
-	if err != nil {
-		return fmt.Errorf("reading backup passphrase: %w", err)
+	// Prompt for the backup passphrase. TEGATA_BACKUP_PASSPHRASE can be set
+	// for scripted restore flows, keeping it independent of TEGATA_PASSPHRASE
+	// (the vault passphrase). Falls back to an interactive prompt.
+	var importPass []byte
+	if envPass := os.Getenv("TEGATA_BACKUP_PASSPHRASE"); envPass != "" {
+		fmt.Fprintln(os.Stderr, "! Using backup passphrase from TEGATA_BACKUP_PASSPHRASE")
+		importPass = []byte(envPass)
+	} else {
+		fmt.Fprint(os.Stderr, "Backup passphrase: ")
+		importPass, err = term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return fmt.Errorf("reading backup passphrase: %w", err)
+		}
 	}
 	defer zeroBytes(importPass)
 
 	imported, skipped, err := mgr.ImportCredentials(data, importPass)
 	if err != nil {
-		return fmt.Errorf("Error: import failed. Check the backup passphrase and try again.")
+		return fmt.Errorf("import failed: %w", err)
 	}
 
 	fmt.Printf("%d imported, %d skipped (duplicate label)\n", imported, skipped)
