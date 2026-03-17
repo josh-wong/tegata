@@ -692,6 +692,111 @@ func (m *Manager) ImportCredentials(data, importPassphrase []byte) (imported, sk
 	return imported, skipped, nil
 }
 
+// ChangePassphrase re-wraps the DEK under a new passphrase without re-encrypting
+// the payload. Only the passphrase-derived key and the header salt are replaced.
+// The WriteCounter is deliberately NOT incremented because the encrypted payload
+// is not touched — the counter-based nonce inside the payload ciphertext remains
+// valid. Recovery key wrapping is preserved unchanged.
+//
+// This design (key wrapping vs. payload re-encryption) is what makes passphrase
+// rotation fast and safe: even a power failure during the atomic write cannot
+// corrupt the payload, because the old file is preserved as a .bak until the
+// rename succeeds.
+func (m *Manager) ChangePassphrase(newPassphrase []byte) error {
+	if m.dek == nil || m.payload == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	// Open the DEK from guarded memory.
+	dekBuf, err := m.dek.Open()
+	if err != nil {
+		return fmt.Errorf("opening DEK: %w", err)
+	}
+	defer dekBuf.Destroy()
+
+	// Generate new salt for the new passphrase-derived key.
+	newSalt, err := crypto.GenerateSalt()
+	if err != nil {
+		return fmt.Errorf("generating new salt: %w", err)
+	}
+
+	// Derive new passphrase key and re-wrap the DEK.
+	newKey := crypto.DeriveKey(newPassphrase, newSalt, m.params)
+	defer newKey.Destroy()
+
+	// Counter=1 is safe here because each wrapping uses a fresh salt, so the
+	// (key, nonce) pair is unique regardless of reusing counter=1.
+	newWrappedDEK, err := crypto.Seal(newKey, 1, dekBuf.Bytes(), nil)
+	if err != nil {
+		return fmt.Errorf("re-wrapping DEK: %w", err)
+	}
+
+	// Read the current vault file to extract the existing encryptedPayload
+	// without re-encrypting it. This preserves the WriteCounter.
+	oldData, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault for passphrase change: %w", err)
+	}
+
+	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
+	encryptedPayload := oldData[headerSize+4 : headerSize+4+int(oldPayloadLen)]
+
+	// Update header salt — the only header field that changes.
+	copy(m.header.Salt[:], newSalt)
+
+	headerBytes, err := Marshal(m.header)
+	if err != nil {
+		return fmt.Errorf("marshaling header: %w", err)
+	}
+
+	// Reassemble: header(128) + payloadLen(4) + encryptedPayload +
+	// wrappedDEKLen(4) + newWrappedDEK + recoveryWrappedDEK
+	payloadLenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(payloadLenBuf, uint32(len(encryptedPayload)))
+
+	wrappedDEKLenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(wrappedDEKLenBuf, uint32(len(newWrappedDEK)))
+
+	var fileData []byte
+	fileData = append(fileData, headerBytes...)
+	fileData = append(fileData, payloadLenBuf...)
+	fileData = append(fileData, encryptedPayload...)
+	fileData = append(fileData, wrappedDEKLenBuf...)
+	fileData = append(fileData, newWrappedDEK...)
+	fileData = append(fileData, m.recoveryWrapped...)
+
+	if err := atomicWrite(m.path, fileData); err != nil {
+		zeroBytes(fileData)
+		return err
+	}
+	zeroBytes(fileData)
+
+	// Re-seal the DEK enclave so in-memory state remains valid. The enclave
+	// content is unchanged; this just refreshes the guarded-memory handle.
+	newDEKBuf := guard.NewSecretBuffer(append([]byte(nil), dekBuf.Bytes()...))
+	if m.dek != nil {
+		m.dek.Destroy()
+	}
+	m.dek = guard.Seal(newDEKBuf)
+
+	return nil
+}
+
+// VerifyRecoveryKey checks whether the provided raw recovery key bytes match
+// the SHA-256 hash stored in the vault payload at creation time. Returns
+// true/nil if the key matches, false/nil if it does not (a mismatch is a
+// valid outcome, not an error). Returns an error only if the vault is locked.
+func (m *Manager) VerifyRecoveryKey(recoveryRaw []byte) (bool, error) {
+	if m.payload == nil {
+		return false, fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	hash := sha256.Sum256(recoveryRaw)
+	hashHex := hex.EncodeToString(hash[:])
+
+	return strings.EqualFold(hashHex, m.payload.RecoveryKeyHash), nil
+}
+
 // atomicWrite writes data to path using temp-file-rename for crash safety.
 func atomicWrite(path string, data []byte) error {
 	tmpPath := path + ".tmp"
