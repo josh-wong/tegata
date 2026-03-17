@@ -378,6 +378,10 @@ func TestIntegration_ConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestIntegration_Sign(t *testing.T) {
+	t.Skip("stub — implement after sign command is built in Task 2")
+}
+
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping build test in short mode")
