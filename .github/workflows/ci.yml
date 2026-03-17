@@ -35,7 +35,6 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.4.0
-          args: run
 
       - name: Build binary
         run: make build
