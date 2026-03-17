@@ -85,7 +85,12 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 		return "", err
 	}
 
-	// Hash recovery key for verification.
+	// Hash the recovery key and store it in the encrypted payload. The hash
+	// is not used during UnlockWithRecoveryKey — GCM authentication provides
+	// cryptographic verification there. The stored hash enables a future
+	// "verify my backup" command to confirm a known recovery key string
+	// matches what was generated at vault creation time, without re-deriving
+	// the key or attempting a full unlock.
 	recoveryHash := sha256.Sum256(recoveryRaw)
 	recoveryHashHex := hex.EncodeToString(recoveryHash[:])
 
