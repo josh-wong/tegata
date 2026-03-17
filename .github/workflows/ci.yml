@@ -31,10 +31,10 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Install golangci-lint
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.1.6
           args: run
 
       - name: Build binary

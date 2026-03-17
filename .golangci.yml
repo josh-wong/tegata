@@ -9,5 +9,3 @@ linters:
     - gosimple
     - ineffassign
 
-run:
-  go: "1.25"
