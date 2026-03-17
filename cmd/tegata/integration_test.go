@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base32"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -438,7 +439,91 @@ func TestIntegration_Sign(t *testing.T) {
 }
 
 func TestIntegration_Export(t *testing.T) {
-	t.Skip("stub — implement after export/import commands are built in Task 2")
+	// Create a source vault with 3 credentials.
+	srcPath, _ := createIntegrationVault(t)
+
+	mgr, err := vault.Open(srcPath)
+	if err != nil {
+		t.Fatalf("Open source vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock source vault: %v", err)
+	}
+
+	for _, c := range []model.Credential{
+		{Label: "export-svc-a", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
+		{Label: "export-svc-b", Type: model.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
+		{Label: "export-svc-c", Type: model.CredentialStatic, Secret: "staticpass"},
+	} {
+		if _, err := mgr.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+
+	// Export using the vault manager method directly (CLI path requires
+	// interactive terminal; this exercises the same code path).
+	exportPass := []byte("export-integration-passphrase")
+	backupData, err := mgr.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+	mgr.Close()
+
+	// Write backup to a temp file to verify the file I/O path.
+	dir := t.TempDir()
+	backupPath := filepath.Join(dir, "vault.tegata-backup")
+	if err := os.WriteFile(backupPath, backupData, 0600); err != nil {
+		t.Fatalf("WriteFile backup: %v", err)
+	}
+
+	// Verify backup file exists and is non-empty.
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		t.Fatalf("Stat backup: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("backup file is empty")
+	}
+
+	// Create a fresh destination vault and import.
+	dstPath, _ := createIntegrationVault(t)
+	dst, err := vault.Open(dstPath)
+	if err != nil {
+		t.Fatalf("Open dest vault: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest vault: %v", err)
+	}
+
+	readData, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("ReadFile backup: %v", err)
+	}
+
+	imported, skipped, err := dst.ImportCredentials(readData, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+
+	// Verify summary format: 3 imported, 0 skipped.
+	summary := fmt.Sprintf("%d imported, %d skipped (duplicate label)", imported, skipped)
+	wantSummary := "3 imported, 0 skipped (duplicate label)"
+	if summary != wantSummary {
+		t.Errorf("summary: got %q, want %q", summary, wantSummary)
+	}
+
+	// Verify credentials are present.
+	list := dst.ListCredentials()
+	if len(list) != 3 {
+		t.Fatalf("ListCredentials after import: got %d, want 3", len(list))
+	}
+
+	// Import with wrong passphrase must return an error (not a panic).
+	_, _, err = dst.ImportCredentials(readData, []byte("wrong-passphrase"))
+	if err == nil {
+		t.Fatal("ImportCredentials with wrong passphrase: expected error, got nil")
+	}
 }
 
 func TestIntegration_StaticBinaryBuild(t *testing.T) {

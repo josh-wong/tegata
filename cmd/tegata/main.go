@@ -69,6 +69,8 @@ via ScalarDL Ledger.`,
 		newResyncCmd(),
 		newBenchCmd(),
 		newConfigCmd(),
+		newExportCmd(),
+		newImportCmd(),
 	)
 
 	return rootCmd.Execute()
