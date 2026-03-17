@@ -367,8 +367,11 @@ func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
 
 // Close zeroes all sensitive memory held by the manager.
 func (m *Manager) Close() {
+	if m.dek != nil {
+		m.dek.Destroy()
+		m.dek = nil
+	}
 	m.payload = nil
-	m.dek = nil
 }
 
 // AddCredential adds a credential to the vault and saves. Returns the assigned
