@@ -122,6 +122,9 @@ func newListCmd() *cobra.Command {
 					_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Label, issuer, c.Type)
 				}
 				_ = w.Flush()
+				if _, err := fmt.Fprintln(out); err != nil {
+					return err
+				}
 			}
 
 			return nil
