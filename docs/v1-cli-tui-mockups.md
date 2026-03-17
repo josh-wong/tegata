@@ -856,7 +856,7 @@ $ tegata version
  \__|\___|\__, |\__,_| \__|\__,_|       (cinnabar)
           |___/                         (cinnabar)
 
-tegata vX.Y.Z (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
+tegata vX.Y.Z (go1.25.0, built 2026-06-15, commit abc1234, linux/amd64)
 ```
 
 **JSON output (`--json`):**
@@ -865,7 +865,7 @@ tegata vX.Y.Z (go1.23.0, built 2026-06-15, commit abc1234, linux/amd64)
 {
   "status": "ok",
   "version": "X.Y.Z",
-  "go_version": "go1.23.0",
+  "go_version": "go1.25.0",
   "commit": "abc1234",
   "platform": "linux/amd64",
   "build_date": "2026-06-15"

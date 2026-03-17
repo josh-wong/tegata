@@ -1073,7 +1073,7 @@ The following tools are required for development.
 
 | Tool           | Version | Purpose                                        |
 |----------------|---------|------------------------------------------------|
-| Go             | 1.23+   | Compiler and toolchain                         |
+| Go             | 1.25+   | Compiler and toolchain                         |
 | Docker         | 24+     | ScalarDL integration testing                   |
 | Docker Compose | 2.20+   | Local ScalarDL Ledger environment              |
 | Git            | 2.40+   | Version control                                |
