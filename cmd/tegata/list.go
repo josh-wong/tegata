@@ -63,7 +63,9 @@ func newListCmd() *cobra.Command {
 					}
 				}
 				if matched == 0 {
-					fmt.Fprintf(out, "No credentials with tag %q.\n", tagFilter)
+					if _, err := fmt.Fprintf(out, "No credentials with tag %q.\n", tagFilter); err != nil {
+						return err
+					}
 				}
 				return w.Flush()
 			}
@@ -92,7 +94,9 @@ func newListCmd() *cobra.Command {
 
 			w := tabwriter.NewWriter(out, 0, 2, 3, ' ', 0)
 			for _, tag := range tagNames {
-				fmt.Fprintf(out, "[%s]\n", tag)
+				if _, err := fmt.Fprintf(out, "[%s]\n", tag); err != nil {
+					return err
+				}
 				for _, c := range tagSet[tag] {
 					issuer := c.Issuer
 					if issuer == "" {
@@ -101,11 +105,15 @@ func newListCmd() *cobra.Command {
 					_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Label, issuer, c.Type)
 				}
 				_ = w.Flush()
-				fmt.Fprintln(out)
+				if _, err := fmt.Fprintln(out); err != nil {
+					return err
+				}
 			}
 
 			if len(untagged) > 0 {
-				fmt.Fprintf(out, "[untagged]\n")
+				if _, err := fmt.Fprintf(out, "[untagged]\n"); err != nil {
+					return err
+				}
 				for _, c := range untagged {
 					issuer := c.Issuer
 					if issuer == "" {
