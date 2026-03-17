@@ -21,6 +21,10 @@ import (
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
+//
+// Concurrency: Manager assumes single-process access per vault file. Each CLI
+// invocation opens, operates, and closes the vault independently. No file
+// locking is performed; concurrent writers will corrupt the vault.
 type Manager struct {
 	path            string
 	header          *model.VaultHeader
