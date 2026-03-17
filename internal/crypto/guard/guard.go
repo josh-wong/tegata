@@ -88,6 +88,12 @@ func Seal(sb *SecretBuffer) *KeyEnclave {
 	return &KeyEnclave{enc: enc}
 }
 
+// Destroy releases the enclave reference, allowing the GC to collect the
+// encrypted-at-rest key material. After calling Destroy, Open will panic.
+func (ke *KeyEnclave) Destroy() {
+	ke.enc = nil
+}
+
 // Open decrypts the enclave into a new SecretBuffer. The caller is responsible
 // for calling Destroy on the returned SecretBuffer when done. The same enclave
 // can be opened multiple times.
