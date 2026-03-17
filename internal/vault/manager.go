@@ -190,6 +190,18 @@ func Open(path string) (*Manager, error) {
 	recoveryWrapped := make([]byte, len(data)-afterWrappedDEK)
 	copy(recoveryWrapped, data[afterWrappedDEK:])
 
+	// Validate Argon2id parameters to prevent denial-of-service from crafted
+	// vault files (e.g., ArgonMemory set to 4 GiB causing OOM).
+	if header.ArgonTime < 1 || header.ArgonTime > 100 {
+		return nil, fmt.Errorf("invalid argon2 time parameter %d: %w", header.ArgonTime, errors.ErrVaultCorrupt)
+	}
+	if header.ArgonMemory < 1024 || header.ArgonMemory > 4*1024*1024 {
+		return nil, fmt.Errorf("invalid argon2 memory parameter %d KiB: %w", header.ArgonMemory, errors.ErrVaultCorrupt)
+	}
+	if header.ArgonParallelism < 1 || header.ArgonParallelism > 255 {
+		return nil, fmt.Errorf("invalid argon2 parallelism parameter %d: %w", header.ArgonParallelism, errors.ErrVaultCorrupt)
+	}
+
 	m := &Manager{
 		path:            path,
 		header:          header,
