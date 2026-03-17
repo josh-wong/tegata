@@ -526,6 +526,14 @@ func TestIntegration_Export(t *testing.T) {
 	}
 }
 
+func TestIntegration_TagFilter(t *testing.T) {
+	t.Skip("stub — implement after tag and list commands are built in Task 2")
+}
+
+func TestIntegration_ChangePassphrase(t *testing.T) {
+	t.Skip("stub — implement after change-passphrase command is built in Task 2")
+}
+
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping build test in short mode")
