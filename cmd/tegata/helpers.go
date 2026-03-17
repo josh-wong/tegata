@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base32"
 	"fmt"
 	"io"
@@ -123,8 +124,11 @@ func promptNewPassphrase() ([]byte, error) {
 		return nil, err
 	}
 
-	if string(pass) != string(confirm) {
-		// Zero the confirmation passphrase.
+	if !bytes.Equal(pass, confirm) {
+		// Zero both copies before returning the error.
+		for i := range pass {
+			pass[i] = 0
+		}
 		for i := range confirm {
 			confirm[i] = 0
 		}
