@@ -80,8 +80,12 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 	recoveryHash := sha256.Sum256(recoveryRaw)
 	recoveryHashHex := hex.EncodeToString(recoveryHash[:])
 
-	// Derive recovery key and wrap DEK with it.
+	// Derive recovery key and wrap DEK with it. Zero recoveryRaw afterward
+	// since it is high-entropy key material on the regular heap.
 	recoveryDerivedKey := crypto.DeriveKey(recoveryRaw, recoverySalt, params)
+	for i := range recoveryRaw {
+		recoveryRaw[i] = 0
+	}
 	recoveryWrappedDEK, err := crypto.Seal(recoveryDerivedKey, 1, dekRaw, nil)
 	recoveryDerivedKey.Destroy()
 	if err != nil {
