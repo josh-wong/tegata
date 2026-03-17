@@ -511,10 +511,3 @@ func atomicWrite(path string, data []byte) error {
 	_ = os.Remove(bakPath)
 	return nil
 }
-
-// copyBytes returns a copy of the given byte slice.
-func copyBytes(src []byte) []byte {
-	dst := make([]byte, len(src))
-	copy(dst, src)
-	return dst
-}
