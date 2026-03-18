@@ -63,10 +63,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		exportPass, err = term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
+			zeroBytes(exportPass)
 			return fmt.Errorf("reading export passphrase: %w", err)
 		}
 
 		if len(exportPass) < 8 {
+			zeroBytes(exportPass)
 			fmt.Fprintln(os.Stderr, "Error: export passphrase must be at least 8 characters.")
 			continue
 		}
