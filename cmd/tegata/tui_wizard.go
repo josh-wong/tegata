@@ -73,9 +73,17 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // updateWizardPassphrase handles input on the passphrase entry screen (step 2/4).
+//
+// Design note: the passphrase step uses an optimistic-advance pattern. On Enter,
+// the model immediately transitions to stateWizardRecoveryKey (so the UI remains
+// responsive) and simultaneously dispatches createVaultCmd as an async command.
+// The createVaultResultMsg updates m.recoveryKey when the Argon2id derivation
+// completes (~1–3s). If vault creation fails, the model returns to
+// stateWizardPassphrase with an error message.
 func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
+		// Spinner ticks while vault is being created in the background.
 		if m.creating {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
@@ -86,83 +94,81 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case createVaultResultMsg:
 		m.creating = false
 		if msg.err != nil {
+			// Creation failed: return to passphrase step with error.
 			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.state = stateWizardPassphrase
+			m.passphraseInput.Focus()
 			return m, nil
 		}
+		// Update the recovery key displayed on the recovery screen.
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
-		m.state = stateWizardRecoveryKey
 		return m, nil
 
 	case tea.KeyMsg:
 		if m.creating {
-			return m, nil // ignore input while creating
+			return m, nil // ignore input while vault is being created
 		}
 
 		switch msg.Type {
-		case tea.KeyTab:
-			// Toggle focus between the two passphrase inputs.
-			if m.passphraseInput.Focused() {
-				m.passphraseInput.Blur()
-				m.confirmInput.Focus()
-			} else {
-				m.confirmInput.Blur()
-				m.passphraseInput.Focus()
-			}
-			return m, nil
-
 		case tea.KeyEnter:
-			if m.confirmInput.Focused() {
-				pass := m.passphraseInput.Value()
-				confirm := m.confirmInput.Value()
-				if len(pass) < 8 {
-					m.errMsg = "Passphrase must be at least 8 characters."
-					return m, nil
-				}
-				if pass != confirm {
-					m.errMsg = "Passphrases do not match."
-					return m, nil
-				}
-				m.errMsg = ""
+			pass := m.passphraseInput.Value()
 
-				// Copy passphrase to a byte slice that the async command owns.
-				// The async command is responsible for zeroing this copy.
-				pp := []byte(pass)
+			// Copy passphrase bytes so the async command owns the slice.
+			// The async command zeroes this copy when done.
+			pp := []byte(pass)
 
-				// Reset the textinput fields immediately.
-				m.passphraseInput.Reset()
-				m.confirmInput.Reset()
+			// Zero and reset the passphrase input immediately.
+			m.passphraseInput.Reset()
+			m.confirmInput.Reset()
+			m.errMsg = ""
 
-				m.creating = true
-				path := m.vaultCreatePath()
-				return m, tea.Batch(m.spinner.Tick, createVaultCmd(path, pp))
-			}
-			return m, nil
+			// Optimistic advance: show the recovery key screen immediately while
+			// vault creation runs in the background. The recovery key will be
+			// populated via createVaultResultMsg.
+			m.creating = true
+			m.state = stateWizardRecoveryKey
+			path := m.vaultCreatePath()
+			return m, tea.Batch(m.spinner.Tick, createVaultCmd(path, pp))
 		}
 
-		// Delegate typing to the focused input.
+		// Delegate typing to the passphrase input.
 		var cmd tea.Cmd
-		if m.passphraseInput.Focused() {
-			m.passphraseInput, cmd = m.passphraseInput.Update(msg)
-		} else {
-			m.confirmInput, cmd = m.confirmInput.Update(msg)
-		}
+		m.passphraseInput, cmd = m.passphraseInput.Update(msg)
 		return m, cmd
 	}
 
-	// For non-key messages, update whichever input is focused.
+	// For non-key messages, delegate to the passphrase input.
 	var cmd tea.Cmd
-	if m.passphraseInput.Focused() {
-		m.passphraseInput, cmd = m.passphraseInput.Update(msg)
-	} else {
-		m.confirmInput, cmd = m.confirmInput.Update(msg)
-	}
+	m.passphraseInput, cmd = m.passphraseInput.Update(msg)
 	return m, cmd
 }
 
 // updateWizardRecoveryKey handles input on the recovery key display screen (step 3/4).
 func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		// Forward spinner ticks while vault is being created.
+		if m.creating {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
+	case createVaultResultMsg:
+		// Handle vault creation result that arrives while on the recovery screen.
+		m.creating = false
+		if msg.err != nil {
+			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.state = stateWizardPassphrase
+			m.passphraseInput.Focus()
+			return m, nil
+		}
+		m.recoveryKey = msg.recoveryKey
+		m.errMsg = ""
+		return m, nil
+
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyEnter {
 			m.state = stateWizardAddCredential
@@ -216,8 +222,7 @@ func (m model) viewWizardWelcome() string {
 func (m model) viewWizardPassphrase() string {
 	strength := strengthLabel(len(m.passphraseInput.Value()))
 	content := titleStyle.Render("Step 2/4: Set passphrase") + "\n\n" +
-		m.passphraseInput.View() + "\n" +
-		m.confirmInput.View() + "\n\n" +
+		m.passphraseInput.View() + "\n\n" +
 		"Strength: " + strength + "\n"
 
 	if m.errMsg != "" {
@@ -226,18 +231,25 @@ func (m model) viewWizardPassphrase() string {
 	if m.creating {
 		content += "\n" + m.spinner.View() + " Creating vault…\n"
 	} else {
-		content += "\n" + helpBarStyle.Render("[Tab] Switch field  [Enter] Confirm  [q] Quit")
+		content += "\n" + helpBarStyle.Render("[Enter] Set passphrase  [q] Quit")
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 // viewWizardRecoveryKey renders step 3/4.
 func (m model) viewWizardRecoveryKey() string {
-	keyBox := overlayBoxStyle.Render(m.recoveryKey)
-	content := titleStyle.Render("Step 3/4: Recovery key") + "\n\n" +
-		keyBox + "\n\n" +
-		errorStyle.Render("Write this down. You cannot recover your vault without it.") + "\n\n" +
-		helpBarStyle.Render("[Enter] I have stored my recovery key")
+	var content string
+	if m.creating || m.recoveryKey == "" {
+		// Vault is still being created in the background; show a spinner.
+		content = titleStyle.Render("Step 3/4: Recovery key") + "\n\n" +
+			m.spinner.View() + " Creating vault… please wait.\n"
+	} else {
+		keyBox := overlayBoxStyle.Render(m.recoveryKey)
+		content = titleStyle.Render("Step 3/4: Recovery key") + "\n\n" +
+			keyBox + "\n\n" +
+			errorStyle.Render("Write this down. You cannot recover your vault without it.") + "\n\n" +
+			helpBarStyle.Render("[Enter] I have stored my recovery key")
+	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 

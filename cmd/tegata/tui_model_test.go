@@ -47,7 +47,6 @@ func TestModel_NoVault_StartsWizard(t *testing.T) {
 // TestWizardStateMachine asserts the full wizard state transition:
 // welcome → passphrase → recovery_key → add_credential → main_view.
 func TestWizardStateMachine(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	if m.state != stateWizardWelcome {
 		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
@@ -73,7 +72,6 @@ func TestWizardStateMachine(t *testing.T) {
 // TestWizardSkipCredential asserts that pressing Esc on stateWizardAddCredential
 // transitions directly to stateMainView without adding a credential.
 func TestWizardSkipCredential(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	// Navigate to stateWizardAddCredential.
 	m = sendKey(m, "enter")
