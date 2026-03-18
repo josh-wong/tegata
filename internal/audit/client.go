@@ -338,7 +338,7 @@ func (c *LedgerClient) Ping(ctx context.Context) error {
 func (c *LedgerClient) Close() error {
 	err := c.conn.Close()
 	if c.privilegedConn != nil {
-		if err2 := c.privilegedConn.Close(); err == nil {
+		if err2 := c.privilegedConn.Close(); err2 != nil && err == nil {
 			err = err2
 		}
 	}
@@ -347,7 +347,7 @@ func (c *LedgerClient) Close() error {
 
 // Submit implements the Submitter interface. It calls Put with:
 //   - objectID = entry.Event.EventID
-//   - hashValue = hex(SHA-256(JSON(entry)))
+//   - hashValue = hex(SHA-256(JSON(entry.Event)))
 //
 // This allows the LedgerClient to be used directly as the Submitter for Queue.Flush.
 func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
@@ -356,6 +356,9 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 		return fmt.Errorf("serialising queue entry for submission: %w", err)
 	}
 	sum := sha256.Sum256(entryJSON)
+	for i := range entryJSON {
+		entryJSON[i] = 0
+	}
 	hashValue := hex.EncodeToString(sum[:])
 
 	return c.Put(ctx, entry.Event.EventID, hashValue)
