@@ -352,16 +352,6 @@ func buildTLSConfigFromBytes(certPath string, keyPEM []byte, caPath string) (*tl
 	return tlsCfg, nil
 }
 
-// buildTLSConfig constructs a *tls.Config from cert, key, and CA PEM file paths.
-func buildTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
-	keyPEM, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-	return buildTLSConfigFromBytes(certPath, keyPEM, caPath)
-}
-
 // buildSigner loads an ECDSA private key PEM file and returns a Signer.
 func buildSigner(keyPath string) (audit.Signer, error) {
 	if keyPath == "" {
