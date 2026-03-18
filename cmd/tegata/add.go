@@ -6,7 +6,7 @@ import (
 
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/errors"
-	"github.com/josh-wong/tegata/pkg/model"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +54,7 @@ func newAddCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			var cred model.Credential
+			var cred pkgmodel.Credential
 
 			if scan {
 				// Prompt for otpauth:// URI.
@@ -71,10 +71,10 @@ func newAddCmd() *cobra.Command {
 				cred.Tags = tags
 			} else {
 				// Validate type.
-				ct := model.CredentialType(credType)
+				ct := pkgmodel.CredentialType(credType)
 				switch ct {
-				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic,
-					model.CredentialChallengeResponse:
+				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialStatic,
+					pkgmodel.CredentialChallengeResponse:
 				default:
 					return fmt.Errorf("invalid credential type %q (use totp, hotp, static, or challenge-response): %w",
 						credType, errors.ErrInvalidInput)
@@ -88,13 +88,13 @@ func newAddCmd() *cobra.Command {
 				trimmedSecret := strings.TrimSpace(secret)
 
 				switch ct {
-				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialChallengeResponse:
+				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialChallengeResponse:
 					if _, decErr := decodeBase32Secret(trimmedSecret); decErr != nil {
 						return fmt.Errorf("secret is not valid base32 — check for typos: %w", errors.ErrInvalidInput)
 					}
 				}
 
-				cred = model.Credential{
+				cred = pkgmodel.Credential{
 					Label:     label,
 					Issuer:    issuer,
 					Type:      ct,

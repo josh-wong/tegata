@@ -38,7 +38,6 @@ func sendKey(m model, key string) model {
 // TestModel_NoVault_StartsWizard asserts that when no vault path is configured,
 // the model's initial state is stateWizardWelcome.
 func TestModel_NoVault_StartsWizard(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	if m.state != stateWizardWelcome {
 		t.Errorf("expected stateWizardWelcome, got %v", m.state)
@@ -92,7 +91,6 @@ func TestWizardSkipCredential(t *testing.T) {
 // TestModel_VaultFound_GoesToUnlock asserts that when a vault path is present,
 // the model's initial state is stateUnlock.
 func TestModel_VaultFound_GoesToUnlock(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("/path/to/vault.tegata")
 	if m.state != stateUnlock {
 		t.Errorf("expected stateUnlock, got %v", m.state)
