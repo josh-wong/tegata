@@ -35,6 +35,14 @@ var (
 	// ErrInvalidInput indicates the user provided invalid input (malformed
 	// label, bad URI format, etc.).
 	ErrInvalidInput = stderrors.New("invalid input")
+
+	// ErrNetworkFailed indicates a network operation failed when communicating
+	// with the ScalarDL Ledger (gRPC connection error, timeout, etc.).
+	ErrNetworkFailed = stderrors.New("network operation failed")
+
+	// ErrIntegrityViolation indicates a hash-chain integrity check failed in
+	// the offline queue or a ScalarDL Ledger audit verification mismatch.
+	ErrIntegrityViolation = stderrors.New("integrity violation detected")
 )
 
 // ExitCode maps an error to a CLI process exit code. Nil errors return 0.
@@ -55,6 +63,10 @@ func ExitCode(err error) int {
 		return 6
 	case stderrors.Is(err, ErrInvalidInput):
 		return 7
+	case stderrors.Is(err, ErrNetworkFailed):
+		return 8
+	case stderrors.Is(err, ErrIntegrityViolation):
+		return 9
 	default:
 		return 1
 	}

@@ -15,6 +15,8 @@ func TestExitCode_SentinelErrors(t *testing.T) {
 		errors.ErrNotFound,
 		errors.ErrVaultLocked,
 		errors.ErrInvalidInput,
+		errors.ErrNetworkFailed,
+		errors.ErrIntegrityViolation,
 	}
 
 	codes := make(map[int]error)
@@ -50,6 +52,18 @@ func TestExitCode_UnknownError(t *testing.T) {
 	unknown := fmt.Errorf("some random error")
 	if code := errors.ExitCode(unknown); code != 1 {
 		t.Errorf("ExitCode(unknown) = %d, want 1", code)
+	}
+}
+
+func TestExitCode_NetworkFailed(t *testing.T) {
+	if code := errors.ExitCode(errors.ErrNetworkFailed); code != 8 {
+		t.Errorf("ExitCode(ErrNetworkFailed) = %d, want 8", code)
+	}
+}
+
+func TestExitCode_IntegrityViolation(t *testing.T) {
+	if code := errors.ExitCode(errors.ErrIntegrityViolation); code != 9 {
+		t.Errorf("ExitCode(ErrIntegrityViolation) = %d, want 9", code)
 	}
 }
 

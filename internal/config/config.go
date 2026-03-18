@@ -16,6 +16,44 @@ import (
 type Config struct {
 	ClipboardTimeout time.Duration
 	IdleTimeout      time.Duration
+	// Audit holds optional ScalarDL Ledger integration settings. When
+	// Audit.Enabled is false (the default) the audit layer is inactive.
+	Audit AuditConfig
+}
+
+// AuditConfig holds settings for the optional ScalarDL Ledger audit layer.
+// All fields default to safe/disabled values when the [audit] section is
+// absent from tegata.toml.
+type AuditConfig struct {
+	// Enabled controls whether audit events are submitted to the ledger.
+	Enabled bool
+	// Server is the gRPC address of the ScalarDL Ledger (e.g. "localhost:50051").
+	Server string
+	// CertPath, KeyPath, and CACertPath are optional TLS certificate paths for
+	// mutual TLS authentication with the ledger.
+	CertPath   string
+	KeyPath    string
+	CACertPath string
+	// EntityID is the ScalarDL entity identifier for this vault.
+	EntityID string
+	// KeyVersion is the ScalarDL key version to use when submitting contracts.
+	KeyVersion uint32
+	// QueueMaxEvents is the maximum number of events kept in the offline queue
+	// before the oldest entries are dropped. Default: 10000.
+	QueueMaxEvents int
+}
+
+// tomlAuditConfig is the TOML deserialization intermediate for [audit].
+// Pointer fields distinguish "not set" from "zero value".
+type tomlAuditConfig struct {
+	Enabled        *bool   `toml:"enabled"`
+	Server         *string `toml:"server"`
+	CertPath       *string `toml:"cert_path"`
+	KeyPath        *string `toml:"key_path"`
+	CACertPath     *string `toml:"ca_cert_path"`
+	EntityID       *string `toml:"entity_id"`
+	KeyVersion     *uint32 `toml:"key_version"`
+	QueueMaxEvents *int    `toml:"queue_max_events"`
 }
 
 // tomlConfig is the intermediate deserialization struct. Pointer fields
@@ -27,6 +65,7 @@ type tomlConfig struct {
 	Vault struct {
 		IdleTimeout *int `toml:"idle_timeout"`
 	} `toml:"vault"`
+	Audit tomlAuditConfig `toml:"audit"`
 }
 
 const (
@@ -36,11 +75,16 @@ const (
 )
 
 // DefaultConfig returns a Config with the default values: 45-second clipboard
-// timeout and 300-second (5-minute) idle timeout.
+// timeout and 300-second (5-minute) idle timeout. The audit layer is disabled
+// by default with a 10,000-event offline queue capacity.
 func DefaultConfig() Config {
 	return Config{
 		ClipboardTimeout: time.Duration(defaultClipboardTimeout) * time.Second,
 		IdleTimeout:      time.Duration(defaultIdleTimeout) * time.Second,
+		Audit: AuditConfig{
+			Enabled:        false,
+			QueueMaxEvents: 10000,
+		},
 	}
 }
 
@@ -70,6 +114,33 @@ func Load(dir string) (Config, error) {
 		cfg.IdleTimeout = time.Duration(*tc.Vault.IdleTimeout) * time.Second
 	}
 
+	// Apply audit settings — only override when explicitly set in TOML.
+	a := &tc.Audit
+	if a.Enabled != nil {
+		cfg.Audit.Enabled = *a.Enabled
+	}
+	if a.Server != nil {
+		cfg.Audit.Server = *a.Server
+	}
+	if a.CertPath != nil {
+		cfg.Audit.CertPath = *a.CertPath
+	}
+	if a.KeyPath != nil {
+		cfg.Audit.KeyPath = *a.KeyPath
+	}
+	if a.CACertPath != nil {
+		cfg.Audit.CACertPath = *a.CACertPath
+	}
+	if a.EntityID != nil {
+		cfg.Audit.EntityID = *a.EntityID
+	}
+	if a.KeyVersion != nil {
+		cfg.Audit.KeyVersion = *a.KeyVersion
+	}
+	if a.QueueMaxEvents != nil {
+		cfg.Audit.QueueMaxEvents = *a.QueueMaxEvents
+	}
+
 	return cfg, nil
 }
 
@@ -86,6 +157,27 @@ func WriteDefaults(dir string) error {
 [vault]
 # Auto-lock timeout in seconds (default: 300)
 # idle_timeout = 300
+
+[audit]
+# Enable tamper-evident audit logging via ScalarDL Ledger (default: false)
+# enabled = false
+#
+# gRPC address of the ScalarDL Ledger server
+# server = "localhost:50051"
+#
+# TLS certificate paths for mutual TLS (optional — omit for plaintext)
+# cert_path = ""
+# key_path = ""
+# ca_cert_path = ""
+#
+# ScalarDL entity identifier for this vault
+# entity_id = ""
+#
+# ScalarDL key version to use when submitting contracts
+# key_version = 1
+#
+# Maximum events retained in the offline queue before oldest are dropped
+# queue_max_events = 10000
 `
 	path := filepath.Join(dir, configFileName)
 	return os.WriteFile(path, []byte(content), 0644)
