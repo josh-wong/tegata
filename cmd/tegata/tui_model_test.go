@@ -182,7 +182,6 @@ func TestOverlayRemove(t *testing.T) {
 // TestOverlaySettings asserts that pressing 's' from stateMainView transitions
 // to stateOverlaySettings and that View() contains all four menu items.
 func TestOverlaySettings(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	m.state = stateMainView
 	m = sendKey(m, "s")
