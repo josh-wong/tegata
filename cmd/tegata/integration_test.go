@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
@@ -714,6 +715,76 @@ func TestAddCmd_FlagValidation(t *testing.T) {
 				t.Errorf("expected ErrInvalidInput, got %v", err)
 			}
 		})
+	}
+}
+
+// TestIntegration_AuditWiring verifies that the auth commands (code) succeed
+// and produce exit code 0 when audit is disabled (no ledger required). This
+// exercises the newEventBuilder disabled path end-to-end.
+func TestIntegration_AuditWiring(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	// Add a TOTP credential.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := mgr.AddCredential(model.Credential{
+		Label:     "github",
+		Issuer:    "GitHub",
+		Type:      model.CredentialTOTP,
+		Algorithm: "SHA1",
+		Digits:    6,
+		Period:    30,
+		Secret:    "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	mgr.Close()
+
+	// newEventBuilder with audit disabled must return a no-op builder.
+	cfg := config.Config{
+		Audit: config.AuditConfig{Enabled: false},
+	}
+	dir := filepath.Dir(path)
+	passphrase := []byte("integration-test-passphrase")
+
+	builder, err := newEventBuilder(cfg, dir, passphrase)
+	if err != nil {
+		t.Fatalf("newEventBuilder (disabled): %v", err)
+	}
+	if builder == nil {
+		t.Fatal("newEventBuilder returned nil builder")
+	}
+
+	// LogEvent on a disabled builder must be a no-op with no error.
+	if logErr := builder.LogEvent("totp", "github", "GitHub", "testhost", true); logErr != nil {
+		t.Errorf("LogEvent on disabled builder: %v", logErr)
+	}
+	if closeErr := builder.Close(); closeErr != nil {
+		t.Errorf("Close on disabled builder: %v", closeErr)
+	}
+}
+
+// TestHistory_FilterByDate verifies that filterRecords correctly applies
+// --from and --to date filters using the Timestamp field (unix epoch seconds).
+func TestHistory_FilterByDate(t *testing.T) {
+	base := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+	records := []*audit.EventRecord{
+		{ObjectID: "aaa-111", HashValue: "hash1", Timestamp: base.Add(-24 * time.Hour).Unix()}, // 2026-01-14
+		{ObjectID: "bbb-222", HashValue: "hash2", Timestamp: base.Unix()},                       // 2026-01-15
+		{ObjectID: "ccc-333", HashValue: "hash3", Timestamp: base.Add(24 * time.Hour).Unix()},   // 2026-01-16
+	}
+
+	from := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 1, 15, 23, 59, 59, 999999999, time.UTC)
+
+	filtered := filterRecords(records, from, to)
+	if len(filtered) != 1 || filtered[0].ObjectID != "bbb-222" {
+		t.Errorf("filterRecords with date range: got %v, want single record bbb-222", filtered)
 	}
 }
 

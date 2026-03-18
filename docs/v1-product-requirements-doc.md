@@ -104,11 +104,11 @@ Tegata uses a layered architecture that separates the core authenticator (offlin
 
 Tegata is designed as two independent layers that can be used together or separately.
 
-#### Layer 1 – Core Authenticator (standalone, offline-capable)
+#### Layer 1 – Core authenticator (standalone, offline-capable)
 
 A portable binary + encrypted key vault on a USB drive or microSD card. This layer handles all authentication operations and works entirely offline. No server, no network, no JVM required.
 
-#### Layer 2 – Audit Ledger (optional, requires server)
+#### Layer 2 – Audit ledger (optional, requires server)
 
 A ScalarDL Ledger integration that records authentication events to an immutable, hash-chained ledger. This layer requires a running ScalarDL Ledger instance (with a backing database) and network connectivity.
 
@@ -398,17 +398,17 @@ Without ScalarDL Auditor (enterprise-only), Tegata cannot perform Byzantine faul
 - After-the-fact tampering by a compromised server.
 - Silent deletion of log entries.
 
-### 9.2 What Ledger-only cannot guarantee
+### 9.2 What ScalarDL Ledger–only cannot guarantee
 
-- If the Ledger server itself is fully compromised (both the database and the ScalarDL process), an attacker could theoretically reconstruct a valid hash chain with altered data. ScalarDL Auditor exists to solve this via an independent second node, but it requires an enterprise license.
+- If the ScalarDL Ledger server itself is fully compromised (both the database and the ScalarDL process), an attacker could theoretically reconstruct a valid hash chain with altered data. ScalarDL Auditor exists to solve this via an independent second node, but it requires an enterprise license.
 - This limitation should be clearly documented so users can make informed decisions about their threat model.
 
 ### 9.3 Deployment model
 
-ScalarDL Ledger is **not bundled** with Tegata. Users who want audit logging must deploy their own Ledger instance. Tegata will provide:
+ScalarDL Ledger is **not bundled** with Tegata. Users who want audit logging must deploy their own ScalarDL Ledger instance. Tegata will provide:
 
 - A Docker Compose file for quick local setup (ScalarDL Ledger + PostgreSQL).
-- Configuration documentation for connecting Tegata to the Ledger instance.
+- Configuration documentation for connecting Tegata to the ScalarDL Ledger instance.
 - A `tegata ledger setup` command that validates connectivity and registers the necessary HashStore contracts.
 
 ### 9.4 Contract strategy
@@ -425,7 +425,7 @@ This avoids requiring users to write, compile, and deploy Java contracts (which 
 
 Since the Tegata host app is written in Go (not Java), the ScalarDL Java Client SDK cannot be used directly. Tegata will implement a lightweight gRPC client based on the protobuf service definitions in ScalarDL. This client will support:
 
-- Certificate-based authentication with the Ledger server.
+- Certificate-based authentication with the ScalarDL Ledger server.
 - Contract execution (`Put`, `Get`, `Validate`).
 - TLS encryption.
 

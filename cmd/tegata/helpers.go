@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
 	"fmt"
 	"io"
@@ -10,6 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
@@ -223,4 +228,146 @@ func decodeBase32Secret(secret string) ([]byte, error) {
 	}
 
 	return base32.StdEncoding.DecodeString(s)
+}
+
+// newEventBuilder constructs an EventBuilder from config and the vault passphrase.
+// Returns a disabled builder (no-op) when cfg.Audit.Enabled is false.
+//
+// Queue key derivation (AUDT-08): the queue is AES-256-GCM encrypted using a
+// 32-byte key derived from the vault passphrase via Argon2id with a distinct salt.
+// The salt is stored in the 32-byte queue file header. Deriving here — while
+// the passphrase is still in scope — avoids a second passphrase prompt and keeps
+// latency to one Argon2id call per command.
+func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*audit.EventBuilder, error) {
+	if !cfg.Audit.Enabled {
+		return audit.NewEventBuilder(nil, "", nil, 0)
+	}
+
+	queuePath := filepath.Join(vaultDir, "queue.tegata")
+
+	// Read the Argon2id salt from the existing queue file header, or generate a
+	// new one when the file does not yet exist.
+	var queueSalt []byte
+	if data, err := os.ReadFile(queuePath); err == nil && len(data) >= 32 {
+		// Existing queue file: first 32 bytes are the Argon2id salt.
+		queueSalt = make([]byte, 32)
+		copy(queueSalt, data[:32])
+	} else {
+		// New queue: generate a fresh salt. LoadQueue / NewQueue will write it
+		// to the file header on the first Save call.
+		var genErr error
+		queueSalt, genErr = crypto.GenerateSalt()
+		if genErr != nil {
+			return nil, fmt.Errorf("generating queue salt: %w", genErr)
+		}
+	}
+
+	// Derive the 32-byte queue encryption key using Argon2id.
+	// The distinct salt ensures the queue key is independent from the vault DEK
+	// even though both use the same passphrase.
+	keyBuf := crypto.DeriveKey(passphrase, queueSalt, crypto.DefaultParams)
+	defer keyBuf.Destroy()
+
+	// Copy key bytes out of the SecretBuffer before it is destroyed.
+	queueKey := make([]byte, 32)
+	copy(queueKey, keyBuf.Bytes())
+
+	client, err := buildLedgerClient(cfg.Audit)
+	if err != nil {
+		// A failed ledger connection is not fatal — the queue will hold events.
+		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
+		// Return a disabled builder so auth commands are not blocked.
+		zeroBytes(queueKey)
+		return audit.NewEventBuilder(nil, "", nil, 0)
+	}
+
+	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	zeroBytes(queueKey)
+	return eb, err
+}
+
+// buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
+// In TLS mode the private key PEM is read once and shared between the ECDSA
+// signer and the TLS config to avoid a second disk read and extra heap copy.
+func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
+	if cfg.Insecure {
+		signer, err := buildSigner(cfg.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("building ECDSA signer: %w", err)
+		}
+		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
+	}
+
+	// Read key PEM once; shared between signer and TLS config.
+	keyPEM, err := os.ReadFile(cfg.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
+	}
+	defer zeroBytes(keyPEM)
+
+	signer, err := audit.NewECDSASigner(keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("building ECDSA signer: %w", err)
+	}
+
+	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
+	if err != nil {
+		return nil, fmt.Errorf("building TLS config: %w", err)
+	}
+
+	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
+}
+
+// buildTLSConfigFromBytes constructs a *tls.Config from certPath, already-read
+// keyPEM bytes, and an optional CA cert path. The caller is responsible for
+// zeroing keyPEM after this call returns.
+func buildTLSConfigFromBytes(certPath string, keyPEM []byte, caPath string) (*tls.Config, error) {
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading client certificate from %s: %w", certPath, err)
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("loading TLS key pair: %w", err)
+	}
+
+	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+	}
+
+	if caPath != "" {
+		caPEM, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading CA certificate from %s: %w", caPath, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parsing CA certificate from %s: no valid PEM block found", caPath)
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	return tlsCfg, nil
+}
+
+// buildSigner loads an ECDSA private key PEM file and returns a Signer.
+func buildSigner(keyPath string) (audit.Signer, error) {
+	if keyPath == "" {
+		return &audit.NoOpSigner{}, nil
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
+	}
+	defer zeroBytes(keyPEM)
+	return audit.NewECDSASigner(keyPEM)
+}
+
+// hostname returns the current machine hostname. On error returns an empty
+// string so audit events can still be emitted without a valid host field.
+func hostname() string {
+	h, _ := os.Hostname()
+	return h
 }

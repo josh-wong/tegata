@@ -8,6 +8,57 @@ import (
 	"time"
 )
 
+func TestAuditConfig_Defaults(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Audit.Enabled {
+		t.Error("Audit.Enabled should default to false when [audit] section is absent")
+	}
+	if cfg.Audit.Server != "" {
+		t.Errorf("Audit.Server should default to empty, got %q", cfg.Audit.Server)
+	}
+	if cfg.Audit.QueueMaxEvents != 10000 {
+		t.Errorf("Audit.QueueMaxEvents should default to 10000, got %d", cfg.Audit.QueueMaxEvents)
+	}
+}
+
+func TestAuditConfig_ParseTOML(t *testing.T) {
+	dir := t.TempDir()
+	content := `[audit]
+enabled = true
+server = "localhost:50051"
+entity_id = "test"
+key_version = 1
+queue_max_events = 500
+`
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Audit.Enabled {
+		t.Error("Audit.Enabled should be true")
+	}
+	if cfg.Audit.Server != "localhost:50051" {
+		t.Errorf("Audit.Server = %q, want %q", cfg.Audit.Server, "localhost:50051")
+	}
+	if cfg.Audit.EntityID != "test" {
+		t.Errorf("Audit.EntityID = %q, want %q", cfg.Audit.EntityID, "test")
+	}
+	if cfg.Audit.KeyVersion != 1 {
+		t.Errorf("Audit.KeyVersion = %d, want 1", cfg.Audit.KeyVersion)
+	}
+	if cfg.Audit.QueueMaxEvents != 500 {
+		t.Errorf("Audit.QueueMaxEvents = %d, want 500", cfg.Audit.QueueMaxEvents)
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.ClipboardTimeout != 45*time.Second {

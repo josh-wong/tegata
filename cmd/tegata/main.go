@@ -74,6 +74,9 @@ via ScalarDL Ledger.`,
 		newTagCmd(),
 		newChangePassphraseCmd(),
 		newVerifyRecoveryCmd(),
+		newLedgerCmd(),
+		newHistoryCmd(),
+		newVerifyCmd(),
 	)
 
 	return rootCmd.Execute()

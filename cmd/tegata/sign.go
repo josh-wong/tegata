@@ -47,6 +47,16 @@ func newSignCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			// Load config and build audit builder while passphrase is in scope.
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+			}
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+			}
+
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
 				return err
@@ -64,9 +74,14 @@ func newSignCmd() *cobra.Command {
 				return err
 			}
 
+			// Emit audit event after successful sign.
+			if builder != nil {
+				if logErr := builder.LogEvent("challenge-response", cred.Label, cred.Issuer, hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
+
 			if clip {
-				// Load config for clipboard timeout.
-				cfg, _ := config.Load(vaultDir(vaultPath))
 				cm := clipboard.NewManager()
 				defer cm.Close()
 				if copyErr := cm.CopyWithAutoClear(hexResult, cfg.ClipboardTimeout); copyErr != nil {
