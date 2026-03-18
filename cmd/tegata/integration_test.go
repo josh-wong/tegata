@@ -655,6 +655,43 @@ func TestIntegration_ChangePassphrase(t *testing.T) {
 	}
 }
 
+func TestDecodeBase32Secret(t *testing.T) {
+	valid := []struct {
+		name   string
+		input  string
+		wantN  int // expected decoded byte length
+	}{
+		{name: "uppercase no padding", input: "JBSWY3DPEHPK3PXP", wantN: 10},
+		{name: "lowercase", input: "jbswy3dpehpk3pxp", wantN: 10},
+		{name: "with spaces", input: "JBSWY 3DPE HPK3 PXP", wantN: 10},
+		{name: "with hyphens", input: "JBSWY-3DPE-HPK3-PXP", wantN: 10},
+	}
+	for _, tc := range valid {
+		t.Run("valid/"+tc.name, func(t *testing.T) {
+			got, err := decodeBase32Secret(tc.input)
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tc.input, err)
+			}
+			if len(got) != tc.wantN {
+				t.Errorf("decoded length: got %d, want %d", len(got), tc.wantN)
+			}
+		})
+	}
+
+	invalid := []string{
+		"not-base32!!!",
+		"AAAA1111", // digit 1 is not in the base32 alphabet
+		"@#$%",
+	}
+	for _, input := range invalid {
+		t.Run("invalid/"+input, func(t *testing.T) {
+			if _, err := decodeBase32Secret(input); err == nil {
+				t.Errorf("expected error for invalid base32 %q, got nil", input)
+			}
+		})
+	}
+}
+
 func TestAddCmd_FlagValidation(t *testing.T) {
 	tests := []struct {
 		name string
