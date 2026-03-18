@@ -1,7 +1,7 @@
 //go:build integration
 
 // Integration tests for the ScalarDL Ledger gRPC client. These tests require
-// a live ScalarDL 3.12 Ledger instance and a registered client certificate.
+// a live ScalarDL Ledger 3.12 instance and a registered client certificate.
 //
 // To run:
 //

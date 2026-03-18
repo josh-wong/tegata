@@ -643,7 +643,7 @@ When enabled, the gRPC client requires:
 
 - A reachable server address (`server`).
 - Valid TLS certificates (`cert`, `key`, `ca`).
-- The `tegata ledger setup` command validates connectivity, negotiates TLS, and confirms that the required HashStore contracts are available on the Ledger instance.
+- The `tegata ledger setup` command validates connectivity, negotiates TLS, and confirms that the required HashStore contracts are available on the ScalarDL Ledger instance.
 
 ## 7. Wails GUI architecture
 

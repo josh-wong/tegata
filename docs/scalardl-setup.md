@@ -1,6 +1,6 @@
 # ScalarDL Ledger setup
 
-This guide explains how to configure Tegata's optional tamper-evident audit layer backed by ScalarDL 3.12 Ledger. The audit layer records every authentication event in a hash-chained ledger, enabling post-hoc integrity verification with `tegata verify`.
+This guide explains how to configure Tegata's optional tamper-evident audit layer backed by ScalarDL Ledger3.12. The audit layer records every authentication event in a hash-chained ledger, enabling post-hoc integrity verification with `tegata verify`.
 
 Audit logging is disabled by default. All authentication operations remain fully functional without it.
 
@@ -58,7 +58,7 @@ After writing the configuration, register the certificate and verify connectivit
 tegata ledger setup --vault /media/usb
 ```
 
-This command reads `tegata.toml`, connects to the ScalarDL LedgerPrivileged service on the configured server, calls `RegisterCert` to associate your certificate with `entity_id` and `key_version`, then calls `Ping` on the Ledger service to confirm end-to-end connectivity.
+This command reads `tegata.toml`, connects to the ScalarDL `LedgerPrivileged` service on the configured server, calls `RegisterCert` to associate your certificate with `entity_id` and `key_version`, then calls `Ping` on the Ledger service to confirm end-to-end connectivity.
 
 A successful run prints output similar to:
 
@@ -66,7 +66,7 @@ A successful run prints output similar to:
 Connecting to ScalarDL Ledger at localhost:50051...
 Registering certificate for entity "tegata-vault-alice" (key version 1)...
 Certificate registered successfully.
-Verifying Ledger connectivity...
+Verifying ledger connectivity...
 ScalarDL Ledger is reachable. Audit setup complete.
 ```
 

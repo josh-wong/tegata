@@ -1,6 +1,6 @@
 # ScalarDL local development setup
 
-This Docker Compose template starts a ScalarDL 3.12 Ledger and a PostgreSQL 15 database for local development and integration testing of the Tegata audit layer.
+This Docker Compose template starts an instance of ScalarDL Ledger 3.12 and a PostgreSQL 15 database for local development and integration testing of the Tegata audit layer.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ docker compose ps
 
 ## Registering a client certificate
 
-The ScalarDL LedgerPrivileged service listens on port 50052. After generating a certificate (see `docs/scalardl-setup.md`), run:
+The ScalarDL `LedgerPrivileged` service listens on port 50052. After generating a certificate (see `docs/scalardl-setup.md`), run:
 
 ```bash
 tegata ledger setup --vault /path/to/vault

@@ -33,7 +33,7 @@ func newLedgerSetupCmd() *cobra.Command {
 		Use:   "setup",
 		Short: "Register client certificate and verify connectivity",
 		Long: `Register the client TLS certificate with the ScalarDL LedgerPrivileged
-service and verify that the Ledger is reachable.
+service and verify that the ledger is reachable.
 
 This command must be run once before audit logging is active. It reads the
 [audit] section from tegata.toml (located in the vault directory) and uses
@@ -126,7 +126,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintln(os.Stderr, "Certificate registered successfully.")
 
 	// Ping the Ledger service to confirm connectivity.
-	fmt.Fprintln(os.Stderr, "Verifying Ledger connectivity...")
+	fmt.Fprintln(os.Stderr, "Verifying ledger connectivity...")
 	if err := client.Ping(ctx); err != nil {
 		return err
 	}

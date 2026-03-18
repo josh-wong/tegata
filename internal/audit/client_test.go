@@ -42,7 +42,7 @@ func (m *mockSigner) Sign(contractID, contractArgument, nonce, entityID string, 
 	return m.sig, m.err
 }
 
-// mockLedgerServer is a minimal in-process Ledger gRPC server for unit tests.
+// mockLedgerServer is a minimal in-process ScalarDL Ledger gRPC server for unit tests.
 type mockLedgerServer struct {
 	rpc.UnimplementedLedgerServer
 	execResult string
