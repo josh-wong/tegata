@@ -92,7 +92,7 @@ func NewLedgerClient(addr, privilegedAddr string, tlsCfg *tls.Config, entityID s
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
 	)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("dialing ScalarDL LedgerPrivileged at %s: %w", privilegedAddr, err)
 	}
 
@@ -122,7 +122,7 @@ func NewLedgerClientInsecure(addr, privilegedAddr string, entityID string, keyVe
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("dialing ScalarDL LedgerPrivileged at %s (insecure): %w", privilegedAddr, err)
 	}
 

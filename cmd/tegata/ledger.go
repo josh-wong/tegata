@@ -121,7 +121,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Register the client certificate with the LedgerPrivileged service.
 	ctx := context.Background()

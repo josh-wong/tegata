@@ -105,4 +105,4 @@ After recording events, verify the integrity of the ledger with:
 tegata verify --vault /media/usb
 ```
 
-This command checks the local hash chain in the offline queue and (if the ledger is reachable) cross-validates event hashes against the ScalarDL Ledger, returning a non-zero exit code if any integrity violation is detected.
+This command calls the ScalarDL Ledger to verify the integrity of all recorded audit events. It requires an active ledger connection and exits with code 9 if an integrity violation is detected, or code 8 if the ledger is unreachable.

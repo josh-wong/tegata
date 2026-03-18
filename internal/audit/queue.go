@@ -203,6 +203,9 @@ func (q *Queue) Append(evt AuthEvent) error {
 		return fmt.Errorf("creating GCM: %w", err)
 	}
 	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	for i := range plaintext {
+		plaintext[i] = 0
+	}
 
 	q.entries = append(q.entries, QueueEntry{
 		Event:      evt,
@@ -242,6 +245,9 @@ func (q *Queue) Save(path string) error {
 		}
 
 		ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+		for i := range plaintext {
+			plaintext[i] = 0
+		}
 		diskEntries = append(diskEntries, diskEntry{
 			Ciphertext: ciphertext,
 			Nonce:      nonce,
@@ -307,14 +313,34 @@ func (q *Queue) Entries() []QueueEntry {
 
 // EntryHash returns hex(SHA-256) of the entry's AuthEvent JSON. This is the
 // value stored in the next entry's PrevHash field.
+//
+// AuthEvent contains only string, bool, and time.Time fields that are always
+// JSON-serializable, so Marshal failure is a programming error. A panic is
+// preferable to silently returning "" and breaking the hash chain invisibly.
 func EntryHash(entry QueueEntry) string {
 	data, err := json.Marshal(entry.Event)
 	if err != nil {
-		// Should never happen for a valid AuthEvent.
-		return ""
+		panic(fmt.Sprintf("audit: EntryHash: json.Marshal failed: %v", err))
 	}
 	sum := sha256.Sum256(data)
+	for i := range data {
+		data[i] = 0
+	}
 	return hex.EncodeToString(sum[:])
+}
+
+// DropFront removes the first n entries from the queue. Used by EventBuilder
+// after a successful flush to clear only the entries that were submitted.
+// If n >= len(entries) the queue is cleared. Negative n is a no-op.
+func (q *Queue) DropFront(n int) {
+	if n <= 0 {
+		return
+	}
+	if n >= len(q.entries) {
+		q.entries = q.entries[:0]
+		return
+	}
+	q.entries = q.entries[n:]
 }
 
 // CorruptEntry replaces the PrevHash of the entry at index i. This is exported

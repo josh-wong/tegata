@@ -281,7 +281,9 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 		return audit.NewEventBuilder(nil, "", nil, 0)
 	}
 
-	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	zeroBytes(queueKey)
+	return eb, err
 }
 
 // buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.

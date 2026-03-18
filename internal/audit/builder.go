@@ -66,6 +66,12 @@ type submitResult struct {
 // Submitter (one that ignores context cancellation) cannot block the caller
 // longer than 500ms plus negligible goroutine scheduling overhead.
 //
+// The goroutine works exclusively from a snapshot of the queue entries taken
+// before it is spawned, so it never accesses b.queue concurrently with the
+// main goroutine. On timeout the main goroutine safely appends to b.queue
+// while the spawned goroutine continues only against its local snapshot and
+// the Submitter.
+//
 // The PrevHash of each event is the SHA-256 of the previous successfully
 // submitted event's JSON, forming a local hash chain for integrity verification.
 func (b *EventBuilder) LogEvent(opType, label, service, host string, success bool) error {
@@ -75,18 +81,19 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 
 	evt := NewAuthEvent(opType, label, service, host, success, b.lastHash)
 
+	// Snapshot queued entries before spawning the goroutine. The goroutine
+	// submits from this local slice and never touches b.queue.
+	snapshot := b.queue.Entries()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	resultCh := make(chan submitResult, 1)
-	// Take a snapshot of the fields the goroutine needs to avoid a data race
-	// with the queue (b.queue is not goroutine-safe).
-	qLen := b.queue.Len()
 
 	go func() {
-		// Flush any queued events first.
-		if qLen > 0 {
-			if err := b.queue.Flush(ctx, b.client); err != nil {
+		// Submit any previously queued events from the snapshot.
+		for _, e := range snapshot {
+			if err := b.client.Submit(ctx, e); err != nil {
 				resultCh <- submitResult{err: err}
 				return
 			}
@@ -101,6 +108,9 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		// Success: compute the hash of the newly submitted event.
 		eventJSON, _ := json.Marshal(evt)
 		sum := sha256.Sum256(eventJSON)
+		for i := range eventJSON {
+			eventJSON[i] = 0
+		}
 		resultCh <- submitResult{lastHash: hex.EncodeToString(sum[:])}
 	}()
 
@@ -112,11 +122,14 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 			_ = b.queue.Save(b.queuePath)
 			return nil
 		}
+		// Full success: drop the snapshot entries that were submitted, then save.
+		b.queue.DropFront(len(snapshot))
 		b.lastHash = res.lastHash
 		_ = b.queue.Save(b.queuePath)
 		return nil
 	case <-ctx.Done():
-		// Deadline exceeded — queue the event and return immediately.
+		// Deadline exceeded — goroutine is still running against its snapshot,
+		// not b.queue. Safe to append here without a concurrent access.
 		_ = b.queue.Append(evt)
 		_ = b.queue.Save(b.queuePath)
 		return nil

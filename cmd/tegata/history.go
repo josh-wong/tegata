@@ -16,11 +16,9 @@ import (
 
 func newHistoryCmd() *cobra.Command {
 	var (
-		from      string
-		to        string
-		labelFlag string
-		typeFlag  string
-		jsonOut   bool
+		from    string
+		to      string
+		jsonOut bool
 	)
 
 	cmd := &cobra.Command{
@@ -32,8 +30,6 @@ user privacy in the audit log.
 
 Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 		Example: `  tegata history
-  tegata history --type totp
-  tegata history --label "GitHub"
   tegata history --from 2026-01-01 --to 2026-03-31
   tegata history --json`,
 		Args: cobra.NoArgs,
@@ -90,14 +86,8 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}
 
-			// Compute label hash for --label filter.
-			var labelHash string
-			if labelFlag != "" {
-				labelHash = audit.HashString(labelFlag)
-			}
-
-			// Apply filters and build the display list.
-			filtered := filterRecords(records, fromTime, toTime, labelHash, typeFlag)
+			// Apply date filters and build the display list.
+			filtered := filterRecords(records, fromTime, toTime)
 
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
@@ -112,8 +102,6 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 
 	cmd.Flags().StringVar(&from, "from", "", "start date filter (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&to, "to", "", "end date filter (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&labelFlag, "label", "", "filter by credential label (hashed for comparison)")
-	cmd.Flags().StringVar(&typeFlag, "type", "", "filter by operation type (totp|hotp|challenge-response|static)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON array")
 
 	return cmd
@@ -149,29 +137,11 @@ type historyRecord struct {
 	Age       int64  `json:"age"`
 }
 
-// filterRecords applies date, label hash, and type filters to the records.
-// All filter parameters that are zero/empty are treated as "no filter".
-//
-// Note: EventRecord.HashValue stores the hex(SHA-256(AuthEvent JSON)) submitted
-// to the ledger by EventBuilder. Date and type filtering is not available from
-// the ledger's perspective (ScalarDL stores opaque hash values). This function
-// filters by objectID prefix for type (e.g. "tegata-totp-") and applies date
-// filtering using the Age field (seconds since epoch).
-func filterRecords(records []*audit.EventRecord, from, to time.Time, labelHash, typeFilter string) []historyRecord {
+// filterRecords applies date filters to the records using the Age field
+// (seconds since epoch). From/to values that are zero are treated as no filter.
+func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRecord {
 	var result []historyRecord
 	for _, r := range records {
-		// Apply type filter via objectID prefix convention.
-		if typeFilter != "" && !matchesTypePrefix(r.ObjectID, typeFilter) {
-			continue
-		}
-
-		// Apply label hash filter: objectID contains label hash when the prefix
-		// is "tegata-{labelHash}-". This is a best-effort filter.
-		if labelHash != "" && !containsHash(r.ObjectID, labelHash) {
-			continue
-		}
-
-		// Apply date filters using Age (seconds since event submission).
 		if !from.IsZero() || !to.IsZero() {
 			eventTime := time.Unix(r.Age, 0).UTC()
 			if !from.IsZero() && eventTime.Before(from) {
@@ -191,28 +161,6 @@ func filterRecords(records []*audit.EventRecord, from, to time.Time, labelHash, 
 	return result
 }
 
-// matchesTypePrefix returns true if the objectID starts with "tegata-{type}-".
-// This relies on the objectID convention used by EventBuilder.LogEvent.
-// Currently objectIDs are EventIDs (UUIDs) so this function is a no-op filter
-// that always returns true — it is here for future extensibility when objectID
-// includes the operation type prefix.
-func matchesTypePrefix(objectID, _ string) bool {
-	// EventIDs are UUIDs and do not embed the operation type. Filter is
-	// intentionally not applied at objectID level. Type filtering requires
-	// decoding the hash — not possible without the original event JSON.
-	// Return true so no records are incorrectly dropped.
-	_ = objectID
-	return true
-}
-
-// containsHash returns true if objectID contains labelHash as a substring.
-// Same limitation as matchesTypePrefix — EventIDs are UUIDs and do not embed
-// the label hash.
-func containsHash(objectID, _ string) bool {
-	_ = objectID
-	return true
-}
-
 // printRecordsTable writes a human-readable tabular display of history records.
 func printRecordsTable(records []historyRecord) {
 	if len(records) == 0 {
@@ -221,10 +169,10 @@ func printRecordsTable(records []historyRecord) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Object ID\tHash Value\tAge (s)")
-	fmt.Fprintln(w, "---------\t----------\t-------")
+	_, _ = fmt.Fprintln(w, "Object ID\tHash Value\tAge (s)")
+	_, _ = fmt.Fprintln(w, "---------\t----------\t-------")
 	for _, r := range records {
-		fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Age)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Age)
 	}
 	_ = w.Flush()
 }

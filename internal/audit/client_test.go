@@ -85,7 +85,7 @@ func newBufconnServer(t *testing.T, ledger *mockLedgerServer, privileged *mockPr
 			t.Logf("bufconn server error: %v", err)
 		}
 	}()
-	t.Cleanup(func() { srv.Stop(); lis.Close() })
+	t.Cleanup(func() { srv.Stop(); _ = lis.Close() })
 
 	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
@@ -96,7 +96,7 @@ func newBufconnServer(t *testing.T, ledger *mockLedgerServer, privileged *mockPr
 	if err != nil {
 		t.Fatalf("bufconn dial: %v", err)
 	}
-	t.Cleanup(func() { conn.Close() })
+	t.Cleanup(func() { _ = conn.Close() })
 	return conn
 }
 
@@ -117,7 +117,7 @@ func TestClient_PutCallsSigner(t *testing.T) {
 	conn := newBufconnServer(t, ledgerSrv, privSrv)
 
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	err := client.Put(context.Background(), "obj-123", "deadbeef")
 	if err != nil {
@@ -148,7 +148,7 @@ func TestClient_RegisterCertUsesPrivilegedService(t *testing.T) {
 	conn := newBufconnServer(t, ledgerSrv, privSrv)
 
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	err := client.RegisterCert(context.Background(), "reg-entity", 2, "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----")
 	if err != nil {

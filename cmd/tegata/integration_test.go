@@ -1,7 +1,6 @@
 package main
 
 import (
-	context2 "context"
 	"encoding/base32"
 	"fmt"
 	"os"
@@ -770,61 +769,22 @@ func TestIntegration_AuditWiring(t *testing.T) {
 	}
 }
 
-// mockAuditClient is a test double for audit.Client that returns predetermined
-// records for Get and a predetermined ValidationResult for Validate.
-type mockAuditClient struct {
-	records     []*audit.EventRecord
-	validation  *audit.ValidationResult
-	validateErr error
-}
-
-func (m *mockAuditClient) Put(_ context2.Context, _, _ string) error { return nil }
-func (m *mockAuditClient) RegisterCert(_ context2.Context, _ string, _ uint32, _ string) error {
-	return nil
-}
-func (m *mockAuditClient) Ping(_ context2.Context) error { return nil }
-func (m *mockAuditClient) Close() error                  { return nil }
-func (m *mockAuditClient) Submit(_ context2.Context, _ audit.QueueEntry) error { return nil }
-func (m *mockAuditClient) Get(_ context2.Context, _ string) ([]*audit.EventRecord, error) {
-	return m.records, nil
-}
-func (m *mockAuditClient) Validate(_ context2.Context, _ string) (*audit.ValidationResult, error) {
-	return m.validation, m.validateErr
-}
-
-// TestHistory_FilterByType verifies that filterRecords applies a type filter
-// to the records returned by the audit client. Currently the type filter
-// operates on objectID prefix — since EventIDs are UUIDs no records are dropped
-// — this test documents the current behavior (pass-through).
-func TestHistory_FilterByType(t *testing.T) {
+// TestHistory_FilterByDate verifies that filterRecords correctly applies
+// --from and --to date filters using the Age field (seconds since epoch).
+func TestHistory_FilterByDate(t *testing.T) {
+	base := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
 	records := []*audit.EventRecord{
-		{ObjectID: "aaa-111", HashValue: "hash1", Age: 100},
-		{ObjectID: "bbb-222", HashValue: "hash2", Age: 200},
+		{ObjectID: "aaa-111", HashValue: "hash1", Age: base.Add(-24 * time.Hour).Unix()}, // 2026-01-14
+		{ObjectID: "bbb-222", HashValue: "hash2", Age: base.Unix()},                       // 2026-01-15
+		{ObjectID: "ccc-333", HashValue: "hash3", Age: base.Add(24 * time.Hour).Unix()},   // 2026-01-16
 	}
 
-	filtered := filterRecords(records, time.Time{}, time.Time{}, "", "totp")
-	if len(filtered) != len(records) {
-		t.Errorf("filterRecords with type=totp: got %d records, want %d (pass-through for UUID objectIDs)",
-			len(filtered), len(records))
-	}
-}
+	from := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 1, 15, 23, 59, 59, 999999999, time.UTC)
 
-// TestHistory_FilterByLabel verifies that filterRecords computes the SHA-256
-// hash of the user-provided label and applies it. Since EventIDs are UUIDs,
-// no records are dropped — this test documents the current pass-through behavior.
-func TestHistory_FilterByLabel(t *testing.T) {
-	records := []*audit.EventRecord{
-		{ObjectID: "aaa-111", HashValue: "hash1", Age: 100},
-	}
-
-	labelHash := audit.HashString("GitHub")
-	if labelHash == "" {
-		t.Fatal("HashString returned empty string")
-	}
-
-	filtered := filterRecords(records, time.Time{}, time.Time{}, labelHash, "")
-	if len(filtered) != 1 {
-		t.Errorf("filterRecords with labelHash: got %d records, want 1", len(filtered))
+	filtered := filterRecords(records, from, to)
+	if len(filtered) != 1 || filtered[0].ObjectID != "bbb-222" {
+		t.Errorf("filterRecords with date range: got %v, want single record bbb-222", filtered)
 	}
 }
 
