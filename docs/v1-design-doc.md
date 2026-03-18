@@ -783,8 +783,8 @@ client := rpc.NewLedgerClient(conn)
 req := &rpc.ContractExecutionRequest{
     ContractId:       "object.Put",
     ContractArgument: `{"object_id": "event-001", "hash_value": "abc123..."}`,
-    CertHolderId:     certHolderID,
-    CertVersion:      1,
+    EntityId:         entityID,
+    KeyVersion:       1,
 }
 resp, err := client.ExecuteContract(ctx, req)
 ```
@@ -847,7 +847,7 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 **`tegata history`:** Calls `ExecuteContract` with the `object.Get` contract to retrieve event records. Supports filtering by date range (`--from`, `--to`), credential label (`--label`), and operation type (`--type`). Displays results in a human-readable table or JSON (`--json`).
 
-**`tegata ledger setup`:** Performs `RegisterCertificate` to register the user's TLS certificate with the ScalarDL Ledger, followed by a test `ExecuteContract` call that uses `object.Put` with a sentinel value to confirm connectivity. The exact `RegisterCertificate` proto message fields (`CertHolderId`, `CertVersion`) require integration-test validation against ScalarDL 3.12 before implementation.
+**`tegata ledger setup`:** Calls `RegisterCert` on the `LedgerPrivileged` gRPC service to register the user's TLS certificate, then performs a test `ExecuteContract` call on the `Ledger` service using `object.Put` with a sentinel value to confirm connectivity. The `RegisterCertRequest` proto message uses `entity_id` and `key_version` fields (not `CertHolderId`/`CertVersion` as originally noted — corrected after verifying the ScalarDL 3.12 proto file). Note that `RegisterCert` and `ExecuteContract` use separate gRPC service clients: `rpc.NewLedgerPrivilegedClient` and `rpc.NewLedgerClient` respectively, both on the same connection.
 
 ## 9. Security model
 

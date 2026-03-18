@@ -109,8 +109,15 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Dial the ScalarDL Ledger.
-	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s...\n", cfg.Audit.Server)
-	client, err := audit.NewLedgerClient(cfg.Audit.Server, tlsCfg, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
+	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",
+		cfg.Audit.Server, cfg.Audit.PrivilegedServer)
+	var client *audit.LedgerClient
+	if cfg.Audit.Insecure {
+		fmt.Fprintln(os.Stderr, "WARNING: Insecure mode enabled — TLS disabled. Do not use in production.")
+		client, err = audit.NewLedgerClientInsecure(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
+	} else {
+		client, err = audit.NewLedgerClient(cfg.Audit.Server, cfg.Audit.PrivilegedServer, tlsCfg, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
+	}
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}

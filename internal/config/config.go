@@ -27,8 +27,11 @@ type Config struct {
 type AuditConfig struct {
 	// Enabled controls whether audit events are submitted to the ledger.
 	Enabled bool
-	// Server is the gRPC address of the ScalarDL Ledger (e.g. "localhost:50051").
+	// Server is the gRPC address of the ScalarDL Ledger service (e.g. "localhost:50051").
 	Server string
+	// PrivilegedServer is the gRPC address of the ScalarDL LedgerPrivileged
+	// service (e.g. "localhost:50052"). Used only for RegisterCert during setup.
+	PrivilegedServer string
 	// CertPath, KeyPath, and CACertPath are optional TLS certificate paths for
 	// mutual TLS authentication with the ledger.
 	CertPath   string
@@ -41,19 +44,24 @@ type AuditConfig struct {
 	// QueueMaxEvents is the maximum number of events kept in the offline queue
 	// before the oldest entries are dropped. Default: 10000.
 	QueueMaxEvents int
+	// Insecure disables TLS for the ScalarDL Ledger connection. For local
+	// development only — never set this in production.
+	Insecure bool
 }
 
 // tomlAuditConfig is the TOML deserialization intermediate for [audit].
 // Pointer fields distinguish "not set" from "zero value".
 type tomlAuditConfig struct {
 	Enabled        *bool   `toml:"enabled"`
-	Server         *string `toml:"server"`
+	Server           *string `toml:"server"`
+	PrivilegedServer *string `toml:"privileged_server"`
 	CertPath       *string `toml:"cert_path"`
 	KeyPath        *string `toml:"key_path"`
 	CACertPath     *string `toml:"ca_cert_path"`
 	EntityID       *string `toml:"entity_id"`
 	KeyVersion     *uint32 `toml:"key_version"`
-	QueueMaxEvents *int    `toml:"queue_max_events"`
+	QueueMaxEvents *int  `toml:"queue_max_events"`
+	Insecure       *bool `toml:"insecure"`
 }
 
 // tomlConfig is the intermediate deserialization struct. Pointer fields
@@ -122,6 +130,9 @@ func Load(dir string) (Config, error) {
 	if a.Server != nil {
 		cfg.Audit.Server = *a.Server
 	}
+	if a.PrivilegedServer != nil {
+		cfg.Audit.PrivilegedServer = *a.PrivilegedServer
+	}
 	if a.CertPath != nil {
 		cfg.Audit.CertPath = *a.CertPath
 	}
@@ -139,6 +150,9 @@ func Load(dir string) (Config, error) {
 	}
 	if a.QueueMaxEvents != nil {
 		cfg.Audit.QueueMaxEvents = *a.QueueMaxEvents
+	}
+	if a.Insecure != nil {
+		cfg.Audit.Insecure = *a.Insecure
 	}
 
 	return cfg, nil

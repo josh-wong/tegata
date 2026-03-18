@@ -102,7 +102,7 @@ func newBufconnServer(t *testing.T, ledger *mockLedgerServer, privileged *mockPr
 
 // TestClient_RequiresTLS verifies that NewLedgerClient rejects a nil TLS config.
 func TestClient_RequiresTLS(t *testing.T) {
-	_, err := audit.NewLedgerClient("localhost:50051", nil, "test-entity", 1, &audit.NoOpSigner{})
+	_, err := audit.NewLedgerClient("localhost:50051", "localhost:50052", nil, "test-entity", 1, &audit.NoOpSigner{})
 	if err == nil {
 		t.Fatal("expected error for nil TLS config, got nil")
 	}
@@ -116,7 +116,7 @@ func TestClient_PutCallsSigner(t *testing.T) {
 	privSrv := &mockPrivilegedServer{}
 	conn := newBufconnServer(t, ledgerSrv, privSrv)
 
-	client := audit.NewLedgerClientFromConn(conn, signer, "test-entity", 1)
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer client.Close()
 
 	err := client.Put(context.Background(), "obj-123", "deadbeef")
@@ -147,7 +147,7 @@ func TestClient_RegisterCertUsesPrivilegedService(t *testing.T) {
 	privSrv := &mockPrivilegedServer{}
 	conn := newBufconnServer(t, ledgerSrv, privSrv)
 
-	client := audit.NewLedgerClientFromConn(conn, signer, "test-entity", 1)
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer client.Close()
 
 	err := client.RegisterCert(context.Background(), "reg-entity", 2, "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----")
@@ -171,7 +171,7 @@ func TestClient_RegisterCertUsesPrivilegedService(t *testing.T) {
 // non-nil TLS config (actual dial failure expected since there is no server).
 func TestClient_TLSEnforced_WithValidConfig(t *testing.T) {
 	cfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // test only
-	_, err := audit.NewLedgerClient("localhost:59999", cfg, "entity", 1, &audit.NoOpSigner{})
+	_, err := audit.NewLedgerClient("localhost:59999", "localhost:59998", cfg, "entity", 1, &audit.NoOpSigner{})
 	// grpc.NewClient is lazy — the error (if any) occurs on first RPC, not here.
 	// The important thing is that no error is returned for a non-nil TLS config.
 	if err != nil {

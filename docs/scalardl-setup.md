@@ -38,14 +38,23 @@ Add the `[audit]` section to the `tegata.toml` file in your vault directory. All
 
 ```toml
 [audit]
-enabled     = true
-server      = "localhost:50051"
-cert_path   = "client-cert.pem"
-key_path    = "client-key.pem"
-ca_cert_path = ""          # Leave empty to use system CA bundle.
-entity_id   = "tegata-vault-alice"
-key_version = 1
-queue_max_events = 10000
+enabled           = true
+server            = "127.0.0.1:50051"
+privileged_server = "127.0.0.1:50052"
+cert_path         = "client-cert.pem"
+key_path          = "client-key.pem"
+ca_cert_path      = ""          # Leave empty to use system CA bundle.
+entity_id         = "tegata-vault-alice"
+key_version       = 1
+queue_max_events  = 10000
+```
+
+> **Note:** Use `127.0.0.1` instead of `localhost` on WSL. WSL resolves `localhost` to the IPv6 address `::1`, but the ScalarDL containers only listen on IPv4.
+
+For a development setup without TLS (not for production), add:
+
+```toml
+insecure = true
 ```
 
 `entity_id` is a unique identifier for this vault instance. Use a descriptive name such as `tegata-vault-alice` or `tegata-usb-work`. `key_version` starts at `1` and is incremented if you rotate your certificate.

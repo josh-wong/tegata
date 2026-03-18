@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
 
@@ -58,20 +60,23 @@ type ValidationResult struct {
 // LedgerClient is the production implementation of Client backed by a real
 // ScalarDL Ledger gRPC connection. It requires a non-nil TLS config (SECR-06:
 // plaintext connections to the audit ledger are not permitted).
+// The Ledger service (ExecuteContract etc.) and LedgerPrivileged service
+// (RegisterCert) listen on separate ports and require separate connections.
 type LedgerClient struct {
-	conn       *grpc.ClientConn
-	ledger     rpc.LedgerClient
-	privileged rpc.LedgerPrivilegedClient
-	signer     Signer
-	entityID   string
-	keyVersion uint32
+	conn           *grpc.ClientConn
+	privilegedConn *grpc.ClientConn
+	ledger         rpc.LedgerClient
+	privileged     rpc.LedgerPrivilegedClient
+	signer         Signer
+	entityID       string
+	keyVersion     uint32
 }
 
-// NewLedgerClient dials the ScalarDL Ledger at addr using TLS. tlsCfg must be
-// non-nil — plaintext connections are refused (SECR-06). Both the Ledger and
-// LedgerPrivileged services share the same underlying connection; the caller
-// should call RegisterCert on port 50052 if using the default setup.
-func NewLedgerClient(addr string, tlsCfg *tls.Config, entityID string, keyVersion uint32, signer Signer) (*LedgerClient, error) {
+// NewLedgerClient dials the ScalarDL Ledger and LedgerPrivileged services using
+// TLS. tlsCfg must be non-nil — plaintext connections are refused (SECR-06).
+// addr is the Ledger service address (default port 50051); privilegedAddr is
+// the LedgerPrivileged service address (default port 50052).
+func NewLedgerClient(addr, privilegedAddr string, tlsCfg *tls.Config, entityID string, keyVersion uint32, signer Signer) (*LedgerClient, error) {
 	if tlsCfg == nil {
 		return nil, fmt.Errorf("TLS config is required for ScalarDL Ledger connection (SECR-06): plaintext connections are not permitted")
 	}
@@ -83,27 +88,71 @@ func NewLedgerClient(addr string, tlsCfg *tls.Config, entityID string, keyVersio
 		return nil, fmt.Errorf("dialing ScalarDL Ledger at %s: %w", addr, err)
 	}
 
+	privConn, err := grpc.NewClient(privilegedAddr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+	)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("dialing ScalarDL LedgerPrivileged at %s: %w", privilegedAddr, err)
+	}
+
 	return &LedgerClient{
-		conn:       conn,
-		ledger:     rpc.NewLedgerClient(conn),
-		privileged: rpc.NewLedgerPrivilegedClient(conn),
-		signer:     signer,
-		entityID:   entityID,
-		keyVersion: keyVersion,
+		conn:           conn,
+		privilegedConn: privConn,
+		ledger:         rpc.NewLedgerClient(conn),
+		privileged:     rpc.NewLedgerPrivilegedClient(privConn),
+		signer:         signer,
+		entityID:       entityID,
+		keyVersion:     keyVersion,
 	}, nil
 }
 
-// NewLedgerClientFromConn creates a LedgerClient from an existing grpc.ClientConn.
-// This is used in tests to inject a bufconn-backed connection without TLS.
-// Production code should use NewLedgerClient which enforces TLS.
-func NewLedgerClientFromConn(conn *grpc.ClientConn, signer Signer, entityID string, keyVersion uint32) *LedgerClient {
+// NewLedgerClientInsecure dials the ScalarDL Ledger and LedgerPrivileged
+// services without TLS. For local development only — set insecure = true in
+// tegata.toml. Never use in production.
+func NewLedgerClientInsecure(addr, privilegedAddr string, entityID string, keyVersion uint32, signer Signer) (*LedgerClient, error) {
+	conn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("dialing ScalarDL Ledger at %s (insecure): %w", addr, err)
+	}
+
+	privConn, err := grpc.NewClient(privilegedAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("dialing ScalarDL LedgerPrivileged at %s (insecure): %w", privilegedAddr, err)
+	}
+
 	return &LedgerClient{
-		conn:       conn,
-		ledger:     rpc.NewLedgerClient(conn),
-		privileged: rpc.NewLedgerPrivilegedClient(conn),
-		signer:     signer,
-		entityID:   entityID,
-		keyVersion: keyVersion,
+		conn:           conn,
+		privilegedConn: privConn,
+		ledger:         rpc.NewLedgerClient(conn),
+		privileged:     rpc.NewLedgerPrivilegedClient(privConn),
+		signer:         signer,
+		entityID:       entityID,
+		keyVersion:     keyVersion,
+	}, nil
+}
+
+// NewLedgerClientFromConn creates a LedgerClient from existing grpc.ClientConns.
+// This is used in tests to inject bufconn-backed connections without TLS.
+// Production code should use NewLedgerClient which enforces TLS.
+// privConn may be nil, in which case the same conn is used for both services.
+func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, signer Signer, entityID string, keyVersion uint32) *LedgerClient {
+	if privConn == nil {
+		privConn = conn
+	}
+	return &LedgerClient{
+		conn:           conn,
+		privilegedConn: privConn,
+		ledger:         rpc.NewLedgerClient(conn),
+		privileged:     rpc.NewLedgerPrivilegedClient(privConn),
+		signer:         signer,
+		entityID:       entityID,
+		keyVersion:     keyVersion,
 	}
 }
 
@@ -249,53 +298,51 @@ func (c *LedgerClient) RegisterCert(ctx context.Context, entityID string, keyVer
 		CertPem:    certPEM,
 	})
 	if err != nil {
+		// AlreadyExists means the certificate is already registered — idempotent success.
+		if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
+			return nil
+		}
 		return fmt.Errorf("%w: RegisterCert failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	return nil
 }
 
-// Ping sends a sentinel contract execution with a 3-second timeout to verify
-// connectivity. Returns ErrNetworkFailed if the connection is refused or times out.
-// Note: The server will likely return an error for the unknown "object.Ping" contract,
-// but a gRPC-level response (even an error) confirms the connection is alive.
+// Ping calls the standard gRPC health check service on the ledger connection
+// with a 5-second timeout to verify connectivity. Returns ErrNetworkFailed if
+// the server is unreachable or the call times out.
 func (c *LedgerClient) Ping(ctx context.Context) error {
-	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	nonce := uuid.New().String()
-	arg := `{"object_id":"__ping__"}`
-	sig, err := c.signer.Sign("object.Ping", arg, nonce, c.entityID, c.keyVersion)
+	hc := grpc_health_v1.NewHealthClient(c.conn)
+	resp, err := hc.Check(pingCtx, &grpc_health_v1.HealthCheckRequest{})
 	if err != nil {
-		return fmt.Errorf("signing Ping request: %w", err)
-	}
-
-	_, err = c.ledger.ExecuteContract(pingCtx, &rpc.ContractExecutionRequest{
-		ContractId:       "object.Ping",
-		ContractArgument: arg,
-		EntityId:         c.entityID,
-		KeyVersion:       c.keyVersion,
-		Signature:        sig,
-		Nonce:            nonce,
-	})
-	if err != nil {
-		// Context deadline exceeded → network failure.
 		if pingCtx.Err() != nil {
-			return fmt.Errorf("%w: ping timed out after 3 seconds", tegerrors.ErrNetworkFailed)
+			return fmt.Errorf("%w: ping timed out after 5 seconds", tegerrors.ErrNetworkFailed)
 		}
-		// A gRPC application-level error (e.g. contract not found, Unimplemented)
-		// means the server is reachable — treat as connectivity success.
-		// Only Unavailable indicates a transport-level failure.
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.Unavailable {
 			return fmt.Errorf("%w: ping failed: %s", tegerrors.ErrNetworkFailed, err)
 		}
+		// Any other gRPC error (e.g. Unimplemented) still confirms the server
+		// is reachable at the transport level.
+		return nil
+	}
+	if resp.GetStatus() != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("%w: ledger health status: %s", tegerrors.ErrNetworkFailed, resp.GetStatus())
 	}
 	return nil
 }
 
-// Close releases the underlying gRPC connection.
+// Close releases the underlying gRPC connections.
 func (c *LedgerClient) Close() error {
-	return c.conn.Close()
+	err := c.conn.Close()
+	if c.privilegedConn != nil {
+		if err2 := c.privilegedConn.Close(); err == nil {
+			err = err2
+		}
+	}
+	return err
 }
 
 // Submit implements the Submitter interface. It calls Put with:
