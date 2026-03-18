@@ -146,7 +146,6 @@ func TestMainViewNavigation(t *testing.T) {
 // TestOverlayAdd asserts that pressing 'a' from stateMainView transitions
 // to stateOverlayAdd, and that pressing Esc closes the overlay without changes.
 func TestOverlayAdd(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	m.state = stateMainView
 	m = sendKey(m, "a")
@@ -162,7 +161,6 @@ func TestOverlayAdd(t *testing.T) {
 // TestOverlayRemove asserts that pressing 'r' from stateMainView transitions
 // to stateOverlayRemove; 'y' removes the selected credential and 'n' cancels.
 func TestOverlayRemove(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	m.state = stateMainView
 	m = sendKey(m, "r")

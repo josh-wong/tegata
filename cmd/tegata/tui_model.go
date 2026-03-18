@@ -77,6 +77,22 @@ type model struct {
 	crChallengeInput  textinput.Model
 	crChallengeActive bool
 
+	// Add-credential overlay inputs (Plan 04)
+	addLabelInput  textinput.Model // label or otpauth:// URI
+	addIssuerInput textinput.Model // issuer (optional)
+	addSecretInput textinput.Model // secret (masked)
+	addTypeIdx     int             // 0=TOTP, 1=HOTP, 2=Static, 3=CR
+	addFocusIdx    int             // 0=label, 1=issuer, 2=secret
+
+	// Settings overlay state (Plan 04)
+	settingsMenuIdx  int          // 0-3 menu selection
+	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
+	settingsInput1   textinput.Model
+	settingsInput2   textinput.Model
+	settingsMsg      string
+	settingsTagIdx   int          // selected tag index in tag management
+	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
+
 	// Sub-models
 	passphraseInput textinput.Model
 	confirmInput    textinput.Model
@@ -113,6 +129,26 @@ func initialModel(vaultPath string) model {
 	crInput.Placeholder = "hex or plain text"
 	crInput.EchoMode = textinput.EchoNormal
 
+	addLabel := textinput.New()
+	addLabel.Placeholder = "Label or otpauth:// URI"
+	addLabel.EchoMode = textinput.EchoNormal
+
+	addIssuer := textinput.New()
+	addIssuer.Placeholder = "Issuer (optional)"
+	addIssuer.EchoMode = textinput.EchoNormal
+
+	addSecret := textinput.New()
+	addSecret.Placeholder = "Secret (base32)"
+	addSecret.EchoMode = textinput.EchoPassword
+	addSecret.EchoCharacter = '·'
+
+	settingsIn1 := textinput.New()
+	settingsIn1.EchoMode = textinput.EchoNormal
+
+	settingsIn2 := textinput.New()
+	settingsIn2.EchoMode = textinput.EchoPassword
+	settingsIn2.EchoCharacter = '·'
+
 	m := model{
 		vaultPath:        vaultPath,
 		cfg:              cfg,
@@ -122,6 +158,11 @@ func initialModel(vaultPath string) model {
 		passphraseInput:  newPassphraseInput("Passphrase"),
 		confirmInput:     newPassphraseInput("Confirm passphrase"),
 		crChallengeInput: crInput,
+		addLabelInput:    addLabel,
+		addIssuerInput:   addIssuer,
+		addSecretInput:   addSecret,
+		settingsInput1:   settingsIn1,
+		settingsInput2:   settingsIn2,
 		credList:         credList,
 		spinner:          sp,
 		clipMgr:          clipboard.NewManager(),
@@ -255,7 +296,10 @@ func (m model) View() string {
 // isInputFocused returns true when a text input sub-model currently has focus,
 // which suppresses the global 'q' quit binding.
 func (m model) isInputFocused() bool {
-	return m.passphraseInput.Focused() || m.confirmInput.Focused() || m.crChallengeInput.Focused()
+	return m.passphraseInput.Focused() || m.confirmInput.Focused() ||
+		m.crChallengeInput.Focused() ||
+		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
+		m.settingsInput1.Focused() || m.settingsInput2.Focused()
 }
 
 // tickCmd returns a tea.Cmd that fires a tickMsg after one second.
@@ -265,28 +309,28 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-// updateOverlay handles key events in overlay states (Plan 04).
+// updateOverlay delegates overlay key events to the correct handler (Plan 04).
 func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyEsc {
-			m.state = stateMainView
-		}
+	switch m.state {
+	case stateOverlayAdd:
+		return m.updateOverlayAdd(msg)
+	case stateOverlayRemove:
+		return m.updateOverlayRemove(msg)
+	case stateOverlaySettings:
+		return m.updateOverlaySettings(msg)
 	}
 	return m, nil
 }
 
-// viewOverlay renders overlay states (Plan 04).
+// viewOverlay delegates overlay rendering to the correct view (Plan 04).
 func (m model) viewOverlay() string {
 	switch m.state {
+	case stateOverlayAdd:
+		return m.viewOverlayAdd()
+	case stateOverlayRemove:
+		return m.viewOverlayRemove()
 	case stateOverlaySettings:
-		content := titleStyle.Render("Settings") + "\n\n" +
-			"Tag management\n" +
-			"Change passphrase\n" +
-			"Export\n" +
-			"Config settings\n"
-		overlay := overlayBoxStyle.Render(content)
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, overlay)
+		return m.viewOverlaySettings()
 	}
 	return "[overlay not yet implemented]"
 }
