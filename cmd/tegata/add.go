@@ -85,6 +85,15 @@ func newAddCmd() *cobra.Command {
 					return promptErr
 				}
 
+				trimmedSecret := strings.TrimSpace(secret)
+
+				switch ct {
+				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialChallengeResponse:
+					if _, decErr := decodeBase32Secret(trimmedSecret); decErr != nil {
+						return fmt.Errorf("secret is not valid base32 — check for typos: %w", errors.ErrInvalidInput)
+					}
+				}
+
 				cred = model.Credential{
 					Label:     label,
 					Issuer:    issuer,
@@ -92,7 +101,7 @@ func newAddCmd() *cobra.Command {
 					Algorithm: algorithm,
 					Digits:    digits,
 					Period:    period,
-					Secret:    strings.TrimSpace(secret),
+					Secret:    trimmedSecret,
 					Tags:      tags,
 				}
 			}
