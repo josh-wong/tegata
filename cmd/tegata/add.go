@@ -30,6 +30,13 @@ func newAddCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
 
+			if digits < 1 || digits > 10 {
+				return fmt.Errorf("--digits must be between 1 and 10: %w", errors.ErrInvalidInput)
+			}
+			if period < 1 {
+				return fmt.Errorf("--period must be at least 1 second: %w", errors.ErrInvalidInput)
+			}
+
 			vaultPath, err := resolveVaultPath(cmd)
 			if err != nil {
 				return err
@@ -46,13 +53,6 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 			defer mgr.Close()
-
-			if digits < 1 || digits > 10 {
-				return fmt.Errorf("--digits must be between 1 and 10: %w", errors.ErrInvalidInput)
-			}
-			if period < 1 {
-				return fmt.Errorf("--period must be at least 1 second: %w", errors.ErrInvalidInput)
-			}
 
 			var cred model.Credential
 

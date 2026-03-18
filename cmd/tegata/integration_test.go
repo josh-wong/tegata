@@ -655,6 +655,31 @@ func TestIntegration_ChangePassphrase(t *testing.T) {
 	}
 }
 
+func TestAddCmd_FlagValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "digits zero", args: []string{"MyLabel", "--digits", "0"}},
+		{name: "digits negative", args: []string{"MyLabel", "--digits", "-1"}},
+		{name: "digits too large", args: []string{"MyLabel", "--digits", "11"}},
+		{name: "period zero", args: []string{"MyLabel", "--period", "0"}},
+		{name: "period negative", args: []string{"MyLabel", "--period", "-5"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newAddCmd()
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			cmd.SetArgs(tc.args)
+			err := cmd.Execute()
+			if !errors.Is(err, errors.ErrInvalidInput) {
+				t.Errorf("expected ErrInvalidInput, got %v", err)
+			}
+		})
+	}
+}
+
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping build test in short mode")
