@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base32"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -375,6 +376,344 @@ func TestIntegration_ConfigDefaults(t *testing.T) {
 	}
 	if cfg.IdleTimeout != 300*time.Second {
 		t.Errorf("IdleTimeout: got %v, want 300s", cfg.IdleTimeout)
+	}
+}
+
+func TestIntegration_Sign(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	// Add a challenge-response credential.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	cr := model.Credential{
+		Label:     "mykey",
+		Type:      model.CredentialChallengeResponse,
+		Algorithm: "SHA1",
+		Secret:    "JBSWY3DPEHPK3PXP",
+	}
+	if _, err := mgr.AddCredential(cr); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	mgr.Close()
+
+	// Invoke the sign command directly via the auth engine (same path as sign.go).
+	mgr2, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open for sign: %v", err)
+	}
+	defer mgr2.Close()
+	if err := mgr2.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock for sign: %v", err)
+	}
+
+	cred, err := mgr2.GetCredential("mykey")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+
+	secretBytes, err := decodeBase32Secret(cred.Secret)
+	if err != nil {
+		t.Fatalf("decodeBase32Secret: %v", err)
+	}
+
+	result, err := auth.SignChallenge(cred, secretBytes, []byte("abc123"))
+	if err != nil {
+		t.Fatalf("SignChallenge: %v", err)
+	}
+
+	// Result must be a 40-character lowercase hex string (SHA1 output).
+	if len(result) != 40 {
+		t.Errorf("sign output length: got %d, want 40", len(result))
+	}
+	for i, c := range result {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			t.Errorf("non-lowercase-hex char %q at position %d in result %q", c, i, result)
+			break
+		}
+	}
+}
+
+func TestIntegration_Export(t *testing.T) {
+	// Create a source vault with 3 credentials.
+	srcPath, _ := createIntegrationVault(t)
+
+	mgr, err := vault.Open(srcPath)
+	if err != nil {
+		t.Fatalf("Open source vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock source vault: %v", err)
+	}
+
+	for _, c := range []model.Credential{
+		{Label: "export-svc-a", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
+		{Label: "export-svc-b", Type: model.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
+		{Label: "export-svc-c", Type: model.CredentialStatic, Secret: "staticpass"},
+	} {
+		if _, err := mgr.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+
+	// Export using the vault manager method directly (CLI path requires
+	// interactive terminal; this exercises the same code path).
+	exportPass := []byte("export-integration-passphrase")
+	backupData, err := mgr.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+	mgr.Close()
+
+	// Write backup to a temp file to verify the file I/O path.
+	dir := t.TempDir()
+	backupPath := filepath.Join(dir, "vault.tegata-backup")
+	if err := os.WriteFile(backupPath, backupData, 0600); err != nil {
+		t.Fatalf("WriteFile backup: %v", err)
+	}
+
+	// Verify backup file exists and is non-empty.
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		t.Fatalf("Stat backup: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("backup file is empty")
+	}
+
+	// Create a fresh destination vault and import.
+	dstPath, _ := createIntegrationVault(t)
+	dst, err := vault.Open(dstPath)
+	if err != nil {
+		t.Fatalf("Open dest vault: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest vault: %v", err)
+	}
+
+	readData, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("ReadFile backup: %v", err)
+	}
+
+	imported, skipped, err := dst.ImportCredentials(readData, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+
+	// Verify summary format: 3 imported, 0 skipped.
+	summary := fmt.Sprintf("%d imported, %d skipped (duplicate label)", imported, skipped)
+	wantSummary := "3 imported, 0 skipped (duplicate label)"
+	if summary != wantSummary {
+		t.Errorf("summary: got %q, want %q", summary, wantSummary)
+	}
+
+	// Verify credentials are present.
+	list := dst.ListCredentials()
+	if len(list) != 3 {
+		t.Fatalf("ListCredentials after import: got %d, want 3", len(list))
+	}
+
+	// Import with wrong passphrase must return an error (not a panic).
+	_, _, err = dst.ImportCredentials(readData, []byte("wrong-passphrase"))
+	if err == nil {
+		t.Fatal("ImportCredentials with wrong passphrase: expected error, got nil")
+	}
+}
+
+func TestIntegration_TagFilter(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	credentials := []model.Credential{
+		{Label: "github", Issuer: "GitHub", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "jira", Issuer: "Atlassian", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "gmail", Issuer: "Google", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"personal"}},
+		{Label: "backup-key", Type: model.CredentialStatic, Secret: "staticpass123"},
+	}
+	for _, c := range credentials {
+		if _, err := mgr.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+	mgr.Close()
+
+	// Reopen and list with tag filter — only work-tagged credentials expected.
+	mgr2, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open for list: %v", err)
+	}
+	defer mgr2.Close()
+	if err := mgr2.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock for list: %v", err)
+	}
+
+	all := mgr2.ListCredentials()
+	if len(all) != 4 {
+		t.Fatalf("ListCredentials: got %d, want 4", len(all))
+	}
+
+	// Simulate the tag filter: collect credentials matching "work".
+	var workCreds []model.Credential
+	for _, c := range all {
+		for _, tag := range c.Tags {
+			if tag == "work" {
+				workCreds = append(workCreds, c)
+				break
+			}
+		}
+	}
+	if len(workCreds) != 2 {
+		t.Errorf("tag filter 'work': got %d credentials, want 2", len(workCreds))
+	}
+	for _, c := range workCreds {
+		found := false
+		for _, tag := range c.Tags {
+			if tag == "work" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("credential %q does not have 'work' tag", c.Label)
+		}
+	}
+
+	// Verify case-sensitivity: "Work" should not match "work".
+	var caseMismatch []model.Credential
+	for _, c := range all {
+		for _, tag := range c.Tags {
+			if tag == "Work" {
+				caseMismatch = append(caseMismatch, c)
+				break
+			}
+		}
+	}
+	if len(caseMismatch) != 0 {
+		t.Errorf("case-insensitive match returned %d credentials; tags must be case-sensitive", len(caseMismatch))
+	}
+}
+
+func TestIntegration_ChangePassphrase(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	// Add a credential, then change the passphrase.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := mgr.AddCredential(model.Credential{
+		Label:  "test-service",
+		Type:   model.CredentialTOTP,
+		Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	counterBefore := mgr.Header().WriteCounter
+	if err := mgr.ChangePassphrase([]byte("new-integration-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	counterAfter := mgr.Header().WriteCounter
+	if counterBefore != counterAfter {
+		t.Errorf("WriteCounter changed during ChangePassphrase: before=%d after=%d",
+			counterBefore, counterAfter)
+	}
+	mgr.Close()
+
+	// New passphrase must succeed, credentials must be intact.
+	// (Old passphrase rejection is covered by unit tests in internal/vault.)
+	mgr3, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open with new passphrase: %v", err)
+	}
+	defer mgr3.Close()
+	if err := mgr3.Unlock([]byte("new-integration-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+	list := mgr3.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials after passphrase change: got %d, want 1", len(list))
+	}
+	if list[0].Label != "test-service" {
+		t.Errorf("credential label: got %q, want %q", list[0].Label, "test-service")
+	}
+}
+
+func TestDecodeBase32Secret(t *testing.T) {
+	valid := []struct {
+		name   string
+		input  string
+		wantN  int // expected decoded byte length
+	}{
+		{name: "uppercase no padding", input: "JBSWY3DPEHPK3PXP", wantN: 10},
+		{name: "lowercase", input: "jbswy3dpehpk3pxp", wantN: 10},
+		{name: "with spaces", input: "JBSWY 3DPE HPK3 PXP", wantN: 10},
+		{name: "with hyphens", input: "JBSWY-3DPE-HPK3-PXP", wantN: 10},
+	}
+	for _, tc := range valid {
+		t.Run("valid/"+tc.name, func(t *testing.T) {
+			got, err := decodeBase32Secret(tc.input)
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tc.input, err)
+			}
+			if len(got) != tc.wantN {
+				t.Errorf("decoded length: got %d, want %d", len(got), tc.wantN)
+			}
+		})
+	}
+
+	invalid := []string{
+		"not-base32!!!",
+		"AAAA1111", // digit 1 is not in the base32 alphabet
+		"@#$%",
+	}
+	for _, input := range invalid {
+		t.Run("invalid/"+input, func(t *testing.T) {
+			if _, err := decodeBase32Secret(input); err == nil {
+				t.Errorf("expected error for invalid base32 %q, got nil", input)
+			}
+		})
+	}
+}
+
+func TestAddCmd_FlagValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "digits zero", args: []string{"MyLabel", "--digits", "0"}},
+		{name: "digits negative", args: []string{"MyLabel", "--digits", "-1"}},
+		{name: "digits too large", args: []string{"MyLabel", "--digits", "11"}},
+		{name: "period zero", args: []string{"MyLabel", "--period", "0"}},
+		{name: "period negative", args: []string{"MyLabel", "--period", "-5"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newAddCmd()
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			cmd.SetArgs(tc.args)
+			err := cmd.Execute()
+			if !errors.Is(err, errors.ErrInvalidInput) {
+				t.Errorf("expected ErrInvalidInput, got %v", err)
+			}
+		})
 	}
 }
 

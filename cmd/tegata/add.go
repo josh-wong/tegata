@@ -18,6 +18,7 @@ func newAddCmd() *cobra.Command {
 		algorithm string
 		digits    int
 		period    int
+		tags      []string
 	)
 
 	cmd := &cobra.Command{
@@ -28,6 +29,13 @@ func newAddCmd() *cobra.Command {
   tegata add GitHub --type totp --issuer GitHub`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
+
+			if digits < 1 || digits > 10 {
+				return fmt.Errorf("--digits must be between 1 and 10: %w", errors.ErrInvalidInput)
+			}
+			if period < 1 {
+				return fmt.Errorf("--period must be at least 1 second: %w", errors.ErrInvalidInput)
+			}
 
 			vaultPath, err := resolveVaultPath(cmd)
 			if err != nil {
@@ -60,19 +68,30 @@ func newAddCmd() *cobra.Command {
 				}
 				cred = *parsed
 				cred.Label = label
+				cred.Tags = tags
 			} else {
 				// Validate type.
 				ct := model.CredentialType(credType)
 				switch ct {
-				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic:
+				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialStatic,
+					model.CredentialChallengeResponse:
 				default:
-					return fmt.Errorf("invalid credential type %q (use totp, hotp, or static): %w",
+					return fmt.Errorf("invalid credential type %q (use totp, hotp, static, or challenge-response): %w",
 						credType, errors.ErrInvalidInput)
 				}
 
 				secret, promptErr := promptSecret("Secret: ")
 				if promptErr != nil {
 					return promptErr
+				}
+
+				trimmedSecret := strings.TrimSpace(secret)
+
+				switch ct {
+				case model.CredentialTOTP, model.CredentialHOTP, model.CredentialChallengeResponse:
+					if _, decErr := decodeBase32Secret(trimmedSecret); decErr != nil {
+						return fmt.Errorf("secret is not valid base32 — check for typos: %w", errors.ErrInvalidInput)
+					}
 				}
 
 				cred = model.Credential{
@@ -82,7 +101,8 @@ func newAddCmd() *cobra.Command {
 					Algorithm: algorithm,
 					Digits:    digits,
 					Period:    period,
-					Secret:    strings.TrimSpace(secret),
+					Secret:    trimmedSecret,
+					Tags:      tags,
 				}
 			}
 
@@ -108,6 +128,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
 	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
 	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g. --tag work --tag totp)")
 
 	return cmd
 }

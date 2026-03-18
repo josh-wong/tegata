@@ -2,6 +2,8 @@ package vault
 
 import (
 	"encoding/base32"
+	"encoding/binary"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -449,6 +451,487 @@ func TestAddCredentialDuplicateLabel(t *testing.T) {
 	}
 }
 
+func TestExportCredentials_RoundTrip(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	creds := []model.Credential{
+		{Label: "service-a", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
+		{Label: "service-b", Type: model.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
+		{Label: "service-c", Type: model.CredentialStatic, Secret: "staticpass"},
+	}
+	for _, c := range creds {
+		if _, err := m.AddCredential(c); err != nil {
+			t.Fatalf("AddCredential %q: %v", c.Label, err)
+		}
+	}
+
+	exportPassphrase := []byte("export-pass-1234")
+	data, err := m.ExportCredentials(exportPassphrase)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("ExportCredentials returned empty bytes")
+	}
+
+	// Import into a fresh vault.
+	path2, _ := createTestVault(t)
+	m2, err := Open(path2)
+	if err != nil {
+		t.Fatalf("Open fresh vault: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock fresh vault: %v", err)
+	}
+
+	imported, skipped, err := m2.ImportCredentials(data, exportPassphrase)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 3 {
+		t.Errorf("imported: got %d, want 3", imported)
+	}
+	if skipped != 0 {
+		t.Errorf("skipped: got %d, want 0", skipped)
+	}
+
+	list := m2.ListCredentials()
+	if len(list) != 3 {
+		t.Fatalf("ListCredentials after import: got %d, want 3", len(list))
+	}
+}
+
+func TestExportCredentials_WrongPassphrase(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	if _, err := m.AddCredential(model.Credential{
+		Label: "test", Type: model.CredentialStatic, Secret: "secret",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	data, err := m.ExportCredentials([]byte("correct-export-pass"))
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	path2, _ := createTestVault(t)
+	m2, err := Open(path2)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	_, _, err = m2.ImportCredentials(data, []byte("wrong-export-pass"))
+	if err == nil {
+		t.Fatal("ImportCredentials with wrong passphrase: expected error, got nil")
+	}
+}
+
+func TestExportCredentials_ContainsOnlyCredentials(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	data, err := m.ExportCredentials([]byte("export-pass-1234"))
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	// Export bytes must NOT contain the vault magic bytes.
+	vaultMagic := []byte{'T', 'E', 'G', 'A', 'T', 'A'}
+	for i := 0; i <= len(data)-len(vaultMagic); i++ {
+		if string(data[i:i+len(vaultMagic)]) == string(vaultMagic) {
+			t.Error("Export data contains vault magic bytes — export is not self-contained")
+			break
+		}
+	}
+
+	// Export bytes must NOT contain the passphrase.
+	pass := []byte("test-passphrase")
+	for i := 0; i <= len(data)-len(pass); i++ {
+		if string(data[i:i+len(pass)]) == string(pass) {
+			t.Error("Export data contains the vault passphrase — security failure")
+			break
+		}
+	}
+}
+
+func TestImportCredentials_SkipsDuplicates(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	// Pre-populate vault with "github".
+	if _, err := m.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	// Build an export envelope containing "github" (duplicate) and "gitlab" (new).
+	// We do this by creating a separate vault, adding both creds, and exporting.
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open source: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock source: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential github in src: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "gitlab", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential gitlab in src: %v", err)
+	}
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	imported, skipped, err := m.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 1 {
+		t.Errorf("imported: got %d, want 1", imported)
+	}
+	if skipped != 1 {
+		t.Errorf("skipped: got %d, want 1", skipped)
+	}
+}
+
+func TestImportCredentials_NilTagsNormalized(t *testing.T) {
+	// Build export data manually via a vault, but verify Tags are non-nil after import.
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open source: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "notags", Type: model.CredentialStatic, Secret: "pass",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	pathDst, _ := createTestVault(t)
+	dst, err := Open(pathDst)
+	if err != nil {
+		t.Fatalf("Open dest: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest: %v", err)
+	}
+
+	_, _, err = dst.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+
+	list := dst.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials: got %d, want 1", len(list))
+	}
+	if list[0].Tags == nil {
+		t.Error("Tags is nil after import; expected []string{}")
+	}
+}
+
+func TestImportCredentials_EmptyBackup(t *testing.T) {
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	// Export from an empty vault.
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	pathDst, _ := createTestVault(t)
+	dst, err := Open(pathDst)
+	if err != nil {
+		t.Fatalf("Open dest: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest: %v", err)
+	}
+
+	imported, skipped, err := dst.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials empty backup: %v", err)
+	}
+	if imported != 0 {
+		t.Errorf("imported: got %d, want 0", imported)
+	}
+	if skipped != 0 {
+		t.Errorf("skipped: got %d, want 0", skipped)
+	}
+}
+
+func TestChangePassphrase_UnlockWithNewPassphrase(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	// Reopen and unlock with new passphrase.
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("new-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+}
+
+func TestChangePassphrase_OldPassphraseFails(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	err = m2.Unlock([]byte("test-passphrase"))
+	if err == nil {
+		t.Fatal("expected error unlocking with old passphrase, got nil")
+	}
+}
+
+func TestChangePassphrase_RecoveryKeyStillValid(t *testing.T) {
+	path, recoveryKey := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+
+	cleanKey := strings.ReplaceAll(recoveryKey, "-", "")
+	rawKey, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(cleanKey)
+	if err != nil {
+		t.Fatalf("decoding recovery key: %v", err)
+	}
+	if err := m2.UnlockWithRecoveryKey(rawKey); err != nil {
+		t.Fatalf("UnlockWithRecoveryKey after ChangePassphrase: %v", err)
+	}
+}
+
+func TestChangePassphrase_CredentialsPreserved(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	_, err = m.AddCredential(model.Credential{
+		Label:  "MyService",
+		Type:   model.CredentialTOTP,
+		Secret: "JBSWY3DPEHPK3PXP",
+	})
+	if err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	m.Close()
+
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after passphrase change: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("new-passphrase")); err != nil {
+		t.Fatalf("Unlock with new passphrase: %v", err)
+	}
+	list := m2.ListCredentials()
+	if len(list) != 1 {
+		t.Fatalf("ListCredentials after passphrase change: got %d, want 1", len(list))
+	}
+	if list[0].Label != "MyService" {
+		t.Errorf("Label: got %q, want %q", list[0].Label, "MyService")
+	}
+}
+
+func TestChangePassphrase_WriteCounterUnchanged(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	counterBefore := m.header.WriteCounter
+	if err := m.ChangePassphrase([]byte("new-passphrase")); err != nil {
+		t.Fatalf("ChangePassphrase: %v", err)
+	}
+	if m.header.WriteCounter != counterBefore {
+		t.Errorf("WriteCounter changed during ChangePassphrase: got %d, want %d",
+			m.header.WriteCounter, counterBefore)
+	}
+	m.Close()
+}
+
+func TestVerifyRecoveryKey_ValidKey(t *testing.T) {
+	path, recoveryKey := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	cleanKey := strings.ReplaceAll(recoveryKey, "-", "")
+	rawKey, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(cleanKey)
+	if err != nil {
+		t.Fatalf("decoding recovery key: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey(rawKey)
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("VerifyRecoveryKey: expected true for valid key, got false")
+	}
+}
+
+func TestVerifyRecoveryKey_InvalidKey(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey([]byte("this-is-the-wrong-key-entirely"))
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error for mismatch: %v", err)
+	}
+	if ok {
+		t.Error("VerifyRecoveryKey: expected false for invalid key, got true")
+	}
+}
+
+func TestVerifyRecoveryKey_EmptyKey(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	ok, err := m.VerifyRecoveryKey([]byte{})
+	if err != nil {
+		t.Fatalf("VerifyRecoveryKey returned unexpected error for empty key: %v", err)
+	}
+	if ok {
+		t.Error("VerifyRecoveryKey: expected false for empty key, got true")
+	}
+}
+
 func TestFullLifecycle(t *testing.T) {
 	path, recoveryKey := createTestVault(t)
 	if recoveryKey == "" {
@@ -522,5 +1005,62 @@ func TestFullLifecycle(t *testing.T) {
 	}
 	if list[0].Label != "Service2" {
 		t.Errorf("remaining credential: got %q, want %q", list[0].Label, "Service2")
+	}
+}
+
+// Header byte offsets (see header.go Marshal / vault.go VaultHeader layout):
+//
+//	magic(8) + version(2) + argonTime(4) + argonMemory(4) + argonParallelism(1) + ...
+const (
+	hdrOffArgonTime        = 10 // uint32 big-endian
+	hdrOffArgonMemory      = 14 // uint32 big-endian
+	hdrOffArgonParallelism = 18 // uint8
+)
+
+func TestOpenWithTamperedArgonParameters(t *testing.T) {
+	tests := []struct {
+		name   string
+		modify func(data []byte)
+	}{
+		{
+			name:   "ArgonTime zero",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonTime:], 0) },
+		},
+		{
+			name:   "ArgonTime above maximum",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonTime:], 101) },
+		},
+		{
+			name:   "ArgonMemory too small",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonMemory:], 7) },
+		},
+		{
+			name:   "ArgonMemory too large",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonMemory:], 4*1024*1024+1) },
+		},
+		{
+			name:   "ArgonParallelism zero",
+			modify: func(data []byte) { data[hdrOffArgonParallelism] = 0 },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path, _ := createTestVault(t)
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile: %v", err)
+			}
+			tc.modify(data)
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+
+			_, err = Open(path)
+			if !errors.Is(err, errors.ErrVaultCorrupt) {
+				t.Errorf("expected ErrVaultCorrupt, got %v", err)
+			}
+		})
 	}
 }

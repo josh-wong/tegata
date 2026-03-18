@@ -65,9 +65,15 @@ via ScalarDL Ledger.`,
 		newRemoveCmd(),
 		newCodeCmd(),
 		newGetCmd(),
+		newSignCmd(),
 		newResyncCmd(),
 		newBenchCmd(),
 		newConfigCmd(),
+		newExportCmd(),
+		newImportCmd(),
+		newTagCmd(),
+		newChangePassphraseCmd(),
+		newVerifyRecoveryCmd(),
 	)
 
 	return rootCmd.Execute()
