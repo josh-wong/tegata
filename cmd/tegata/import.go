@@ -14,7 +14,14 @@ func newImportCmd() *cobra.Command {
 		Short: "Import credentials from an encrypted backup file",
 		Long: `Import restores credentials from a .tegata-backup file into the current vault.
 Credentials whose label already exists in the vault are skipped.
-You will be prompted for the backup passphrase (the one set during export).`,
+You will be prompted for the backup passphrase (the one set during export).
+
+For scripted restore flows the backup passphrase may be supplied via the
+TEGATA_BACKUP_PASSPHRASE environment variable. This variable is intentionally
+separate from TEGATA_PASSPHRASE (the vault passphrase). Export never reads
+this variable — an interactive prompt is always required to set a new backup
+passphrase — so the variable is safe to set in restore automation without
+risking accidental export with a known passphrase.`,
 		Example: "  tegata import ~/backups/vault.tegata-backup",
 		Args:    cobra.ExactArgs(1),
 		RunE:    runImport,
