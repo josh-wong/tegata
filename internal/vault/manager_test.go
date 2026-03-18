@@ -2,6 +2,8 @@ package vault
 
 import (
 	"encoding/base32"
+	"encoding/binary"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1003,5 +1005,62 @@ func TestFullLifecycle(t *testing.T) {
 	}
 	if list[0].Label != "Service2" {
 		t.Errorf("remaining credential: got %q, want %q", list[0].Label, "Service2")
+	}
+}
+
+// Header byte offsets (see header.go Marshal / vault.go VaultHeader layout):
+//
+//	magic(8) + version(2) + argonTime(4) + argonMemory(4) + argonParallelism(1) + ...
+const (
+	hdrOffArgonTime        = 10 // uint32 big-endian
+	hdrOffArgonMemory      = 14 // uint32 big-endian
+	hdrOffArgonParallelism = 18 // uint8
+)
+
+func TestOpenWithTamperedArgonParameters(t *testing.T) {
+	tests := []struct {
+		name   string
+		modify func(data []byte)
+	}{
+		{
+			name:   "ArgonTime zero",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonTime:], 0) },
+		},
+		{
+			name:   "ArgonTime above maximum",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonTime:], 101) },
+		},
+		{
+			name:   "ArgonMemory too small",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonMemory:], 7) },
+		},
+		{
+			name:   "ArgonMemory too large",
+			modify: func(data []byte) { binary.BigEndian.PutUint32(data[hdrOffArgonMemory:], 4*1024*1024+1) },
+		},
+		{
+			name:   "ArgonParallelism zero",
+			modify: func(data []byte) { data[hdrOffArgonParallelism] = 0 },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path, _ := createTestVault(t)
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile: %v", err)
+			}
+			tc.modify(data)
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+
+			_, err = Open(path)
+			if !errors.Is(err, errors.ErrVaultCorrupt) {
+				t.Errorf("expected ErrVaultCorrupt, got %v", err)
+			}
+		})
 	}
 }
