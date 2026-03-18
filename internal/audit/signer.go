@@ -1,9 +1,4 @@
 // Package audit — Signer interface for ECDSA SHA-256 signature computation.
-//
-// WARNING: The exact byte serialization for ContractExecutionRequest.Signature
-// is LOW confidence (undocumented for Go clients). ECDSASigner.Sign is a STUB
-// that must be validated via integration testing against a live ScalarDL 3.12
-// instance. See docs/scalardl-setup.md "Known limitations" section.
 package audit
 
 import (
@@ -13,7 +8,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"strconv"
 )
 
 // Signer computes an ECDSA-SHA256 signature over the fields of a
@@ -27,14 +21,13 @@ type Signer interface {
 
 // ECDSASigner implements Signer using SHA256withECDSA.
 //
-// Current byte serialization (STUB — must be validated against live ScalarDL 3.12):
-// UTF-8 concat of: nonce + entityID + strconv.Itoa(keyVersion) + contractID + contractArgument
+// Byte serialization matches ContractExecutionRequest.serialize() from
+// scalar-labs/scalardl (common/src/main/java/com/scalar/dl/ledger/model/):
 //
-// If UNAUTHENTICATED errors occur from the server, inspect the Java
-// ClientService.RequestBuilder source for the correct byte layout and
-// run the integration test to diagnose:
+//	contractId (UTF-8) || contractArgument (UTF-8) || entityId (UTF-8) || keyVersion (4-byte big-endian int)
 //
-//	go test -tags integration ./internal/audit/... -run TestIntegration_SignatureByteLayout -v
+// No length prefixes, no delimiters, no nonce. The nonce field in the request
+// is for replay prevention and is not included in the signed bytes.
 type ECDSASigner struct {
 	privateKey *ecdsa.PrivateKey
 }
@@ -75,15 +68,26 @@ func NewECDSASigner(privateKeyPEM []byte) (*ECDSASigner, error) {
 }
 
 // Sign computes an ECDSA-SHA256 signature for a ContractExecutionRequest.
-//
-// STUB: The byte concatenation order below is a best-effort approximation of
-// the Java ClientService.RequestBuilder serialization. Validate against a live
-// ScalarDL 3.12 instance before deploying. See docs/scalardl-setup.md.
+// The byte layout matches ContractExecutionRequest.serialize() in the ScalarDL
+// Java SDK: contractId || contractArgument || entityId || keyVersion (4-byte big-endian).
 func (s *ECDSASigner) Sign(contractID, contractArgument, nonce, entityID string, keyVersion uint32) ([]byte, error) {
-	// Construct the message bytes: nonce + entityID + keyVersion + contractID + contractArgument.
-	// This order is a stub — must be validated against ScalarDL 3.12 Java source.
-	msg := nonce + entityID + strconv.Itoa(int(keyVersion)) + contractID + contractArgument
-	digest := sha256.Sum256([]byte(msg))
+	// Serialize per scalar-labs/scalardl ContractExecutionRequest.serialize():
+	// contractId (UTF-8) + contractArgument (UTF-8) + entityId (UTF-8) + keyVersion (4-byte big-endian int).
+	// The nonce parameter is transmitted in the request but is not part of the signed payload.
+	cid := []byte(contractID)
+	arg := []byte(contractArgument)
+	eid := []byte(entityID)
+
+	msg := make([]byte, 0, len(cid)+len(arg)+len(eid)+4)
+	msg = append(msg, cid...)
+	msg = append(msg, arg...)
+	msg = append(msg, eid...)
+	msg = append(msg, byte(keyVersion>>24), byte(keyVersion>>16), byte(keyVersion>>8), byte(keyVersion))
+
+	digest := sha256.Sum256(msg)
+	for i := range msg {
+		msg[i] = 0
+	}
 
 	sig, err := ecdsa.SignASN1(rand.Reader, s.privateKey, digest[:])
 	if err != nil {

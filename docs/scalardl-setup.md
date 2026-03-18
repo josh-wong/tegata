@@ -81,11 +81,15 @@ ScalarDL Ledger is reachable. Audit setup complete.
 
 If the server is unreachable, the command exits with code 8 (`ErrNetworkFailed`).
 
-## Known limitations
+## Verifying the signature byte layout
 
-The ECDSA signature byte serialization in `ECDSASigner.Sign` (see `internal/audit/signer.go`) is an approximation of what ScalarDL's Java `ClientService.RequestBuilder` produces. The exact byte concatenation order is not documented in the ScalarDL Go client documentation.
+The ECDSA signature in `ECDSASigner.Sign` serializes the request fields using the same layout as `ContractExecutionRequest.serialize()` in the ScalarDL Java SDK:
 
-If `tegata ledger setup` succeeds but subsequent contract executions return `UNAUTHENTICATED` gRPC errors, the signature byte layout is incorrect. To diagnose:
+```
+contractId (UTF-8) || contractArgument (UTF-8) || entityId (UTF-8) || keyVersion (4-byte big-endian int)
+```
+
+If contract executions return `UNAUTHENTICATED` gRPC errors after a successful `ledger setup`, you can confirm the layout is correct by running the signature integration test against a live instance:
 
 ```bash
 go test -tags integration ./internal/audit/... -run TestIntegration_SignatureByteLayout -v \
@@ -94,8 +98,6 @@ go test -tags integration ./internal/audit/... -run TestIntegration_SignatureByt
   SCALARDL_CERT_PATH=client-cert.pem \
   SCALARDL_KEY_PATH=client-key.pem
 ```
-
-The test output will report the exact error and the expected byte layout. Compare against the Java source to determine the correct order and update `ECDSASigner.Sign` accordingly.
 
 ## Verifying audit log integrity
 

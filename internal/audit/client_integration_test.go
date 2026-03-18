@@ -141,18 +141,17 @@ func TestIntegration_Validate(t *testing.T) {
 	}
 }
 
-// TestIntegration_SignatureByteLayout explicitly tests the ECDSA signature
-// byte serialization against a live ScalarDL 3.12 instance. The ECDSASigner
-// stub may produce UNAUTHENTICATED errors if the byte layout is incorrect.
+// TestIntegration_SignatureByteLayout verifies the ECDSA signature byte
+// serialization against a live ScalarDL 3.12 instance.
 //
-// If UNAUTHENTICATED is returned:
-//  1. Inspect the Java ClientService.RequestBuilder source to determine the
-//     correct concatenation order.
-//  2. Update ECDSASigner.Sign in signer.go with the correct byte layout.
-//  3. Re-run this test to confirm.
+// Expected byte layout (matches ContractExecutionRequest.serialize() in the
+// ScalarDL Java SDK):
 //
-// Current stub byte layout:
-// nonce + entityID + strconv.Itoa(keyVersion) + contractID + contractArgument
+//	contractId (UTF-8) || contractArgument (UTF-8) || entityId (UTF-8) || keyVersion (4-byte big-endian int)
+//
+// If UNAUTHENTICATED is returned, the server rejected the signature. Compare
+// ECDSASigner.Sign in signer.go against the Java source at:
+// common/src/main/java/com/scalar/dl/ledger/model/ContractExecutionRequest.java
 func TestIntegration_SignatureByteLayout(t *testing.T) {
 	client := newIntegrationClient(t)
 	if client == nil {
@@ -167,13 +166,13 @@ func TestIntegration_SignatureByteLayout(t *testing.T) {
 	if err != nil {
 		if strings.Contains(err.Error(), "UNAUTHENTICATED") {
 			t.Errorf("UNAUTHENTICATED error — signature byte layout is incorrect.\n"+
-				"Current layout: nonce+entityID+keyVersion+contractID+contractArgument\n"+
-				"Inspect Java ClientService.RequestBuilder for the correct layout.\n"+
+				"Expected layout: contractId+contractArgument+entityId+keyVersion(4-byte big-endian)\n"+
+				"See ContractExecutionRequest.serialize() in the ScalarDL Java SDK.\n"+
 				"Error: %v", err)
 		} else {
 			t.Errorf("Put returned unexpected error: %v", err)
 		}
 		return
 	}
-	t.Log("SignatureByteLayout test passed — current byte layout is accepted by the server")
+	t.Log("SignatureByteLayout test passed — byte layout accepted by the server")
 }
