@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -106,7 +107,12 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		}
 
 		// Success: compute the hash of the newly submitted event.
-		eventJSON, _ := json.Marshal(evt)
+		// AuthEvent contains only string, bool, and time.Time fields, so
+		// Marshal failure is a programming error — panic like EntryHash does.
+		eventJSON, err := json.Marshal(evt)
+		if err != nil {
+			panic(fmt.Sprintf("audit: LogEvent: json.Marshal failed: %v", err))
+		}
 		sum := sha256.Sum256(eventJSON)
 		for i := range eventJSON {
 			eventJSON[i] = 0

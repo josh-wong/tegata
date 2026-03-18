@@ -109,17 +109,30 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 
 // buildAuditClient creates a Client from AuditConfig for history and verify commands.
 // These commands do not need the passphrase — they use TLS cert only.
+// In TLS mode the private key PEM is read once and shared between the ECDSA
+// signer and the TLS config to avoid a second disk read and extra heap copy.
 func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
-	signer, err := buildSigner(cfg.KeyPath)
+	if cfg.Insecure {
+		signer, err := buildSigner(cfg.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("building ECDSA signer: %w", err)
+		}
+		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
+	}
+
+	// Read key PEM once; shared between signer and TLS config.
+	keyPEM, err := os.ReadFile(cfg.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
+	}
+	defer zeroBytes(keyPEM)
+
+	signer, err := audit.NewECDSASigner(keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("building ECDSA signer: %w", err)
 	}
 
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	tlsCfg, err := buildTLSConfig(cfg.CertPath, cfg.KeyPath, cfg.CACertPath)
+	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
 	if err != nil {
 		return nil, fmt.Errorf("building TLS config: %w", err)
 	}
@@ -129,21 +142,20 @@ func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
 
 // historyRecord is the display/JSON shape for a single history entry.
 // ScalarDL stores hashes, so we display the raw hash values rather than
-// attempting to reverse them. The --label flag filters by computing the hash
-// of the user-provided label and comparing.
+// attempting to reverse them.
 type historyRecord struct {
 	ObjectID  string `json:"object_id"`
 	HashValue string `json:"hash_value"`
-	Age       int64  `json:"age"`
+	Timestamp int64  `json:"timestamp"`
 }
 
-// filterRecords applies date filters to the records using the Age field
-// (seconds since epoch). From/to values that are zero are treated as no filter.
+// filterRecords applies date filters to the records using the Timestamp field
+// (unix epoch seconds). From/to values that are zero are treated as no filter.
 func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRecord {
 	var result []historyRecord
 	for _, r := range records {
 		if !from.IsZero() || !to.IsZero() {
-			eventTime := time.Unix(r.Age, 0).UTC()
+			eventTime := time.Unix(r.Timestamp, 0).UTC()
 			if !from.IsZero() && eventTime.Before(from) {
 				continue
 			}
@@ -155,7 +167,7 @@ func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRe
 		result = append(result, historyRecord{
 			ObjectID:  r.ObjectID,
 			HashValue: r.HashValue,
-			Age:       r.Age,
+			Timestamp: r.Timestamp,
 		})
 	}
 	return result
@@ -169,10 +181,10 @@ func printRecordsTable(records []historyRecord) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Object ID\tHash Value\tAge (s)")
-	_, _ = fmt.Fprintln(w, "---------\t----------\t-------")
+	_, _ = fmt.Fprintln(w, "Object ID\tHash Value\tTimestamp")
+	_, _ = fmt.Fprintln(w, "---------\t----------\t---------")
 	for _, r := range records {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Age)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Timestamp)
 	}
 	_ = w.Flush()
 }

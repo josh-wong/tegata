@@ -287,17 +287,30 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 }
 
 // buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
+// In TLS mode the private key PEM is read once and shared between the ECDSA
+// signer and the TLS config to avoid a second disk read and extra heap copy.
 func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
-	signer, err := buildSigner(cfg.KeyPath)
+	if cfg.Insecure {
+		signer, err := buildSigner(cfg.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("building ECDSA signer: %w", err)
+		}
+		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
+	}
+
+	// Read key PEM once; shared between signer and TLS config.
+	keyPEM, err := os.ReadFile(cfg.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
+	}
+	defer zeroBytes(keyPEM)
+
+	signer, err := audit.NewECDSASigner(keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("building ECDSA signer: %w", err)
 	}
 
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	tlsCfg, err := buildTLSConfig(cfg.CertPath, cfg.KeyPath, cfg.CACertPath)
+	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
 	if err != nil {
 		return nil, fmt.Errorf("building TLS config: %w", err)
 	}
@@ -305,16 +318,13 @@ func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
 	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
 }
 
-// buildTLSConfig constructs a *tls.Config from cert, key, and CA PEM file paths.
-func buildTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
+// buildTLSConfigFromBytes constructs a *tls.Config from certPath, already-read
+// keyPEM bytes, and an optional CA cert path. The caller is responsible for
+// zeroing keyPEM after this call returns.
+func buildTLSConfigFromBytes(certPath string, keyPEM []byte, caPath string) (*tls.Config, error) {
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading client certificate from %s: %w", certPath, err)
-	}
-
-	keyPEM, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
 	}
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
@@ -323,6 +333,7 @@ func buildTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
 	}
 
 	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
 		Certificates: []tls.Certificate{cert},
 	}
 
@@ -341,6 +352,16 @@ func buildTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
 	return tlsCfg, nil
 }
 
+// buildTLSConfig constructs a *tls.Config from cert, key, and CA PEM file paths.
+func buildTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
+	}
+	defer zeroBytes(keyPEM)
+	return buildTLSConfigFromBytes(certPath, keyPEM, caPath)
+}
+
 // buildSigner loads an ECDSA private key PEM file and returns a Signer.
 func buildSigner(keyPath string) (audit.Signer, error) {
 	if keyPath == "" {
@@ -350,6 +371,7 @@ func buildSigner(keyPath string) (audit.Signer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
 	}
+	defer zeroBytes(keyPEM)
 	return audit.NewECDSASigner(keyPEM)
 }
 

@@ -47,7 +47,7 @@ type Client interface {
 type EventRecord struct {
 	ObjectID  string
 	HashValue string
-	Age       int64
+	Timestamp int64 // unix epoch seconds
 }
 
 // ValidationResult is returned by Validate.
@@ -235,7 +235,7 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 		records[i] = &EventRecord{
 			ObjectID:  r.ObjectID,
 			HashValue: r.HashValue,
-			Age:       r.Age,
+			Timestamp: r.Age,
 		}
 	}
 	return records, nil

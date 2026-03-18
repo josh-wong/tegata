@@ -770,13 +770,13 @@ func TestIntegration_AuditWiring(t *testing.T) {
 }
 
 // TestHistory_FilterByDate verifies that filterRecords correctly applies
-// --from and --to date filters using the Age field (seconds since epoch).
+// --from and --to date filters using the Timestamp field (unix epoch seconds).
 func TestHistory_FilterByDate(t *testing.T) {
 	base := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
 	records := []*audit.EventRecord{
-		{ObjectID: "aaa-111", HashValue: "hash1", Age: base.Add(-24 * time.Hour).Unix()}, // 2026-01-14
-		{ObjectID: "bbb-222", HashValue: "hash2", Age: base.Unix()},                       // 2026-01-15
-		{ObjectID: "ccc-333", HashValue: "hash3", Age: base.Add(24 * time.Hour).Unix()},   // 2026-01-16
+		{ObjectID: "aaa-111", HashValue: "hash1", Timestamp: base.Add(-24 * time.Hour).Unix()}, // 2026-01-14
+		{ObjectID: "bbb-222", HashValue: "hash2", Timestamp: base.Unix()},                       // 2026-01-15
+		{ObjectID: "ccc-333", HashValue: "hash3", Timestamp: base.Add(24 * time.Hour).Unix()},   // 2026-01-16
 	}
 
 	from := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)

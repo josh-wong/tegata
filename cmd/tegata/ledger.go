@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
@@ -78,6 +79,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("reading private key from %s: %w", cfg.Audit.KeyPath, err)
 	}
+	defer zeroBytes(keyPEM)
 
 	// Build TLS config from cert + key.
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
@@ -86,6 +88,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	}
 
 	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
 		Certificates: []tls.Certificate{cert},
 	}
 
@@ -123,8 +126,12 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	}
 	defer func() { _ = client.Close() }()
 
+	// Use a 30-second timeout covering both RegisterCert and Ping so that
+	// a slow or unresponsive ledger does not hang the setup command indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Register the client certificate with the LedgerPrivileged service.
-	ctx := context.Background()
 	fmt.Fprintf(os.Stderr, "Registering certificate for entity %q (key version %d)...\n",
 		cfg.Audit.EntityID, cfg.Audit.KeyVersion)
 	if err := client.RegisterCert(ctx, cfg.Audit.EntityID, cfg.Audit.KeyVersion, string(certPEM)); err != nil {

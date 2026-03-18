@@ -27,25 +27,30 @@ import (
 )
 
 // integrationEnv reads required environment variables. Returns false and skips
-// the test if any required variable is unset.
-func integrationEnv(t *testing.T) (addr, entityID, certPath, keyPath string, ok bool) {
+// the test if any required variable is unset. SCALARDL_PRIVILEGED_ADDR is
+// optional; if unset it defaults to SCALARDL_ADDR (same host, same port).
+func integrationEnv(t *testing.T) (addr, privilegedAddr, entityID, certPath, keyPath string, ok bool) {
 	t.Helper()
 	addr = os.Getenv("SCALARDL_ADDR")
+	privilegedAddr = os.Getenv("SCALARDL_PRIVILEGED_ADDR")
 	entityID = os.Getenv("SCALARDL_ENTITY_ID")
 	certPath = os.Getenv("SCALARDL_CERT_PATH")
 	keyPath = os.Getenv("SCALARDL_KEY_PATH")
 
 	if addr == "" || entityID == "" || certPath == "" || keyPath == "" {
 		t.Skip("integration test skipped: set SCALARDL_ADDR, SCALARDL_ENTITY_ID, SCALARDL_CERT_PATH, SCALARDL_KEY_PATH")
-		return "", "", "", "", false
+		return "", "", "", "", "", false
 	}
-	return addr, entityID, certPath, keyPath, true
+	if privilegedAddr == "" {
+		privilegedAddr = addr
+	}
+	return addr, privilegedAddr, entityID, certPath, keyPath, true
 }
 
 // newIntegrationClient builds a LedgerClient from environment variables.
 func newIntegrationClient(t *testing.T) *audit.LedgerClient {
 	t.Helper()
-	addr, entityID, certPath, keyPath, ok := integrationEnv(t)
+	addr, privilegedAddr, entityID, certPath, keyPath, ok := integrationEnv(t)
 	if !ok {
 		return nil
 	}
@@ -56,6 +61,7 @@ func newIntegrationClient(t *testing.T) *audit.LedgerClient {
 	}
 
 	tlsCfg := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
 		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: os.Getenv("SCALARDL_INSECURE_TLS") == "true", //nolint:gosec
 	}
@@ -70,20 +76,18 @@ func newIntegrationClient(t *testing.T) *audit.LedgerClient {
 		t.Fatalf("creating ECDSA signer: %v", err)
 	}
 
-	client, err := audit.NewLedgerClient(addr, tlsCfg, entityID, 1, signer)
+	client, err := audit.NewLedgerClient(addr, privilegedAddr, tlsCfg, entityID, 1, signer)
 	if err != nil {
 		t.Fatalf("creating ledger client: %v", err)
 	}
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { _ = client.Close() })
 	return client
 }
 
 // TestIntegration_RegisterCert connects to SCALARDL_ADDR and calls RegisterCert.
 // This must succeed before any contract execution calls will work.
 func TestIntegration_RegisterCert(t *testing.T) {
-	addr, entityID, certPath, keyPath, ok := integrationEnv(t)
-	_ = addr
-	_ = keyPath
+	_, _, entityID, certPath, _, ok := integrationEnv(t)
 	if !ok {
 		return
 	}
