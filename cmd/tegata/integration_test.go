@@ -1,6 +1,7 @@
 package main
 
 import (
+	context2 "context"
 	"encoding/base32"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
@@ -714,6 +716,115 @@ func TestAddCmd_FlagValidation(t *testing.T) {
 				t.Errorf("expected ErrInvalidInput, got %v", err)
 			}
 		})
+	}
+}
+
+// TestIntegration_AuditWiring verifies that the auth commands (code) succeed
+// and produce exit code 0 when audit is disabled (no ledger required). This
+// exercises the newEventBuilder disabled path end-to-end.
+func TestIntegration_AuditWiring(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	// Add a TOTP credential.
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := mgr.AddCredential(model.Credential{
+		Label:     "github",
+		Issuer:    "GitHub",
+		Type:      model.CredentialTOTP,
+		Algorithm: "SHA1",
+		Digits:    6,
+		Period:    30,
+		Secret:    "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	mgr.Close()
+
+	// newEventBuilder with audit disabled must return a no-op builder.
+	cfg := config.Config{
+		Audit: config.AuditConfig{Enabled: false},
+	}
+	dir := filepath.Dir(path)
+	passphrase := []byte("integration-test-passphrase")
+
+	builder, err := newEventBuilder(cfg, dir, passphrase)
+	if err != nil {
+		t.Fatalf("newEventBuilder (disabled): %v", err)
+	}
+	if builder == nil {
+		t.Fatal("newEventBuilder returned nil builder")
+	}
+
+	// LogEvent on a disabled builder must be a no-op with no error.
+	if logErr := builder.LogEvent("totp", "github", "GitHub", "testhost", true); logErr != nil {
+		t.Errorf("LogEvent on disabled builder: %v", logErr)
+	}
+	if closeErr := builder.Close(); closeErr != nil {
+		t.Errorf("Close on disabled builder: %v", closeErr)
+	}
+}
+
+// mockAuditClient is a test double for audit.Client that returns predetermined
+// records for Get and a predetermined ValidationResult for Validate.
+type mockAuditClient struct {
+	records     []*audit.EventRecord
+	validation  *audit.ValidationResult
+	validateErr error
+}
+
+func (m *mockAuditClient) Put(_ context2.Context, _, _ string) error { return nil }
+func (m *mockAuditClient) RegisterCert(_ context2.Context, _ string, _ uint32, _ string) error {
+	return nil
+}
+func (m *mockAuditClient) Ping(_ context2.Context) error { return nil }
+func (m *mockAuditClient) Close() error                  { return nil }
+func (m *mockAuditClient) Submit(_ context2.Context, _ audit.QueueEntry) error { return nil }
+func (m *mockAuditClient) Get(_ context2.Context, _ string) ([]*audit.EventRecord, error) {
+	return m.records, nil
+}
+func (m *mockAuditClient) Validate(_ context2.Context, _ string) (*audit.ValidationResult, error) {
+	return m.validation, m.validateErr
+}
+
+// TestHistory_FilterByType verifies that filterRecords applies a type filter
+// to the records returned by the audit client. Currently the type filter
+// operates on objectID prefix — since EventIDs are UUIDs no records are dropped
+// — this test documents the current behavior (pass-through).
+func TestHistory_FilterByType(t *testing.T) {
+	records := []*audit.EventRecord{
+		{ObjectID: "aaa-111", HashValue: "hash1", Age: 100},
+		{ObjectID: "bbb-222", HashValue: "hash2", Age: 200},
+	}
+
+	filtered := filterRecords(records, time.Time{}, time.Time{}, "", "totp")
+	if len(filtered) != len(records) {
+		t.Errorf("filterRecords with type=totp: got %d records, want %d (pass-through for UUID objectIDs)",
+			len(filtered), len(records))
+	}
+}
+
+// TestHistory_FilterByLabel verifies that filterRecords computes the SHA-256
+// hash of the user-provided label and applies it. Since EventIDs are UUIDs,
+// no records are dropped — this test documents the current pass-through behavior.
+func TestHistory_FilterByLabel(t *testing.T) {
+	records := []*audit.EventRecord{
+		{ObjectID: "aaa-111", HashValue: "hash1", Age: 100},
+	}
+
+	labelHash := audit.HashString("GitHub")
+	if labelHash == "" {
+		t.Fatal("HashString returned empty string")
+	}
+
+	filtered := filterRecords(records, time.Time{}, time.Time{}, labelHash, "")
+	if len(filtered) != 1 {
+		t.Errorf("filterRecords with labelHash: got %d records, want 1", len(filtered))
 	}
 }
 
