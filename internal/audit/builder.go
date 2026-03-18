@@ -71,7 +71,10 @@ type submitResult struct {
 // before it is spawned, so it never accesses b.queue concurrently with the
 // main goroutine. On timeout the main goroutine safely appends to b.queue
 // while the spawned goroutine continues only against its local snapshot and
-// the Submitter.
+// the Submitter. resultCh is buffered (cap 1) so the goroutine can always
+// send its result even if the deadline branch already won the select; that
+// result is intentionally discarded — the event has been queued for the next
+// LogEvent call.
 //
 // The PrevHash of each event is the SHA-256 of the previous successfully
 // submitted event's JSON, forming a local hash chain for integrity verification.
