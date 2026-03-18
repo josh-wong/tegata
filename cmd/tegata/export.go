@@ -98,6 +98,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("export failed: %w", err)
 	}
+	defer zeroBytes(data)
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
 		return fmt.Errorf("writing backup file %q: %w", outPath, err)
