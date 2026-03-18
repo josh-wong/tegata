@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -62,6 +63,9 @@ type model struct {
 	// Wizard: async vault creation flag
 	creating bool
 
+	// Unlock: true while Argon2id derivation is in progress
+	unlocking bool
+
 	// Display messages
 	errMsg    string
 	statusMsg string
@@ -69,11 +73,16 @@ type model struct {
 	// Cursor position for credential list navigation (Plans 03/04)
 	cursor int
 
+	// Challenge-response inline input (Plan 03)
+	crChallengeInput  textinput.Model
+	crChallengeActive bool
+
 	// Sub-models
 	passphraseInput textinput.Model
 	confirmInput    textinput.Model
 	credList        list.Model
 	spinner         spinner.Model
+	clipMgr         *clipboard.Manager
 }
 
 // newPassphraseInput returns a textinput configured for masked passphrase entry.
@@ -100,16 +109,22 @@ func initialModel(vaultPath string) model {
 
 	cfg := config.DefaultConfig()
 
+	crInput := textinput.New()
+	crInput.Placeholder = "hex or plain text"
+	crInput.EchoMode = textinput.EchoNormal
+
 	m := model{
-		vaultPath:       vaultPath,
-		cfg:             cfg,
-		idleTimeout:     cfg.IdleTimeout,
-		now:             time.Now(),
-		lastActivity:    time.Now(),
-		passphraseInput: newPassphraseInput("Passphrase"),
-		confirmInput:    newPassphraseInput("Confirm passphrase"),
-		credList:        credList,
-		spinner:         sp,
+		vaultPath:        vaultPath,
+		cfg:              cfg,
+		idleTimeout:      cfg.IdleTimeout,
+		now:              time.Now(),
+		lastActivity:     time.Now(),
+		passphraseInput:  newPassphraseInput("Passphrase"),
+		confirmInput:     newPassphraseInput("Confirm passphrase"),
+		crChallengeInput: crInput,
+		credList:         credList,
+		spinner:          sp,
+		clipMgr:          clipboard.NewManager(),
 	}
 
 	if vaultPath == "" {
@@ -151,6 +166,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.isInputFocused() {
 			switch msg.Type {
 			case tea.KeyCtrlC:
+				if m.clipMgr != nil {
+					m.clipMgr.Close()
+				}
 				if m.vaultMgr != nil {
 					m.vaultMgr.Close()
 					m.vaultMgr = nil
@@ -159,6 +177,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
 				if m.state == stateMainView {
+					if m.clipMgr != nil {
+						m.clipMgr.Close()
+					}
 					if m.vaultMgr != nil {
 						m.vaultMgr.Close()
 						m.vaultMgr = nil
@@ -170,14 +191,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.now = msg.t
-		// Idle-lock check — delegated to Plan 03; stub here.
-		if m.vaultMgr != nil && time.Since(m.lastActivity) >= m.idleTimeout {
-			m.vaultMgr.Close()
-			m.vaultMgr = nil
+		if m.state == stateMainView && time.Since(m.lastActivity) >= m.idleTimeout {
+			if m.vaultMgr != nil {
+				m.vaultMgr.Close()
+				m.vaultMgr = nil
+			}
 			m.state = stateLockedIdle
 			return m, nil
 		}
 		return m, tickCmd()
+
+	case unlockResultMsg:
+		return m.handleUnlockResult(msg)
 	}
 
 	// Delegate to per-state handlers.
@@ -188,7 +213,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		stateWizardAddCredential:
 		return m.updateWizard(msg)
 
-	case stateUnlock:
+	case stateUnlock, stateLockedIdle:
 		return m.updateUnlock(msg)
 
 	case stateMainView:
@@ -214,14 +239,11 @@ func (m model) View() string {
 		stateWizardAddCredential:
 		return m.viewWizard()
 
-	case stateUnlock:
-		return "[state not yet implemented: unlock]"
+	case stateUnlock, stateLockedIdle:
+		return m.viewUnlock()
 
 	case stateMainView:
-		return "[state not yet implemented: main view]"
-
-	case stateLockedIdle:
-		return "[state not yet implemented: locked idle]"
+		return m.viewMainView()
 
 	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings:
 		return m.viewOverlay()
@@ -233,7 +255,7 @@ func (m model) View() string {
 // isInputFocused returns true when a text input sub-model currently has focus,
 // which suppresses the global 'q' quit binding.
 func (m model) isInputFocused() bool {
-	return m.passphraseInput.Focused() || m.confirmInput.Focused()
+	return m.passphraseInput.Focused() || m.confirmInput.Focused() || m.crChallengeInput.Focused()
 }
 
 // tickCmd returns a tea.Cmd that fires a tickMsg after one second.
@@ -241,40 +263,6 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg{t: t}
 	})
-}
-
-// --- Stub handlers for states implemented in later plans ---
-
-// updateUnlock handles key events in the stateUnlock state (Plan 03).
-func (m model) updateUnlock(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return m, nil
-}
-
-// updateMainView handles key events in the stateMainView state (Plan 03).
-func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case len(msg.Runes) == 1 && msg.Runes[0] == 'j':
-			m.cursor++
-			m.lastActivity = time.Now()
-		case len(msg.Runes) == 1 && msg.Runes[0] == 'k':
-			if m.cursor > 0 {
-				m.cursor--
-			}
-			m.lastActivity = time.Now()
-		case len(msg.Runes) == 1 && msg.Runes[0] == 'a':
-			m.state = stateOverlayAdd
-			m.lastActivity = time.Now()
-		case len(msg.Runes) == 1 && msg.Runes[0] == 'r':
-			m.state = stateOverlayRemove
-			m.lastActivity = time.Now()
-		case len(msg.Runes) == 1 && msg.Runes[0] == 's':
-			m.state = stateOverlaySettings
-			m.lastActivity = time.Now()
-		}
-	}
-	return m, nil
 }
 
 // updateOverlay handles key events in overlay states (Plan 04).
