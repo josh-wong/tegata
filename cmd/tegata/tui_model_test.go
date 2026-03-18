@@ -98,7 +98,6 @@ func TestModel_VaultFound_GoesToUnlock(t *testing.T) {
 // TestTOTPTicker asserts that a tickMsg updates m.now and returns a tickCmd
 // so that the ticker keeps firing every second.
 func TestTOTPTicker(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	// Simulate the model being in main view with a vault open.
 	m.state = stateMainView
@@ -117,7 +116,6 @@ func TestTOTPTicker(t *testing.T) {
 // TestIdleAutoLock asserts that a tickMsg fires auto-lock when idle time
 // exceeds the configured idleTimeout, transitioning to stateLockedIdle.
 func TestIdleAutoLock(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	m.state = stateMainView
 	m.lastActivity = time.Now().Add(-m.idleTimeout - time.Second)
@@ -132,7 +130,6 @@ func TestIdleAutoLock(t *testing.T) {
 // TestMainViewNavigation asserts that j/k move the credential list selection
 // and that pressing Enter on a TOTP credential triggers a copyCmd.
 func TestMainViewNavigation(t *testing.T) {
-	t.Skip("not yet implemented")
 	m := initialModel("")
 	m.state = stateMainView
 	initial := m.cursor
