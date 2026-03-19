@@ -63,10 +63,16 @@ func (m model) updateWizard(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyEnter {
+		switch msg.Type {
+		case tea.KeyEnter:
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, m.spinner.Tick
+		case tea.KeyEsc:
+			if m.clipMgr != nil {
+				m.clipMgr.Close()
+			}
+			return m, tea.Quit
 		}
 	}
 	return m, nil
@@ -116,6 +122,12 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.Type {
+		case tea.KeyEsc:
+			if m.clipMgr != nil {
+				m.clipMgr.Close()
+			}
+			return m, tea.Quit
+
 		case tea.KeyTab, tea.KeyShiftTab:
 			// Cycle focus between the two passphrase fields.
 			if m.passphraseInput.Focused() {
@@ -263,7 +275,7 @@ func (m model) viewWizardWelcome() string {
 		"Tegata is a portable authenticator that stores encrypted\n" +
 		"credentials on USB drives or microSD cards.\n\n" +
 		"This wizard will guide you through creating your vault.\n\n" +
-		helpBarStyle.Render("[Enter] Begin setup  [q] Quit")
+		helpBarStyle.Render("[Enter] Begin setup  [Esc] Quit")
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
@@ -281,7 +293,7 @@ func (m model) viewWizardPassphrase() string {
 	if m.creating {
 		content += "\n" + m.spinner.View() + " Creating vault…\n"
 	} else {
-		content += "\n" + helpBarStyle.Render("[Enter] Next field  [Tab] Switch field  [q] Quit")
+		content += "\n" + helpBarStyle.Render("[Enter] Next field  [Tab] Switch field  [Esc] Quit")
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
