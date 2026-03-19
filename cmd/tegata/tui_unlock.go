@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -27,31 +26,30 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 	return func() tea.Msg {
 		mgr, err := vault.Open(path)
 		if err != nil {
+			for i := range passphrase {
+				passphrase[i] = 0
+			}
 			return unlockResultMsg{err: err}
 		}
 		if err := mgr.Unlock(passphrase); err != nil {
+			for i := range passphrase {
+				passphrase[i] = 0
+			}
 			mgr.Close()
 			return unlockResultMsg{err: err}
+		}
+		for i := range passphrase {
+			passphrase[i] = 0
 		}
 		return unlockResultMsg{mgr: mgr}
 	}
 }
 
-// loadCredentials populates m.credList from the unlocked vault and loads
-// configuration from the vault directory. It must be called after m.vaultMgr
-// is set to a valid, unlocked Manager.
+// loadCredentials populates m.credList from the unlocked vault (sorted by
+// label) and loads configuration from the vault directory. It must be called
+// after m.vaultMgr is set to a valid, unlocked Manager.
 func loadCredentials(m model) model {
-	creds := m.vaultMgr.ListCredentials()
-	items := make([]list.Item, 0, len(creds))
-	for _, c := range creds {
-		items = append(items, credItem{cred: c})
-	}
-	m.credList.SetItems(items)
-	if len(creds) > 0 {
-		m.credList.Title = fmt.Sprintf("%d credentials", len(creds))
-	} else {
-		m.credList.Title = "No credentials"
-	}
+	m = refreshCredList(m)
 
 	// Load config from vault directory; fall back to defaults on error.
 	if cfg, err := config.Load(filepath.Dir(m.vaultPath)); err == nil {
@@ -113,13 +111,8 @@ func (m model) updateUnlockScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.passphraseInput.Value() == "" {
 				return m, nil
 			}
-			// Copy passphrase bytes; zero-on-defer pattern.
+			// Copy passphrase bytes; the async command zeroes this slice after use.
 			pp := []byte(m.passphraseInput.Value())
-			defer func() {
-				for i := range pp {
-					pp[i] = 0
-				}
-			}()
 			m.passphraseInput.Reset()
 			m.errMsg = ""
 			m.unlocking = true

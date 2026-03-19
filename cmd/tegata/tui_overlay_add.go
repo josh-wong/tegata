@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -123,8 +124,8 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Refresh credential list.
-			m = refreshCredList(m)
+			// Refresh credential list and select the newly added item.
+			m = refreshCredList(m, labelVal)
 
 			label := labelVal
 			m.resetAddOverlay()
@@ -245,23 +246,33 @@ func (m model) viewOverlayRemove() string {
 	return overlayOnBackground(bg, overlay, m.width, m.height)
 }
 
-// refreshCredList rebuilds the credential list from the vault manager.
-func refreshCredList(m model) model {
+// refreshCredList rebuilds the credential list from the vault manager,
+// sorted alphabetically by label. The list selection moves to the item
+// matching selectLabel (if non-empty), or resets to the top.
+func refreshCredList(m model, selectLabel ...string) model {
 	if m.vaultMgr == nil {
 		return m
 	}
 	creds := m.vaultMgr.ListCredentials()
+	sort.Slice(creds, func(i, j int) bool {
+		return strings.ToLower(creds[i].Label) < strings.ToLower(creds[j].Label)
+	})
 	items := make([]list.Item, 0, len(creds))
-	for _, c := range creds {
+	selectedIdx := 0
+	for i, c := range creds {
 		items = append(items, credItem{cred: c})
+		if len(selectLabel) > 0 && c.Label == selectLabel[0] {
+			selectedIdx = i
+		}
 	}
 	m.credList.SetItems(items)
+	m.credList.Select(selectedIdx)
+	m.cursor = selectedIdx
 	if len(creds) > 0 {
 		m.credList.Title = fmt.Sprintf("%d credentials", len(creds))
 	} else {
 		m.credList.Title = "No credentials"
 	}
-	m.cursor = 0
 	return m
 }
 

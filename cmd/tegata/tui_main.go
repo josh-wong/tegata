@@ -89,9 +89,11 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j'):
+			if m.cursor < len(m.credList.Items())-1 {
+				m.cursor++
+			}
 			var cmd tea.Cmd
 			m.credList, cmd = m.credList.Update(tea.KeyMsg{Type: tea.KeyDown})
-			m.cursor++
 			return m, cmd
 
 		case msg.Type == tea.KeyUp || (len(msg.Runes) == 1 && msg.Runes[0] == 'k'):
@@ -107,6 +109,8 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'a':
 			m.state = stateOverlayAdd
+			m.addFocusIdx = 0
+			m.focusAddInput()
 			return m, nil
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'r':
@@ -161,7 +165,11 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		code, _ := auth.GenerateTOTP(secret, m.now, period, digits, cred.Algorithm)
 		if m.clipMgr != nil {
-			_ = m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout)
+			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
+				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
+				m.errMsg = ""
+				return m, nil
+			}
 		}
 		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""
@@ -178,7 +186,16 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		code := auth.GenerateHOTP(secret, cred.Counter, digits, cred.Algorithm)
 		if m.clipMgr != nil {
-			_ = m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout)
+			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
+				// Advance counter even on clipboard failure so HOTP state stays correct.
+				cred.Counter++
+				if m.vaultMgr != nil {
+					_ = m.vaultMgr.UpdateCredential(&cred)
+				}
+				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
+				m.errMsg = ""
+				return m, nil
+			}
 		}
 		// Advance counter and save.
 		cred.Counter++
@@ -195,7 +212,11 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.clipMgr != nil {
-			_ = m.clipMgr.CopyWithAutoClear(password, m.cfg.ClipboardTimeout)
+			if err := m.clipMgr.CopyWithAutoClear(password, m.cfg.ClipboardTimeout); err != nil {
+				m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable — select to copy)", password)
+				m.errMsg = ""
+				return m, nil
+			}
 		}
 		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""
@@ -243,9 +264,16 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 	}
 
 	if m.clipMgr != nil {
-		_ = m.clipMgr.CopyWithAutoClear(response, m.cfg.ClipboardTimeout)
+		if err := m.clipMgr.CopyWithAutoClear(response, m.cfg.ClipboardTimeout); err != nil {
+			m.statusMsg = fmt.Sprintf("Response: %s  (clipboard unavailable — select to copy)", response)
+			m.errMsg = ""
+			m.crChallengeActive = false
+			m.crChallengeInput.Reset()
+			m.crChallengeInput.Blur()
+			return m, nil
+		}
 	}
-	m.statusMsg = "Signed response copied (auto-clear in 45s)"
+	m.statusMsg = fmt.Sprintf("Signed response copied (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 	m.errMsg = ""
 	m.crChallengeActive = false
 	m.crChallengeInput.Reset()
@@ -270,7 +298,7 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	help := helpBarStyle.Render("j/k Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit")
+	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit")
 
 	return columns + "\n" + help
 }

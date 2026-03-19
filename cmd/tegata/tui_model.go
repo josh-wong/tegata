@@ -172,6 +172,7 @@ func initialModel(vaultPath string) model {
 		m.state = stateWizardWelcome
 	} else {
 		m.state = stateUnlock
+		m.passphraseInput.Focus()
 	}
 
 	return m
@@ -192,6 +193,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// Sidebar is 28 wide; leave room for border/padding.
+		m.credList.SetSize(26, msg.Height-6)
 		if msg.Width < 80 {
 			if m.state != stateTerminalTooNarrow {
 				m.prevState = m.state

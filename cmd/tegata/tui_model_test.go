@@ -4,9 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
 // Compile-time anchor: ensure lipgloss and bubbles/textinput are imported.
@@ -26,6 +28,8 @@ func sendKey(m model, key string) model {
 		msg = tea.KeyMsg{Type: tea.KeyEnter}
 	case "esc":
 		msg = tea.KeyMsg{Type: tea.KeyEsc}
+	case "tab":
+		msg = tea.KeyMsg{Type: tea.KeyTab}
 	case "ctrl+c":
 		msg = tea.KeyMsg{Type: tea.KeyCtrlC}
 	default:
@@ -33,6 +37,16 @@ func sendKey(m model, key string) model {
 	}
 	updated, _ := m.Update(msg)
 	return updated.(model)
+}
+
+// typeInto types each rune of s into m via individual KeyRunes messages.
+func typeInto(m model, s string) model {
+	for _, r := range s {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+		updated, _ := m.Update(msg)
+		m = updated.(model)
+	}
+	return m
 }
 
 // TestModel_NoVault_StartsWizard asserts that when no vault path is configured,
@@ -45,7 +59,7 @@ func TestModel_NoVault_StartsWizard(t *testing.T) {
 }
 
 // TestWizardStateMachine asserts the full wizard state transition:
-// welcome → passphrase → recovery_key → add_credential → main_view.
+// welcome → passphrase → recovery_key → add_credential → overlay_add.
 func TestWizardStateMachine(t *testing.T) {
 	m := initialModel("")
 	if m.state != stateWizardWelcome {
@@ -55,7 +69,15 @@ func TestWizardStateMachine(t *testing.T) {
 	if m.state != stateWizardPassphrase {
 		t.Errorf("expected stateWizardPassphrase, got %v", m.state)
 	}
-	m = sendKey(m, "enter") // advance from passphrase → recovery_key
+	// Passphrase step requires matching text in both fields.
+	// Enter on the first field moves focus to the confirm field.
+	m = typeInto(m, "correct-horse-battery")
+	m = sendKey(m, "enter") // focus moves to confirm field; state stays at passphrase
+	if m.state != stateWizardPassphrase {
+		t.Errorf("expected stateWizardPassphrase after first Enter, got %v", m.state)
+	}
+	m = typeInto(m, "correct-horse-battery")
+	m = sendKey(m, "enter") // matching passphrases → advance to recovery_key
 	if m.state != stateWizardRecoveryKey {
 		t.Errorf("expected stateWizardRecoveryKey, got %v", m.state)
 	}
@@ -63,9 +85,9 @@ func TestWizardStateMachine(t *testing.T) {
 	if m.state != stateWizardAddCredential {
 		t.Errorf("expected stateWizardAddCredential, got %v", m.state)
 	}
-	m = sendKey(m, "enter") // advance from add_credential → main_view
-	if m.state != stateMainView {
-		t.Errorf("expected stateMainView, got %v", m.state)
+	m = sendKey(m, "enter") // Enter opens the add-credential overlay
+	if m.state != stateOverlayAdd {
+		t.Errorf("expected stateOverlayAdd after Enter on add-credential screen, got %v", m.state)
 	}
 }
 
@@ -73,16 +95,39 @@ func TestWizardStateMachine(t *testing.T) {
 // transitions directly to stateMainView without adding a credential.
 func TestWizardSkipCredential(t *testing.T) {
 	m := initialModel("")
-	// Navigate to stateWizardAddCredential.
-	m = sendKey(m, "enter")
-	m = sendKey(m, "enter")
-	m = sendKey(m, "enter")
+	// Navigate to stateWizardAddCredential via the full passphrase confirm flow.
+	m = sendKey(m, "enter")                    // welcome → passphrase
+	m = typeInto(m, "correct-horse-battery")   // type in passphrase field
+	m = sendKey(m, "enter")                    // move focus to confirm field
+	m = typeInto(m, "correct-horse-battery")   // type matching passphrase
+	m = sendKey(m, "enter")                    // passphrase → recovery_key
+	m = sendKey(m, "enter")                    // recovery_key → add_credential
 	if m.state != stateWizardAddCredential {
 		t.Fatalf("expected stateWizardAddCredential, got %v", m.state)
 	}
 	m = sendKey(m, "esc")
 	if m.state != stateMainView {
 		t.Errorf("expected stateMainView after Esc, got %v", m.state)
+	}
+}
+
+// TestWizardPassphraseMismatch asserts that mismatched passphrases show an error
+// and keep the model in stateWizardPassphrase with focus back on the first field.
+func TestWizardPassphraseMismatch(t *testing.T) {
+	m := initialModel("")
+	m = sendKey(m, "enter")                  // welcome → passphrase
+	m = typeInto(m, "correct-horse-battery") // type passphrase
+	m = sendKey(m, "enter")                  // focus to confirm
+	m = typeInto(m, "wrong-passphrase")      // mismatched confirm
+	m = sendKey(m, "enter")                  // should reject
+	if m.state != stateWizardPassphrase {
+		t.Errorf("expected stateWizardPassphrase after mismatch, got %v", m.state)
+	}
+	if m.errMsg == "" {
+		t.Error("expected errMsg to be set after passphrase mismatch")
+	}
+	if !m.passphraseInput.Focused() {
+		t.Error("expected focus to return to passphraseInput after mismatch")
 	}
 }
 
@@ -128,10 +173,16 @@ func TestIdleAutoLock(t *testing.T) {
 }
 
 // TestMainViewNavigation asserts that j/k move the credential list selection
-// and that pressing Enter on a TOTP credential triggers a copyCmd.
+// and that the cursor stays within bounds.
 func TestMainViewNavigation(t *testing.T) {
 	m := initialModel("")
 	m.state = stateMainView
+	// Populate with dummy items so cursor movement is possible.
+	m.credList.SetItems([]list.Item{
+		credItem{cred: pkgmodel.Credential{Label: "A"}},
+		credItem{cred: pkgmodel.Credential{Label: "B"}},
+		credItem{cred: pkgmodel.Credential{Label: "C"}},
+	})
 	initial := m.cursor
 	m = sendKey(m, "j")
 	if m.cursor != initial+1 {
@@ -140,6 +191,12 @@ func TestMainViewNavigation(t *testing.T) {
 	m = sendKey(m, "k")
 	if m.cursor != initial {
 		t.Errorf("expected cursor to move back up after k, got %d", m.cursor)
+	}
+	// Cursor should not go past the last item.
+	m.cursor = 2
+	m = sendKey(m, "j")
+	if m.cursor != 2 {
+		t.Errorf("expected cursor to stay at 2 (last item), got %d", m.cursor)
 	}
 }
 

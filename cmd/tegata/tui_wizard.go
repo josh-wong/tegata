@@ -74,11 +74,15 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // updateWizardPassphrase handles input on the passphrase entry screen (step 2/4).
 //
-// Design note: the passphrase step uses an optimistic-advance pattern. On Enter,
-// the model immediately transitions to stateWizardRecoveryKey (so the UI remains
-// responsive) and simultaneously dispatches createVaultCmd as an async command.
-// The createVaultResultMsg updates m.recoveryKey when the Argon2id derivation
-// completes (~1–3s). If vault creation fails, the model returns to
+// The screen has two fields: passphrase and confirm. Tab/Enter on the first field
+// advances focus to the confirm field. Enter on the confirm field validates that
+// both values match (and are non-empty) before proceeding.
+//
+// Design note: once both inputs match, the step uses an optimistic-advance
+// pattern. The model immediately transitions to stateWizardRecoveryKey (so the UI
+// remains responsive) and simultaneously dispatches createVaultCmd as an async
+// command. The createVaultResultMsg updates m.recoveryKey when the Argon2id
+// derivation completes (~1–3s). If vault creation fails, the model returns to
 // stateWizardPassphrase with an error message.
 func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -97,6 +101,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Creation failed: return to passphrase step with error.
 			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
 			m.state = stateWizardPassphrase
+			m.confirmInput.Blur()
 			m.passphraseInput.Focus()
 			return m, nil
 		}
@@ -111,16 +116,50 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.Type {
+		case tea.KeyTab, tea.KeyShiftTab:
+			// Cycle focus between the two passphrase fields.
+			if m.passphraseInput.Focused() {
+				m.passphraseInput.Blur()
+				m.confirmInput.Focus()
+			} else {
+				m.confirmInput.Blur()
+				m.passphraseInput.Focus()
+			}
+			return m, nil
+
 		case tea.KeyEnter:
+			if m.passphraseInput.Focused() {
+				// First field: advance focus to confirm field.
+				m.passphraseInput.Blur()
+				m.confirmInput.Focus()
+				return m, nil
+			}
+
+			// Confirm field: validate that both values match and are non-empty.
 			pass := m.passphraseInput.Value()
+			confirm := m.confirmInput.Value()
+			if pass == "" {
+				m.errMsg = "Passphrase cannot be empty"
+				m.confirmInput.Blur()
+				m.passphraseInput.Focus()
+				return m, nil
+			}
+			if pass != confirm {
+				m.errMsg = "Passphrases do not match"
+				m.confirmInput.Reset()
+				m.confirmInput.Blur()
+				m.passphraseInput.Focus()
+				return m, nil
+			}
 
 			// Copy passphrase bytes so the async command owns the slice.
 			// The async command zeroes this copy when done.
 			pp := []byte(pass)
 
-			// Zero and reset the passphrase input immediately.
+			// Zero and reset both inputs immediately.
 			m.passphraseInput.Reset()
 			m.confirmInput.Reset()
+			m.confirmInput.Blur()
 			m.errMsg = ""
 
 			// Optimistic advance: show the recovery key screen immediately while
@@ -132,15 +171,25 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.spinner.Tick, createVaultCmd(path, pp))
 		}
 
-		// Delegate typing to the passphrase input.
+		// Delegate typing to whichever input is focused.
+		if m.passphraseInput.Focused() {
+			var cmd tea.Cmd
+			m.passphraseInput, cmd = m.passphraseInput.Update(msg)
+			return m, cmd
+		}
+		var cmd tea.Cmd
+		m.confirmInput, cmd = m.confirmInput.Update(msg)
+		return m, cmd
+	}
+
+	// For non-key messages, delegate to whichever input is focused.
+	if m.passphraseInput.Focused() {
 		var cmd tea.Cmd
 		m.passphraseInput, cmd = m.passphraseInput.Update(msg)
 		return m, cmd
 	}
-
-	// For non-key messages, delegate to the passphrase input.
 	var cmd tea.Cmd
-	m.passphraseInput, cmd = m.passphraseInput.Update(msg)
+	m.confirmInput, cmd = m.confirmInput.Update(msg)
 	return m, cmd
 }
 
@@ -186,8 +235,8 @@ func (m model) updateWizardAddCredential(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEsc:
 			m.state = stateMainView
 		case tea.KeyEnter:
-			// Full add overlay is Plan 04; for now skip is fine.
-			m.state = stateMainView
+			m.state = stateOverlayAdd
+			m.addLabelInput.Focus()
 		}
 	}
 	return m, nil
@@ -222,7 +271,8 @@ func (m model) viewWizardWelcome() string {
 func (m model) viewWizardPassphrase() string {
 	strength := strengthLabel(len(m.passphraseInput.Value()))
 	content := titleStyle.Render("Step 2/4: Set passphrase") + "\n\n" +
-		m.passphraseInput.View() + "\n\n" +
+		m.passphraseInput.View() + "\n" +
+		m.confirmInput.View() + "\n\n" +
 		"Strength: " + strength + "\n"
 
 	if m.errMsg != "" {
@@ -231,7 +281,7 @@ func (m model) viewWizardPassphrase() string {
 	if m.creating {
 		content += "\n" + m.spinner.View() + " Creating vault…\n"
 	} else {
-		content += "\n" + helpBarStyle.Render("[Enter] Set passphrase  [q] Quit")
+		content += "\n" + helpBarStyle.Render("[Enter] Next field  [Tab] Switch field  [q] Quit")
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }

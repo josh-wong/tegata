@@ -1,11 +1,19 @@
 // Package clipboard provides cross-platform clipboard access with automatic
 // clearing after a timeout. It wraps github.com/atotto/clipboard with
-// auto-clear logic and cancellation support.
+// auto-clear logic and cancellation support. On WSL2, clip.exe and
+// powershell.exe are copied to a temp directory (to gain execute bits that
+// DrvFs mounts strip) and used to reach the Windows clipboard.
 package clipboard
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,18 +29,135 @@ type ClipboardAccess interface {
 // systemClipboard implements ClipboardAccess using the real system clipboard.
 type systemClipboard struct{}
 
-func (systemClipboard) WriteAll(text string) error    { return clip.WriteAll(text) }
-func (systemClipboard) ReadAll() (string, error)      { return clip.ReadAll() }
+func (systemClipboard) WriteAll(text string) error { return clip.WriteAll(text) }
+func (systemClipboard) ReadAll() (string, error)   { return clip.ReadAll() }
+
+// wslClipboard implements ClipboardAccess for WSL2 using Windows executables
+// copied to a temp directory. DrvFs mounts often strip execute bits from
+// Windows system binaries, so we copy them to the Linux filesystem where
+// chmod works, then run them via binfmt_misc (WSL interop).
+type wslClipboard struct {
+	clipPath string // path to executable copy of clip.exe
+	psPath   string // path to executable copy of powershell.exe
+}
+
+// newWSLClipboard creates a wslClipboard by copying clip.exe and powershell.exe
+// to a temp directory with execute permissions. Returns an error if the Windows
+// binaries cannot be found or copied.
+func newWSLClipboard() (*wslClipboard, error) {
+	tmpDir, err := os.MkdirTemp("", "tegata-clip-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+
+	clipSrc := findWindowsBinary("clip.exe", "/mnt/c/Windows/System32/clip.exe")
+	if clipSrc == "" {
+		os.RemoveAll(tmpDir)
+		return nil, fmt.Errorf("clip.exe not found")
+	}
+
+	psSrc := findWindowsBinary("powershell.exe",
+		"/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+
+	clipDst := filepath.Join(tmpDir, "clip.exe")
+	if err := copyExecutable(clipSrc, clipDst); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, fmt.Errorf("copy clip.exe: %w", err)
+	}
+
+	w := &wslClipboard{clipPath: clipDst}
+
+	if psSrc != "" {
+		psDst := filepath.Join(tmpDir, "powershell.exe")
+		if err := copyExecutable(psSrc, psDst); err == nil {
+			w.psPath = psDst
+		}
+	}
+
+	return w, nil
+}
+
+// findWindowsBinary returns the full path to a Windows binary, checking PATH
+// first and falling back to the provided absolute path.
+func findWindowsBinary(name, fallback string) string {
+	if p, err := exec.LookPath(name); err == nil {
+		return p
+	}
+	if _, err := os.Stat(fallback); err == nil {
+		return fallback
+	}
+	return ""
+}
+
+// copyExecutable copies src to dst and sets the execute bit.
+func copyExecutable(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func (w *wslClipboard) WriteAll(text string) error {
+	cmd := exec.Command(w.clipPath)
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
+}
+
+func (w *wslClipboard) ReadAll() (string, error) {
+	if w.psPath == "" {
+		return "", fmt.Errorf("powershell.exe not available")
+	}
+	out, err := exec.Command(w.psPath, "-command", "Get-Clipboard").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\r\n"), nil
+}
+
+// isWSL reports whether the process is running inside WSL.
+func isWSL() bool {
+	if os.Getenv("WSL_DISTRO_NAME") != "" || os.Getenv("WSL_INTEROP") != "" {
+		return true
+	}
+	data, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(string(data)), "microsoft")
+}
 
 // Manager handles clipboard operations with automatic clearing.
 type Manager struct {
 	cb          ClipboardAccess
 	cancelClear context.CancelFunc
 	mu          sync.Mutex
+	tmpDir      string // set when WSL temp copies are used; cleaned up on Close
 }
 
-// NewManager creates a new clipboard manager using the system clipboard.
+// NewManager creates a new clipboard manager. On WSL2 it copies Windows
+// clipboard binaries to a temp directory (to work around DrvFs execute-bit
+// restrictions) and uses them directly. Elsewhere it uses the system clipboard
+// via atotto/clipboard.
 func NewManager() *Manager {
+	if runtime.GOOS == "linux" && isWSL() {
+		if wsl, err := newWSLClipboard(); err == nil {
+			return &Manager{
+				cb:     wsl,
+				tmpDir: filepath.Dir(wsl.clipPath),
+			}
+		}
+		// Fall through to system clipboard if WSL setup fails.
+	}
 	return &Manager{cb: systemClipboard{}}
 }
 
@@ -81,13 +206,17 @@ func (m *Manager) CopyWithAutoClear(text string, timeout time.Duration) error {
 	return nil
 }
 
-// Close cancels any pending auto-clear goroutine.
+// Close cancels any pending auto-clear goroutine and removes temp files.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.cancelClear != nil {
 		m.cancelClear()
 		m.cancelClear = nil
+	}
+	if m.tmpDir != "" {
+		os.RemoveAll(m.tmpDir)
+		m.tmpDir = ""
 	}
 }
 

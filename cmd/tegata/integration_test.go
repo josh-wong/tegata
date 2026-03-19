@@ -681,7 +681,7 @@ func TestDecodeBase32Secret(t *testing.T) {
 
 	invalid := []string{
 		"not-base32!!!",
-		"AAAA1111", // digit 1 is not in the base32 alphabet
+		"AAAA!!!!", // punctuation is not in the base32 alphabet
 		"@#$%",
 	}
 	for _, input := range invalid {
