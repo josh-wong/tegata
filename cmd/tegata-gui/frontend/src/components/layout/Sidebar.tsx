@@ -1,0 +1,140 @@
+import { useState } from "react"
+import { ChevronRight, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import type { Credential } from "@/lib/types"
+
+interface SidebarProps {
+  credentials: Credential[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+  searchQuery: string
+  onSearchChange: (q: string) => void
+}
+
+function groupByTag(credentials: Credential[]) {
+  const groups = new Map<string, Credential[]>()
+  for (const cred of credentials) {
+    const tags = cred.tags.length > 0 ? cred.tags : ["[Untagged]"]
+    for (const tag of tags) {
+      const list = groups.get(tag) ?? []
+      list.push(cred)
+      groups.set(tag, list)
+    }
+  }
+  return groups
+}
+
+const typeBadgeColor: Record<string, string> = {
+  totp: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  hotp: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  static: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  cr: "bg-purple-500/15 text-purple-700 dark:text-purple-400",
+}
+
+export function Sidebar({
+  credentials,
+  selectedId,
+  onSelect,
+  searchQuery,
+  onSearchChange,
+}: SidebarProps) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const filtered = credentials.filter(
+    (c) =>
+      c.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.issuer.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const groups = groupByTag(filtered)
+
+  function toggleGroup(tag: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) {
+        next.delete(tag)
+      } else {
+        next.add(tag)
+      }
+      return next
+    })
+  }
+
+  return (
+    <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-sidebar">
+      <div className="p-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search credentials..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="px-2 pb-2">
+          {Array.from(groups.entries()).map(([tag, creds]) => (
+            <div key={tag} className="mb-1">
+              <button
+                onClick={() => toggleGroup(tag)}
+                className="flex w-full items-center gap-1 rounded px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:bg-accent"
+              >
+                <ChevronRight
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    !collapsed.has(tag) && "rotate-90",
+                  )}
+                />
+                {tag}
+              </button>
+
+              {!collapsed.has(tag) &&
+                creds.map((cred) => (
+                  <button
+                    key={cred.id}
+                    onClick={() => onSelect(cred.id)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-sm hover:bg-accent",
+                      selectedId === cred.id && "bg-accent",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{cred.label}</div>
+                      {cred.issuer && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {cred.issuer}
+                        </div>
+                      )}
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "ml-2 shrink-0 text-[10px] uppercase",
+                        typeBadgeColor[cred.type],
+                      )}
+                    >
+                      {cred.type}
+                    </Badge>
+                  </button>
+                ))}
+            </div>
+          ))}
+
+          {filtered.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+              {credentials.length === 0
+                ? "No credentials yet"
+                : "No matches found"}
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+    </aside>
+  )
+}
