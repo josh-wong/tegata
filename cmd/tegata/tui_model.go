@@ -70,21 +70,21 @@ type model struct {
 	errMsg    string
 	statusMsg string
 
-	// Cursor position for credential list navigation (Plans 03/04)
+	// Cursor position for credential list navigation
 	cursor int
 
-	// Challenge-response inline input (Plan 03)
+	// Challenge-response inline input
 	crChallengeInput  textinput.Model
 	crChallengeActive bool
 
-	// Add-credential overlay inputs (Plan 04)
+	// Add-credential overlay inputs
 	addLabelInput  textinput.Model // label or otpauth:// URI
 	addIssuerInput textinput.Model // issuer (optional)
 	addSecretInput textinput.Model // secret (masked)
 	addTypeIdx     int             // 0=TOTP, 1=HOTP, 2=Static, 3=CR
 	addFocusIdx    int             // 0=label, 1=issuer, 2=secret
 
-	// Settings overlay state (Plan 04)
+	// Settings overlay state
 	settingsMenuIdx  int          // 0-3 menu selection
 	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
 	settingsInput1   textinput.Model
@@ -179,8 +179,8 @@ func initialModel(vaultPath string) model {
 }
 
 // Init satisfies the tea.Model interface. The TOTP ticker is started when
-// entering stateMainView (Plan 03). Return nil here so there is no initial
-// command before a vault is open.
+// entering stateMainView. Return nil here so there is no initial command
+// before a vault is open.
 func (m model) Init() tea.Cmd {
 	return nil
 }
@@ -312,7 +312,7 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-// updateOverlay delegates overlay key events to the correct handler (Plan 04).
+// updateOverlay delegates overlay key events to the correct handler.
 func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case stateOverlayAdd:
@@ -325,7 +325,7 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewOverlay delegates overlay rendering to the correct view (Plan 04).
+// viewOverlay delegates overlay rendering to the correct view.
 func (m model) viewOverlay() string {
 	switch m.state {
 	case stateOverlayAdd:

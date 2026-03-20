@@ -5,18 +5,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
-)
-
-// Compile-time anchor: ensure lipgloss and bubbles/textinput are imported.
-// These are used by the TUI model (Plan 02) and will be exercised by the tests
-// once the model type exists. The var block prevents "imported and not used" errors.
-var (
-	_ = lipgloss.NewStyle()
-	_ = textinput.New
 )
 
 // sendKey wraps model.Update with a tea.KeyMsg for readable test assertions.

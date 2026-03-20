@@ -90,18 +90,26 @@ func findWindowsBinary(name, fallback string) string {
 }
 
 // copyExecutable copies src to dst and sets the execute bit.
-func copyExecutable(src, dst string) error {
+func copyExecutable(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		if cerr := in.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if cerr := out.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	_, err = io.Copy(out, in)
 	return err
@@ -215,7 +223,7 @@ func (m *Manager) Close() {
 		m.cancelClear = nil
 	}
 	if m.tmpDir != "" {
-		os.RemoveAll(m.tmpDir)
+		_ = os.RemoveAll(m.tmpDir)
 		m.tmpDir = ""
 	}
 }
