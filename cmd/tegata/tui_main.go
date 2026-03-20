@@ -145,6 +145,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			m.errMsg = fmt.Sprintf("Invalid TOTP secret: %v", err)
 			return m, nil
 		}
+		defer zeroBytes(secret)
 		period := cred.Period
 		if period <= 0 {
 			period = 30
@@ -170,6 +171,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			m.errMsg = fmt.Sprintf("Invalid HOTP secret: %v", err)
 			return m, nil
 		}
+		defer zeroBytes(secret)
 		digits := cred.Digits
 		if digits <= 0 {
 			digits = 6
@@ -244,6 +246,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 		m.crChallengeInput.Reset()
 		return m, nil
 	}
+	defer zeroBytes(secret)
 
 	response, err := auth.SignChallenge(&cred, secret, challenge)
 	if err != nil {
@@ -349,6 +352,7 @@ func (m model) renderTOTPPanel(cred pkgmodel.Credential, width int) string {
 		remaining = 0
 	} else {
 		code, remaining = auth.GenerateTOTP(secret, m.now, period, digits, cred.Algorithm)
+		zeroBytes(secret)
 	}
 
 	barWidth := width - 10
