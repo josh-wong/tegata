@@ -1,4 +1,4 @@
-.PHONY: build test lint cross check-size clean
+.PHONY: build test lint cross check-size clean gui gui-dev
 
 BINARY_NAME := tegata
 BUILD_DIR := bin
@@ -28,6 +28,12 @@ check-size: build
 		exit 1; \
 	fi; \
 	echo "OK: Binary is under 20MB limit"
+
+gui:
+	cd cmd/tegata-gui && wails build -clean
+
+gui-dev:
+	cd cmd/tegata-gui && wails dev
 
 clean:
 	rm -rf $(BUILD_DIR)
