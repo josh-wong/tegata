@@ -2,6 +2,20 @@ import { useCallback, useMemo, useState } from "react"
 import { App } from "@/lib/wails"
 import type { Credential } from "@/lib/types"
 
+// Go serializes nil slices/empty strings as null. Normalize at the boundary.
+function normalizeCred(c: Credential): Credential {
+  return {
+    ...c,
+    tags: c.tags ?? [],
+    notes: c.notes ?? "",
+    issuer: c.issuer ?? "",
+    algorithm: c.algorithm ?? "SHA1",
+    digits: c.digits || 6,
+    period: c.period || 30,
+    counter: c.counter ?? 0,
+  }
+}
+
 export function useCredentials() {
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -10,7 +24,7 @@ export function useCredentials() {
   const refresh = useCallback(async () => {
     try {
       const list = await App.ListCredentials()
-      setCredentials(list ?? [])
+      setCredentials((list ?? []).map(normalizeCred))
     } catch {
       setCredentials([])
     }
@@ -22,7 +36,7 @@ export function useCredentials() {
     return credentials.filter(
       (c) =>
         c.label.toLowerCase().includes(q) ||
-        c.issuer.toLowerCase().includes(q),
+        (c.issuer ?? "").toLowerCase().includes(q),
     )
   }, [credentials, searchQuery])
 

@@ -51,9 +51,9 @@ export function DetailPanel({ credential }: DetailPanelProps) {
         )}
       </dl>
 
-      {credential.tags.length > 0 && (
+      {(credential.tags ?? []).length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1">
-          {credential.tags.map((tag) => (
+          {(credential.tags ?? []).map((tag) => (
             <Badge key={tag} variant="secondary">
               {tag}
             </Badge>

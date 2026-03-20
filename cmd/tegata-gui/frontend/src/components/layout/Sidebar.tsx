@@ -19,7 +19,8 @@ interface SidebarProps {
 function groupByTag(credentials: Credential[]) {
   const groups = new Map<string, Credential[]>()
   for (const cred of credentials) {
-    const tags = cred.tags.length > 0 ? cred.tags : ["[Untagged]"]
+    const t = cred.tags ?? []
+    const tags = t.length > 0 ? t : ["[Untagged]"]
     for (const tag of tags) {
       const list = groups.get(tag) ?? []
       list.push(cred)
@@ -49,7 +50,7 @@ export function Sidebar({
   const filtered = credentials.filter(
     (c) =>
       c.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.issuer.toLowerCase().includes(searchQuery.toLowerCase()),
+      (c.issuer ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const groups = groupByTag(filtered)

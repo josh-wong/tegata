@@ -29,9 +29,9 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
         {credential.issuer && (
           <p className="text-sm text-muted-foreground">{credential.issuer}</p>
         )}
-        {credential.tags.length > 0 && (
+        {(credential.tags ?? []).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {credential.tags.map((tag) => (
+            {(credential.tags ?? []).map((tag) => (
               <Badge key={tag} variant="secondary">{tag}</Badge>
             ))}
           </div>
@@ -64,16 +64,26 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
 
 function TOTPView({ credential }: { credential: Credential }) {
   const [totp, setTotp] = useState<TOTPResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   const fetchCode = useCallback(() => {
-    App.GenerateTOTP(credential.label).then(setTotp).catch(() => {})
+    setError(null)
+    App.GenerateTOTP(credential.label)
+      .then((result) => {
+        if (result) setTotp(result)
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : String(err))
+      })
   }, [credential.label])
 
   useEffect(() => {
+    setTotp(null)
     fetchCode()
   }, [fetchCode])
 
+  if (error) return <p className="text-sm text-destructive">{error}</p>
   if (!totp) return <Loader2 className="h-6 w-6 animate-spin text-primary" />
 
   return (
