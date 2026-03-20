@@ -72,6 +72,10 @@ func TestWizardStateMachine(t *testing.T) {
 	if m.state != stateWizardRecoveryKey {
 		t.Errorf("expected stateWizardRecoveryKey, got %v", m.state)
 	}
+	// Simulate async vault creation completing (the tea.Cmd is discarded by
+	// sendKey, so we deliver the result message directly).
+	updated, _ := m.Update(createVaultResultMsg{recoveryKey: "test-recovery-key"})
+	m = updated.(model)
 	m = sendKey(m, "enter") // advance from recovery_key → add_credential
 	if m.state != stateWizardAddCredential {
 		t.Errorf("expected stateWizardAddCredential, got %v", m.state)
@@ -92,6 +96,9 @@ func TestWizardSkipCredential(t *testing.T) {
 	m = sendKey(m, "enter")                    // move focus to confirm field
 	m = typeInto(m, "correct-horse-battery")   // type matching passphrase
 	m = sendKey(m, "enter")                    // passphrase → recovery_key
+	// Simulate async vault creation completing.
+	updated, _ := m.Update(createVaultResultMsg{recoveryKey: "test-recovery-key"})
+	m = updated.(model)
 	m = sendKey(m, "enter")                    // recovery_key → add_credential
 	if m.state != stateWizardAddCredential {
 		t.Fatalf("expected stateWizardAddCredential, got %v", m.state)
@@ -136,6 +143,28 @@ func TestWizardPassphraseMismatch(t *testing.T) {
 	}
 	if !m.passphraseInput.Focused() {
 		t.Error("expected focus to return to passphraseInput after mismatch")
+	}
+}
+
+// TestWizardRecoveryKeyBlocksDuringCreation asserts that Enter on the recovery
+// key screen is ignored while vault creation is still in progress.
+func TestWizardRecoveryKeyBlocksDuringCreation(t *testing.T) {
+	m := initialModel("")
+	m = sendKey(m, "enter")                  // welcome → passphrase
+	m = typeInto(m, "correct-horse-battery") // type passphrase
+	m = sendKey(m, "enter")                  // focus to confirm
+	m = typeInto(m, "correct-horse-battery") // matching confirm
+	m = sendKey(m, "enter")                  // passphrase → recovery_key (creating=true)
+	if m.state != stateWizardRecoveryKey {
+		t.Fatalf("expected stateWizardRecoveryKey, got %v", m.state)
+	}
+	if !m.creating {
+		t.Fatal("expected creating=true while vault creation is in progress")
+	}
+	// Enter should be blocked while creating is true.
+	m = sendKey(m, "enter")
+	if m.state != stateWizardRecoveryKey {
+		t.Errorf("expected stateWizardRecoveryKey (blocked), got %v", m.state)
 	}
 }
 

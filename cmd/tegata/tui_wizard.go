@@ -245,7 +245,10 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyEnter {
+		// Block Enter while vault creation is still in progress. The view
+		// hides the "[Enter]" hint during creation, but we must also guard
+		// the keypress itself so a fast user cannot advance with no vault.
+		if msg.Type == tea.KeyEnter && !m.creating {
 			m.state = stateWizardAddCredential
 		}
 	}
