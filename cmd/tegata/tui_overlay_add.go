@@ -180,8 +180,7 @@ func (m model) viewOverlayAdd() string {
 
 	content := strings.Join(lines, "\n")
 	overlay := overlayBoxStyle.Render(content)
-	bg := m.viewMainView()
-	return overlayOnBackground(bg, overlay, m.width, m.height)
+	return overlayOnBackground(overlay, m.width, m.height)
 }
 
 // updateOverlayRemove handles key events in stateOverlayRemove.
@@ -242,8 +241,7 @@ func (m model) viewOverlayRemove() string {
 
 	content := strings.Join(lines, "\n")
 	overlay := overlayBoxStyle.Render(content)
-	bg := m.viewMainView()
-	return overlayOnBackground(bg, overlay, m.width, m.height)
+	return overlayOnBackground(overlay, m.width, m.height)
 }
 
 // refreshCredList rebuilds the credential list from the vault manager,
@@ -276,8 +274,7 @@ func refreshCredList(m model, selectLabel ...string) model {
 	return m
 }
 
-// overlayOnBackground places an overlay box centered on top of the background.
-func overlayOnBackground(bg, overlay string, width, height int) string {
-	_ = bg // background is rendered behind; lipgloss.Place handles centering
+// overlayOnBackground places an overlay box centered on the screen.
+func overlayOnBackground(overlay string, width, height int) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, overlay)
 }

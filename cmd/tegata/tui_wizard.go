@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,23 +13,48 @@ import (
 )
 
 // createVaultResultMsg is returned by createVaultCmd when the async vault
-// creation goroutine completes.
+// creation goroutine completes. On success, mgr is a fully unlocked Manager
+// ready for credential operations.
 type createVaultResultMsg struct {
 	recoveryKey string
+	mgr         *vault.Manager
 	err         error
 }
 
-// createVaultCmd spawns an async tea.Cmd that calls vault.Create. The
-// Argon2id derivation inside Create blocks for ~1-3s, so it must run off
-// the event loop. The caller must zero the passphrase slice after this call.
+// createVaultCmd spawns an async tea.Cmd that creates, opens, and unlocks the
+// vault. Argon2id derivation inside Create+Unlock blocks for ~2-5s, so it must
+// run off the event loop. The passphrase slice is zeroed when done.
 func createVaultCmd(path string, passphrase []byte) tea.Cmd {
 	return func() tea.Msg {
 		recoveryKey, err := vault.Create(path, passphrase, crypto.DefaultParams)
-		// Zero the local copy of passphrase bytes passed to this closure.
+		if err != nil {
+			for i := range passphrase {
+				passphrase[i] = 0
+			}
+			return createVaultResultMsg{err: err}
+		}
+
+		// Open and unlock the newly created vault so the TUI has a working
+		// Manager immediately after the wizard completes.
+		mgr, err := vault.Open(path)
+		if err != nil {
+			for i := range passphrase {
+				passphrase[i] = 0
+			}
+			return createVaultResultMsg{recoveryKey: recoveryKey, err: fmt.Errorf("open after create: %w", err)}
+		}
+		if err := mgr.Unlock(passphrase); err != nil {
+			for i := range passphrase {
+				passphrase[i] = 0
+			}
+			mgr.Close()
+			return createVaultResultMsg{recoveryKey: recoveryKey, err: fmt.Errorf("unlock after create: %w", err)}
+		}
+
 		for i := range passphrase {
 			passphrase[i] = 0
 		}
-		return createVaultResultMsg{recoveryKey: recoveryKey, err: err}
+		return createVaultResultMsg{recoveryKey: recoveryKey, mgr: mgr}
 	}
 }
 
@@ -111,7 +137,9 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passphraseInput.Focus()
 			return m, nil
 		}
-		// Update the recovery key displayed on the recovery screen.
+		// Store the unlocked vault manager and recovery key.
+		m.vaultMgr = msg.mgr
+		m.vaultPath = m.vaultCreatePath()
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
@@ -147,11 +175,11 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Confirm field: validate that both values match and are non-empty.
+			// Confirm field: validate that both values match and meet minimum length.
 			pass := m.passphraseInput.Value()
 			confirm := m.confirmInput.Value()
-			if pass == "" {
-				m.errMsg = "Passphrase cannot be empty"
+			if len(pass) < 8 {
+				m.errMsg = "Passphrase must be at least 8 characters"
 				m.confirmInput.Blur()
 				m.passphraseInput.Focus()
 				return m, nil
@@ -226,6 +254,9 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passphraseInput.Focus()
 			return m, nil
 		}
+		// Store the unlocked vault manager and recovery key.
+		m.vaultMgr = msg.mgr
+		m.vaultPath = m.vaultCreatePath()
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
@@ -245,10 +276,16 @@ func (m model) updateWizardAddCredential(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc:
+			m = loadCredentials(m)
 			m.state = stateMainView
+			m.lastActivity = time.Now()
+			return m, tickCmd()
 		case tea.KeyEnter:
+			m = loadCredentials(m)
+			m.lastActivity = time.Now()
 			m.state = stateOverlayAdd
 			m.addLabelInput.Focus()
+			return m, tickCmd()
 		}
 	}
 	return m, nil

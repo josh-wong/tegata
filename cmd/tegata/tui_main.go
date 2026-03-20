@@ -185,22 +185,21 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			digits = 6
 		}
 		code := auth.GenerateHOTP(secret, cred.Counter, digits, cred.Algorithm)
+		// Advance counter before displaying so HOTP state stays correct
+		// regardless of clipboard outcome.
+		cred.Counter++
+		if m.vaultMgr != nil {
+			if err := m.vaultMgr.UpdateCredential(&cred); err != nil {
+				m.errMsg = fmt.Sprintf("Counter save failed: %v", err)
+				return m, nil
+			}
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
-				// Advance counter even on clipboard failure so HOTP state stays correct.
-				cred.Counter++
-				if m.vaultMgr != nil {
-					_ = m.vaultMgr.UpdateCredential(&cred)
-				}
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
 				m.errMsg = ""
 				return m, nil
 			}
-		}
-		// Advance counter and save.
-		cred.Counter++
-		if m.vaultMgr != nil {
-			_ = m.vaultMgr.UpdateCredential(&cred)
 		}
 		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""

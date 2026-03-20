@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -98,6 +99,23 @@ func TestWizardSkipCredential(t *testing.T) {
 	m = sendKey(m, "esc")
 	if m.state != stateMainView {
 		t.Errorf("expected stateMainView after Esc, got %v", m.state)
+	}
+}
+
+// TestWizardPassphraseTooShort asserts that a passphrase shorter than 8 characters
+// is rejected with an error message.
+func TestWizardPassphraseTooShort(t *testing.T) {
+	m := initialModel("")
+	m = sendKey(m, "enter")          // welcome → passphrase
+	m = typeInto(m, "short")         // 5 chars — below minimum
+	m = sendKey(m, "enter")          // focus to confirm
+	m = typeInto(m, "short")         // matching but too short
+	m = sendKey(m, "enter")          // should reject
+	if m.state != stateWizardPassphrase {
+		t.Errorf("expected stateWizardPassphrase after short passphrase, got %v", m.state)
+	}
+	if m.errMsg == "" {
+		t.Error("expected errMsg to be set after short passphrase")
 	}
 }
 
@@ -237,22 +255,8 @@ func TestOverlaySettings(t *testing.T) {
 	}
 	view := m.View()
 	for _, item := range []string{"Tag management", "Change passphrase", "Export", "Config settings"} {
-		if !containsString(view, item) {
+		if !strings.Contains(view, item) {
 			t.Errorf("expected settings overlay to contain %q", item)
 		}
 	}
-}
-
-// containsString is a helper used by TestOverlaySettings to check view output.
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
-}
-
-func containsSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }

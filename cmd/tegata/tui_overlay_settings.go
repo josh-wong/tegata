@@ -165,7 +165,15 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j'):
-			m.settingsTagIdx++
+			maxIdx := 0
+			if selected := m.credList.SelectedItem(); selected != nil {
+				if item, ok := selected.(credItem); ok && len(item.cred.Tags) > 0 {
+					maxIdx = len(item.cred.Tags) - 1
+				}
+			}
+			if m.settingsTagIdx < maxIdx {
+				m.settingsTagIdx++
+			}
 			return m, nil
 
 		case msg.Type == tea.KeyUp || (len(msg.Runes) == 1 && msg.Runes[0] == 'k'):
