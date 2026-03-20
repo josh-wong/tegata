@@ -24,22 +24,14 @@ type unlockResultMsg struct {
 // event loop. The caller must zero the passphrase slice after this call.
 func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 	return func() tea.Msg {
+		defer zeroBytes(passphrase)
 		mgr, err := vault.Open(path)
 		if err != nil {
-			for i := range passphrase {
-				passphrase[i] = 0
-			}
 			return unlockResultMsg{err: err}
 		}
 		if err := mgr.Unlock(passphrase); err != nil {
-			for i := range passphrase {
-				passphrase[i] = 0
-			}
 			mgr.Close()
 			return unlockResultMsg{err: err}
-		}
-		for i := range passphrase {
-			passphrase[i] = 0
 		}
 		return unlockResultMsg{mgr: mgr}
 	}

@@ -26,11 +26,9 @@ type createVaultResultMsg struct {
 // run off the event loop. The passphrase slice is zeroed when done.
 func createVaultCmd(path string, passphrase []byte) tea.Cmd {
 	return func() tea.Msg {
+		defer zeroBytes(passphrase)
 		recoveryKey, err := vault.Create(path, passphrase, crypto.DefaultParams)
 		if err != nil {
-			for i := range passphrase {
-				passphrase[i] = 0
-			}
 			return createVaultResultMsg{err: err}
 		}
 
@@ -38,22 +36,13 @@ func createVaultCmd(path string, passphrase []byte) tea.Cmd {
 		// Manager immediately after the wizard completes.
 		mgr, err := vault.Open(path)
 		if err != nil {
-			for i := range passphrase {
-				passphrase[i] = 0
-			}
 			return createVaultResultMsg{recoveryKey: recoveryKey, err: fmt.Errorf("open after create: %w", err)}
 		}
 		if err := mgr.Unlock(passphrase); err != nil {
-			for i := range passphrase {
-				passphrase[i] = 0
-			}
 			mgr.Close()
 			return createVaultResultMsg{recoveryKey: recoveryKey, err: fmt.Errorf("unlock after create: %w", err)}
 		}
 
-		for i := range passphrase {
-			passphrase[i] = 0
-		}
 		return createVaultResultMsg{recoveryKey: recoveryKey, mgr: mgr}
 	}
 }
