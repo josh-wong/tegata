@@ -224,6 +224,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.vaultMgr.Close()
 				m.vaultMgr = nil
 			}
+			// Clear messages that may contain sensitive fallback data
+			// (e.g., OTP codes shown when clipboard was unavailable).
+			m.statusMsg = ""
+			m.errMsg = ""
 			m.state = stateLockedIdle
 			return m, nil
 		}
