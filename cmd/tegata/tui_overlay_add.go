@@ -276,7 +276,9 @@ func refreshCredList(m model, selectLabel ...string) model {
 	m.credList.SetItems(items)
 	m.credList.Select(selectedIdx)
 	m.cursor = selectedIdx
-	if len(creds) > 0 {
+	if len(creds) == 1 {
+		m.credList.Title = "1 credential"
+	} else if len(creds) > 1 {
 		m.credList.Title = fmt.Sprintf("%d credentials", len(creds))
 	} else {
 		m.credList.Title = "No credentials"
