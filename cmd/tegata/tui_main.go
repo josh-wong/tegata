@@ -186,6 +186,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.errMsg = fmt.Sprintf("Counter save failed: %v", err)
 				return m, nil
 			}
+			m = refreshCredList(m, cred.Label)
 		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
