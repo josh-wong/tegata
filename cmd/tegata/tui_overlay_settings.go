@@ -660,7 +660,7 @@ func writeConfigFile(vaultPath string, cfg config.Config) error {
 	content := fmt.Sprintf("[clipboard]\ntimeout = %d\n\n[vault]\nidle_timeout = %d\n",
 		int(cfg.ClipboardTimeout.Seconds()),
 		int(cfg.IdleTimeout.Seconds()))
-	return os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644)
+	return os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0600)
 }
 
 // secondsDuration converts an integer number of seconds to a time.Duration.

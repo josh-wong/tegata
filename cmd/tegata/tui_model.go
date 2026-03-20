@@ -206,30 +206,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Global quit keys — only when not inside a text input field.
-		if !m.isInputFocused() {
-			switch msg.Type {
-			case tea.KeyCtrlC:
-				if m.clipMgr != nil {
-					m.clipMgr.Close()
-				}
-				if m.vaultMgr != nil {
-					m.vaultMgr.Close()
-					m.vaultMgr = nil
-				}
-				return m, tea.Quit
-			}
-			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
-				if m.state == stateMainView {
-					if m.clipMgr != nil {
-						m.clipMgr.Close()
-					}
-					if m.vaultMgr != nil {
-						m.vaultMgr.Close()
-						m.vaultMgr = nil
-					}
-					return m, tea.Quit
-				}
+		// Ctrl+C always quits, even during text input.
+		if msg.Type == tea.KeyCtrlC {
+			return m.quit()
+		}
+		// 'q' quits only from stateMainView and only when no text input is focused.
+		if !m.isInputFocused() && len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
+			if m.state == stateMainView {
+				return m.quit()
 			}
 		}
 
@@ -294,6 +278,18 @@ func (m model) View() string {
 	}
 
 	return fmt.Sprintf("[unknown state: %d]", m.state)
+}
+
+// quit cleanly closes all resources and returns tea.Quit.
+func (m model) quit() (tea.Model, tea.Cmd) {
+	if m.clipMgr != nil {
+		m.clipMgr.Close()
+	}
+	if m.vaultMgr != nil {
+		m.vaultMgr.Close()
+		m.vaultMgr = nil
+	}
+	return m, tea.Quit
 }
 
 // isInputFocused returns true when a text input sub-model currently has focus,

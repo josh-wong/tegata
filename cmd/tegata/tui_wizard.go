@@ -95,10 +95,7 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passphraseInput.Focus()
 			return m, m.spinner.Tick
 		case tea.KeyEsc:
-			if m.clipMgr != nil {
-				m.clipMgr.Close()
-			}
-			return m, tea.Quit
+			return m.quit()
 		}
 	}
 	return m, nil
@@ -151,10 +148,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.Type {
 		case tea.KeyEsc:
-			if m.clipMgr != nil {
-				m.clipMgr.Close()
-			}
-			return m, tea.Quit
+			return m.quit()
 
 		case tea.KeyTab, tea.KeyShiftTab:
 			// Cycle focus between the two passphrase fields.

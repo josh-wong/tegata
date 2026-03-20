@@ -122,14 +122,7 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'q':
-			if m.clipMgr != nil {
-				m.clipMgr.Close()
-			}
-			if m.vaultMgr != nil {
-				m.vaultMgr.Close()
-				m.vaultMgr = nil
-			}
-			return m, tea.Quit
+			return m.quit()
 		}
 	}
 

@@ -119,10 +119,7 @@ func (m model) updateUnlockScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.spinner.Tick, unlockVaultCmd(m.vaultPath, pp))
 
 		case tea.KeyEsc:
-			if m.clipMgr != nil {
-				m.clipMgr.Close()
-			}
-			return m, tea.Quit
+			return m.quit()
 		}
 
 		// Delegate typing to the passphrase input.
@@ -148,10 +145,7 @@ func (m model) updateLockedIdle(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passphraseInput.Focus()
 			return m, nil
 		case tea.KeyEsc:
-			if m.clipMgr != nil {
-				m.clipMgr.Close()
-			}
-			return m, tea.Quit
+			return m.quit()
 		}
 	}
 	return m, nil
