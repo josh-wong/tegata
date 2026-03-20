@@ -294,3 +294,26 @@ func TestOverlaySettings(t *testing.T) {
 		}
 	}
 }
+
+// TestQuitFromMainViewAfterUnlock asserts that pressing 'q' from stateMainView
+// produces a tea.Quit command. This verifies that the passphrase input is properly
+// blurred after unlock so it does not suppress the global quit binding.
+func TestQuitFromMainViewAfterUnlock(t *testing.T) {
+	m := initialModel("/path/to/vault.tegata")
+	// Simulate a successful unlock: passphraseInput was focused at startup,
+	// Reset() clears the value, and handleUnlockResult transitions to main view.
+	m.passphraseInput.Reset()
+	updated, _ := m.Update(unlockResultMsg{mgr: nil})
+	m = updated.(model)
+	if m.state != stateMainView {
+		t.Fatalf("expected stateMainView after unlock, got %v", m.state)
+	}
+	if m.passphraseInput.Focused() {
+		t.Fatal("expected passphraseInput to be blurred after unlock")
+	}
+	// 'q' should now trigger quit.
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Error("expected tea.Quit command from 'q' in stateMainView, got nil")
+	}
+}

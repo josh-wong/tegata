@@ -181,6 +181,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Zero and reset both inputs immediately.
 			m.passphraseInput.Reset()
+			m.passphraseInput.Blur()
 			m.confirmInput.Reset()
 			m.confirmInput.Blur()
 			m.errMsg = ""

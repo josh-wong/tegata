@@ -64,6 +64,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.vaultMgr = msg.mgr
+	m.passphraseInput.Blur()
 	m = loadCredentials(m)
 	m.state = stateMainView
 	m.errMsg = ""
