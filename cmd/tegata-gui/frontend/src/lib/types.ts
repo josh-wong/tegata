@@ -12,3 +12,21 @@ export interface Credential {
   tags: string[]
   notes: string
 }
+
+export type AppView = "loading" | "setup" | "unlock" | "main"
+
+export interface VaultLocation {
+  path: string
+  driveName: string
+}
+
+export interface TOTPResult {
+  Code: string
+  Remaining: number
+}
+
+export interface UpdateInfo {
+  Version: string
+  URL: string
+  Notes: string
+}
