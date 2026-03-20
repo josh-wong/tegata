@@ -21,7 +21,8 @@ For GUI development, you also need the following.
 - **Platform WebView dependencies:**
   - **Windows:** WebView2 runtime (included in Windows 10 1803+ and Windows 11)
   - **macOS:** WKWebView (built-in, no additional installation needed)
-  - **Linux:** `libwebkit2gtk-4.0-dev` (install via your package manager)
+  - **Linux (Ubuntu 22.04 and earlier):** `sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev`
+  - **Linux (Ubuntu 24.04+):** `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev`
 
 ### Clone and build
 
