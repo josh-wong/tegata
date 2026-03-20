@@ -102,8 +102,18 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Build credential from inputs.
+			// Validate base32 encoding for credential types that require it,
+			// matching the CLI add command's validation.
 			ct := credTypeNames[m.addTypeIdx]
+			switch ct.ctype {
+			case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialChallengeResponse:
+				if _, err := decodeBase32Secret(m.addSecretInput.Value()); err != nil {
+					m.errMsg = "Secret is not valid base32 — check for typos"
+					return m, nil
+				}
+			}
+
+			// Build credential from inputs.
 			cred := pkgmodel.Credential{
 				Label:     labelVal,
 				Issuer:    m.addIssuerInput.Value(),
