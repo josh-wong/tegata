@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/config"
@@ -27,7 +28,7 @@ func (m *model) resetSettingsOverlay() {
 	m.settingsSubFlow = ""
 	m.settingsInput1.Reset()
 	m.settingsInput1.Blur()
-	m.settingsInput1.EchoMode = 0 // EchoNormal
+	m.settingsInput1.EchoMode = textinput.EchoNormal
 	m.settingsInput2.Reset()
 	m.settingsInput2.Blur()
 	m.settingsMsg = ""
@@ -82,18 +83,18 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsTagIdx = 0
 				m.settingsInput1.Reset()
 				m.settingsInput1.Placeholder = "New tag"
-				m.settingsInput1.EchoMode = 0
+				m.settingsInput1.EchoMode = textinput.EchoNormal
 				m.settingsInput1.Blur()
 				m.settingsMsg = ""
 			case 1:
 				m.settingsSubFlow = "passphrase"
 				m.settingsInput1.Reset()
 				m.settingsInput1.Placeholder = "New passphrase"
-				m.settingsInput1.EchoMode = 2 // EchoPassword
+				m.settingsInput1.EchoMode = textinput.EchoPassword
 				m.settingsInput1.EchoCharacter = '·'
 				m.settingsInput2.Reset()
 				m.settingsInput2.Placeholder = "Confirm passphrase"
-				m.settingsInput2.EchoMode = 2 // EchoPassword
+				m.settingsInput2.EchoMode = textinput.EchoPassword
 				m.settingsInput2.EchoCharacter = '·'
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
@@ -103,10 +104,10 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsSubFlow = "export"
 				m.settingsInput1.Reset()
 				m.settingsInput1.Placeholder = "Export file path"
-				m.settingsInput1.EchoMode = 0
+				m.settingsInput1.EchoMode = textinput.EchoNormal
 				m.settingsInput2.Reset()
 				m.settingsInput2.Placeholder = "Export passphrase"
-				m.settingsInput2.EchoMode = 2
+				m.settingsInput2.EchoMode = textinput.EchoPassword
 				m.settingsInput2.EchoCharacter = '·'
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
@@ -319,10 +320,10 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsSubFlow = "import"
 			m.settingsInput1.Reset()
 			m.settingsInput1.Placeholder = "Import file path"
-			m.settingsInput1.EchoMode = 0
+			m.settingsInput1.EchoMode = textinput.EchoNormal
 			m.settingsInput2.Reset()
 			m.settingsInput2.Placeholder = "Import passphrase"
-			m.settingsInput2.EchoMode = 2
+			m.settingsInput2.EchoMode = textinput.EchoPassword
 			m.settingsInput2.EchoCharacter = '·'
 			m.settingsInput1.Focus()
 			m.settingsMsg = ""
@@ -500,7 +501,7 @@ func (m model) updateSettingsConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsEditMode = "clipboard"
 			m.settingsInput1.Reset()
 			m.settingsInput1.Placeholder = fmt.Sprintf("Seconds (current: %d)", int(m.cfg.ClipboardTimeout.Seconds()))
-			m.settingsInput1.EchoMode = 0
+			m.settingsInput1.EchoMode = textinput.EchoNormal
 			m.settingsInput1.Focus()
 			return m, nil
 
@@ -508,7 +509,7 @@ func (m model) updateSettingsConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsEditMode = "idle"
 			m.settingsInput1.Reset()
 			m.settingsInput1.Placeholder = fmt.Sprintf("Seconds (current: %d)", int(m.cfg.IdleTimeout.Seconds()))
-			m.settingsInput1.EchoMode = 0
+			m.settingsInput1.EchoMode = textinput.EchoNormal
 			m.settingsInput1.Focus()
 			return m, nil
 		}
