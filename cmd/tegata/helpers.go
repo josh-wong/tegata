@@ -218,11 +218,11 @@ func zeroBytes(b []byte) {
 
 // decodeBase32Secret decodes a base32-encoded OTP secret, tolerating spaces,
 // hyphens, lowercase, missing padding, any input length, and common digit
-// lookalikes (0→O, 1→L, 8→B, 9→P).
+// lookalikes (0→O, 1→L, 8→B).
 func decodeBase32Secret(secret string) ([]byte, error) {
 	s := strings.ToUpper(strings.NewReplacer(
 		" ", "", "-", "", "=", "",
-		"0", "O", "1", "L", "8", "B", "9", "P",
+		"0", "O", "1", "L", "8", "B",
 	).Replace(secret))
 
 	return base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(s)
