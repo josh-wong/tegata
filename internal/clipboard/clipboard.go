@@ -52,7 +52,7 @@ func newWSLClipboard() (*wslClipboard, error) {
 
 	clipSrc := findWindowsBinary("clip.exe", "/mnt/c/Windows/System32/clip.exe")
 	if clipSrc == "" {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		return nil, fmt.Errorf("clip.exe not found")
 	}
 
@@ -61,7 +61,7 @@ func newWSLClipboard() (*wslClipboard, error) {
 
 	clipDst := filepath.Join(tmpDir, "clip.exe")
 	if err := copyExecutable(clipSrc, clipDst); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		return nil, fmt.Errorf("copy clip.exe: %w", err)
 	}
 
