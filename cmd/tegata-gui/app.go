@@ -106,14 +106,23 @@ func resolveEnvVaultPath(path string) string {
 	return path
 }
 
-// CreateVault initializes a new encrypted vault at the given path. It returns
-// the hex-encoded recovery key display string.
+// CreateVault initializes a new encrypted vault at the given path. If the path
+// is a directory or does not end with "vault.tegata", the filename is appended
+// automatically. It returns the hex-encoded recovery key display string.
 func (a *App) CreateVault(path, passphrase string) (string, error) {
 	passBytes := []byte(passphrase)
 	defer zeroBytes(passBytes)
 
 	if len(passBytes) < 8 {
 		return "", fmt.Errorf("passphrase must be at least 8 characters")
+	}
+
+	path = ensureVaultFilename(path)
+
+	// Create parent directory if it doesn't exist.
+	dir := vaultDir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("creating directory: %w", err)
 	}
 
 	recoveryDisplay, err := vault.Create(path, passBytes, crypto.DefaultParams)
@@ -124,6 +133,18 @@ func (a *App) CreateVault(path, passphrase string) (string, error) {
 	return recoveryDisplay, nil
 }
 
+// ensureVaultFilename appends "vault.tegata" to the path if it doesn't already
+// end with that filename. Handles both directory paths and bare paths.
+func ensureVaultFilename(path string) string {
+	const filename = "vault.tegata"
+	if strings.HasSuffix(path, filename) {
+		return path
+	}
+	// Trim trailing separators.
+	path = strings.TrimRight(path, "/\\")
+	return path + string(os.PathSeparator) + filename
+}
+
 // UnlockVault opens and decrypts the vault at the given path with the
 // passphrase. It loads configuration from the vault directory and starts
 // the idle timer.
@@ -131,6 +152,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	passBytes := []byte(passphrase)
 	defer zeroBytes(passBytes)
 
+	path = ensureVaultFilename(path)
 	mgr, err := vault.Open(path)
 	if err != nil {
 		return fmt.Errorf("opening vault: %w", err)

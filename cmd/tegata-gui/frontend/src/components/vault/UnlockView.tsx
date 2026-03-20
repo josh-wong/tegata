@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react"
+import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
@@ -11,6 +12,7 @@ interface UnlockViewProps {
   loading: boolean
   onUnlock: (passphrase: string) => void
   onSelectVault: (path: string) => void
+  onBack: () => void
 }
 
 export function UnlockView({
@@ -20,6 +22,7 @@ export function UnlockView({
   loading,
   onUnlock,
   onSelectVault,
+  onBack,
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
 
@@ -35,6 +38,15 @@ export function UnlockView({
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </Button>
+
         <div className="text-center">
           <h1 className="text-2xl font-bold text-primary">Tegata</h1>
           <p className="mt-1 text-sm text-muted-foreground">

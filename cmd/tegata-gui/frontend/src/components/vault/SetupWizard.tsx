@@ -12,16 +12,18 @@ interface SetupWizardProps {
   loading: boolean
   error: string | null
   onCreateVault: (path: string, passphrase: string) => Promise<string>
+  onOpenExisting: (path: string) => void
   onComplete: () => void
 }
 
-type Step = 1 | 2 | 3 | 4 | 5
+type Step = 1 | 2 | 3 | 4 | 5 | 6
 
 export function SetupWizard({
   vaultLocations,
   loading,
   error,
   onCreateVault,
+  onOpenExisting,
   onComplete,
 }: SetupWizardProps) {
   const [step, setStep] = useState<Step>(1)
@@ -68,18 +70,20 @@ export function SetupWizard({
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2">
-          {([1, 2, 3, 4, 5] as const).map((s) => (
-            <div
-              key={s}
-              className={cn(
-                "h-2 w-2 rounded-full transition-colors",
-                s === step ? "bg-primary" : s < step ? "bg-primary/50" : "bg-muted",
-              )}
-            />
-          ))}
-        </div>
+        {/* Step indicator (only for create flow) */}
+        {step !== 6 && (
+          <div className="flex items-center justify-center gap-2">
+            {([1, 2, 3, 4, 5] as const).map((s) => (
+              <div
+                key={s}
+                className={cn(
+                  "h-2 w-2 rounded-full transition-colors",
+                  s === step ? "bg-primary" : s < step ? "bg-primary/50" : "bg-muted",
+                )}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Back button */}
         {step > 1 && step < 5 && (
@@ -107,7 +111,14 @@ export function SetupWizard({
               or folder of your choice.
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
-              Get started
+              Create new vault
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setStep(6 as Step)}
+            >
+              Open existing vault
             </Button>
           </div>
         )}
@@ -157,7 +168,7 @@ export function SetupWizard({
 
             {(selectedPath === "__custom__" || locations.length === 0) && (
               <Input
-                placeholder="/path/to/vault.tegata"
+                placeholder="C:\path\to\folder or vault.tegata"
                 value={customPath}
                 onChange={(e) => {
                   setCustomPath(e.target.value)
@@ -273,7 +284,7 @@ export function SetupWizard({
           </div>
         )}
 
-        {/* Step 5: Optional first credential */}
+        {/* Step 5: Vault created */}
         {step === 5 && (
           <div className="space-y-6 text-center">
             <div>
@@ -284,6 +295,42 @@ export function SetupWizard({
             </div>
 
             <Button className="w-full" onClick={onComplete}>
+              Open vault
+            </Button>
+          </div>
+        )}
+
+        {/* Step 6: Open existing vault */}
+        {step === 6 && (
+          <div className="space-y-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStep(1)}
+              className="gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+
+            <h2 className="text-lg font-semibold">Open existing vault</h2>
+            <p className="text-sm text-muted-foreground">
+              Enter the path to your vault file or the folder containing it.
+            </p>
+
+            <Input
+              placeholder="C:\path\to\vault.tegata"
+              value={customPath}
+              onChange={(e) => setCustomPath(e.target.value)}
+              autoFocus
+            />
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <Button
+              className="w-full"
+              disabled={!customPath}
+              onClick={() => onOpenExisting(customPath)}
+            >
               Open vault
             </Button>
           </div>

@@ -61,6 +61,10 @@ function App() {
         loading={vault.loading}
         error={vault.error}
         onCreateVault={vault.createVault}
+        onOpenExisting={(path) => {
+          vault.setVaultPath(path)
+          vault.setView("unlock")
+        }}
         onComplete={() => vault.setView("main")}
       />
     )
@@ -75,6 +79,7 @@ function App() {
         loading={vault.loading}
         onUnlock={vault.unlock}
         onSelectVault={vault.setVaultPath}
+        onBack={() => vault.setView("setup")}
       />
     )
   }
