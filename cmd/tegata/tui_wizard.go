@@ -250,6 +250,7 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// hides the "[Enter]" hint during creation, but we must also guard
 		// the keypress itself so a fast user cannot advance with no vault.
 		if msg.Type == tea.KeyEnter && !m.creating {
+			m.recoveryKey = ""
 			m.state = stateWizardAddCredential
 		}
 	}

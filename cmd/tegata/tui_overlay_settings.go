@@ -115,6 +115,8 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsSubFlow = "config"
 				m.settingsMsg = ""
 				m.settingsEditMode = ""
+				m.settingsInput1.Reset()
+				m.settingsInput1.Blur()
 			}
 			return m, nil
 		}
@@ -325,6 +327,7 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput2.Placeholder = "Import passphrase"
 			m.settingsInput2.EchoMode = textinput.EchoPassword
 			m.settingsInput2.EchoCharacter = '·'
+			m.settingsInput2.Blur()
 			m.settingsInput1.Focus()
 			m.settingsMsg = ""
 			return m, nil

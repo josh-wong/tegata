@@ -194,7 +194,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		// Sidebar is 28 wide; leave room for border/padding.
-		m.credList.SetSize(26, msg.Height-6)
+		listHeight := msg.Height - 6
+		if listHeight < 1 {
+			listHeight = 1
+		}
+		m.credList.SetSize(26, listHeight)
 		if msg.Width < 80 {
 			if m.state != stateTerminalTooNarrow {
 				m.prevState = m.state
@@ -219,7 +223,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.now = msg.t
-		if m.state == stateMainView && time.Since(m.lastActivity) >= m.idleTimeout {
+		idleLockable := m.state == stateMainView ||
+			m.state == stateOverlayAdd ||
+			m.state == stateOverlayRemove ||
+			m.state == stateOverlaySettings
+		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.vaultMgr != nil {
 				m.vaultMgr.Close()
 				m.vaultMgr = nil
@@ -228,6 +236,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// (e.g., OTP codes shown when clipboard was unavailable).
 			m.statusMsg = ""
 			m.errMsg = ""
+			// Reset overlay and challenge-response state so stale focus
+			// does not suppress keybindings after re-unlock.
+			m.resetAddOverlay()
+			m.resetSettingsOverlay()
+			m.crChallengeActive = false
+			m.crChallengeInput.Reset()
+			m.crChallengeInput.Blur()
 			m.state = stateLockedIdle
 			return m, nil
 		}
@@ -313,7 +328,12 @@ func tickCmd() tea.Cmd {
 }
 
 // updateOverlay delegates overlay key events to the correct handler.
+// Key events reset the idle timer so overlays don't trigger auto-lock
+// while the user is actively typing.
 func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(tea.KeyMsg); ok {
+		m.lastActivity = time.Now()
+	}
 	switch m.state {
 	case stateOverlayAdd:
 		return m.updateOverlayAdd(msg)

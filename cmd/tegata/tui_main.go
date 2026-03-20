@@ -92,6 +92,8 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.credList.Items())-1 {
 				m.cursor++
 			}
+			m.statusMsg = ""
+			m.errMsg = ""
 			var cmd tea.Cmd
 			m.credList, cmd = m.credList.Update(tea.KeyMsg{Type: tea.KeyDown})
 			return m, cmd
@@ -100,6 +102,8 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
+			m.statusMsg = ""
+			m.errMsg = ""
 			var cmd tea.Cmd
 			m.credList, cmd = m.credList.Update(tea.KeyMsg{Type: tea.KeyUp})
 			return m, cmd
@@ -161,8 +165,10 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.errMsg = ""
 				return m, nil
 			}
+			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+		} else {
+			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
 		}
-		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""
 
 	case pkgmodel.CredentialHOTP:
@@ -193,8 +199,10 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.errMsg = ""
 				return m, nil
 			}
+			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+		} else {
+			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
 		}
-		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""
 
 	case pkgmodel.CredentialStatic:
@@ -209,8 +217,10 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.errMsg = ""
 				return m, nil
 			}
+			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+		} else {
+			m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable)", password)
 		}
-		m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 		m.errMsg = ""
 
 	case pkgmodel.CredentialChallengeResponse:
