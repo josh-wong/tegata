@@ -26,7 +26,11 @@ Tegata (手形) were handprint-stamped travel passes carried by samurai and merc
 
 > *"Your authentication history. Integrity checked."*
 
-### 1.4 License
+### 1.4 Brand color
+
+Tegata's brand color is cinnabar (`#E34234`), a vermillion red historically associated with Japanese hanko seals and official stamps. It appears in the ASCII logo, CLI column headers, labels, and structural UI elements. The GUI carries cinnabar as the primary accent color for buttons, active states, and branding elements.
+
+### 1.5 License
 
 - **Tegata core:** Apache 2.0
 - **ScalarDL Ledger integration:** Apache 2.0 (Community Edition only; ScalarDL Auditor requires an enterprise license and is explicitly out of scope)

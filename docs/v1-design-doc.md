@@ -545,7 +545,7 @@ If no vault is found, Tegata prints a message suggesting `tegata init`.
 
 ### 5.4 Output conventions
 
-**Human-readable output (default):** Designed for terminal use with color support (respects `NO_COLOR` environment variable). TOTP codes include a countdown indicator. Lists use aligned columns.
+**Human-readable output (default):** Designed for terminal use with color support (respects `NO_COLOR` environment variable). TOTP codes include a countdown indicator. Lists use aligned columns. The brand color is cinnabar (`#E34234`), used for the ASCII logo, column headers, labels, and structural UI elements. Error messages use rose-red (`#F04368`), cool-shifted to remain visually distinct from cinnabar. The GUI carries cinnabar as the primary accent color.
 
 **JSON output (`--json` flag):** Machine-parseable output for scripting and integration. Every command produces a JSON object with at minimum `{ "status": "ok"|"error" }`.
 
