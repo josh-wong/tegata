@@ -203,8 +203,7 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = stateMainView
 			return m, nil
 
-		case msg.Type == tea.KeyEnter ||
-			(len(msg.Runes) == 1 && msg.Runes[0] == 'y'):
+		case len(msg.Runes) == 1 && msg.Runes[0] == 'y':
 			selected := m.credList.SelectedItem()
 			if selected == nil {
 				m.state = stateMainView

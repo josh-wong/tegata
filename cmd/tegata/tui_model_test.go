@@ -266,6 +266,11 @@ func TestOverlayRemove(t *testing.T) {
 	if cancel.state != stateMainView {
 		t.Errorf("expected stateMainView after 'n', got %v", cancel.state)
 	}
+	// Enter should NOT confirm removal (prevent accidental deletion).
+	enterAttempt := sendKey(m, "enter")
+	if enterAttempt.state != stateOverlayRemove {
+		t.Errorf("expected stateOverlayRemove after Enter (should not confirm), got %v", enterAttempt.state)
+	}
 	// 'y' should confirm removal and return to stateMainView.
 	confirmed := sendKey(m, "y")
 	if confirmed.state != stateMainView {
