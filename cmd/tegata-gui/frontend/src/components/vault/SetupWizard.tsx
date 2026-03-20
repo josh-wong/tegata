@@ -34,6 +34,7 @@ export function SetupWizard({
   const [copied, setCopied] = useState(false)
   const [validationError, setValidationError] = useState("")
 
+  const locations = vaultLocations ?? []
   const effectivePath = selectedPath === "__custom__" ? customPath : selectedPath
 
   async function handleCreate() {
@@ -117,12 +118,12 @@ export function SetupWizard({
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
               Select where to store your encrypted vault.
-              {vaultLocations.length === 0 &&
+              {locations.length === 0 &&
                 " No removable drives detected — enter a path below."}
             </p>
 
             <div className="space-y-2">
-              {vaultLocations.map((loc) => (
+              {locations.map((loc) => (
                 <button
                   key={loc.path}
                   onClick={() => setSelectedPath(loc.path)}
@@ -154,7 +155,7 @@ export function SetupWizard({
               </button>
             </div>
 
-            {(selectedPath === "__custom__" || vaultLocations.length === 0) && (
+            {(selectedPath === "__custom__" || locations.length === 0) && (
               <Input
                 placeholder="/path/to/vault.tegata"
                 value={customPath}
@@ -162,7 +163,7 @@ export function SetupWizard({
                   setCustomPath(e.target.value)
                   if (selectedPath !== "__custom__") setSelectedPath("__custom__")
                 }}
-                autoFocus={vaultLocations.length === 0}
+                autoFocus={locations.length === 0}
               />
             )}
 

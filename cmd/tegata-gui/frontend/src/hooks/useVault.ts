@@ -12,11 +12,12 @@ export function useVault() {
   useEffect(() => {
     App.ScanForVaults()
       .then((locations) => {
-        setVaultLocations(locations)
-        if (locations.length === 0) {
+        const locs = locations ?? []
+        setVaultLocations(locs)
+        if (locs.length === 0) {
           setView("setup")
         } else {
-          setVaultPath(locations[0].path)
+          setVaultPath(locs[0].path)
           setView("unlock")
         }
       })
