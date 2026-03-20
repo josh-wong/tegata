@@ -59,6 +59,7 @@ via ScalarDL Ledger.`,
 
 	rootCmd.AddCommand(
 		versionCmd,
+		newUICmd(),
 		newInitCmd(),
 		newAddCmd(),
 		newListCmd(),

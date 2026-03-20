@@ -217,17 +217,15 @@ func zeroBytes(b []byte) {
 }
 
 // decodeBase32Secret decodes a base32-encoded OTP secret, tolerating spaces,
-// hyphens, lowercase, and missing padding.
+// hyphens, lowercase, missing padding, any input length, and common digit
+// lookalikes (0→O, 1→L, 8→B).
 func decodeBase32Secret(secret string) ([]byte, error) {
-	// Strip spaces and hyphens that users or QR scanners may include.
-	s := strings.ToUpper(strings.NewReplacer(" ", "", "-", "", "=", "").Replace(secret))
+	s := strings.ToUpper(strings.NewReplacer(
+		" ", "", "-", "", "=", "",
+		"0", "O", "1", "L", "8", "B",
+	).Replace(secret))
 
-	// Add padding if needed. Base32 blocks are 8 chars.
-	if pad := len(s) % 8; pad != 0 {
-		s += strings.Repeat("=", 8-pad)
-	}
-
-	return base32.StdEncoding.DecodeString(s)
+	return base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(s)
 }
 
 // newEventBuilder constructs an EventBuilder from config and the vault passphrase.

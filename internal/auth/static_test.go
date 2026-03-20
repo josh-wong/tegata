@@ -16,7 +16,7 @@ func TestGetStaticPassword_Valid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if pw != "my-super-secret-password" {
+	if string(pw) != "my-super-secret-password" {
 		t.Errorf("got %q, want %q", pw, "my-super-secret-password")
 	}
 }

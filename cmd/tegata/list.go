@@ -5,7 +5,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/josh-wong/tegata/pkg/model"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
 )
 
@@ -73,8 +73,8 @@ func newListCmd() *cobra.Command {
 			// Default grouped output: credentials appear under each tag they
 			// belong to. Credentials with no tags appear under [untagged].
 			// Collect tag set and sort for deterministic output.
-			tagSet := map[string][]model.Credential{}
-			var untagged []model.Credential
+			tagSet := map[string][]pkgmodel.Credential{}
+			var untagged []pkgmodel.Credential
 			for _, c := range creds {
 				if len(c.Tags) == 0 {
 					untagged = append(untagged, c)

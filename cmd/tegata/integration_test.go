@@ -16,7 +16,7 @@ import (
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/josh-wong/tegata/internal/vault"
-	"github.com/josh-wong/tegata/pkg/model"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
 // testParams uses minimal Argon2id settings for fast tests.
@@ -53,10 +53,10 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 	}
 
 	// Add TOTP credential.
-	totp := model.Credential{
+	totp := pkgmodel.Credential{
 		Label:     "GitHub",
 		Issuer:    "GitHub",
-		Type:      model.CredentialTOTP,
+		Type:      pkgmodel.CredentialTOTP,
 		Algorithm: "SHA1",
 		Digits:    6,
 		Period:    30,
@@ -68,10 +68,10 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 	}
 
 	// Add HOTP credential.
-	hotp := model.Credential{
+	hotp := pkgmodel.Credential{
 		Label:     "AWS",
 		Issuer:    "Amazon",
-		Type:      model.CredentialHOTP,
+		Type:      pkgmodel.CredentialHOTP,
 		Algorithm: "SHA1",
 		Digits:    6,
 		Counter:   0,
@@ -83,9 +83,9 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 	}
 
 	// Add static credential.
-	static := model.Credential{
+	static := pkgmodel.Credential{
 		Label:  "backup-key",
-		Type:   model.CredentialStatic,
+		Type:   pkgmodel.CredentialStatic,
 		Secret: "my-static-password-123",
 	}
 	_, err = mgr.AddCredential(static)
@@ -126,7 +126,7 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetStaticPassword: %v", err)
 	}
-	if password != "my-static-password-123" {
+	if string(password) != "my-static-password-123" {
 		t.Errorf("static password: got %q, want %q", password, "my-static-password-123")
 	}
 
@@ -200,9 +200,9 @@ func TestIntegration_RecoveryKey(t *testing.T) {
 	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
 		t.Fatalf("Unlock: %v", err)
 	}
-	_, err = mgr.AddCredential(model.Credential{
+	_, err = mgr.AddCredential(pkgmodel.Credential{
 		Label:  "TestService",
-		Type:   model.CredentialTOTP,
+		Type:   pkgmodel.CredentialTOTP,
 		Secret: "JBSWY3DPEHPK3PXP",
 	})
 	if err != nil {
@@ -241,7 +241,7 @@ func TestIntegration_OTPAuthParsing(t *testing.T) {
 		uri       string
 		label     string
 		issuer    string
-		credType  model.CredentialType
+		credType  pkgmodel.CredentialType
 		digits    int
 		period    int
 		algorithm string
@@ -250,7 +250,7 @@ func TestIntegration_OTPAuthParsing(t *testing.T) {
 			uri:       "otpauth://totp/GitHub:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&digits=6&period=30",
 			label:     "user@example.com",
 			issuer:    "GitHub",
-			credType:  model.CredentialTOTP,
+			credType:  pkgmodel.CredentialTOTP,
 			digits:    6,
 			period:    30,
 			algorithm: "SHA1",
@@ -259,7 +259,7 @@ func TestIntegration_OTPAuthParsing(t *testing.T) {
 			uri:       "otpauth://hotp/AWS:admin?secret=GEZDGNBVGY3TQOJQ&issuer=AWS&counter=42",
 			label:     "admin",
 			issuer:    "AWS",
-			credType:  model.CredentialHOTP,
+			credType:  pkgmodel.CredentialHOTP,
 			digits:    6,
 			period:    0,
 			algorithm: "SHA1",
@@ -283,7 +283,7 @@ func TestIntegration_OTPAuthParsing(t *testing.T) {
 		}
 
 		// Verify we can generate codes from parsed credentials.
-		if cred.Type == model.CredentialTOTP {
+		if cred.Type == pkgmodel.CredentialTOTP {
 			secret, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(
 				strings.ToUpper(cred.Secret))
 			code, _ := auth.GenerateTOTP(secret, time.Now(), cred.Period, cred.Digits, cred.Algorithm)
@@ -306,9 +306,9 @@ func TestIntegration_HOTPCounterPersistence(t *testing.T) {
 		t.Fatalf("Unlock: %v", err)
 	}
 
-	hotp := model.Credential{
+	hotp := pkgmodel.Credential{
 		Label:     "HOTPService",
-		Type:      model.CredentialHOTP,
+		Type:      pkgmodel.CredentialHOTP,
 		Algorithm: "SHA1",
 		Digits:    6,
 		Counter:   0,
@@ -391,9 +391,9 @@ func TestIntegration_Sign(t *testing.T) {
 	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
 		t.Fatalf("Unlock: %v", err)
 	}
-	cr := model.Credential{
+	cr := pkgmodel.Credential{
 		Label:     "mykey",
-		Type:      model.CredentialChallengeResponse,
+		Type:      pkgmodel.CredentialChallengeResponse,
 		Algorithm: "SHA1",
 		Secret:    "JBSWY3DPEHPK3PXP",
 	}
@@ -451,10 +451,10 @@ func TestIntegration_Export(t *testing.T) {
 		t.Fatalf("Unlock source vault: %v", err)
 	}
 
-	for _, c := range []model.Credential{
-		{Label: "export-svc-a", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
-		{Label: "export-svc-b", Type: model.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
-		{Label: "export-svc-c", Type: model.CredentialStatic, Secret: "staticpass"},
+	for _, c := range []pkgmodel.Credential{
+		{Label: "export-svc-a", Type: pkgmodel.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP"},
+		{Label: "export-svc-b", Type: pkgmodel.CredentialHOTP, Secret: "GEZDGNBVGY3TQOJQ"},
+		{Label: "export-svc-c", Type: pkgmodel.CredentialStatic, Secret: "staticpass"},
 	} {
 		if _, err := mgr.AddCredential(c); err != nil {
 			t.Fatalf("AddCredential %q: %v", c.Label, err)
@@ -538,11 +538,11 @@ func TestIntegration_TagFilter(t *testing.T) {
 		t.Fatalf("Unlock: %v", err)
 	}
 
-	credentials := []model.Credential{
-		{Label: "github", Issuer: "GitHub", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
-		{Label: "jira", Issuer: "Atlassian", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
-		{Label: "gmail", Issuer: "Google", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"personal"}},
-		{Label: "backup-key", Type: model.CredentialStatic, Secret: "staticpass123"},
+	credentials := []pkgmodel.Credential{
+		{Label: "github", Issuer: "GitHub", Type: pkgmodel.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "jira", Issuer: "Atlassian", Type: pkgmodel.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"work"}},
+		{Label: "gmail", Issuer: "Google", Type: pkgmodel.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP", Tags: []string{"personal"}},
+		{Label: "backup-key", Type: pkgmodel.CredentialStatic, Secret: "staticpass123"},
 	}
 	for _, c := range credentials {
 		if _, err := mgr.AddCredential(c); err != nil {
@@ -567,7 +567,7 @@ func TestIntegration_TagFilter(t *testing.T) {
 	}
 
 	// Simulate the tag filter: collect credentials matching "work".
-	var workCreds []model.Credential
+	var workCreds []pkgmodel.Credential
 	for _, c := range all {
 		for _, tag := range c.Tags {
 			if tag == "work" {
@@ -593,7 +593,7 @@ func TestIntegration_TagFilter(t *testing.T) {
 	}
 
 	// Verify case-sensitivity: "Work" should not match "work".
-	var caseMismatch []model.Credential
+	var caseMismatch []pkgmodel.Credential
 	for _, c := range all {
 		for _, tag := range c.Tags {
 			if tag == "Work" {
@@ -618,9 +618,9 @@ func TestIntegration_ChangePassphrase(t *testing.T) {
 	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
 		t.Fatalf("Unlock: %v", err)
 	}
-	if _, err := mgr.AddCredential(model.Credential{
+	if _, err := mgr.AddCredential(pkgmodel.Credential{
 		Label:  "test-service",
-		Type:   model.CredentialTOTP,
+		Type:   pkgmodel.CredentialTOTP,
 		Secret: "JBSWY3DPEHPK3PXP",
 	}); err != nil {
 		t.Fatalf("AddCredential: %v", err)
@@ -681,7 +681,7 @@ func TestDecodeBase32Secret(t *testing.T) {
 
 	invalid := []string{
 		"not-base32!!!",
-		"AAAA1111", // digit 1 is not in the base32 alphabet
+		"AAAA!!!!", // punctuation is not in the base32 alphabet
 		"@#$%",
 	}
 	for _, input := range invalid {
@@ -732,10 +732,10 @@ func TestIntegration_AuditWiring(t *testing.T) {
 	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
 		t.Fatalf("Unlock: %v", err)
 	}
-	if _, err := mgr.AddCredential(model.Credential{
+	if _, err := mgr.AddCredential(pkgmodel.Credential{
 		Label:     "github",
 		Issuer:    "GitHub",
-		Type:      model.CredentialTOTP,
+		Type:      pkgmodel.CredentialTOTP,
 		Algorithm: "SHA1",
 		Digits:    6,
 		Period:    30,
