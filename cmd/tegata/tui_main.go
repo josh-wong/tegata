@@ -120,9 +120,6 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case len(msg.Runes) == 1 && msg.Runes[0] == 's':
 			m.state = stateOverlaySettings
 			return m, nil
-
-		case len(msg.Runes) == 1 && msg.Runes[0] == 'q':
-			return m.quit()
 		}
 	}
 
