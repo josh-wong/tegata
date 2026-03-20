@@ -117,6 +117,8 @@ export function SetupWizard({
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
               Select where to store your encrypted vault.
+              {vaultLocations.length === 0 &&
+                " No removable drives detected — enter a path below."}
             </p>
 
             <div className="space-y-2">
@@ -145,15 +147,22 @@ export function SetupWizard({
                     : "border-border hover:border-primary/50",
                 )}
               >
-                <div className="font-medium">Choose a folder...</div>
+                <div className="font-medium">Enter a custom path</div>
+                <div className="text-xs text-muted-foreground">
+                  Specify the full path for your vault file
+                </div>
               </button>
             </div>
 
-            {selectedPath === "__custom__" && (
+            {(selectedPath === "__custom__" || vaultLocations.length === 0) && (
               <Input
                 placeholder="/path/to/vault.tegata"
                 value={customPath}
-                onChange={(e) => setCustomPath(e.target.value)}
+                onChange={(e) => {
+                  setCustomPath(e.target.value)
+                  if (selectedPath !== "__custom__") setSelectedPath("__custom__")
+                }}
+                autoFocus={vaultLocations.length === 0}
               />
             )}
 
