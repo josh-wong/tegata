@@ -254,6 +254,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 		m.errMsg = fmt.Sprintf("Invalid CR secret: %v", err)
 		m.crChallengeActive = false
 		m.crChallengeInput.Reset()
+		m.crChallengeInput.Blur()
 		return m, nil
 	}
 	defer zeroBytes(secret)
@@ -263,6 +264,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 		m.errMsg = fmt.Sprintf("Sign error: %v", err)
 		m.crChallengeActive = false
 		m.crChallengeInput.Reset()
+		m.crChallengeInput.Blur()
 		return m, nil
 	}
 
@@ -275,8 +277,10 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 			m.crChallengeInput.Blur()
 			return m, nil
 		}
+		m.statusMsg = fmt.Sprintf("Signed response copied (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+	} else {
+		m.statusMsg = fmt.Sprintf("Response: %s  (clipboard unavailable)", response)
 	}
-	m.statusMsg = fmt.Sprintf("Signed response copied (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
 	m.errMsg = ""
 	m.crChallengeActive = false
 	m.crChallengeInput.Reset()

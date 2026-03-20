@@ -223,10 +223,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.now = msg.t
-		idleLockable := m.state == stateMainView ||
-			m.state == stateOverlayAdd ||
-			m.state == stateOverlayRemove ||
-			m.state == stateOverlaySettings
+		// Determine whether the effective state (accounting for narrow
+		// terminal overlay) is one where idle auto-lock should apply.
+		effectiveState := m.state
+		if effectiveState == stateTerminalTooNarrow {
+			effectiveState = m.prevState
+		}
+		idleLockable := effectiveState == stateMainView ||
+			effectiveState == stateOverlayAdd ||
+			effectiveState == stateOverlayRemove ||
+			effectiveState == stateOverlaySettings
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.vaultMgr != nil {
 				m.vaultMgr.Close()
@@ -244,6 +250,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.crChallengeInput.Reset()
 			m.crChallengeInput.Blur()
 			m.state = stateLockedIdle
+			m.prevState = stateLockedIdle
 			return m, nil
 		}
 		return m, tickCmd()

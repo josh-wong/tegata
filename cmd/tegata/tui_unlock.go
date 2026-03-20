@@ -67,6 +67,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	m.passphraseInput.Blur()
 	m = loadCredentials(m)
 	m.state = stateMainView
+	m.prevState = stateMainView
 	m.errMsg = ""
 	m.lastActivity = time.Now()
 	return m, tickCmd()
