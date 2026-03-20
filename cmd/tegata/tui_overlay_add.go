@@ -66,6 +66,11 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusAddInput()
 			return m, nil
 
+		case msg.Type == tea.KeyShiftTab:
+			m.addFocusIdx = (m.addFocusIdx + 2) % 3
+			m.focusAddInput()
+			return m, nil
+
 		case len(msg.Runes) == 1 && msg.Runes[0] >= '1' && msg.Runes[0] <= '4':
 			if !m.addLabelInput.Focused() && !m.addIssuerInput.Focused() && !m.addSecretInput.Focused() {
 				m.addTypeIdx = int(msg.Runes[0]-'1')
@@ -186,7 +191,7 @@ func (m model) viewOverlayAdd() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[Tab] Next field  [Enter] Save  [Esc] Cancel"))
+	lines = append(lines, helpBarStyle.Render("[Tab/Shift+Tab] Navigate  [Enter] Save  [Esc] Cancel"))
 
 	content := strings.Join(lines, "\n")
 	overlay := overlayBoxStyle.Render(content)

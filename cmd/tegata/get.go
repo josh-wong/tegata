@@ -57,6 +57,7 @@ func newGetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			defer zeroBytes(password)
 
 			// Emit audit event after successful static password retrieval.
 			if builder != nil {
@@ -67,7 +68,7 @@ func newGetCmd() *cobra.Command {
 
 			cm := clipboard.NewManager()
 			defer cm.Close()
-			if err := cm.CopyWithAutoClear(password, cfg.ClipboardTimeout); err != nil {
+			if err := cm.CopyWithAutoClear(string(password), cfg.ClipboardTimeout); err != nil {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: clipboard copy failed: %v\n", err)
 			} else {
 				fmt.Printf("Copied to clipboard (auto-clear in %ds)\n",

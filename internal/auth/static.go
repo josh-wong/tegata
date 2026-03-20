@@ -7,11 +7,12 @@ import (
 	"github.com/josh-wong/tegata/pkg/model"
 )
 
-// GetStaticPassword returns the secret for a static credential. It returns
+// GetStaticPassword returns a zeroable copy of the secret for a static
+// credential. Callers must zero the returned slice after use. It returns
 // ErrInvalidInput if the credential is not of type static.
-func GetStaticPassword(cred *model.Credential) (string, error) {
+func GetStaticPassword(cred *model.Credential) ([]byte, error) {
 	if cred.Type != model.CredentialStatic {
-		return "", fmt.Errorf("credential %q is type %s, not static: %w", cred.Label, cred.Type, errors.ErrInvalidInput)
+		return nil, fmt.Errorf("credential %q is type %s, not static: %w", cred.Label, cred.Type, errors.ErrInvalidInput)
 	}
-	return cred.Secret, nil
+	return []byte(cred.Secret), nil
 }

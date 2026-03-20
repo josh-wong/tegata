@@ -211,8 +211,9 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			m.errMsg = fmt.Sprintf("Error: %v", err)
 			return m, nil
 		}
+		defer zeroBytes(password)
 		if m.clipMgr != nil {
-			if err := m.clipMgr.CopyWithAutoClear(password, m.cfg.ClipboardTimeout); err != nil {
+			if err := m.clipMgr.CopyWithAutoClear(string(password), m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable — select to copy)", password)
 				m.errMsg = ""
 				return m, nil

@@ -126,7 +126,7 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetStaticPassword: %v", err)
 	}
-	if password != "my-static-password-123" {
+	if string(password) != "my-static-password-123" {
 		t.Errorf("static password: got %q, want %q", password, "my-static-password-123")
 	}
 
