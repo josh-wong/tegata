@@ -1,3 +1,4 @@
+import { useCallback } from "react"
 import { Moon, Settings, Sun, Monitor } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -7,12 +8,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/hooks/useTheme"
+import { UpdateBadge } from "@/components/settings/UpdateBadge"
+import type { UpdateInfo } from "@/lib/types"
 
 interface HeaderProps {
   onSettingsClick: () => void
+  onUpdateFound: (info: UpdateInfo) => void
 }
 
-export function Header({ onSettingsClick }: HeaderProps) {
+export function Header({ onSettingsClick, onUpdateFound }: HeaderProps) {
+  const stableOnUpdateFound = useCallback(onUpdateFound, [onUpdateFound])
   const { theme, setTheme } = useTheme()
 
   const themeIcon =
@@ -52,14 +57,17 @@ export function Header({ onSettingsClick }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onSettingsClick}
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onSettingsClick}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <UpdateBadge onUpdateFound={stableOnUpdateFound} />
+        </div>
       </div>
     </header>
   )

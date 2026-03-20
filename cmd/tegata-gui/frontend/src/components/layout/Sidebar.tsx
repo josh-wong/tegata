@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { ChevronRight, Search } from "lucide-react"
+import { ChevronRight, Plus, Search } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +13,7 @@ interface SidebarProps {
   onSelect: (id: string) => void
   searchQuery: string
   onSearchChange: (q: string) => void
+  onAddClick: () => void
 }
 
 function groupByTag(credentials: Credential[]) {
@@ -40,6 +42,7 @@ export function Sidebar({
   onSelect,
   searchQuery,
   onSearchChange,
+  onAddClick,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
@@ -66,14 +69,19 @@ export function Sidebar({
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-sidebar">
       <div className="p-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search credentials..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-8"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search credentials..."
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onAddClick}>
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
