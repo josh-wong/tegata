@@ -1,0 +1,18 @@
+name: tegata-gui
+arch: amd64
+platform: linux
+version: "${VERSION}"
+section: utils
+priority: optional
+maintainer: "Josh Wong"
+description: "Tegata desktop GUI - Portable encrypted authenticator"
+vendor: "josh-wong"
+homepage: "https://github.com/josh-wong/tegata"
+license: "Apache-2.0"
+contents:
+  - src: ./build/bin/tegata-gui
+    dst: /usr/bin/tegata-gui
+  - src: ./build/appicon.png
+    dst: /usr/share/icons/hicolor/512x512/apps/tegata-gui.png
+  - src: ./tegata-gui.desktop
+    dst: /usr/share/applications/tegata-gui.desktop
