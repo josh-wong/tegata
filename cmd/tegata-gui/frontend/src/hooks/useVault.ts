@@ -67,6 +67,9 @@ export function useVault() {
       try {
         const recoveryKey = await App.CreateVault(path, passphrase)
         setVaultPath(path)
+        // Unlock immediately using the path parameter directly,
+        // not vaultPath state which hasn't flushed yet.
+        await App.UnlockVault(path, passphrase)
         return recoveryKey
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create vault")

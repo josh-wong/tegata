@@ -60,11 +60,7 @@ function App() {
         vaultLocations={vault.vaultLocations}
         loading={vault.loading}
         error={vault.error}
-        onCreateVault={async (path, passphrase) => {
-          const key = await vault.createVault(path, passphrase)
-          await vault.unlock(passphrase)
-          return key
-        }}
+        onCreateVault={vault.createVault}
         onComplete={() => vault.setView("main")}
       />
     )
