@@ -126,13 +126,22 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
               <div className="space-y-1.5">
                 <Input
                   type="password"
-                  placeholder={credType === "static" ? "Password (required)" : "Secret (required)"}
+                  placeholder={
+                    credType === "static" ? "Password (required)" :
+                    credType === "cr" ? "Shared secret key (required)" :
+                    "Secret (required)"
+                  }
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                 />
                 {credType === "static" && (
                   <p className="text-xs text-muted-foreground">
                     This is the password that will be stored and copied to your clipboard when you use this credential.
+                  </p>
+                )}
+                {credType === "cr" && (
+                  <p className="text-xs text-muted-foreground">
+                    The shared secret used to compute HMAC signatures. Can be plain text or a base32-encoded key.
                   </p>
                 )}
               </div>

@@ -387,9 +387,11 @@ func (a *App) SignChallenge(label, challenge string) (string, error) {
 		return "", err
 	}
 
+	// Try base32 first (standard for OTP secrets), fall back to raw bytes
+	// for challenge-response since users may enter plain text shared keys.
 	secret, err := decodeBase32Secret(cred.Secret)
 	if err != nil {
-		return "", fmt.Errorf("decoding secret: %w", err)
+		secret = []byte(cred.Secret)
 	}
 	defer zeroBytes(secret)
 
