@@ -1,15 +1,16 @@
 import { useCallback } from "react"
-import { Settings } from "lucide-react"
+import { FolderSync, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UpdateBadge } from "@/components/settings/UpdateBadge"
 import type { UpdateInfo } from "@/lib/types"
 
 interface HeaderProps {
   onSettingsClick: () => void
+  onSwitchVault: () => void
   onUpdateFound: (info: UpdateInfo) => void
 }
 
-export function Header({ onSettingsClick, onUpdateFound }: HeaderProps) {
+export function Header({ onSettingsClick, onSwitchVault, onUpdateFound }: HeaderProps) {
   const stableOnUpdateFound = useCallback(onUpdateFound, [onUpdateFound])
 
   return (
@@ -18,16 +19,27 @@ export function Header({ onSettingsClick, onUpdateFound }: HeaderProps) {
         Tegata
       </h1>
 
-      <div className="relative">
+      <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={onSettingsClick}
+          onClick={onSwitchVault}
         >
-          <Settings className="h-4 w-4" />
+          <FolderSync className="h-4 w-4" />
         </Button>
-        <UpdateBadge onUpdateFound={stableOnUpdateFound} />
+
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onSettingsClick}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <UpdateBadge onUpdateFound={stableOnUpdateFound} />
+        </div>
       </div>
     </header>
   )

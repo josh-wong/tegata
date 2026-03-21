@@ -91,6 +91,10 @@ function App() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
+        onSwitchVault={() => {
+          setSetupStep(1)
+          vault.lock()
+        }}
         onUpdateFound={setUpdateInfo}
       />
       <div className="flex flex-1 overflow-hidden">
