@@ -81,8 +81,8 @@ export function SetupWizard({
               <div
                 key={s}
                 className={cn(
-                  "h-2 w-2 rounded-full transition-colors",
-                  s === step ? "bg-primary" : s < step ? "bg-primary/50" : "bg-muted",
+                  "h-2.5 w-2.5 rounded-full transition-colors",
+                  s === step ? "bg-primary" : s < step ? "bg-primary/50" : "bg-border ring-1 ring-muted-foreground/25",
                 )}
               />
             ))}
