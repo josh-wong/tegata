@@ -499,15 +499,32 @@ func (a *App) ImportVaultFromFile(path, importPassphrase string) (*ImportResult,
 	return &ImportResult{Imported: imported, Skipped: skipped, Path: path}, nil
 }
 
-// ChangePassphrase changes the vault passphrase.
+// ChangePassphrase verifies the current passphrase and changes it to a new one.
 func (a *App) ChangePassphrase(current, newPass string) error {
 	if a.vault == nil {
 		return fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
 
+	currentBytes := []byte(current)
+	defer zeroBytes(currentBytes)
 	newBytes := []byte(newPass)
 	defer zeroBytes(newBytes)
+
+	if len(newBytes) < 8 {
+		return fmt.Errorf("new passphrase must be at least 8 characters")
+	}
+
+	// Verify current passphrase by opening a temporary vault instance.
+	verifier, err := vault.Open(a.vaultPath)
+	if err != nil {
+		return fmt.Errorf("verifying current passphrase: %w", err)
+	}
+	if err := verifier.Unlock(currentBytes); err != nil {
+		verifier.Close()
+		return fmt.Errorf("current passphrase is incorrect")
+	}
+	verifier.Close()
 
 	return a.vault.ChangePassphrase(newBytes)
 }
