@@ -63,7 +63,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add credential")
+      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to add credential")
     } finally {
       setLoading(false)
     }
@@ -83,7 +83,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add credential")
+      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to add credential")
     } finally {
       setLoading(false)
     }
