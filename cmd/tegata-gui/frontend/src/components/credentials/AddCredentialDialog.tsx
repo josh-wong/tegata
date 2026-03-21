@@ -45,10 +45,24 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     setError("")
   }
 
+  function isValidBase32(s: string): boolean {
+    const cleaned = s
+      .toUpperCase()
+      .replace(/[\s\-=]/g, "")
+      .replace(/0/g, "O")
+      .replace(/1/g, "L")
+      .replace(/8/g, "B")
+    return /^[A-Z2-7]*$/.test(cleaned)
+  }
+
   async function handleManualSubmit(e: FormEvent) {
     e.preventDefault()
     if (!label || !secret) {
       setError("Label and secret are required")
+      return
+    }
+    if ((credType === "totp" || credType === "hotp") && !isValidBase32(secret)) {
+      setError("Secret contains invalid characters — TOTP and HOTP secrets use A-Z and 2-7 only (0, 1, and 8 are also accepted as lookalikes)")
       return
     }
     setLoading(true)

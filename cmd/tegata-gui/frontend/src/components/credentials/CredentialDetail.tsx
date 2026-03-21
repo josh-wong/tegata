@@ -109,19 +109,22 @@ function TOTPView({ credential }: { credential: Credential }) {
 
 function HOTPView({ credential }: { credential: Credential }) {
   const [code, setCode] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
   function generate() {
     setLoading(true)
+    setError(null)
     App.GenerateHOTP(credential.label)
       .then(setCode)
-      .catch(() => {})
+      .catch((err) => setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to generate code"))
       .finally(() => setLoading(false))
   }
 
   return (
     <div className="space-y-4">
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {code && (
         <span className="font-mono text-3xl font-bold tracking-wider">{code}</span>
       )}

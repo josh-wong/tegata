@@ -618,5 +618,9 @@ func decodeBase32Secret(secret string) ([]byte, error) {
 		"0", "O", "1", "L", "8", "B",
 	).Replace(secret))
 
-	return base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(s)
+	b, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("the secret is not a valid base32 string — TOTP and HOTP secrets use characters A-Z and 2-7 only")
+	}
+	return b, nil
 }
