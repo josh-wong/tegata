@@ -482,6 +482,17 @@ func (m model) updateSettingsImport(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			const maxImportSize = 10 << 20
+			info, err := os.Stat(path)
+			if err != nil {
+				m.settingsMsg = fmt.Sprintf("Read failed: %v", err)
+				return m, nil
+			}
+			if info.Size() > maxImportSize {
+				m.settingsMsg = fmt.Sprintf("File too large (%d bytes, max %d)", info.Size(), maxImportSize)
+				return m, nil
+			}
+
 			data, err := os.ReadFile(path)
 			if err != nil {
 				m.settingsMsg = fmt.Sprintf("Read failed: %v", err)

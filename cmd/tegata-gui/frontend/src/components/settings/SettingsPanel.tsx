@@ -223,6 +223,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [exportPass, setExportPass] = useState("")
+  const [exportConfirm, setExportConfirm] = useState("")
   const [importPass, setImportPass] = useState("")
   const [importFile, setImportFile] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
@@ -230,6 +231,14 @@ function ExportImport({ onImported }: { onImported: () => void }) {
 
   async function handleExport() {
     if (!exportPass) return
+    if (exportPass.length < 8) {
+      setMessage({ text: "Passphrase must be at least 8 characters", error: true })
+      return
+    }
+    if (exportPass !== exportConfirm) {
+      setMessage({ text: "Passphrases do not match", error: true })
+      return
+    }
     setLoading(true)
     setMessage(null)
     try {
@@ -237,6 +246,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
       if (path) {
         setMessage({ text: `Exported to ${path}`, error: false })
         setExportPass("")
+        setExportConfirm("")
       }
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : "Export failed", error: true })
@@ -297,7 +307,14 @@ function ExportImport({ onImported }: { onImported: () => void }) {
             type="password"
             placeholder="Export passphrase"
             value={exportPass}
-            onChange={(e) => setExportPass(e.target.value)}
+            onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
+          />
+          {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
+          <Input
+            type="password"
+            placeholder="Confirm passphrase"
+            value={exportConfirm}
+            onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
           />
           {message && (
             <p className={`text-sm ${message.error ? "text-destructive" : "text-green-500"}`}>
@@ -305,10 +322,10 @@ function ExportImport({ onImported }: { onImported: () => void }) {
             </p>
           )}
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleExport} disabled={!exportPass || loading}>
+            <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
               {loading ? "Exporting..." : "Export to file"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setMessage(null) }}>
+            <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
               Cancel
             </Button>
           </div>
