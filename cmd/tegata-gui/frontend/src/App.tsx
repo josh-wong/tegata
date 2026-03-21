@@ -21,6 +21,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
+  const [isSwitching, setIsSwitching] = useState(false)
 
   const handleLock = useCallback(() => {
     vault.lock()
@@ -62,13 +63,24 @@ function App() {
         loading={vault.loading}
         error={vault.error}
         initialStep={setupStep}
+        onCancel={isSwitching ? () => {
+          setIsSwitching(false)
+          vault.setView("main")
+        } : undefined}
         onCreateVault={vault.createVault}
-        onOpenExisting={(path) => {
+        onOpenExisting={async (path) => {
+          if (isSwitching) {
+            try { await WailsApp.LockVault() } catch { /* non-critical */ }
+          }
           setSetupStep(6)
+          setIsSwitching(false)
           vault.setVaultPath(path)
           vault.setView("unlock")
         }}
-        onComplete={() => vault.setView("main")}
+        onComplete={() => {
+          setIsSwitching(false)
+          vault.setView("main")
+        }}
       />
     )
   }
@@ -91,9 +103,9 @@ function App() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
-        onSwitchVault={async () => {
+        onSwitchVault={() => {
           setSetupStep(1)
-          try { await WailsApp.LockVault() } catch { /* non-critical */ }
+          setIsSwitching(true)
           vault.setView("setup")
         }}
         onUpdateFound={setUpdateInfo}

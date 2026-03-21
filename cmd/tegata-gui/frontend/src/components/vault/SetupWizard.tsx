@@ -12,6 +12,7 @@ interface SetupWizardProps {
   loading: boolean
   error: string | null
   initialStep?: Step
+  onCancel?: () => void
   onCreateVault: (path: string, passphrase: string) => Promise<string>
   onOpenExisting: (path: string) => void
   onComplete: () => void
@@ -24,6 +25,7 @@ export function SetupWizard({
   loading,
   error,
   initialStep,
+  onCancel,
   onCreateVault,
   onOpenExisting,
   onComplete,
@@ -122,6 +124,15 @@ export function SetupWizard({
             >
               Open existing vault
             </Button>
+            {onCancel && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+            )}
           </div>
         )}
 
