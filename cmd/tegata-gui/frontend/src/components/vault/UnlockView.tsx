@@ -37,7 +37,7 @@ export function UnlockView({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="w-full max-w-md space-y-6">
         <Button
           variant="ghost"
           size="sm"
