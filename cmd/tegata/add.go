@@ -80,11 +80,14 @@ func newAddCmd() *cobra.Command {
 						credType, errors.ErrInvalidInput)
 				}
 
-				secretPrompt := "Secret: "
-				if ct == pkgmodel.CredentialStatic {
+				var secretPrompt string
+				switch ct {
+				case pkgmodel.CredentialStatic:
 					secretPrompt = "Password: "
-				} else if ct == pkgmodel.CredentialChallengeResponse {
+				case pkgmodel.CredentialChallengeResponse:
 					secretPrompt = "Shared secret key: "
+				default:
+					secretPrompt = "Secret: "
 				}
 
 				secret, promptErr := promptSecret(secretPrompt)

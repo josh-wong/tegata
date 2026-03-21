@@ -159,23 +159,23 @@ func (m *model) focusAddInput() {
 func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch {
-		case msg.Type == tea.KeyEsc:
+		switch msg.Type {
+		case tea.KeyEsc:
 			m.resetAddOverlay()
 			m.state = stateMainView
 			return m, nil
 
-		case msg.Type == tea.KeyTab:
+		case tea.KeyTab:
 			m.addFocusIdx = m.addNextSlot(true)
 			m.focusAddInput()
 			return m, nil
 
-		case msg.Type == tea.KeyShiftTab:
+		case tea.KeyShiftTab:
 			m.addFocusIdx = m.addNextSlot(false)
 			m.focusAddInput()
 			return m, nil
 
-		case msg.Type == tea.KeyLeft || msg.Type == tea.KeyRight:
+		case tea.KeyLeft, tea.KeyRight:
 			delta := 1
 			if msg.Type == tea.KeyLeft {
 				delta = -1
@@ -194,7 +194,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case msg.Type == tea.KeyEnter:
+		case tea.KeyEnter:
 			labelVal := m.addLabelInput.Value()
 
 			// URI auto-populate: if label starts with "otpauth://", parse and fill fields.
