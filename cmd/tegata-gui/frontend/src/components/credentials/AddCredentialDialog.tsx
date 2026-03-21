@@ -123,39 +123,48 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 <option value="static">Static password</option>
                 <option value="cr">Challenge-response</option>
               </select>
-              <Input
-                type="password"
-                placeholder="Secret (required)"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={algorithm}
-                  onChange={(e) => setAlgorithm(e.target.value)}
-                >
-                  <option value="SHA1">SHA-1</option>
-                  <option value="SHA256">SHA-256</option>
-                  <option value="SHA512">SHA-512</option>
-                </select>
-                <select
-                  className="w-20 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={digits}
-                  onChange={(e) => setDigits(Number(e.target.value))}
-                >
-                  <option value={6}>6</option>
-                  <option value={8}>8</option>
-                </select>
+              <div className="space-y-1.5">
                 <Input
-                  type="number"
-                  className={cn("w-20", credType !== "totp" && "invisible")}
-                  value={period}
-                  onChange={(e) => setPeriod(Number(e.target.value))}
-                  min={15}
-                  max={120}
+                  type="password"
+                  placeholder={credType === "static" ? "Password (required)" : "Secret (required)"}
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
                 />
+                {credType === "static" && (
+                  <p className="text-xs text-muted-foreground">
+                    This is the password that will be stored and copied to your clipboard when you use this credential.
+                  </p>
+                )}
               </div>
+              {(credType === "totp" || credType === "hotp" || credType === "cr") && (
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={algorithm}
+                    onChange={(e) => setAlgorithm(e.target.value)}
+                  >
+                    <option value="SHA1">SHA-1</option>
+                    <option value="SHA256">SHA-256</option>
+                    <option value="SHA512">SHA-512</option>
+                  </select>
+                  <select
+                    className={cn("w-20 rounded-md border border-input bg-background px-3 py-2 text-sm", credType === "cr" && "invisible")}
+                    value={digits}
+                    onChange={(e) => setDigits(Number(e.target.value))}
+                  >
+                    <option value={6}>6</option>
+                    <option value={8}>8</option>
+                  </select>
+                  <Input
+                    type="number"
+                    className={cn("w-20", credType !== "totp" && "invisible")}
+                    value={period}
+                    onChange={(e) => setPeriod(Number(e.target.value))}
+                    min={15}
+                    max={120}
+                  />
+                </div>
+              )}
               <Input
                 placeholder="Tags (comma-separated)"
                 value={tags}

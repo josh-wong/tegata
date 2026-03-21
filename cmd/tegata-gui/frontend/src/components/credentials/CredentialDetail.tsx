@@ -184,22 +184,27 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
   const [challenge, setChallenge] = useState("")
   const [response, setResponse] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   function sign() {
     if (!challenge) return
     setLoading(true)
+    setError(null)
     App.SignChallenge(credential.label, challenge)
       .then(setResponse)
-      .catch(() => {})
+      .catch((err) => setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Signing failed"))
       .finally(() => setLoading(false))
   }
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Enter a challenge string to compute an HMAC signature using this credential's secret key. The resulting hex-encoded signature can be used for authentication with services that support challenge-response verification.
+      </p>
       <div className="flex gap-2">
         <Input
-          placeholder="Enter challenge..."
+          placeholder="Enter challenge text..."
           value={challenge}
           onChange={(e) => setChallenge(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sign()}
@@ -208,8 +213,10 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign"}
         </Button>
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {response && (
         <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Signature</p>
           <code className="block break-all rounded bg-muted p-3 font-mono text-sm">
             {response}
           </code>
