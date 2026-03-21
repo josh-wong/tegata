@@ -82,13 +82,18 @@ type model struct {
 	addIssuerInput textinput.Model // issuer (optional)
 	addSecretInput textinput.Model // secret (masked)
 	addTypeIdx     int             // 0=TOTP, 1=HOTP, 2=Static, 3=CR
-	addFocusIdx    int             // 0=label, 1=issuer, 2=secret
+	addFocusIdx    int             // which add-overlay slot has focus
+	addPeriodInput textinput.Model // period in seconds (TOTP only)
+	addTagsInput   textinput.Model // comma-separated tags
+	addAlgoIdx     int             // 0=SHA1, 1=SHA256, 2=SHA512
+	addDigitsIdx   int             // 0=6, 1=8
 
 	// Settings overlay state
 	settingsMenuIdx  int          // 0-3 menu selection
 	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
 	settingsInput1   textinput.Model
 	settingsInput2   textinput.Model
+	settingsInput3   textinput.Model
 	settingsMsg      string
 	settingsTagIdx   int          // selected tag index in tag management
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
@@ -142,12 +147,24 @@ func initialModel(vaultPath string) model {
 	addSecret.EchoMode = textinput.EchoPassword
 	addSecret.EchoCharacter = '·'
 
+	addPeriod := textinput.New()
+	addPeriod.Placeholder = "30"
+	addPeriod.EchoMode = textinput.EchoNormal
+
+	addTags := textinput.New()
+	addTags.Placeholder = "Tags (comma-separated)"
+	addTags.EchoMode = textinput.EchoNormal
+
 	settingsIn1 := textinput.New()
 	settingsIn1.EchoMode = textinput.EchoNormal
 
 	settingsIn2 := textinput.New()
 	settingsIn2.EchoMode = textinput.EchoPassword
 	settingsIn2.EchoCharacter = '·'
+
+	settingsIn3 := textinput.New()
+	settingsIn3.EchoMode = textinput.EchoPassword
+	settingsIn3.EchoCharacter = '·'
 
 	m := model{
 		vaultPath:        vaultPath,
@@ -161,8 +178,11 @@ func initialModel(vaultPath string) model {
 		addLabelInput:    addLabel,
 		addIssuerInput:   addIssuer,
 		addSecretInput:   addSecret,
+		addPeriodInput:   addPeriod,
+		addTagsInput:     addTags,
 		settingsInput1:   settingsIn1,
 		settingsInput2:   settingsIn2,
+		settingsInput3:   settingsIn3,
 		credList:         credList,
 		spinner:          sp,
 		clipMgr:          clipboard.NewManager(),
@@ -324,7 +344,8 @@ func (m model) isInputFocused() bool {
 	return m.passphraseInput.Focused() || m.confirmInput.Focused() ||
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
-		m.settingsInput1.Focused() || m.settingsInput2.Focused()
+		m.addPeriodInput.Focused() || m.addTagsInput.Focused() ||
+		m.settingsInput1.Focused() || m.settingsInput2.Focused() || m.settingsInput3.Focused()
 }
 
 // tickCmd returns a tea.Cmd that fires a tickMsg after one second.

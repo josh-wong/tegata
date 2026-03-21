@@ -12,14 +12,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/vault"
 )
 
-// settingsMenuItems lists the four settings menu options in order.
+// settingsMenuItems lists the settings menu options in order.
 var settingsMenuItems = []string{
 	"Tag management",
 	"Change passphrase",
 	"Export / import",
 	"Config settings",
+	"Verify recovery key",
 }
 
 // resetSettingsOverlay resets all settings overlay state to defaults.
@@ -31,6 +33,8 @@ func (m *model) resetSettingsOverlay() {
 	m.settingsInput1.EchoMode = textinput.EchoNormal
 	m.settingsInput2.Reset()
 	m.settingsInput2.Blur()
+	m.settingsInput3.Reset()
+	m.settingsInput3.Blur()
 	m.settingsMsg = ""
 	m.settingsTagIdx = 0
 	m.settingsEditMode = ""
@@ -49,6 +53,8 @@ func (m model) updateOverlaySettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSettingsImport(msg)
 	case "config":
 		return m.updateSettingsConfig(msg)
+	case "recovery":
+		return m.updateSettingsRecovery(msg)
 	default:
 		return m.updateSettingsMenu(msg)
 	}
@@ -89,13 +95,17 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 1:
 				m.settingsSubFlow = "passphrase"
 				m.settingsInput1.Reset()
-				m.settingsInput1.Placeholder = "New passphrase"
+				m.settingsInput1.Placeholder = "Current passphrase"
 				m.settingsInput1.EchoMode = textinput.EchoPassword
 				m.settingsInput1.EchoCharacter = '·'
 				m.settingsInput2.Reset()
-				m.settingsInput2.Placeholder = "Confirm passphrase"
+				m.settingsInput2.Placeholder = "New passphrase"
 				m.settingsInput2.EchoMode = textinput.EchoPassword
 				m.settingsInput2.EchoCharacter = '·'
+				m.settingsInput3.Reset()
+				m.settingsInput3.Placeholder = "Confirm new passphrase"
+				m.settingsInput3.EchoMode = textinput.EchoPassword
+				m.settingsInput3.EchoCharacter = '·'
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
 			case 2:
@@ -109,6 +119,10 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsInput2.Placeholder = "Export passphrase"
 				m.settingsInput2.EchoMode = textinput.EchoPassword
 				m.settingsInput2.EchoCharacter = '·'
+				m.settingsInput3.Reset()
+				m.settingsInput3.Placeholder = "Confirm passphrase"
+				m.settingsInput3.EchoMode = textinput.EchoPassword
+				m.settingsInput3.EchoCharacter = '·'
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
 			case 3:
@@ -117,6 +131,13 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsEditMode = ""
 				m.settingsInput1.Reset()
 				m.settingsInput1.Blur()
+			case 4:
+				m.settingsSubFlow = "recovery"
+				m.settingsInput1.Reset()
+				m.settingsInput1.Placeholder = "Recovery key"
+				m.settingsInput1.EchoMode = textinput.EchoNormal
+				m.settingsInput1.Focus()
+				m.settingsMsg = ""
 			}
 			return m, nil
 		}
@@ -222,6 +243,7 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // updateSettingsPassphrase handles the change-passphrase sub-flow.
+// Input1 = current passphrase, Input2 = new passphrase, Input3 = confirm.
 func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -232,6 +254,8 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = ""
 			return m, nil
 
@@ -239,22 +263,26 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.settingsInput1.Focused() {
 				m.settingsInput1.Blur()
 				m.settingsInput2.Focus()
-			} else {
+			} else if m.settingsInput2.Focused() {
 				m.settingsInput2.Blur()
+				m.settingsInput3.Focus()
+			} else {
+				m.settingsInput3.Blur()
 				m.settingsInput1.Focus()
 			}
 			return m, nil
 
 		case tea.KeyEnter:
-			pp1 := m.settingsInput1.Value()
-			pp2 := m.settingsInput2.Value()
+			current := m.settingsInput1.Value()
+			newPP := m.settingsInput2.Value()
+			confirm := m.settingsInput3.Value()
 
-			if pp1 != pp2 {
-				m.settingsMsg = "Passphrases do not match"
+			if newPP != confirm {
+				m.settingsMsg = "New passphrases do not match"
 				return m, nil
 			}
-			if len(pp1) < 8 {
-				m.settingsMsg = "Passphrase must be at least 8 characters"
+			if len(newPP) < 8 {
+				m.settingsMsg = "New passphrase must be at least 8 characters"
 				return m, nil
 			}
 			if m.vaultMgr == nil {
@@ -262,7 +290,22 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			pp := []byte(pp1)
+			// Verify current passphrase.
+			currentBytes := []byte(current)
+			defer zeroBytes(currentBytes)
+			verifier, err := vault.Open(m.vaultPath)
+			if err != nil {
+				m.settingsMsg = fmt.Sprintf("Error: %v", err)
+				return m, nil
+			}
+			if err := verifier.Unlock(currentBytes); err != nil {
+				verifier.Close()
+				m.settingsMsg = "Current passphrase is incorrect"
+				return m, nil
+			}
+			verifier.Close()
+
+			pp := []byte(newPP)
 			defer zeroBytes(pp)
 
 			if err := m.vaultMgr.ChangePassphrase(pp); err != nil {
@@ -278,6 +321,8 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = "Passphrase changed."
 			m.settingsSubFlow = ""
 			return m, nil
@@ -287,13 +332,16 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.settingsInput1.Focused() {
 		m.settingsInput1, cmd = m.settingsInput1.Update(msg)
-	} else {
+	} else if m.settingsInput2.Focused() {
 		m.settingsInput2, cmd = m.settingsInput2.Update(msg)
+	} else {
+		m.settingsInput3, cmd = m.settingsInput3.Update(msg)
 	}
 	return m, cmd
 }
 
 // updateSettingsExport handles the export sub-flow.
+// Input1 = file path, Input2 = export passphrase, Input3 = confirm passphrase.
 func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -304,6 +352,8 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = ""
 			return m, nil
 
@@ -311,8 +361,11 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.settingsInput1.Focused() {
 				m.settingsInput1.Blur()
 				m.settingsInput2.Focus()
-			} else {
+			} else if m.settingsInput2.Focused() {
 				m.settingsInput2.Blur()
+				m.settingsInput3.Focus()
+			} else {
+				m.settingsInput3.Blur()
 				m.settingsInput1.Focus()
 			}
 			return m, nil
@@ -328,14 +381,27 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput2.EchoMode = textinput.EchoPassword
 			m.settingsInput2.EchoCharacter = '·'
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsInput1.Focus()
 			m.settingsMsg = ""
 			return m, nil
 
 		case tea.KeyEnter:
 			path := m.settingsInput1.Value()
-			if path == "" || m.settingsInput2.Value() == "" {
+			passVal := m.settingsInput2.Value()
+			confirmVal := m.settingsInput3.Value()
+
+			if path == "" || passVal == "" {
 				m.settingsMsg = "File path and passphrase are required"
+				return m, nil
+			}
+			if len(passVal) < 8 {
+				m.settingsMsg = "Export passphrase must be at least 8 characters"
+				return m, nil
+			}
+			if passVal != confirmVal {
+				m.settingsMsg = "Passphrases do not match"
 				return m, nil
 			}
 			if m.vaultMgr == nil {
@@ -343,7 +409,7 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			pp := []byte(m.settingsInput2.Value())
+			pp := []byte(passVal)
 			defer zeroBytes(pp)
 
 			data, err := m.vaultMgr.ExportCredentials(pp)
@@ -351,6 +417,7 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsMsg = fmt.Sprintf("Export failed: %v", err)
 				return m, nil
 			}
+			defer zeroBytes(data)
 
 			if err := os.WriteFile(path, data, 0600); err != nil {
 				m.settingsMsg = fmt.Sprintf("Write failed: %v", err)
@@ -361,6 +428,8 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = "Exported to " + path
 			m.settingsSubFlow = ""
 			return m, nil
@@ -370,8 +439,10 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.settingsInput1.Focused() {
 		m.settingsInput1, cmd = m.settingsInput1.Update(msg)
-	} else {
+	} else if m.settingsInput2.Focused() {
 		m.settingsInput2, cmd = m.settingsInput2.Update(msg)
+	} else {
+		m.settingsInput3, cmd = m.settingsInput3.Update(msg)
 	}
 	return m, cmd
 }
@@ -529,13 +600,14 @@ func (m model) viewOverlaySettings() string {
 	case "passphrase":
 		content = m.viewSettingsPassphrase()
 	case "export":
-		content = m.viewSettingsExportImport("Export credentials", "Export file path", "Export passphrase",
-			"[Tab] Next  [Enter] Export  [F1] Switch to Import  [Esc] Cancel")
+		content = m.viewSettingsExport()
 	case "import":
 		content = m.viewSettingsExportImport("Import credentials", "Import file path", "Import passphrase",
 			"[Tab] Next  [Enter] Import  [Esc] Cancel")
 	case "config":
 		content = m.viewSettingsConfig()
+	case "recovery":
+		content = m.viewSettingsRecovery()
 	default:
 		content = m.viewSettingsMenu()
 	}
@@ -609,14 +681,50 @@ func (m model) viewSettingsPassphrase() string {
 	var lines []string
 	lines = append(lines, titleStyle.Render("Change passphrase"))
 	lines = append(lines, "")
-	lines = append(lines, "New passphrase:     "+m.settingsInput1.View())
-	lines = append(lines, "Confirm passphrase: "+m.settingsInput2.View())
+	lines = append(lines, fmt.Sprintf("%-24s%s", "Current passphrase:", m.settingsInput1.View()))
+	lines = append(lines, fmt.Sprintf("%-24s%s", "New passphrase:", m.settingsInput2.View()))
+	if newPP := m.settingsInput2.Value(); len(newPP) >= 8 {
+		ppBytes := []byte(newPP)
+		lines = append(lines, fmt.Sprintf("%-24s%s", "", tuiStrengthLabel(ppBytes)))
+		zeroBytes(ppBytes)
+	}
+	lines = append(lines, fmt.Sprintf("%-24s%s", "Confirm new passphrase:", m.settingsInput3.View()))
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
 		lines = append(lines, errorStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render("[Tab] Next  [Enter] Confirm  [Esc] Cancel"))
+	return strings.Join(lines, "\n")
+}
+
+// tuiStrengthLabel returns a strength label for the passphrase, using the
+// shared strengthLevel scoring to stay in sync with the CLI meter.
+func tuiStrengthLabel(pass []byte) string {
+	bar, label := strengthLevel(pass)
+	return bar + " " + label
+}
+
+// viewSettingsExport renders the export sub-flow with passphrase confirmation
+// and strength meter.
+func (m model) viewSettingsExport() string {
+	var lines []string
+	lines = append(lines, titleStyle.Render("Export credentials"))
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf("%-20s%s", "Export file path:", m.settingsInput1.View()))
+	lines = append(lines, fmt.Sprintf("%-20s%s", "Export passphrase:", m.settingsInput2.View()))
+	if pp := m.settingsInput2.Value(); len(pp) >= 8 {
+		ppBytes := []byte(pp)
+		lines = append(lines, fmt.Sprintf("%-20s%s", "", tuiStrengthLabel(ppBytes)))
+		zeroBytes(ppBytes)
+	}
+	lines = append(lines, fmt.Sprintf("%-20s%s", "Confirm passphrase:", m.settingsInput3.View()))
+	if m.settingsMsg != "" {
+		lines = append(lines, "")
+		lines = append(lines, errorStyle.Render(m.settingsMsg))
+	}
+	lines = append(lines, "")
+	lines = append(lines, helpBarStyle.Render("[Tab] Next  [Enter] Export  [F1] Import  [Esc] Cancel"))
 	return strings.Join(lines, "\n")
 }
 
@@ -633,6 +741,75 @@ func (m model) viewSettingsExportImport(title, label1, label2, help string) stri
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render(help))
+	return strings.Join(lines, "\n")
+}
+
+// updateSettingsRecovery handles the recovery key verification sub-flow.
+func (m model) updateSettingsRecovery(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.settingsSubFlow = ""
+			m.settingsInput1.Reset()
+			m.settingsInput1.Blur()
+			m.settingsMsg = ""
+			return m, nil
+
+		case tea.KeyEnter:
+			keyStr := strings.TrimSpace(m.settingsInput1.Value())
+			if keyStr == "" {
+				m.settingsMsg = "Recovery key is required"
+				return m, nil
+			}
+			rawKey, err := decodeBase32Secret(keyStr)
+			if err != nil {
+				m.settingsMsg = "Could not decode recovery key — check for typos"
+				return m, nil
+			}
+			defer zeroBytes(rawKey)
+
+			if m.vaultMgr == nil {
+				m.settingsMsg = "Vault not unlocked"
+				return m, nil
+			}
+			ok, err := m.vaultMgr.VerifyRecoveryKey(rawKey)
+			if err != nil {
+				m.settingsMsg = fmt.Sprintf("Error: %v", err)
+				return m, nil
+			}
+			if ok {
+				m.settingsMsg = "Recovery key is valid"
+			} else {
+				m.settingsMsg = "Recovery key is invalid — check for typos, dashes, and case"
+			}
+			m.settingsInput1.Reset()
+			m.settingsInput1.Blur()
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	m.settingsInput1, cmd = m.settingsInput1.Update(msg)
+	return m, cmd
+}
+
+// viewSettingsRecovery renders the recovery key verification sub-flow.
+func (m model) viewSettingsRecovery() string {
+	var lines []string
+	lines = append(lines, titleStyle.Render("Verify recovery key"))
+	lines = append(lines, "")
+	lines = append(lines, "Recovery key: "+m.settingsInput1.View())
+	if m.settingsMsg != "" {
+		lines = append(lines, "")
+		if strings.Contains(m.settingsMsg, "valid") && !strings.Contains(m.settingsMsg, "invalid") {
+			lines = append(lines, successStyle.Render(m.settingsMsg))
+		} else {
+			lines = append(lines, errorStyle.Render(m.settingsMsg))
+		}
+	}
+	lines = append(lines, "")
+	lines = append(lines, helpBarStyle.Render("[Enter] Verify  [Esc] Cancel"))
 	return strings.Join(lines, "\n")
 }
 

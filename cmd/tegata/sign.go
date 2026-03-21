@@ -62,10 +62,11 @@ func newSignCmd() *cobra.Command {
 				return err
 			}
 
-			// Decode the base32-encoded secret stored in the credential.
+			// Try base32 first (standard for OTP secrets), fall back to raw
+			// bytes for challenge-response since users may store plain text keys.
 			secretBytes, err := decodeBase32Secret(cred.Secret)
 			if err != nil {
-				return fmt.Errorf("decoding credential secret for %q: %w", label, err)
+				secretBytes = []byte(cred.Secret)
 			}
 			defer zeroBytes(secretBytes)
 

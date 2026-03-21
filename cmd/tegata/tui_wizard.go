@@ -306,7 +306,9 @@ func (m model) viewWizardWelcome() string {
 
 // viewWizardPassphrase renders step 2/4.
 func (m model) viewWizardPassphrase() string {
-	strength := strengthLabel(len(m.passphraseInput.Value()))
+	ppBytes := []byte(m.passphraseInput.Value())
+	strength := strengthLabel(ppBytes)
+	zeroBytes(ppBytes)
 	content := titleStyle.Render("Step 2/4: Set passphrase") + "\n\n" +
 		m.passphraseInput.View() + "\n" +
 		m.confirmInput.View() + "\n\n" +
@@ -349,15 +351,16 @@ func (m model) viewWizardAddCredential() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// strengthLabel returns a human-readable passphrase strength label based on
-// character count. Informational only; no minimum is enforced here.
-func strengthLabel(length int) string {
-	switch {
-	case length >= 20:
-		return successStyle.Render("Strong")
-	case length >= 12:
-		return "Fair"
+// strengthLabel returns a styled passphrase strength label using the shared
+// strengthLevel scoring. Informational only; no minimum is enforced here.
+func strengthLabel(pass []byte) string {
+	_, label := strengthLevel(pass)
+	switch label {
+	case "Strong":
+		return successStyle.Render(label)
+	case "Weak", "Too short":
+		return errorStyle.Render(label)
 	default:
-		return errorStyle.Render("Weak")
+		return label
 	}
 }

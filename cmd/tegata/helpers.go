@@ -117,7 +117,7 @@ func promptNewPassphrase() ([]byte, error) {
 	}
 
 	// Display strength meter.
-	displayStrengthMeter(len(pass))
+	displayStrengthMeter(pass)
 
 	// Confirm passphrase (skip for non-interactive modes).
 	if os.Getenv("TEGATA_PASSPHRASE") != "" || !term.IsTerminal(int(os.Stdin.Fd())) {
@@ -148,22 +148,61 @@ func promptNewPassphrase() ([]byte, error) {
 	return pass, nil
 }
 
-// displayStrengthMeter prints a passphrase strength meter to stderr based on
-// character count. The meter is informational only; all lengths >= 8 are
-// accepted.
-func displayStrengthMeter(length int) {
-	var bar, label string
-	switch {
-	case length >= 20:
-		bar = "[XXXXX]"
-		label = "Strong"
-	case length >= 12:
-		bar = "[XXX__]"
-		label = "Fair"
-	default:
-		bar = "[X____]"
-		label = "Weak"
+// charClasses returns the number of distinct character classes in the
+// passphrase (lowercase, uppercase, digits, symbols).
+func charClasses(pass []byte) int {
+	var lower, upper, digit, symbol bool
+	for _, b := range pass {
+		switch {
+		case b >= 'a' && b <= 'z':
+			lower = true
+		case b >= 'A' && b <= 'Z':
+			upper = true
+		case b >= '0' && b <= '9':
+			digit = true
+		default:
+			symbol = true
+		}
 	}
+	n := 0
+	if lower {
+		n++
+	}
+	if upper {
+		n++
+	}
+	if digit {
+		n++
+	}
+	if symbol {
+		n++
+	}
+	return n
+}
+
+// strengthLevel returns a bar and label representing passphrase strength based
+// on length and character diversity. Shared by CLI, TUI, and wizard meters so
+// the scoring algorithm stays in one place.
+func strengthLevel(pass []byte) (bar, label string) {
+	if len(pass) < 8 {
+		return "[X____]", "Too short"
+	}
+	classes := charClasses(pass)
+	if classes < 2 {
+		return "[X____]", "Weak"
+	}
+	score := len(pass) + classes*3
+	if score >= 22 {
+		return "[XXXXX]", "Strong"
+	}
+	return "[XXX__]", "Fair"
+}
+
+// displayStrengthMeter prints a passphrase strength meter to stderr based on
+// length and character diversity. The meter is informational only; all lengths
+// >= 8 are accepted.
+func displayStrengthMeter(pass []byte) {
+	bar, label := strengthLevel(pass)
 	fmt.Fprintf(os.Stderr, "  Strength: %s %s\n", bar, label)
 }
 
