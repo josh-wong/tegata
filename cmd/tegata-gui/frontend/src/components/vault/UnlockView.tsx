@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useEffect, useRef, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +25,13 @@ export function UnlockView({
   onBack,
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Delay focus slightly so the Wails WebView has finished rendering.
+    const t = setTimeout(() => inputRef.current?.focus(), 100)
+    return () => clearTimeout(t)
+  }, [])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -80,6 +87,7 @@ export function UnlockView({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Input
+              ref={inputRef}
               type="password"
               placeholder="Passphrase"
               value={passphrase}
