@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { X } from "lucide-react"
+import { Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -139,9 +139,17 @@ export function SettingsPanel({ open, onClose, updateInfo }: SettingsPanelProps)
           )}
 
           {!showRecovery ? (
-            <Button variant="outline" size="sm" onClick={() => setShowRecovery(true)}>
-              Verify recovery key
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowRecovery(true)}>
+                Verify recovery key
+              </Button>
+              <div className="group relative cursor-help text-muted-foreground">
+                <Info className="h-4 w-4" />
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-80 -translate-x-1/2 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md group-hover:block">
+                  Confirm that the recovery key you saved still matches your vault. This is the only way to regain access if you forget your passphrase.
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="space-y-2 rounded-md border border-border p-3">
               <Input
