@@ -73,11 +73,7 @@ Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full 
 
 ## Screenshots
 
-Screenshots will be added before release.
-
-![Tegata GUI](docs/screenshots/gui-main.png)
-
-![Tegata TUI](docs/screenshots/tui-list.png)
+<!-- Screenshots will be added before the v1.0 release. -->
 
 ## Security model
 

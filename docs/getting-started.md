@@ -31,6 +31,17 @@ chmod +x tegata-darwin-arm64
 
 Copy the binary to your USB drive so it travels with your vault.
 
+### Desktop GUI
+
+A graphical interface is also available for each platform.
+
+- `tegata-gui-windows-amd64-setup.exe` for Windows (NSIS installer)
+- `tegata-gui-darwin-universal.dmg` for macOS (drag to Applications)
+- `tegata-gui-linux-amd64.deb` for Debian/Ubuntu
+- `tegata-gui-linux-amd64.rpm` for Fedora/RHEL
+
+Download the installer for your platform from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page. The GUI provides the same vault management and credential operations as the CLI with a visual interface, including a setup wizard, live TOTP countdown, and settings panel.
+
 ### Build from source
 
 Clone the repository and build with Make:
