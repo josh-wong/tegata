@@ -70,17 +70,17 @@ export function Sidebar({
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-sidebar">
       <div className="p-3">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search credentials..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-8"
+              className="h-8 pl-8 text-sm"
             />
           </div>
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onAddClick}>
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={onAddClick}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
