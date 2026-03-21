@@ -137,6 +137,7 @@ function App() {
       <SettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onCredentialsChanged={creds.refresh}
         updateInfo={updateInfo}
       />
     </div>

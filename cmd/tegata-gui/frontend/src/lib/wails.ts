@@ -43,7 +43,10 @@ interface WailsAppBindings {
   GetStaticPassword(label: string): Promise<void>
   SignChallenge(label: string, challenge: string): Promise<string>
   ExportVault(exportPassphrase: string): Promise<number[]>
+  ExportVaultToFile(exportPassphrase: string): Promise<string>
   ImportVault(data: number[], importPassphrase: string): Promise<{ imported: number; skipped: number }>
+  PickImportFile(): Promise<string>
+  ImportVaultFromFile(path: string, importPassphrase: string): Promise<{ imported: number; skipped: number; path: string } | null>
   ChangePassphrase(current: string, newPass: string): Promise<void>
   VerifyRecoveryKey(key: string): Promise<boolean>
   GetConfig(): Promise<Record<string, unknown>>
@@ -71,7 +74,10 @@ export const App = {
   GetStaticPassword: (label: string) => getApp().GetStaticPassword(label),
   SignChallenge: (label: string, challenge: string) => getApp().SignChallenge(label, challenge),
   ExportVault: (passphrase: string) => getApp().ExportVault(passphrase),
+  ExportVaultToFile: (passphrase: string) => getApp().ExportVaultToFile(passphrase),
   ImportVault: (data: number[], passphrase: string) => getApp().ImportVault(data, passphrase),
+  PickImportFile: () => getApp().PickImportFile(),
+  ImportVaultFromFile: (path: string, passphrase: string) => getApp().ImportVaultFromFile(path, passphrase),
   ChangePassphrase: (current: string, newPass: string) => getApp().ChangePassphrase(current, newPass),
   VerifyRecoveryKey: (key: string) => getApp().VerifyRecoveryKey(key),
   GetConfig: () => getApp().GetConfig(),

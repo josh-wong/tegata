@@ -401,6 +401,44 @@ func (a *App) ExportVault(exportPassphrase string) ([]byte, error) {
 	return a.vault.ExportCredentials(passBytes)
 }
 
+// ExportVaultToFile opens a native save dialog and writes encrypted credentials
+// to the selected file. Returns the file path on success.
+func (a *App) ExportVaultToFile(exportPassphrase string) (string, error) {
+	if a.vault == nil {
+		return "", fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+
+	passBytes := []byte(exportPassphrase)
+	defer zeroBytes(passBytes)
+
+	data, err := a.vault.ExportCredentials(passBytes)
+	if err != nil {
+		return "", fmt.Errorf("exporting: %w", err)
+	}
+
+	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		Title:           "Export Credentials",
+		DefaultFilename: "tegata-export.enc",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "Encrypted Export (*.enc)", Pattern: "*.enc"},
+			{DisplayName: "All Files", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("save dialog: %w", err)
+	}
+	if path == "" {
+		return "", nil // User cancelled
+	}
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", fmt.Errorf("writing file: %w", err)
+	}
+
+	return path, nil
+}
+
 // ImportVault imports credentials from an encrypted backup. Returns the count
 // of imported and skipped credentials.
 func (a *App) ImportVault(data []byte, importPassphrase string) (int, int, error) {
@@ -413,6 +451,52 @@ func (a *App) ImportVault(data []byte, importPassphrase string) (int, int, error
 	defer zeroBytes(passBytes)
 
 	return a.vault.ImportCredentials(data, passBytes)
+}
+
+// ImportResult holds the outcome of a credential import.
+type ImportResult struct {
+	Imported int    `json:"imported"`
+	Skipped  int    `json:"skipped"`
+	Path     string `json:"path"`
+}
+
+// PickImportFile opens a native file dialog and returns the selected path.
+func (a *App) PickImportFile() (string, error) {
+	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Import Credentials",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "Encrypted Export (*.enc)", Pattern: "*.enc"},
+			{DisplayName: "All Files", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("open dialog: %w", err)
+	}
+	return path, nil
+}
+
+// ImportVaultFromFile reads the encrypted file at the given path and imports
+// credentials into the vault.
+func (a *App) ImportVaultFromFile(path, importPassphrase string) (*ImportResult, error) {
+	if a.vault == nil {
+		return nil, fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %w", err)
+	}
+
+	passBytes := []byte(importPassphrase)
+	defer zeroBytes(passBytes)
+
+	imported, skipped, err := a.vault.ImportCredentials(data, passBytes)
+	if err != nil {
+		return nil, fmt.Errorf("importing: %w", err)
+	}
+
+	return &ImportResult{Imported: imported, Skipped: skipped, Path: path}, nil
 }
 
 // ChangePassphrase changes the vault passphrase.
