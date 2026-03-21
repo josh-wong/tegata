@@ -159,7 +159,17 @@ export function SettingsPanel({ open, onClose, updateInfo }: SettingsPanelProps)
                 className="font-mono"
               />
               {recoveryResult === true && <p className="text-sm text-green-500">Recovery key is valid</p>}
-              {recoveryResult === false && <p className="text-sm text-destructive">Recovery key is invalid</p>}
+              {recoveryResult === false && (
+                <div className="space-y-2 rounded-md bg-destructive/10 p-3">
+                  <p className="text-sm font-medium text-destructive">Recovery key is invalid</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                    <li>Check for typos—dashes, spaces, and letter case matter.</li>
+                    <li>Make sure this key is for this vault, not a different one.</li>
+                    <li>If you have lost your recovery key, consider changing your passphrase to something memorable while you still have access.</li>
+                    <li>You may also want to export your credentials as a backup.</li>
+                  </ul>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleVerifyRecovery}>Verify</Button>
                 <Button size="sm" variant="outline" onClick={() => {
