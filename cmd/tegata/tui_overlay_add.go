@@ -107,13 +107,13 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Validate base32 encoding for credential types that require it,
-			// matching the CLI add command's validation.
+			// Validate base32 encoding for TOTP and HOTP secrets.
+			// Challenge-response allows plain text shared keys.
 			ct := credTypeNames[m.addTypeIdx]
 			switch ct.ctype {
-			case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialChallengeResponse:
+			case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP:
 				if _, err := decodeBase32Secret(m.addSecretInput.Value()); err != nil {
-					m.errMsg = "Secret is not valid base32 — check for typos"
+					m.errMsg = "Secret is not valid base32 — TOTP and HOTP use A-Z and 2-7 only"
 					return m, nil
 				}
 			}
@@ -170,7 +170,12 @@ func (m model) viewOverlayAdd() string {
 	lines = append(lines, "")
 	lines = append(lines, "Label:   "+m.addLabelInput.View())
 	lines = append(lines, "Issuer:  "+m.addIssuerInput.View()+" (optional)")
-	lines = append(lines, "Secret:  "+m.addSecretInput.View())
+	ct := credTypeNames[m.addTypeIdx]
+	secretLabel := "Secret:  "
+	if ct.ctype == pkgmodel.CredentialStatic {
+		secretLabel = "Password:"
+	}
+	lines = append(lines, secretLabel+" "+m.addSecretInput.View())
 	lines = append(lines, "")
 
 	// Type selector row.

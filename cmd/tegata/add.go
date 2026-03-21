@@ -80,7 +80,14 @@ func newAddCmd() *cobra.Command {
 						credType, errors.ErrInvalidInput)
 				}
 
-				secret, promptErr := promptSecret("Secret: ")
+				secretPrompt := "Secret: "
+				if ct == pkgmodel.CredentialStatic {
+					secretPrompt = "Password: "
+				} else if ct == pkgmodel.CredentialChallengeResponse {
+					secretPrompt = "Shared secret key: "
+				}
+
+				secret, promptErr := promptSecret(secretPrompt)
 				if promptErr != nil {
 					return promptErr
 				}
@@ -88,9 +95,9 @@ func newAddCmd() *cobra.Command {
 				trimmedSecret := strings.TrimSpace(secret)
 
 				switch ct {
-				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialChallengeResponse:
+				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP:
 					if _, decErr := decodeBase32Secret(trimmedSecret); decErr != nil {
-						return fmt.Errorf("secret is not valid base32 — check for typos: %w", errors.ErrInvalidInput)
+						return fmt.Errorf("secret is not valid base32 — TOTP and HOTP secrets use characters A-Z and 2-7 only: %w", errors.ErrInvalidInput)
 					}
 				}
 

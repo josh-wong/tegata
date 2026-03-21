@@ -73,7 +73,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		displayStrengthMeter(len(exportPass))
+		displayStrengthMeter(exportPass)
 
 		fmt.Fprint(os.Stderr, "Confirm export passphrase: ")
 		confirm, err := term.ReadPassword(int(os.Stdin.Fd()))

@@ -89,6 +89,7 @@ type model struct {
 	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
 	settingsInput1   textinput.Model
 	settingsInput2   textinput.Model
+	settingsInput3   textinput.Model
 	settingsMsg      string
 	settingsTagIdx   int          // selected tag index in tag management
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
@@ -149,6 +150,10 @@ func initialModel(vaultPath string) model {
 	settingsIn2.EchoMode = textinput.EchoPassword
 	settingsIn2.EchoCharacter = '·'
 
+	settingsIn3 := textinput.New()
+	settingsIn3.EchoMode = textinput.EchoPassword
+	settingsIn3.EchoCharacter = '·'
+
 	m := model{
 		vaultPath:        vaultPath,
 		cfg:              cfg,
@@ -163,6 +168,7 @@ func initialModel(vaultPath string) model {
 		addSecretInput:   addSecret,
 		settingsInput1:   settingsIn1,
 		settingsInput2:   settingsIn2,
+		settingsInput3:   settingsIn3,
 		credList:         credList,
 		spinner:          sp,
 		clipMgr:          clipboard.NewManager(),
@@ -324,7 +330,7 @@ func (m model) isInputFocused() bool {
 	return m.passphraseInput.Focused() || m.confirmInput.Focused() ||
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
-		m.settingsInput1.Focused() || m.settingsInput2.Focused()
+		m.settingsInput1.Focused() || m.settingsInput2.Focused() || m.settingsInput3.Focused()
 }
 
 // tickCmd returns a tea.Cmd that fires a tickMsg after one second.

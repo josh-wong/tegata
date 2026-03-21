@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/vault"
 )
 
 // settingsMenuItems lists the four settings menu options in order.
@@ -89,13 +90,17 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 1:
 				m.settingsSubFlow = "passphrase"
 				m.settingsInput1.Reset()
-				m.settingsInput1.Placeholder = "New passphrase"
+				m.settingsInput1.Placeholder = "Current passphrase"
 				m.settingsInput1.EchoMode = textinput.EchoPassword
 				m.settingsInput1.EchoCharacter = '·'
 				m.settingsInput2.Reset()
-				m.settingsInput2.Placeholder = "Confirm passphrase"
+				m.settingsInput2.Placeholder = "New passphrase"
 				m.settingsInput2.EchoMode = textinput.EchoPassword
 				m.settingsInput2.EchoCharacter = '·'
+				m.settingsInput3.Reset()
+				m.settingsInput3.Placeholder = "Confirm new passphrase"
+				m.settingsInput3.EchoMode = textinput.EchoPassword
+				m.settingsInput3.EchoCharacter = '·'
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
 			case 2:
@@ -222,6 +227,7 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // updateSettingsPassphrase handles the change-passphrase sub-flow.
+// Input1 = current passphrase, Input2 = new passphrase, Input3 = confirm.
 func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -232,6 +238,8 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = ""
 			return m, nil
 
@@ -239,22 +247,26 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.settingsInput1.Focused() {
 				m.settingsInput1.Blur()
 				m.settingsInput2.Focus()
-			} else {
+			} else if m.settingsInput2.Focused() {
 				m.settingsInput2.Blur()
+				m.settingsInput3.Focus()
+			} else {
+				m.settingsInput3.Blur()
 				m.settingsInput1.Focus()
 			}
 			return m, nil
 
 		case tea.KeyEnter:
-			pp1 := m.settingsInput1.Value()
-			pp2 := m.settingsInput2.Value()
+			current := m.settingsInput1.Value()
+			newPP := m.settingsInput2.Value()
+			confirm := m.settingsInput3.Value()
 
-			if pp1 != pp2 {
-				m.settingsMsg = "Passphrases do not match"
+			if newPP != confirm {
+				m.settingsMsg = "New passphrases do not match"
 				return m, nil
 			}
-			if len(pp1) < 8 {
-				m.settingsMsg = "Passphrase must be at least 8 characters"
+			if len(newPP) < 8 {
+				m.settingsMsg = "New passphrase must be at least 8 characters"
 				return m, nil
 			}
 			if m.vaultMgr == nil {
@@ -262,7 +274,22 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			pp := []byte(pp1)
+			// Verify current passphrase.
+			currentBytes := []byte(current)
+			defer zeroBytes(currentBytes)
+			verifier, err := vault.Open(m.vaultPath)
+			if err != nil {
+				m.settingsMsg = fmt.Sprintf("Error: %v", err)
+				return m, nil
+			}
+			if err := verifier.Unlock(currentBytes); err != nil {
+				verifier.Close()
+				m.settingsMsg = "Current passphrase is incorrect"
+				return m, nil
+			}
+			verifier.Close()
+
+			pp := []byte(newPP)
 			defer zeroBytes(pp)
 
 			if err := m.vaultMgr.ChangePassphrase(pp); err != nil {
@@ -278,6 +305,8 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
+			m.settingsInput3.Reset()
+			m.settingsInput3.Blur()
 			m.settingsMsg = "Passphrase changed."
 			m.settingsSubFlow = ""
 			return m, nil
@@ -287,8 +316,10 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.settingsInput1.Focused() {
 		m.settingsInput1, cmd = m.settingsInput1.Update(msg)
-	} else {
+	} else if m.settingsInput2.Focused() {
 		m.settingsInput2, cmd = m.settingsInput2.Update(msg)
+	} else {
+		m.settingsInput3, cmd = m.settingsInput3.Update(msg)
 	}
 	return m, cmd
 }
@@ -609,8 +640,12 @@ func (m model) viewSettingsPassphrase() string {
 	var lines []string
 	lines = append(lines, titleStyle.Render("Change passphrase"))
 	lines = append(lines, "")
-	lines = append(lines, "New passphrase:     "+m.settingsInput1.View())
-	lines = append(lines, "Confirm passphrase: "+m.settingsInput2.View())
+	lines = append(lines, "Current passphrase:     "+m.settingsInput1.View())
+	lines = append(lines, "New passphrase:         "+m.settingsInput2.View())
+	if newPP := m.settingsInput2.Value(); len(newPP) >= 8 {
+		lines = append(lines, "                        "+tuiStrengthLabel([]byte(newPP)))
+	}
+	lines = append(lines, "Confirm new passphrase: "+m.settingsInput3.View())
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
 		lines = append(lines, errorStyle.Render(m.settingsMsg))
@@ -618,6 +653,20 @@ func (m model) viewSettingsPassphrase() string {
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render("[Tab] Next  [Enter] Confirm  [Esc] Cancel"))
 	return strings.Join(lines, "\n")
+}
+
+// tuiStrengthLabel returns a strength label for the passphrase, matching the
+// CLI displayStrengthMeter logic.
+func tuiStrengthLabel(pass []byte) string {
+	classes := charClasses(pass)
+	if classes < 2 {
+		return "[X____] Weak"
+	}
+	score := len(pass) + classes*3
+	if score >= 22 {
+		return "[XXXXX] Strong"
+	}
+	return "[XXX__] Fair"
 }
 
 // viewSettingsExportImport renders the export or import sub-flow form.
