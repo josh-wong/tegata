@@ -128,8 +128,14 @@
     }
     body {
         @apply bg-background text-foreground;
+        -webkit-user-select: none;
+        user-select: none;
     }
     html {
         @apply font-sans;
+    }
+    input, textarea, code, pre, .select-text {
+        -webkit-user-select: text;
+        user-select: text;
     }
 }

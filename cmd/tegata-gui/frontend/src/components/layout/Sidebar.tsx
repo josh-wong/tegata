@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { ChevronRight, Plus, Search } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ChevronRight, Copy, Key, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -14,6 +14,15 @@ interface SidebarProps {
   searchQuery: string
   onSearchChange: (q: string) => void
   onAddClick: () => void
+  onCopyCode: (label: string) => void
+  onCopyPassword: (label: string) => void
+  onRemove: (id: string) => void
+}
+
+interface ContextMenuState {
+  x: number
+  y: number
+  credential: Credential
 }
 
 function groupByTag(credentials: Credential[]) {
@@ -48,8 +57,28 @@ export function Sidebar({
   searchQuery,
   onSearchChange,
   onAddClick,
+  onCopyCode,
+  onCopyPassword,
+  onRemove,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close context menu on outside click or Escape.
+  useEffect(() => {
+    if (!ctxMenu) return
+    function handleClose(e: MouseEvent | KeyboardEvent) {
+      if (e instanceof KeyboardEvent && e.key !== "Escape") return
+      setCtxMenu(null)
+    }
+    document.addEventListener("click", handleClose)
+    document.addEventListener("keydown", handleClose)
+    return () => {
+      document.removeEventListener("click", handleClose)
+      document.removeEventListener("keydown", handleClose)
+    }
+  }, [ctxMenu])
 
   const filtered = credentials.filter(
     (c) =>
@@ -112,6 +141,11 @@ export function Sidebar({
                   <button
                     key={cred.id}
                     onClick={() => onSelect(cred.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setCtxMenu({ x: e.clientX, y: e.clientY, credential: cred })
+                    }}
                     className={cn(
                       "flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-sm hover:bg-accent",
                       selectedId === cred.id && "bg-accent",
@@ -148,6 +182,37 @@ export function Sidebar({
           )}
         </div>
       </ScrollArea>
+
+      {ctxMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-md"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+        >
+          {ctxMenu.credential.type === "totp" && (
+            <button
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+              onClick={() => { onCopyCode(ctxMenu.credential.label); setCtxMenu(null) }}
+            >
+              <Copy className="h-3.5 w-3.5" /> Copy code
+            </button>
+          )}
+          {ctxMenu.credential.type === "static" && (
+            <button
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+              onClick={() => { onCopyPassword(ctxMenu.credential.label); setCtxMenu(null) }}
+            >
+              <Key className="h-3.5 w-3.5" /> Copy password
+            </button>
+          )}
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
+            onClick={() => { onRemove(ctxMenu.credential.id); setCtxMenu(null) }}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Remove
+          </button>
+        </div>
+      )}
     </aside>
   )
 }

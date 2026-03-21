@@ -40,13 +40,32 @@ function App() {
       try {
         await WailsApp.RemoveCredential(id)
         creds.refresh()
-        creds.select(null)
+        if (creds.selectedId === id) creds.select(null)
       } catch (err) {
         console.error("Failed to remove credential:", err)
       }
     },
     [creds],
   )
+
+  const handleCopyCode = useCallback(async (label: string) => {
+    try {
+      const result = await WailsApp.GenerateTOTP(label)
+      if (result?.code) {
+        await navigator.clipboard.writeText(result.code)
+      }
+    } catch (err) {
+      console.error("Failed to copy code:", err)
+    }
+  }, [])
+
+  const handleCopyPassword = useCallback(async (label: string) => {
+    try {
+      await WailsApp.GetStaticPassword(label)
+    } catch (err) {
+      console.error("Failed to copy password:", err)
+    }
+  }, [])
 
   if (vault.view === "loading") {
     return (
@@ -121,6 +140,9 @@ function App() {
           searchQuery={creds.searchQuery}
           onSearchChange={creds.search}
           onAddClick={() => setAddDialogOpen(true)}
+          onCopyCode={handleCopyCode}
+          onCopyPassword={handleCopyPassword}
+          onRemove={handleRemove}
         />
         <CredentialDetail
           credential={creds.selectedCredential}
