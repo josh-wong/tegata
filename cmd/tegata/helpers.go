@@ -180,26 +180,29 @@ func charClasses(pass []byte) int {
 	return n
 }
 
+// strengthLevel returns a bar and label representing passphrase strength based
+// on length and character diversity. Shared by CLI, TUI, and wizard meters so
+// the scoring algorithm stays in one place.
+func strengthLevel(pass []byte) (bar, label string) {
+	if len(pass) < 8 {
+		return "[X____]", "Too short"
+	}
+	classes := charClasses(pass)
+	if classes < 2 {
+		return "[X____]", "Weak"
+	}
+	score := len(pass) + classes*3
+	if score >= 22 {
+		return "[XXXXX]", "Strong"
+	}
+	return "[XXX__]", "Fair"
+}
+
 // displayStrengthMeter prints a passphrase strength meter to stderr based on
 // length and character diversity. The meter is informational only; all lengths
 // >= 8 are accepted.
 func displayStrengthMeter(pass []byte) {
-	classes := charClasses(pass)
-	var bar, label string
-	if classes < 2 {
-		bar = "[X____]"
-		label = "Weak"
-	} else {
-		score := len(pass) + classes*3
-		switch {
-		case score >= 22:
-			bar = "[XXXXX]"
-			label = "Strong"
-		default:
-			bar = "[XXX__]"
-			label = "Fair"
-		}
-	}
+	bar, label := strengthLevel(pass)
 	fmt.Fprintf(os.Stderr, "  Strength: %s %s\n", bar, label)
 }
 

@@ -32,6 +32,8 @@ func (m *model) resetSettingsOverlay() {
 	m.settingsInput1.EchoMode = textinput.EchoNormal
 	m.settingsInput2.Reset()
 	m.settingsInput2.Blur()
+	m.settingsInput3.Reset()
+	m.settingsInput3.Blur()
 	m.settingsMsg = ""
 	m.settingsTagIdx = 0
 	m.settingsEditMode = ""
@@ -640,12 +642,14 @@ func (m model) viewSettingsPassphrase() string {
 	var lines []string
 	lines = append(lines, titleStyle.Render("Change passphrase"))
 	lines = append(lines, "")
-	lines = append(lines, "Current passphrase:     "+m.settingsInput1.View())
-	lines = append(lines, "New passphrase:         "+m.settingsInput2.View())
+	lines = append(lines, fmt.Sprintf("%-24s%s", "Current passphrase:", m.settingsInput1.View()))
+	lines = append(lines, fmt.Sprintf("%-24s%s", "New passphrase:", m.settingsInput2.View()))
 	if newPP := m.settingsInput2.Value(); len(newPP) >= 8 {
-		lines = append(lines, "                        "+tuiStrengthLabel([]byte(newPP)))
+		ppBytes := []byte(newPP)
+		lines = append(lines, fmt.Sprintf("%-24s%s", "", tuiStrengthLabel(ppBytes)))
+		zeroBytes(ppBytes)
 	}
-	lines = append(lines, "Confirm new passphrase: "+m.settingsInput3.View())
+	lines = append(lines, fmt.Sprintf("%-24s%s", "Confirm new passphrase:", m.settingsInput3.View()))
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
 		lines = append(lines, errorStyle.Render(m.settingsMsg))
@@ -655,18 +659,11 @@ func (m model) viewSettingsPassphrase() string {
 	return strings.Join(lines, "\n")
 }
 
-// tuiStrengthLabel returns a strength label for the passphrase, matching the
-// CLI displayStrengthMeter logic.
+// tuiStrengthLabel returns a strength label for the passphrase, using the
+// shared strengthLevel scoring to stay in sync with the CLI meter.
 func tuiStrengthLabel(pass []byte) string {
-	classes := charClasses(pass)
-	if classes < 2 {
-		return "[X____] Weak"
-	}
-	score := len(pass) + classes*3
-	if score >= 22 {
-		return "[XXXXX] Strong"
-	}
-	return "[XXX__] Fair"
+	bar, label := strengthLevel(pass)
+	return bar + " " + label
 }
 
 // viewSettingsExportImport renders the export or import sub-flow form.

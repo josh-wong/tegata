@@ -171,11 +171,11 @@ func (m model) viewOverlayAdd() string {
 	lines = append(lines, "Label:   "+m.addLabelInput.View())
 	lines = append(lines, "Issuer:  "+m.addIssuerInput.View()+" (optional)")
 	ct := credTypeNames[m.addTypeIdx]
-	secretLabel := "Secret:  "
+	secretLabel := "Secret:"
 	if ct.ctype == pkgmodel.CredentialStatic {
 		secretLabel = "Password:"
 	}
-	lines = append(lines, secretLabel+" "+m.addSecretInput.View())
+	lines = append(lines, fmt.Sprintf("%-9s %s", secretLabel, m.addSecretInput.View()))
 	lines = append(lines, "")
 
 	// Type selector row.
