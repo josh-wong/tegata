@@ -121,14 +121,14 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 <option value="totp">TOTP</option>
                 <option value="hotp">HOTP</option>
                 <option value="static">Static password</option>
-                <option value="cr">Challenge-response</option>
+                <option value="challenge-response">Challenge-response</option>
               </select>
               <div className="space-y-1.5">
                 <Input
                   type="password"
                   placeholder={
                     credType === "static" ? "Password (required)" :
-                    credType === "cr" ? "Shared secret key (required)" :
+                    credType === "challenge-response" ? "Shared secret key (required)" :
                     "Secret (required)"
                   }
                   value={secret}
@@ -139,13 +139,13 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                     This is the password that will be stored and copied to your clipboard when you use this credential.
                   </p>
                 )}
-                {credType === "cr" && (
+                {credType === "challenge-response" && (
                   <p className="text-xs text-muted-foreground">
                     The shared secret used to compute HMAC signatures. Can be plain text or a base32-encoded key.
                   </p>
                 )}
               </div>
-              {(credType === "totp" || credType === "hotp" || credType === "cr") && (
+              {(credType === "totp" || credType === "hotp" || credType === "challenge-response") && (
                 <div className="flex gap-2">
                   <select
                     className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -157,7 +157,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                     <option value="SHA512">SHA-512</option>
                   </select>
                   <select
-                    className={cn("w-20 rounded-md border border-input bg-background px-3 py-2 text-sm", credType === "cr" && "invisible")}
+                    className={cn("w-20 rounded-md border border-input bg-background px-3 py-2 text-sm", credType === "challenge-response" && "invisible")}
                     value={digits}
                     onChange={(e) => setDigits(Number(e.target.value))}
                   >

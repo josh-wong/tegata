@@ -1,4 +1,4 @@
-export type CredentialType = "totp" | "hotp" | "static" | "cr"
+export type CredentialType = "totp" | "hotp" | "static" | "challenge-response"
 
 export interface Credential {
   id: string

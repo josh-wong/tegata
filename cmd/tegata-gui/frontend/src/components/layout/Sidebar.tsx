@@ -34,7 +34,11 @@ const typeBadgeColor: Record<string, string> = {
   totp: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
   hotp: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   static: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  cr: "bg-purple-500/15 text-purple-700 dark:text-purple-400",
+  "challenge-response": "bg-purple-500/15 text-purple-700 dark:text-purple-400",
+}
+
+const typeBadgeLabel: Record<string, string> = {
+  "challenge-response": "CR",
 }
 
 export function Sidebar({
@@ -128,7 +132,7 @@ export function Sidebar({
                         typeBadgeColor[cred.type],
                       )}
                     >
-                      {cred.type}
+                      {typeBadgeLabel[cred.type] ?? cred.type}
                     </Badge>
                   </button>
                 ))}

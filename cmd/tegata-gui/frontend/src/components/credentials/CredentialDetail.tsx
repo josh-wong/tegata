@@ -44,7 +44,7 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
         {credential.type === "totp" && <TOTPView credential={credential} />}
         {credential.type === "hotp" && <HOTPView credential={credential} />}
         {credential.type === "static" && <StaticView credential={credential} />}
-        {credential.type === "cr" && <ChallengeResponseView credential={credential} />}
+        {credential.type === "challenge-response" && <ChallengeResponseView credential={credential} />}
       </div>
 
       <Separator className="my-4" />
