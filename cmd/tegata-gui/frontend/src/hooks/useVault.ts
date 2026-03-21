@@ -3,8 +3,16 @@ import { App, EventsOn, EventsOff } from "@/lib/wails"
 import type { AppView, VaultLocation } from "@/lib/types"
 
 export function useVault() {
-  const [view, setView] = useState<AppView>("loading")
+  const [view, setViewRaw] = useState<AppView>("loading")
+  const [prevView, setPrevView] = useState<AppView>("setup")
   const [vaultPath, setVaultPath] = useState<string | null>(null)
+
+  const setView = useCallback((next: AppView) => {
+    setViewRaw((current) => {
+      setPrevView(current)
+      return next
+    })
+  }, [])
   const [vaultLocations, setVaultLocations] = useState<VaultLocation[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -83,6 +91,7 @@ export function useVault() {
 
   return {
     view,
+    prevView,
     setView,
     vaultPath,
     setVaultPath,

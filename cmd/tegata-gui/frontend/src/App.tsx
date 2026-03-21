@@ -20,6 +20,7 @@ function App() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
 
   const handleLock = useCallback(() => {
     vault.lock()
@@ -60,8 +61,10 @@ function App() {
         vaultLocations={vault.vaultLocations}
         loading={vault.loading}
         error={vault.error}
+        initialStep={setupStep}
         onCreateVault={vault.createVault}
         onOpenExisting={(path) => {
+          setSetupStep(6)
           vault.setVaultPath(path)
           vault.setView("unlock")
         }}
@@ -79,7 +82,7 @@ function App() {
         loading={vault.loading}
         onUnlock={vault.unlock}
         onSelectVault={vault.setVaultPath}
-        onBack={() => vault.setView("setup")}
+        onBack={() => vault.setView(vault.prevView)}
       />
     )
   }

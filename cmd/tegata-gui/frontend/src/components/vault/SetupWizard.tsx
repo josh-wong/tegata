@@ -11,6 +11,7 @@ interface SetupWizardProps {
   vaultLocations: VaultLocation[]
   loading: boolean
   error: string | null
+  initialStep?: Step
   onCreateVault: (path: string, passphrase: string) => Promise<string>
   onOpenExisting: (path: string) => void
   onComplete: () => void
@@ -22,11 +23,12 @@ export function SetupWizard({
   vaultLocations,
   loading,
   error,
+  initialStep,
   onCreateVault,
   onOpenExisting,
   onComplete,
 }: SetupWizardProps) {
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useState<Step>(initialStep ?? 1)
   const [selectedPath, setSelectedPath] = useState("")
   const [customPath, setCustomPath] = useState("")
   const [passphrase, setPassphrase] = useState("")
