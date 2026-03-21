@@ -134,8 +134,13 @@ func (a *App) CreateVault(path, passphrase string) (string, error) {
 }
 
 // ensureVaultFilename appends "vault.tegata" to the path if it doesn't already
-// end with that filename. Handles both directory paths and bare paths.
+// end with that filename. Handles both directory paths and bare paths. Strips
+// surrounding quotation marks that Windows "Copy as path" adds.
 func ensureVaultFilename(path string) string {
+	// Strip surrounding quotes (Windows "Copy as path" adds these).
+	path = strings.Trim(path, "\"'")
+	path = strings.TrimSpace(path)
+
 	const filename = "vault.tegata"
 	if strings.HasSuffix(path, filename) {
 		return path
