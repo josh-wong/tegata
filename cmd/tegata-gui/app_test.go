@@ -261,6 +261,109 @@ func TestAdapter_LockVault(t *testing.T) {
 	}
 }
 
+func TestAdapter_ChangePassphrase(t *testing.T) {
+	vaultPath, cleanup := setupTestVault(t)
+	defer cleanup()
+
+	app := NewApp()
+
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	// Valid change should succeed.
+	newPass := "new-passphrase-12345"
+	if err := app.ChangePassphrase(testPassphrase, newPass); err != nil {
+		t.Fatalf("changing passphrase: %v", err)
+	}
+
+	// Lock and verify new passphrase works.
+	app.LockVault()
+
+	mgr2, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("reopening vault: %v", err)
+	}
+	if err := mgr2.Unlock([]byte(newPass)); err != nil {
+		mgr2.Close()
+		t.Fatalf("unlocking with new passphrase: %v", err)
+	}
+	mgr2.Close()
+
+	// Old passphrase should no longer work.
+	mgr3, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("reopening vault: %v", err)
+	}
+	if err := mgr3.Unlock([]byte(testPassphrase)); err == nil {
+		mgr3.Close()
+		t.Fatal("expected old passphrase to fail after change")
+	}
+	mgr3.Close()
+}
+
+func TestAdapter_ChangePassphrase_WrongCurrent(t *testing.T) {
+	vaultPath, cleanup := setupTestVault(t)
+	defer cleanup()
+
+	app := NewApp()
+
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	if err := app.ChangePassphrase("wrong-passphrase", "new-passphrase-12345"); err == nil {
+		t.Fatal("expected error when current passphrase is wrong")
+	}
+
+	app.LockVault()
+}
+
+func TestAdapter_ChangePassphrase_TooShort(t *testing.T) {
+	vaultPath, cleanup := setupTestVault(t)
+	defer cleanup()
+
+	app := NewApp()
+
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	if err := app.ChangePassphrase(testPassphrase, "short"); err == nil {
+		t.Fatal("expected error for short new passphrase")
+	}
+
+	app.LockVault()
+}
+
+func TestAdapter_ChangePassphrase_RequiresUnlockedVault(t *testing.T) {
+	app := NewApp()
+	if err := app.ChangePassphrase("old", "new-passphrase-12345"); err == nil {
+		t.Fatal("expected error when vault is locked")
+	}
+}
+
 // Ensure VaultLocation and TOTPResult types are exported correctly for binding.
 func TestAdapter_TypeExports(t *testing.T) {
 	vl := VaultLocation{Path: "/test/vault.tegata", DriveName: "USB"}
