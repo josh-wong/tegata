@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
 import { StrengthMeter } from "@/components/shared/StrengthMeter"
+import { App } from "@/lib/wails"
 import type { VaultLocation } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +21,7 @@ interface SetupWizardProps {
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 
+
 export function SetupWizard({
   vaultLocations,
   loading,
@@ -31,8 +33,10 @@ export function SetupWizard({
   onComplete,
 }: SetupWizardProps) {
   const [step, setStep] = useState<Step>(initialStep ?? 1)
+  const [removableDrives, setRemovableDrives] = useState<VaultLocation[]>([])
   const [selectedPath, setSelectedPath] = useState("")
   const [customPath, setCustomPath] = useState("")
+  const [vaultName, setVaultName] = useState("vault")
   const [passphrase, setPassphrase] = useState("")
   const [confirm, setConfirm] = useState("")
   const [recoveryKey, setRecoveryKey] = useState("")
@@ -40,8 +44,36 @@ export function SetupWizard({
   const [copied, setCopied] = useState(false)
   const [validationError, setValidationError] = useState("")
 
-  const locations = vaultLocations ?? []
-  const effectivePath = selectedPath === "__custom__" ? customPath : selectedPath
+  const [existingVaults, setExistingVaults] = useState<VaultLocation[]>(vaultLocations ?? [])
+
+  // Fetch removable drives when entering step 2 (vault creation).
+  useEffect(() => {
+    if (step === 2) {
+      App.ScanRemovableDrives()
+        .then((drives) => {
+          const d = drives ?? []
+          setRemovableDrives(d)
+          if (d.length > 0 && !selectedPath) {
+            setSelectedPath(d[0].path)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scan for existing vault files when entering step 6 (open existing).
+  useEffect(() => {
+    if (step === 6) {
+      App.ScanForVaults()
+        .then((vaults) => setExistingVaults(vaults ?? []))
+        .catch(() => {})
+    }
+  }, [step])
+
+  const folderPath = selectedPath === "__custom__" ? customPath : selectedPath
+  const effectivePath = folderPath
+    ? `${folderPath.replace(/[/\\]+$/, "")}/${vaultName}.tegata`
+    : ""
 
   async function handleCreate() {
     setValidationError("")
@@ -141,27 +173,33 @@ export function SetupWizard({
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
-              Select where to store your encrypted vault.
-              {locations.length === 0 &&
-                " No removable drives detected — enter a path below."}
+              {removableDrives.length > 0
+                ? "Select a folder for your encrypted vault."
+                : "Insert a USB drive for portable access, or choose any folder."}
             </p>
 
             <div className="space-y-2">
-              {locations.map((loc) => (
+              {removableDrives.map((folder) => (
                 <button
-                  key={loc.path}
-                  onClick={() => setSelectedPath(loc.path)}
+                  key={folder.path}
+                  onClick={() => setSelectedPath(folder.path)}
                   className={cn(
                     "w-full rounded-lg border p-3 text-left transition-colors",
-                    selectedPath === loc.path
+                    selectedPath === folder.path
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50",
                   )}
                 >
-                  <div className="font-medium">{loc.driveName}</div>
-                  <div className="text-xs text-muted-foreground">{loc.path}</div>
+                  <div className="font-medium">{folder.driveName}</div>
+                  <div className="text-xs text-muted-foreground">{folder.path}</div>
                 </button>
               ))}
+
+              {removableDrives.length > 0 && (
+                <p className="px-1 text-xs text-muted-foreground">
+                  Only removable drives (USB, SD, and microSD) are shown.
+                </p>
+              )}
 
               <button
                 onClick={() => setSelectedPath("__custom__")}
@@ -172,28 +210,40 @@ export function SetupWizard({
                     : "border-border hover:border-primary/50",
                 )}
               >
-                <div className="font-medium">Enter a custom path</div>
-                <div className="text-xs text-muted-foreground">
-                  Specify the full path for your vault file
-                </div>
+                <div className="font-medium">Enter a custom folder</div>
               </button>
             </div>
 
-            {(selectedPath === "__custom__" || locations.length === 0) && (
+            {(selectedPath === "__custom__" || removableDrives.length === 0) && (
               <Input
-                placeholder="C:\path\to\folder or vault.tegata"
+                placeholder="C:\path\to\folder"
                 value={customPath}
                 onChange={(e) => {
                   setCustomPath(e.target.value)
                   if (selectedPath !== "__custom__") setSelectedPath("__custom__")
                 }}
-                autoFocus={locations.length === 0}
+                autoFocus={removableDrives.length === 0}
               />
             )}
 
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Vault name</label>
+              <div className="flex items-center gap-0">
+                <Input
+                  value={vaultName}
+                  onChange={(e) => setVaultName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                  className="rounded-r-none"
+                  placeholder="vault"
+                />
+                <span className="flex h-9 items-center rounded-r-md border border-l-0 border-input bg-muted px-3 text-sm text-muted-foreground">
+                  .tegata
+                </span>
+              </div>
+            </div>
+
             <Button
               className="w-full"
-              disabled={!effectivePath}
+              disabled={!folderPath || !vaultName}
               onClick={() => setStep(3)}
             >
               Continue
@@ -326,15 +376,38 @@ export function SetupWizard({
             </Button>
 
             <h2 className="text-lg font-semibold">Open existing vault</h2>
+
+            {existingVaults.length > 0 && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Detected vaults on your removable drives.
+                </p>
+                <div className="space-y-2">
+                  {existingVaults.map((v) => (
+                    <button
+                      key={v.path}
+                      onClick={() => onOpenExisting(v.path)}
+                      className="w-full rounded-lg border p-3 text-left transition-colors border-border hover:border-primary/50"
+                    >
+                      <div className="font-medium">{v.path.split(/[/\\]/).pop()}</div>
+                      <div className="text-xs text-muted-foreground">{v.path}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
             <p className="text-sm text-muted-foreground">
-              Enter the path to your vault file or the folder containing it.
+              {existingVaults.length > 0
+                ? "Or enter a path manually."
+                : "Enter the path to your vault file."}
             </p>
 
             <Input
               placeholder="C:\path\to\vault.tegata"
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
-              autoFocus
+              autoFocus={existingVaults.length === 0}
             />
 
             {error && <p className="text-sm text-destructive">{error}</p>}

@@ -93,6 +93,12 @@ func (a *App) ScanForVaults() ([]VaultLocation, error) {
 	return results, nil
 }
 
+// ScanRemovableDrives returns mounted removable/USB drives for vault creation.
+// Unlike ScanForVaults, this returns drives even if they don't contain vaults.
+func (a *App) ScanRemovableDrives() ([]VaultLocation, error) {
+	return scanRemovableDrives(), nil
+}
+
 // resolveEnvVaultPath resolves a TEGATA_VAULT environment variable value to a
 // vault file path. If the path is a directory, it appends "vault.tegata".
 func resolveEnvVaultPath(path string) string {
@@ -106,9 +112,9 @@ func resolveEnvVaultPath(path string) string {
 	return path
 }
 
-// CreateVault initializes a new encrypted vault at the given path. If the path
-// is a directory or does not end with "vault.tegata", the filename is appended
-// automatically. It returns the hex-encoded recovery key display string.
+// CreateVault initializes a new encrypted vault at the given path. The path
+// must be a full file path ending in .tegata. Returns the hex-encoded recovery
+// key display string. Returns an error if a file already exists at the path.
 func (a *App) CreateVault(path, passphrase string) (string, error) {
 	passBytes := []byte(passphrase)
 	defer zeroBytes(passBytes)
@@ -117,7 +123,12 @@ func (a *App) CreateVault(path, passphrase string) (string, error) {
 		return "", fmt.Errorf("passphrase must be at least 8 characters")
 	}
 
-	path = ensureVaultFilename(path)
+	path = cleanVaultPath(path)
+
+	// Check if file already exists.
+	if _, err := os.Stat(path); err == nil {
+		return "", fmt.Errorf("a vault already exists at %s", path)
+	}
 
 	// Create parent directory if it doesn't exist.
 	dir := vaultDir(path)
@@ -133,21 +144,12 @@ func (a *App) CreateVault(path, passphrase string) (string, error) {
 	return recoveryDisplay, nil
 }
 
-// ensureVaultFilename appends "vault.tegata" to the path if it doesn't already
-// end with that filename. Handles both directory paths and bare paths. Strips
-// surrounding quotation marks that Windows "Copy as path" adds.
-func ensureVaultFilename(path string) string {
-	// Strip surrounding quotes (Windows "Copy as path" adds these).
+// cleanVaultPath strips surrounding quotes and whitespace from a vault path.
+// Windows "Copy as path" adds quotes that cause silent failures.
+func cleanVaultPath(path string) string {
 	path = strings.Trim(path, "\"'")
 	path = strings.TrimSpace(path)
-
-	const filename = "vault.tegata"
-	if strings.HasSuffix(path, filename) {
-		return path
-	}
-	// Trim trailing separators.
-	path = strings.TrimRight(path, "/\\")
-	return path + string(os.PathSeparator) + filename
+	return path
 }
 
 // UnlockVault opens and decrypts the vault at the given path with the
@@ -157,7 +159,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	passBytes := []byte(passphrase)
 	defer zeroBytes(passBytes)
 
-	path = ensureVaultFilename(path)
+	path = cleanVaultPath(path)
 	mgr, err := vault.Open(path)
 	if err != nil {
 		return fmt.Errorf("opening vault: %w", err)

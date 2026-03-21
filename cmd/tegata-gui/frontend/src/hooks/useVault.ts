@@ -3,16 +3,8 @@ import { App, EventsOn, EventsOff } from "@/lib/wails"
 import type { AppView, VaultLocation } from "@/lib/types"
 
 export function useVault() {
-  const [view, setViewRaw] = useState<AppView>("loading")
-  const [prevView, setPrevView] = useState<AppView>("setup")
+  const [view, setView] = useState<AppView>("loading")
   const [vaultPath, setVaultPath] = useState<string | null>(null)
-
-  const setView = useCallback((next: AppView) => {
-    setViewRaw((current) => {
-      setPrevView(current)
-      return next
-    })
-  }, [])
   const [vaultLocations, setVaultLocations] = useState<VaultLocation[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -38,7 +30,7 @@ export function useVault() {
     const handler = () => {
       // Only force unlock view if currently in main (idle timeout lock).
       // Don't override if user is intentionally navigating (e.g. switch vault).
-      setViewRaw((current) => (current === "main" ? "unlock" : current))
+      setView((current) => (current === "main" ? "unlock" : current))
     }
     EventsOn("vault:locked", handler)
     return () => EventsOff("vault:locked")
@@ -93,7 +85,6 @@ export function useVault() {
 
   return {
     view,
-    prevView,
     setView,
     vaultPath,
     setVaultPath,

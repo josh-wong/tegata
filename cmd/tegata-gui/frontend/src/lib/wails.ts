@@ -20,6 +20,7 @@ declare global {
 
 interface WailsAppBindings {
   ScanForVaults(): Promise<VaultLocation[]>
+  ScanRemovableDrives(): Promise<VaultLocation[]>
   CreateVault(path: string, passphrase: string): Promise<string>
   UnlockVault(path: string, passphrase: string): Promise<void>
   LockVault(): Promise<void>
@@ -56,6 +57,7 @@ function getApp(): WailsAppBindings {
 
 export const App = {
   ScanForVaults: () => getApp().ScanForVaults(),
+  ScanRemovableDrives: () => getApp().ScanRemovableDrives(),
   CreateVault: (path: string, passphrase: string) => getApp().CreateVault(path, passphrase),
   UnlockVault: (path: string, passphrase: string) => getApp().UnlockVault(path, passphrase),
   LockVault: () => getApp().LockVault(),

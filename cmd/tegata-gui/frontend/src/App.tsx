@@ -94,7 +94,10 @@ function App() {
         loading={vault.loading}
         onUnlock={vault.unlock}
         onSelectVault={vault.setVaultPath}
-        onBack={() => vault.setView(vault.prevView)}
+        onBack={() => {
+          setSetupStep(1)
+          vault.setView("setup")
+        }}
       />
     )
   }

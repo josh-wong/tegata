@@ -66,6 +66,10 @@ export function ScanForVaults() {
   return window['go']['main']['App']['ScanForVaults']();
 }
 
+export function ScanRemovableDrives() {
+  return window['go']['main']['App']['ScanRemovableDrives']();
+}
+
 export function SignChallenge(arg1, arg2) {
   return window['go']['main']['App']['SignChallenge'](arg1, arg2);
 }

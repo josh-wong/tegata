@@ -36,6 +36,8 @@ export function RemoveCredential(arg1:string):Promise<void>;
 
 export function ScanForVaults():Promise<Array<main.VaultLocation>>;
 
+export function ScanRemovableDrives():Promise<Array<main.VaultLocation>>;
+
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
 
 export function UnlockVault(arg1:string,arg2:string):Promise<void>;
