@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -226,7 +227,11 @@ func (a *App) GetCredential(label string) (*model.Credential, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
-	return a.vault.GetCredential(label)
+	cred, err := a.vault.GetCredential(label)
+	if err != nil {
+		return nil, fmt.Errorf("getting credential: %w", err)
+	}
+	return cred, nil
 }
 
 // AddCredential creates a new credential in the vault and returns its ID.
@@ -272,7 +277,10 @@ func (a *App) RemoveCredential(id string) error {
 		return fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
-	return a.vault.RemoveCredential(id)
+	if err := a.vault.RemoveCredential(id); err != nil {
+		return fmt.Errorf("removing credential: %w", err)
+	}
+	return nil
 }
 
 // GenerateTOTP generates a TOTP code for the credential with the given label.
@@ -590,12 +598,7 @@ func (a *App) resetIdle() {
 
 // vaultDir returns the directory containing the vault file.
 func vaultDir(vaultPath string) string {
-	for i := len(vaultPath) - 1; i >= 0; i-- {
-		if vaultPath[i] == '/' || vaultPath[i] == '\\' {
-			return vaultPath[:i]
-		}
-	}
-	return "."
+	return filepath.Dir(vaultPath)
 }
 
 // zeroBytes overwrites a byte slice with zeros for memory hygiene.
