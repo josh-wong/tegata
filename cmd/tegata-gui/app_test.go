@@ -16,7 +16,7 @@ const testPassphrase = "test-passphrase-12345"
 // setupTestVault creates a temporary directory with a new vault and returns
 // the vault file path and a cleanup function. The vault is created with fast
 // KDF params to keep tests quick.
-func setupTestVault(t *testing.T) (string, func()) {
+func setupTestVault(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -34,9 +34,7 @@ func setupTestVault(t *testing.T) (string, func()) {
 		t.Fatalf("creating test vault: %v", err)
 	}
 
-	return vaultPath, func() {
-		os.RemoveAll(dir)
-	}
+	return vaultPath
 }
 
 func TestAdapter_CreateAndUnlock(t *testing.T) {
@@ -79,8 +77,7 @@ func TestAdapter_CreateAndUnlock(t *testing.T) {
 }
 
 func TestAdapter_AddAndListCredentials(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -120,8 +117,7 @@ func TestAdapter_AddAndListCredentials(t *testing.T) {
 }
 
 func TestAdapter_RemoveCredential(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -158,8 +154,7 @@ func TestAdapter_RemoveCredential(t *testing.T) {
 }
 
 func TestAdapter_GenerateTOTP(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -204,9 +199,7 @@ func TestAdapter_ScanForVaults_EnvVar(t *testing.T) {
 	}
 
 	// Set TEGATA_VAULT to the directory.
-	old := os.Getenv("TEGATA_VAULT")
-	os.Setenv("TEGATA_VAULT", dir)
-	defer os.Setenv("TEGATA_VAULT", old)
+	t.Setenv("TEGATA_VAULT", dir)
 
 	app := NewApp()
 	results, err := app.ScanForVaults()
@@ -228,8 +221,7 @@ func TestAdapter_ScanForVaults_EnvVar(t *testing.T) {
 }
 
 func TestAdapter_LockVault(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -262,8 +254,7 @@ func TestAdapter_LockVault(t *testing.T) {
 }
 
 func TestAdapter_ChangePassphrase(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -310,8 +301,7 @@ func TestAdapter_ChangePassphrase(t *testing.T) {
 }
 
 func TestAdapter_ChangePassphrase_WrongCurrent(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
@@ -334,8 +324,7 @@ func TestAdapter_ChangePassphrase_WrongCurrent(t *testing.T) {
 }
 
 func TestAdapter_ChangePassphrase_TooShort(t *testing.T) {
-	vaultPath, cleanup := setupTestVault(t)
-	defer cleanup()
+	vaultPath := setupTestVault(t)
 
 	app := NewApp()
 
