@@ -475,6 +475,9 @@ func (a *App) PickImportFile() (string, error) {
 	return path, nil
 }
 
+// maxImportSize is the maximum allowed size for an import file (10 MB).
+const maxImportSize = 10 << 20
+
 // ImportVaultFromFile reads the encrypted file at the given path and imports
 // credentials into the vault.
 func (a *App) ImportVaultFromFile(path, importPassphrase string) (*ImportResult, error) {
@@ -482,6 +485,14 @@ func (a *App) ImportVaultFromFile(path, importPassphrase string) (*ImportResult,
 		return nil, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %w", err)
+	}
+	if info.Size() > maxImportSize {
+		return nil, fmt.Errorf("file too large (%d bytes, max %d)", info.Size(), maxImportSize)
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
