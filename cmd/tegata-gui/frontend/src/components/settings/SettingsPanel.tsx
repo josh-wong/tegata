@@ -194,12 +194,12 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Update available</h3>
               <p className="text-sm text-muted-foreground">
-                Version {updateInfo.Version} is available.
+                Version {updateInfo.version} is available.
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(updateInfo.URL, "_blank")}
+                onClick={() => window.open(updateInfo.url, "_blank")}
               >
                 Download
               </Button>

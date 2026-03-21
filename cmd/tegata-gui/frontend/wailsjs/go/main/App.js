@@ -26,6 +26,10 @@ export function ExportVault(arg1) {
   return window['go']['main']['App']['ExportVault'](arg1);
 }
 
+export function ExportVaultToFile(arg1) {
+  return window['go']['main']['App']['ExportVaultToFile'](arg1);
+}
+
 export function GenerateHOTP(arg1) {
   return window['go']['main']['App']['GenerateHOTP'](arg1);
 }
@@ -50,12 +54,20 @@ export function ImportVault(arg1, arg2) {
   return window['go']['main']['App']['ImportVault'](arg1, arg2);
 }
 
+export function ImportVaultFromFile(arg1, arg2) {
+  return window['go']['main']['App']['ImportVaultFromFile'](arg1, arg2);
+}
+
 export function ListCredentials() {
   return window['go']['main']['App']['ListCredentials']();
 }
 
 export function LockVault() {
   return window['go']['main']['App']['LockVault']();
+}
+
+export function PickImportFile() {
+  return window['go']['main']['App']['PickImportFile']();
 }
 
 export function RemoveCredential(arg1) {

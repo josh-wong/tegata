@@ -69,6 +69,22 @@ export namespace config {
 
 export namespace main {
 	
+	export class ImportResult {
+	    imported: number;
+	    skipped: number;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.imported = source["imported"];
+	        this.skipped = source["skipped"];
+	        this.path = source["path"];
+	    }
+	}
 	export class TOTPResult {
 	    code: string;
 	    remaining: number;

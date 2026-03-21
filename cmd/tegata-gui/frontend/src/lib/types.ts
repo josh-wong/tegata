@@ -21,12 +21,12 @@ export interface VaultLocation {
 }
 
 export interface TOTPResult {
-  Code: string
-  Remaining: number
+  code: string
+  remaining: number
 }
 
 export interface UpdateInfo {
-  Version: string
-  URL: string
-  Notes: string
+  version: string
+  url: string
+  notes: string
 }

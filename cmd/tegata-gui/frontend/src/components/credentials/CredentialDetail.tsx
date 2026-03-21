@@ -89,16 +89,16 @@ function TOTPView({ credential }: { credential: Credential }) {
   return (
     <div className="space-y-4">
       <TOTPCountdown
-        code={totp.Code}
-        remaining={totp.Remaining}
+        code={totp.code}
+        remaining={totp.remaining}
         period={credential.period || 30}
         onExpired={fetchCode}
       />
       <CopyButton
-        text={totp.Code}
+        text={totp.code}
         copied={copied}
         onCopy={() => {
-          navigator.clipboard.writeText(totp.Code)
+          navigator.clipboard.writeText(totp.code)
           setCopied(true)
           setTimeout(() => setCopied(false), 2000)
         }}

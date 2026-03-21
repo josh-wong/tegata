@@ -16,6 +16,8 @@ export function CreateVault(arg1:string,arg2:string):Promise<string>;
 
 export function ExportVault(arg1:string):Promise<Array<number>>;
 
+export function ExportVaultToFile(arg1:string):Promise<string>;
+
 export function GenerateHOTP(arg1:string):Promise<string>;
 
 export function GenerateTOTP(arg1:string):Promise<main.TOTPResult>;
@@ -28,9 +30,13 @@ export function GetStaticPassword(arg1:string):Promise<void>;
 
 export function ImportVault(arg1:Array<number>,arg2:string):Promise<number>;
 
+export function ImportVaultFromFile(arg1:string,arg2:string):Promise<main.ImportResult>;
+
 export function ListCredentials():Promise<Array<model.Credential>>;
 
 export function LockVault():Promise<void>;
+
+export function PickImportFile():Promise<string>;
 
 export function RemoveCredential(arg1:string):Promise<void>;
 
