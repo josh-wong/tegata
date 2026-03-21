@@ -91,9 +91,10 @@ function App() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
-        onSwitchVault={() => {
+        onSwitchVault={async () => {
           setSetupStep(1)
-          vault.lock()
+          try { await WailsApp.LockVault() } catch { /* non-critical */ }
+          vault.setView("setup")
         }}
         onUpdateFound={setUpdateInfo}
       />

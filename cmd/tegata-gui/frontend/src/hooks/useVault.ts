@@ -36,7 +36,9 @@ export function useVault() {
 
   useEffect(() => {
     const handler = () => {
-      setView("unlock")
+      // Only force unlock view if currently in main (idle timeout lock).
+      // Don't override if user is intentionally navigating (e.g. switch vault).
+      setViewRaw((current) => (current === "main" ? "unlock" : current))
     }
     EventsOn("vault:locked", handler)
     return () => EventsOff("vault:locked")
