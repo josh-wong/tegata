@@ -20,9 +20,9 @@ function getTier(passphrase: string): Tier {
   if (len < 8)
     return { label: "Too short", color: "bg-red-500", width: "w-1/4" }
   const classes = charClasses(passphrase)
-  const score = len + classes * 3
-  if (score < 15)
+  if (classes < 2)
     return { label: "Weak", color: "bg-orange-500", width: "w-1/2" }
+  const score = len + classes * 3
   if (score < 22)
     return { label: "Fair", color: "bg-yellow-500", width: "w-3/4" }
   return { label: "Strong", color: "bg-green-500", width: "w-full" }

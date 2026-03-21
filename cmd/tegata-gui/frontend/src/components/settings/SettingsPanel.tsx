@@ -50,7 +50,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       setConfirmPass("")
       setTimeout(() => { setPassSuccess(false); setShowPassChange(false) }, 2000)
     } catch (err) {
-      setPassError(err instanceof Error ? err.message : "Failed to change passphrase")
+      setPassError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to change passphrase")
     }
   }
 
@@ -317,44 +317,53 @@ function ExportImport({ onImported }: { onImported: () => void }) {
 
       {showImport && (
         <div className="space-y-2 rounded-md border border-border p-3">
-          {!importFile ? (
+          {message && !message.error ? (
             <>
-              <p className="text-xs text-muted-foreground">
-                Select the encrypted export file to import.
-              </p>
-              <Button size="sm" onClick={handlePickFile}>
-                Choose file
+              <p className="text-sm text-green-500">{message.text}</p>
+              <Button size="sm" variant="outline" onClick={() => { setShowImport(false); setImportPass(""); setImportFile(null); setMessage(null) }}>
+                Done
               </Button>
             </>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground">
-                File: {importFile.split(/[/\\]/).pop()}
-              </p>
-              <Input
-                type="password"
-                placeholder="Passphrase used during export"
-                value={importPass}
-                onChange={(e) => setImportPass(e.target.value)}
-                autoFocus
-              />
+              {!importFile ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Select the encrypted export file to import.
+                  </p>
+                  <Button size="sm" onClick={handlePickFile}>
+                    Choose file
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    File: {importFile.split(/[/\\]/).pop()}
+                  </p>
+                  <Input
+                    type="password"
+                    placeholder="Passphrase used during export"
+                    value={importPass}
+                    onChange={(e) => setImportPass(e.target.value)}
+                    autoFocus
+                  />
+                </>
+              )}
+              {message && (
+                <p className="text-sm text-destructive">{message.text}</p>
+              )}
+              <div className="flex gap-2">
+                {importFile && (
+                  <Button size="sm" onClick={handleImport} disabled={!importPass || loading}>
+                    {loading ? "Importing..." : "Import"}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => { setShowImport(false); setImportPass(""); setImportFile(null); setMessage(null) }}>
+                  Cancel
+                </Button>
+              </div>
             </>
           )}
-          {message && (
-            <p className={`text-sm ${message.error ? "text-destructive" : "text-green-500"}`}>
-              {message.text}
-            </p>
-          )}
-          <div className="flex gap-2">
-            {importFile && (
-              <Button size="sm" onClick={handleImport} disabled={!importPass || loading}>
-                {loading ? "Importing..." : "Import"}
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => { setShowImport(false); setImportPass(""); setImportFile(null); setMessage(null) }}>
-              Cancel
-            </Button>
-          </div>
         </div>
       )}
     </div>
