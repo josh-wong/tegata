@@ -41,7 +41,8 @@ export function TOTPCountdown({
 
   const radius = 20
   const circumference = 2 * Math.PI * radius
-  const progress = secondsLeft / period
+  const safeSeconds = Math.max(0, secondsLeft ?? 0)
+  const progress = period > 0 ? safeSeconds / period : 0
   const dashOffset = circumference * (1 - progress)
 
   const formatted =
@@ -74,11 +75,11 @@ export function TOTPCountdown({
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
-            className={cn("transition-all duration-1000 ease-linear", ringColor(secondsLeft))}
+            className={cn("transition-all duration-1000 ease-linear", ringColor(safeSeconds))}
           />
         </svg>
         <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
-          {secondsLeft}
+          {safeSeconds}
         </span>
       </div>
       <span className="font-mono text-3xl font-bold tracking-wider">

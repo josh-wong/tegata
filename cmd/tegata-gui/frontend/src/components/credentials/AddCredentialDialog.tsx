@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { App } from "@/lib/wails"
+import { cn } from "@/lib/utils"
 import type { CredentialType } from "@/lib/types"
 
 interface AddCredentialDialogProps {
@@ -146,16 +147,14 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                   <option value={6}>6</option>
                   <option value={8}>8</option>
                 </select>
-                {credType === "totp" && (
-                  <Input
-                    type="number"
-                    className="w-20"
-                    value={period}
-                    onChange={(e) => setPeriod(Number(e.target.value))}
-                    min={15}
-                    max={120}
-                  />
-                )}
+                <Input
+                  type="number"
+                  className={cn("w-20", credType !== "totp" && "invisible")}
+                  value={period}
+                  onChange={(e) => setPeriod(Number(e.target.value))}
+                  min={15}
+                  max={120}
+                />
               </div>
               <Input
                 placeholder="Tags (comma-separated)"

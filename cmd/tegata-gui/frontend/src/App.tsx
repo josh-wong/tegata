@@ -41,8 +41,8 @@ function App() {
         await WailsApp.RemoveCredential(id)
         creds.refresh()
         creds.select(null)
-      } catch {
-        // Error handling via toast in future
+      } catch (err) {
+        console.error("Failed to remove credential:", err)
       }
     },
     [creds],

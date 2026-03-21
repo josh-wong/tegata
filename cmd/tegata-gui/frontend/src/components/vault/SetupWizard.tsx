@@ -57,7 +57,7 @@ export function SetupWizard({
             setSelectedPath(d[0].path)
           }
         })
-        .catch(() => {})
+        .catch((err) => console.error("Failed to scan removable drives:", err))
     }
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -66,7 +66,7 @@ export function SetupWizard({
     if (step === 6) {
       App.ScanForVaults()
         .then((vaults) => setExistingVaults(vaults ?? []))
-        .catch(() => {})
+        .catch((err) => console.error("Failed to scan for vaults:", err))
     }
   }, [step])
 

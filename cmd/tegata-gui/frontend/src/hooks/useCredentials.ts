@@ -25,7 +25,8 @@ export function useCredentials() {
     try {
       const list = await App.ListCredentials()
       setCredentials((list ?? []).map(normalizeCred))
-    } catch {
+    } catch (err) {
+      console.error("Failed to load credentials:", err)
       setCredentials([])
     }
   }, [])
