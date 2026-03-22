@@ -83,7 +83,12 @@ function TOTPView({ credential }: { credential: Credential }) {
     fetchCode()
   }, [fetchCode])
 
-  if (error) return <p className="text-sm text-destructive">{error}</p>
+  if (error) return (
+    <div className="space-y-2">
+      <p className="text-sm text-destructive">{error}</p>
+      <Button variant="outline" size="sm" onClick={fetchCode}>Retry</Button>
+    </div>
+  )
   if (!totp) return <Loader2 className="h-6 w-6 animate-spin text-primary" />
 
   return (
