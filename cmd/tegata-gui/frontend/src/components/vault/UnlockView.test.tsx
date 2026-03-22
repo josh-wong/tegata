@@ -55,6 +55,7 @@ describe("UnlockView", () => {
     // Find the submit button among all buttons since it has no accessible name.
     const buttons = screen.getAllByRole("button")
     const submitBtn = buttons.find((btn) => btn.getAttribute("type") === "submit")
+    expect(submitBtn).toBeDefined()
     expect(submitBtn).toBeDisabled()
   })
 

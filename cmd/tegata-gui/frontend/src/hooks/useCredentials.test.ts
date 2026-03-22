@@ -40,7 +40,8 @@ describe("useCredentials", () => {
   })
 
   it("refresh with null response sets empty array", async () => {
-    vi.mocked(App.ListCredentials).mockResolvedValue(null as never)
+    // Simulate Go backend returning null for what TS expects as an array
+    vi.mocked(App.ListCredentials).mockResolvedValue(null as unknown as Credential[])
 
     const { result } = renderHook(() => useCredentials())
     await act(async () => {

@@ -32,7 +32,8 @@ describe("useVault", () => {
   })
 
   it("sets view to 'setup' when ScanForVaults resolves null", async () => {
-    vi.mocked(App.ScanForVaults).mockResolvedValue(null as never)
+    // Simulate Go backend returning null for what TS expects as an array
+    vi.mocked(App.ScanForVaults).mockResolvedValue(null as unknown as [])
     const { result } = renderHook(() => useVault())
     await waitFor(() => expect(result.current.view).toBe("setup"))
   })

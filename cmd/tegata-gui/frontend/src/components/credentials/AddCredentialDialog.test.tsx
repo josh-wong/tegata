@@ -101,6 +101,7 @@ describe("AddCredentialDialog", () => {
     const user = userEvent.setup()
     render(<AddCredentialDialog {...defaultProps} />)
 
+    // Dialog renders both a header close and a footer Cancel button
     const cancelButtons = screen.getAllByText("Cancel")
     await user.click(cancelButtons[0])
 
