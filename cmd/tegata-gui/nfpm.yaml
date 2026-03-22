@@ -8,7 +8,7 @@ maintainer: "Josh Wong"
 description: "Tegata desktop GUI - Portable encrypted authenticator"
 vendor: "josh-wong"
 homepage: "https://github.com/josh-wong/tegata"
-license: "Apache-2.0"
+license: "MIT"
 contents:
   - src: ./build/bin/tegata-gui
     dst: /usr/bin/tegata-gui
