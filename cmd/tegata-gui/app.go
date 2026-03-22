@@ -105,10 +105,10 @@ func (a *App) ScanRemovableDrives() ([]VaultLocation, error) {
 func resolveEnvVaultPath(path string) string {
 	info, err := os.Stat(path)
 	if err == nil && info.IsDir() {
-		return path + string(os.PathSeparator) + "vault.tegata"
+		return filepath.Join(path, "vault.tegata")
 	}
 	if strings.HasSuffix(path, string(os.PathSeparator)) {
-		return path + "vault.tegata"
+		return filepath.Join(path, "vault.tegata")
 	}
 	return path
 }
