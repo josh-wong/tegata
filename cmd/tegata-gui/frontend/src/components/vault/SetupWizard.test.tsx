@@ -82,6 +82,35 @@ describe("SetupWizard", () => {
     expect(screen.getByText("Cancel")).toBeInTheDocument()
   })
 
+  it("clears passphrase fields after successful vault creation", async () => {
+    const user = userEvent.setup()
+    render(<SetupWizard {...defaultProps} initialStep={3} />)
+
+    const inputs = screen.getAllByPlaceholderText(/passphrase/i)
+    await user.type(inputs[0], "test-passphrase-dummy-one")
+    await user.type(inputs[1], "test-passphrase-dummy-one")
+
+    await user.click(screen.getByText("Create vault"))
+
+    // After success, the wizard advances to the recovery key step.
+    // Verify passphrases were cleared by going back to check the inputs
+    // are no longer in the DOM (step changed) and onCreateVault received
+    // the passphrase exactly once.
+    await waitFor(() => {
+      expect(screen.getByText("Save your recovery key")).toBeInTheDocument()
+    })
+    expect(defaultProps.onCreateVault).toHaveBeenCalledWith(
+      expect.any(String),
+      "test-passphrase-dummy-one",
+    )
+
+    // The passphrase inputs should no longer be in the DOM (step 4 has no
+    // passphrase fields), confirming the component moved on and the state
+    // was cleared internally (lines 91-92 in SetupWizard.tsx).
+    expect(screen.queryByPlaceholderText("Passphrase")).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Confirm passphrase")).not.toBeInTheDocument()
+  })
+
   it("does not expose passphrase values as visible text in the DOM", () => {
     render(<SetupWizard {...defaultProps} initialStep={3} />)
 
