@@ -244,7 +244,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch ct.ctype {
 			case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP:
 				if _, err := decodeBase32Secret(m.addSecretInput.Value()); err != nil {
-					m.errMsg = "Secret is not valid base32 — TOTP and HOTP use A-Z and 2-7 only"
+					m.errMsg = "Secret is not valid base32 — TOTP and HOTP secrets use characters A-Z and 2-7 only"
 					return m, nil
 				}
 			}
