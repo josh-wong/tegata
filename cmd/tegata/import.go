@@ -52,7 +52,15 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	defer mgr.Close()
 
-	// Read backup file.
+	// Read backup file with size guard (10 MB max, matching GUI).
+	const maxImportSize = 10 << 20
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		return fmt.Errorf("reading backup file %q: %w", backupPath, err)
+	}
+	if info.Size() > maxImportSize {
+		return fmt.Errorf("backup file too large (%d bytes, max %d)", info.Size(), maxImportSize)
+	}
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
 		return fmt.Errorf("reading backup file %q: %w", backupPath, err)

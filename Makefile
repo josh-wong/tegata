@@ -1,4 +1,4 @@
-.PHONY: build test lint cross check-size clean
+.PHONY: build test lint cross check-size clean gui gui-dev release-cli checksums
 
 BINARY_NAME := tegata
 BUILD_DIR := bin
@@ -28,6 +28,25 @@ check-size: build
 		exit 1; \
 	fi; \
 	echo "OK: Binary is under 20MB limit"
+
+gui:
+	cd cmd/tegata-gui && wails build -clean
+
+gui-dev:
+	cd cmd/tegata-gui && wails dev
+
+release-cli:
+	@VERSION=$${VERSION:-dev}; \
+	for target in "windows/amd64/.exe" "darwin/arm64/" "darwin/amd64/" "linux/amd64/"; do \
+		IFS='/' read -r goos goarch ext <<< "$$target"; \
+		echo "Building tegata-$$goos-$$goarch$$ext"; \
+		CGO_ENABLED=0 GOOS=$$goos GOARCH=$$goarch go build \
+			-ldflags="-s -w -X main.version=$$VERSION" \
+			-o $(BUILD_DIR)/tegata-$$goos-$$goarch$$ext ./cmd/tegata/; \
+	done
+
+checksums:
+	cd $(BUILD_DIR) && sha256sum * > SHA256SUMS.txt
 
 clean:
 	rm -rf $(BUILD_DIR)

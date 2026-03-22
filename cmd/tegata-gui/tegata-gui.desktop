@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Tegata
+Comment=Your credentials, encrypted and portable
+Exec=/usr/bin/tegata-gui
+Icon=tegata-gui
+Terminal=false
+Type=Application
+Categories=Utility;Security;

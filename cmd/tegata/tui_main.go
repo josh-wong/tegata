@@ -252,11 +252,8 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 	challenge := []byte(m.crChallengeInput.Value())
 	secret, err := decodeBase32Secret(cred.Secret)
 	if err != nil {
-		m.errMsg = fmt.Sprintf("Invalid CR secret: %v", err)
-		m.crChallengeActive = false
-		m.crChallengeInput.Reset()
-		m.crChallengeInput.Blur()
-		return m, nil
+		// Fall back to raw bytes for plain text shared keys.
+		secret = []byte(cred.Secret)
 	}
 	defer zeroBytes(secret)
 

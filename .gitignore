@@ -155,3 +155,4 @@ $RECYCLE.BIN/
 coverage.txt
 *.prof
 *.out
+cmd/tegata-gui/frontend/package.json.md5
