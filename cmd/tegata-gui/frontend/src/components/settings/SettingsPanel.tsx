@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,11 +31,18 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
   const [recoveryResult, setRecoveryResult] = useState<boolean | null>(null)
 
   const [idleTimeout, setIdleTimeout] = useState(300)
+  const [appVersion, setAppVersion] = useState("")
+  const [showTooltip, setShowTooltip] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const infoRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open) {
       App.GetIdleTimeoutSeconds()
         .then(setIdleTimeout)
+        .catch(() => {})
+      App.GetVersion()
+        .then(setAppVersion)
         .catch(() => {})
     }
   }, [open])
@@ -188,11 +195,27 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
               <Button variant="outline" size="sm" onClick={() => setShowRecovery(true)}>
                 Verify recovery key
               </Button>
-              <div className="group relative cursor-help text-muted-foreground">
+              <div
+                ref={infoRef}
+                className="cursor-help text-muted-foreground"
+                onMouseEnter={() => {
+                  if (infoRef.current) {
+                    const rect = infoRef.current.getBoundingClientRect()
+                    setTooltipPos({ top: rect.bottom + 8, left: rect.left + rect.width / 2 })
+                  }
+                  setShowTooltip(true)
+                }}
+                onMouseLeave={() => setShowTooltip(false)}
+              >
                 <Info className="h-4 w-4" />
-                <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-80 -translate-x-1/2 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md group-hover:block">
-                  Confirm that the recovery key you saved still matches your vault. This is the only way to regain access if you forget your passphrase.
-                </div>
+                {showTooltip && (
+                  <div
+                    className="fixed z-[100] w-72 -translate-x-1/2 rounded-md bg-neutral-800 px-3 py-2 text-xs text-neutral-100 shadow-md dark:bg-neutral-700"
+                    style={{ top: tooltipPos.top, left: tooltipPos.left }}
+                  >
+                    Confirm that the recovery key you saved still matches your vault. This is the only way to regain access if you forget your passphrase.
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -256,6 +279,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
         <section className="space-y-1">
           <h3 className="text-sm font-medium">About</h3>
           <p className="text-xs text-muted-foreground">Tegata — Portable encrypted authenticator</p>
+          {appVersion && <p className="text-xs text-muted-foreground">Version: {appVersion}</p>}
           <p className="text-xs text-muted-foreground">License: MIT</p>
         </section>
       </div>
