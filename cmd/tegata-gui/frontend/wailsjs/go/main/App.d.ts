@@ -30,6 +30,8 @@ export function GetIdleTimeoutSeconds():Promise<number>;
 
 export function GetStaticPassword(arg1:string):Promise<void>;
 
+export function GetVersion():Promise<string>;
+
 export function ImportVault(arg1:Array<number>,arg2:string):Promise<number>;
 
 export function ImportVaultFromFile(arg1:string,arg2:string):Promise<main.ImportResult>;

@@ -54,6 +54,10 @@ export function GetStaticPassword(arg1) {
   return window['go']['main']['App']['GetStaticPassword'](arg1);
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function ImportVault(arg1, arg2) {
   return window['go']['main']['App']['ImportVault'](arg1, arg2);
 }

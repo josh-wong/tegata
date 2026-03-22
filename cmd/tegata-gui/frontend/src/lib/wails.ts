@@ -49,6 +49,7 @@ interface WailsAppBindings {
   ImportVaultFromFile(path: string, importPassphrase: string): Promise<{ imported: number; skipped: number; path: string } | null>
   ChangePassphrase(current: string, newPass: string): Promise<void>
   VerifyRecoveryKey(key: string): Promise<boolean>
+  GetVersion(): Promise<string>
   GetConfig(): Promise<Record<string, unknown>>
   GetIdleTimeoutSeconds(): Promise<number>
   SetIdleTimeoutSeconds(seconds: number): Promise<void>
@@ -82,6 +83,7 @@ export const App = {
   ImportVaultFromFile: (path: string, passphrase: string) => getApp().ImportVaultFromFile(path, passphrase),
   ChangePassphrase: (current: string, newPass: string) => getApp().ChangePassphrase(current, newPass),
   VerifyRecoveryKey: (key: string) => getApp().VerifyRecoveryKey(key),
+  GetVersion: () => getApp().GetVersion(),
   GetConfig: () => getApp().GetConfig(),
   GetIdleTimeoutSeconds: () => getApp().GetIdleTimeoutSeconds(),
   SetIdleTimeoutSeconds: (seconds: number) => getApp().SetIdleTimeoutSeconds(seconds),

@@ -579,6 +579,11 @@ func (a *App) GetConfig() config.Config {
 	return a.config
 }
 
+// GetVersion returns the application version string set at build time.
+func (a *App) GetVersion() string {
+	return version
+}
+
 // GetIdleTimeoutSeconds returns the current idle lock timeout in seconds.
 func (a *App) GetIdleTimeoutSeconds() int {
 	return int(a.config.IdleTimeout.Seconds())
