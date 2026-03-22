@@ -60,6 +60,7 @@ jobs:
           build-platform: windows/amd64
           nsis: true
           go-version: ${{ env.GO_VERSION }}
+          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
           package: false
           working-directory: cmd/tegata-gui
 
@@ -85,6 +86,7 @@ jobs:
           build-name: tegata-gui
           build-platform: darwin/universal
           go-version: ${{ env.GO_VERSION }}
+          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
           working-directory: cmd/tegata-gui
 
       - name: Create DMG
@@ -122,6 +124,7 @@ jobs:
           build-name: tegata-gui
           build-platform: linux/amd64
           go-version: ${{ env.GO_VERSION }}
+          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
           working-directory: cmd/tegata-gui
 
       - name: Build Linux packages
