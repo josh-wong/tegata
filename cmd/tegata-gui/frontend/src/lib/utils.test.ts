@@ -29,4 +29,8 @@ describe("formatError", () => {
   it("returns an empty string when given an empty string", () => {
     expect(formatError("", "fallback")).toBe("")
   })
+
+  it("returns empty message from Error with empty string, not fallback", () => {
+    expect(formatError(new Error(""), "fallback")).toBe("")
+  })
 })
