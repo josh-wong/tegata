@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +29,27 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
   const [showRecovery, setShowRecovery] = useState(false)
   const [recoveryKey, setRecoveryKey] = useState("")
   const [recoveryResult, setRecoveryResult] = useState<boolean | null>(null)
+
+  const [idleTimeout, setIdleTimeout] = useState(300)
+
+  useEffect(() => {
+    if (open) {
+      App.GetIdleTimeoutSeconds()
+        .then(setIdleTimeout)
+        .catch(() => {})
+    }
+  }, [open])
+
+  async function handleIdleTimeoutChange(seconds: number) {
+    setIdleTimeout(seconds)
+    try {
+      await App.SetIdleTimeoutSeconds(seconds)
+    } catch {
+      // Revert on failure
+      const current = await App.GetIdleTimeoutSeconds()
+      setIdleTimeout(current)
+    }
+  }
 
   if (!open) return null
 
@@ -93,6 +114,29 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
 
         <Separator className="my-4" />
 
+        {/* Auto-lock */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">Auto-lock</h3>
+          <select
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={idleTimeout}
+            onChange={(e) => handleIdleTimeoutChange(Number(e.target.value))}
+          >
+            <option value={60}>1 minute</option>
+            <option value={120}>2 minutes</option>
+            <option value={300}>5 minutes (default)</option>
+            <option value={600}>10 minutes</option>
+            <option value={900}>15 minutes</option>
+            <option value={1800}>30 minutes</option>
+            <option value={0}>Never</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Lock the vault automatically after a period of inactivity.
+          </p>
+        </section>
+
+        <Separator className="my-4" />
+
         {/* Vault */}
         <section className="space-y-3">
           <h3 className="text-sm font-medium">Vault</h3>
@@ -146,7 +190,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
               </Button>
               <div className="group relative cursor-help text-muted-foreground">
                 <Info className="h-4 w-4" />
-                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-80 -translate-x-1/2 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md group-hover:block">
+                <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-80 -translate-x-1/2 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md group-hover:block">
                   Confirm that the recovery key you saved still matches your vault. This is the only way to regain access if you forget your passphrase.
                 </div>
               </div>
@@ -212,7 +256,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
         <section className="space-y-1">
           <h3 className="text-sm font-medium">About</h3>
           <p className="text-xs text-muted-foreground">Tegata — Portable encrypted authenticator</p>
-          <p className="text-xs text-muted-foreground">License: Apache 2.0</p>
+          <p className="text-xs text-muted-foreground">License: MIT</p>
         </section>
       </div>
     </div>
