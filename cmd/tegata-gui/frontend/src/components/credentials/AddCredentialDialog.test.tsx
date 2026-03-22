@@ -91,6 +91,24 @@ describe("AddCredentialDialog", () => {
     })
   })
 
+  it("accepts base32 lookalike digits (0, 1, 8) as valid secret characters", async () => {
+    const user = userEvent.setup()
+    render(<AddCredentialDialog {...defaultProps} />)
+
+    await user.type(screen.getByPlaceholderText("Label (required)"), "test-cred")
+    const secretInput = screen.getByPlaceholderText("Secret (required)")
+    // 0→O, 1→L, 8→B are silently corrected per the error message
+    await user.type(secretInput, "JBSWY018")
+
+    await user.click(screen.getByText("Add"))
+
+    await waitFor(() => {
+      expect(App.AddCredential).toHaveBeenCalledTimes(1)
+    })
+    // No validation error should appear
+    expect(screen.queryByText(/invalid characters/)).not.toBeInTheDocument()
+  })
+
   it("secret input uses type='password'", () => {
     render(<AddCredentialDialog {...defaultProps} />)
     const secretInput = screen.getByPlaceholderText("Secret (required)")
