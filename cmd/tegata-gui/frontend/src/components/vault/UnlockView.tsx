@@ -28,9 +28,19 @@ export function UnlockView({
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // Delay focus slightly so the Wails WebView has finished rendering.
-    const t = setTimeout(() => inputRef.current?.focus(), 100)
-    return () => clearTimeout(t)
+    // The Wails WebView may not accept focus until its layout is fully
+    // interactive. Poll until the input receives focus or give up after
+    // a reasonable number of attempts.
+    let attempts = 0
+    const interval = setInterval(() => {
+      if (document.activeElement === inputRef.current || attempts >= 20) {
+        clearInterval(interval)
+        return
+      }
+      inputRef.current?.focus()
+      attempts++
+    }, 100)
+    return () => clearInterval(interval)
   }, [])
 
   function handleSubmit(e: FormEvent) {
