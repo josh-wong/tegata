@@ -3,13 +3,15 @@ import { useCallback, useEffect, useRef } from "react"
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "touchstart", "scroll"] as const
 
 export function useIdleTimer(timeoutMs: number, onIdle: () => void) {
-  const lastActivity = useRef(Date.now())
+  const lastActivity = useRef(0)
 
   const resetTimer = useCallback(() => {
     lastActivity.current = Date.now()
   }, [])
 
   useEffect(() => {
+    lastActivity.current = Date.now()
+
     const handler = () => {
       lastActivity.current = Date.now()
     }

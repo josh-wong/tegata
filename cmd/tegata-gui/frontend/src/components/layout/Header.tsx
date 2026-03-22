@@ -1,4 +1,3 @@
-import { useCallback } from "react"
 import { FolderSync, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UpdateBadge } from "@/components/settings/UpdateBadge"
@@ -11,8 +10,6 @@ interface HeaderProps {
 }
 
 export function Header({ onSettingsClick, onSwitchVault, onUpdateFound }: HeaderProps) {
-  const stableOnUpdateFound = useCallback(onUpdateFound, [onUpdateFound])
-
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
       <h1 className="text-lg font-semibold tracking-tight text-primary">
@@ -38,7 +35,7 @@ export function Header({ onSettingsClick, onSwitchVault, onUpdateFound }: Header
           >
             <Settings className="h-4 w-4" />
           </Button>
-          <UpdateBadge onUpdateFound={stableOnUpdateFound} />
+          <UpdateBadge onUpdateFound={onUpdateFound} />
         </div>
       </div>
     </header>

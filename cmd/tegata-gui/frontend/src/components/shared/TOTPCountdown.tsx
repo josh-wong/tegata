@@ -22,7 +22,10 @@ export function TOTPCountdown({
 }: TOTPCountdownProps) {
   const [secondsLeft, setSecondsLeft] = useState(remaining)
   const onExpiredRef = useRef(onExpired)
-  onExpiredRef.current = onExpired
+
+  useEffect(() => {
+    onExpiredRef.current = onExpired
+  }, [onExpired])
 
   useEffect(() => {
     setSecondsLeft(remaining)

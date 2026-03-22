@@ -42,7 +42,7 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
       <Separator />
 
       <div className="mt-4 flex-1">
-        {credential.type === "totp" && <TOTPView credential={credential} />}
+        {credential.type === "totp" && <TOTPView key={credential.label} credential={credential} />}
         {credential.type === "hotp" && <HOTPView credential={credential} />}
         {credential.type === "static" && <StaticView credential={credential} />}
         {credential.type === "challenge-response" && <ChallengeResponseView credential={credential} />}
@@ -69,9 +69,9 @@ function TOTPView({ credential }: { credential: Credential }) {
   const [copied, setCopied] = useState(false)
 
   const fetchCode = useCallback(() => {
-    setError(null)
     App.GenerateTOTP(credential.label)
       .then((result) => {
+        setError(null)
         if (result) setTotp(result)
       })
       .catch((err) => {
@@ -80,7 +80,6 @@ function TOTPView({ credential }: { credential: Credential }) {
   }, [credential.label])
 
   useEffect(() => {
-    setTotp(null)
     fetchCode()
   }, [fetchCode])
 
