@@ -115,6 +115,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
           </TabsList>
 
           <TabsContent value="manual">
+            <fieldset disabled={loading}>
             <form onSubmit={handleManualSubmit} className="space-y-3">
               <Input
                 placeholder="Label (required)"
@@ -205,9 +206,11 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 </Button>
               </div>
             </form>
+            </fieldset>
           </TabsContent>
 
           <TabsContent value="uri">
+            <fieldset disabled={loading}>
             <form onSubmit={handleURISubmit} className="space-y-3">
               <textarea
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
@@ -229,6 +232,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 </Button>
               </div>
             </form>
+            </fieldset>
           </TabsContent>
         </Tabs>
       </div>
