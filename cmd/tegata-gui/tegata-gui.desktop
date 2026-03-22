@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Tegata
-Comment=Portable encrypted authenticator
+Comment=Your credentials, encrypted and portable
 Exec=/usr/bin/tegata-gui
 Icon=tegata-gui
 Terminal=false

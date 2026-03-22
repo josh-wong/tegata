@@ -278,7 +278,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
         {/* About */}
         <section className="space-y-1">
           <h3 className="text-sm font-medium">About</h3>
-          <p className="text-xs text-muted-foreground">Tegata — Portable encrypted authenticator</p>
+          <p className="text-xs text-muted-foreground">Tegata — Your credentials, encrypted and portable</p>
           {appVersion && <p className="text-xs text-muted-foreground">Version: {appVersion}</p>}
           <p className="text-xs text-muted-foreground">License: MIT</p>
         </section>

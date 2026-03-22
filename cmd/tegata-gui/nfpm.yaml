@@ -5,7 +5,7 @@ version: "${VERSION}"
 section: utils
 priority: optional
 maintainer: "Josh Wong"
-description: "Tegata desktop GUI - Portable encrypted authenticator"
+description: "Tegata desktop GUI - Your credentials, encrypted and portable"
 vendor: "josh-wong"
 homepage: "https://github.com/josh-wong/tegata"
 license: "MIT"

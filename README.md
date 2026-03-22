@@ -1,6 +1,6 @@
 # Tegata (手形)
 
-**Your authentication history. Integrity checked.**
+**Your credentials, encrypted and portable.**
 
 ![CI](https://github.com/josh-wong/tegata/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)

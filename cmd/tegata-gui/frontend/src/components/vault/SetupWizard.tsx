@@ -139,7 +139,7 @@ export function SetupWizard({
             <div>
               <h1 className="text-2xl font-bold text-primary">Tegata</h1>
               <p className="mt-2 text-muted-foreground">
-                Set up your portable authenticator
+                Your credentials, encrypted and portable
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
