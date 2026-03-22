@@ -19,9 +19,11 @@ Object.defineProperty(window, "matchMedia", {
 })
 
 // jsdom does not implement navigator.clipboard — stub it for components
-// that copy text.
+// that copy text. Must be configurable so @testing-library/user-event
+// can also attach its own clipboard stub.
 Object.defineProperty(navigator, "clipboard", {
   writable: true,
+  configurable: true,
   value: {
     writeText: vi.fn(() => Promise.resolve()),
     readText: vi.fn(() => Promise.resolve("")),
