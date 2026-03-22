@@ -27,6 +27,22 @@ const hotpCredential: Credential = {
   tags: [],
 }
 
+const staticCredential: Credential = {
+  ...totpCredential,
+  id: "cred-3",
+  label: "Static Password",
+  type: "static",
+  tags: [],
+}
+
+const challengeCredential: Credential = {
+  ...totpCredential,
+  id: "cred-4",
+  label: "Challenge Key",
+  type: "challenge-response",
+  tags: [],
+}
+
 describe("CredentialDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -76,6 +92,63 @@ describe("CredentialDetail", () => {
   it("HOTP type shows 'Generate code' button", () => {
     render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
     expect(screen.getByText("Generate code")).toBeInTheDocument()
+  })
+
+  it("HOTP type shows counter value", () => {
+    render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
+    expect(screen.getByText("Counter: 5")).toBeInTheDocument()
+  })
+
+  it("HOTP type calls GenerateHOTP when Generate code is clicked", async () => {
+    vi.mocked(App.GenerateHOTP).mockResolvedValue("987654")
+    const user = userEvent.setup()
+    render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
+
+    await user.click(screen.getByText("Generate code"))
+
+    await waitFor(() => {
+      expect(App.GenerateHOTP).toHaveBeenCalledWith("HOTP Service")
+      expect(screen.getByText("987654")).toBeInTheDocument()
+    })
+  })
+
+  it("static type shows copy to clipboard button", () => {
+    render(<CredentialDetail credential={staticCredential} onRemove={vi.fn()} />)
+    expect(screen.getByText("Copy to clipboard")).toBeInTheDocument()
+    expect(screen.getByText(/auto-cleared after 45/)).toBeInTheDocument()
+  })
+
+  it("static type calls GetStaticPassword on copy", async () => {
+    vi.mocked(App.GetStaticPassword).mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<CredentialDetail credential={staticCredential} onRemove={vi.fn()} />)
+
+    await user.click(screen.getByText("Copy to clipboard"))
+
+    await waitFor(() => {
+      expect(App.GetStaticPassword).toHaveBeenCalledWith("Static Password")
+    })
+  })
+
+  it("challenge-response type shows challenge input and Sign button", () => {
+    render(<CredentialDetail credential={challengeCredential} onRemove={vi.fn()} />)
+    expect(screen.getByPlaceholderText("Enter challenge text...")).toBeInTheDocument()
+    expect(screen.getByText("Sign")).toBeInTheDocument()
+  })
+
+  it("challenge-response type calls SignChallenge and shows signature", async () => {
+    vi.mocked(App.SignChallenge).mockResolvedValue("abcdef1234567890")
+    const user = userEvent.setup()
+    render(<CredentialDetail credential={challengeCredential} onRemove={vi.fn()} />)
+
+    await user.type(screen.getByPlaceholderText("Enter challenge text..."), "test-challenge")
+    await user.click(screen.getByText("Sign"))
+
+    await waitFor(() => {
+      expect(App.SignChallenge).toHaveBeenCalledWith("Challenge Key", "test-challenge")
+      expect(screen.getByText("abcdef1234567890")).toBeInTheDocument()
+      expect(screen.getByText("Signature")).toBeInTheDocument()
+    })
   })
 
   it("does not render tags section when tags array is empty", () => {
