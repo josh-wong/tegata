@@ -2,6 +2,23 @@ import { describe, expect, it, beforeEach, vi } from "vitest"
 import { renderHook, act } from "@testing-library/react"
 import { useCredentials } from "./useCredentials"
 import { App } from "@/lib/wails"
+import type { Credential } from "@/lib/types"
+
+function makeCredential(overrides: Partial<Credential> = {}): Credential {
+  return {
+    id: "1",
+    label: "GitHub",
+    issuer: "GitHub Inc",
+    type: "totp",
+    algorithm: "SHA1",
+    digits: 6,
+    period: 30,
+    counter: 0,
+    tags: [],
+    notes: "",
+    ...overrides,
+  }
+}
 
 describe("useCredentials", () => {
   beforeEach(() => {
@@ -10,18 +27,7 @@ describe("useCredentials", () => {
 
   it("refresh populates credentials from ListCredentials", async () => {
     vi.mocked(App.ListCredentials).mockResolvedValue([
-      {
-        id: "1",
-        label: "GitHub",
-        issuer: "GitHub Inc",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: ["dev"],
-        notes: "work",
-      },
+      makeCredential({ tags: ["dev"], notes: "work" }),
     ])
 
     const { result } = renderHook(() => useCredentials())
@@ -88,30 +94,8 @@ describe("useCredentials", () => {
 
   it("filteredCredentials filters by label case-insensitively", async () => {
     vi.mocked(App.ListCredentials).mockResolvedValue([
-      {
-        id: "1",
-        label: "GitHub",
-        issuer: "GitHub Inc",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
-      {
-        id: "2",
-        label: "Gmail",
-        issuer: "Google",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
+      makeCredential({ id: "1", label: "GitHub", issuer: "GitHub Inc" }),
+      makeCredential({ id: "2", label: "Gmail", issuer: "Google" }),
     ])
 
     const { result } = renderHook(() => useCredentials())
@@ -129,30 +113,8 @@ describe("useCredentials", () => {
 
   it("filteredCredentials filters by issuer", async () => {
     vi.mocked(App.ListCredentials).mockResolvedValue([
-      {
-        id: "1",
-        label: "Work",
-        issuer: "GitHub Inc",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
-      {
-        id: "2",
-        label: "Personal",
-        issuer: "Google",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
+      makeCredential({ id: "1", label: "Work", issuer: "GitHub Inc" }),
+      makeCredential({ id: "2", label: "Personal", issuer: "Google" }),
     ])
 
     const { result } = renderHook(() => useCredentials())
@@ -170,18 +132,7 @@ describe("useCredentials", () => {
 
   it("selectedCredential returns matching credential or null", async () => {
     vi.mocked(App.ListCredentials).mockResolvedValue([
-      {
-        id: "1",
-        label: "GitHub",
-        issuer: "GitHub Inc",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
+      makeCredential(),
     ])
 
     const { result } = renderHook(() => useCredentials())
@@ -206,30 +157,8 @@ describe("useCredentials", () => {
 
   it("returns all credentials when search query is empty", async () => {
     vi.mocked(App.ListCredentials).mockResolvedValue([
-      {
-        id: "1",
-        label: "A",
-        issuer: "",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
-      {
-        id: "2",
-        label: "B",
-        issuer: "",
-        type: "totp",
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        counter: 0,
-        tags: [],
-        notes: "",
-      },
+      makeCredential({ id: "1", label: "A", issuer: "" }),
+      makeCredential({ id: "2", label: "B", issuer: "" }),
     ])
 
     const { result } = renderHook(() => useCredentials())

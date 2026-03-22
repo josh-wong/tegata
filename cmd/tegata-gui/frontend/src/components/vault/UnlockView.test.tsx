@@ -51,9 +51,10 @@ describe("UnlockView", () => {
     await user.type(screen.getByPlaceholderText("Passphrase"), "test-passphrase-dummy")
     rerender(<UnlockView {...defaultProps} loading={true} />)
 
-    // When loading, the button shows a spinner, not "Unlock" text.
-    // The submit button should be disabled.
-    const submitBtn = document.querySelector('button[type="submit"]')
+    // When loading, the button shows a spinner instead of "Unlock" text.
+    // Find the submit button among all buttons since it has no accessible name.
+    const buttons = screen.getAllByRole("button")
+    const submitBtn = buttons.find((btn) => btn.getAttribute("type") === "submit")
     expect(submitBtn).toBeDisabled()
   })
 
