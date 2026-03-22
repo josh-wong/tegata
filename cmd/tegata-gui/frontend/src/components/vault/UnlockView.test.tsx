@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
+import { render, screen, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { UnlockView } from "./UnlockView"
 
@@ -90,6 +90,38 @@ describe("UnlockView", () => {
     await user.click(screen.getByText("Back"))
 
     expect(defaultProps.onBack).toHaveBeenCalledTimes(1)
+  })
+
+  it("retries focus on passphrase input via polling interval", () => {
+    vi.useFakeTimers()
+
+    render(<UnlockView {...defaultProps} />)
+    const input = screen.getByPlaceholderText("Passphrase")
+
+    // Simulate the input not receiving focus initially
+    // The component polls every 100ms up to 20 times
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    // After polling, the input should have focus
+    expect(document.activeElement).toBe(input)
+
+    vi.useRealTimers()
+  })
+
+  it("stops focus polling after unmount", () => {
+    vi.useFakeTimers()
+
+    const { unmount } = render(<UnlockView {...defaultProps} />)
+    unmount()
+
+    // Advancing timers after unmount should not throw
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    vi.useRealTimers()
   })
 
   it("does not expose passphrase as visible text in the DOM", () => {
