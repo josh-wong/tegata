@@ -50,6 +50,8 @@ interface WailsAppBindings {
   ChangePassphrase(current: string, newPass: string): Promise<void>
   VerifyRecoveryKey(key: string): Promise<boolean>
   GetConfig(): Promise<Record<string, unknown>>
+  GetIdleTimeoutSeconds(): Promise<number>
+  SetIdleTimeoutSeconds(seconds: number): Promise<void>
   CheckForUpdate(): Promise<UpdateInfo | null>
 }
 
@@ -81,6 +83,8 @@ export const App = {
   ChangePassphrase: (current: string, newPass: string) => getApp().ChangePassphrase(current, newPass),
   VerifyRecoveryKey: (key: string) => getApp().VerifyRecoveryKey(key),
   GetConfig: () => getApp().GetConfig(),
+  GetIdleTimeoutSeconds: () => getApp().GetIdleTimeoutSeconds(),
+  SetIdleTimeoutSeconds: (seconds: number) => getApp().SetIdleTimeoutSeconds(seconds),
   CheckForUpdate: () => getApp().CheckForUpdate(),
 }
 

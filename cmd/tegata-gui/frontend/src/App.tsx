@@ -23,12 +23,19 @@ function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
   const [isSwitching, setIsSwitching] = useState(false)
+  const [idleTimeoutMs, setIdleTimeoutMs] = useState(5 * 60 * 1000)
+
+  useEffect(() => {
+    WailsApp.GetIdleTimeoutSeconds()
+      .then((s) => setIdleTimeoutMs(s * 1000))
+      .catch(() => {})
+  }, [settingsOpen])
 
   const handleLock = useCallback(() => {
     vault.lock()
   }, [vault])
 
-  useIdleTimer(5 * 60 * 1000, handleLock)
+  useIdleTimer(idleTimeoutMs, handleLock)
 
   useEffect(() => {
     if (vault.view === "main") {

@@ -46,6 +46,10 @@ export function GetCredential(arg1) {
   return window['go']['main']['App']['GetCredential'](arg1);
 }
 
+export function GetIdleTimeoutSeconds() {
+  return window['go']['main']['App']['GetIdleTimeoutSeconds']();
+}
+
 export function GetStaticPassword(arg1) {
   return window['go']['main']['App']['GetStaticPassword'](arg1);
 }
@@ -80,6 +84,10 @@ export function ScanForVaults() {
 
 export function ScanRemovableDrives() {
   return window['go']['main']['App']['ScanRemovableDrives']();
+}
+
+export function SetIdleTimeoutSeconds(arg1) {
+  return window['go']['main']['App']['SetIdleTimeoutSeconds'](arg1);
 }
 
 export function SignChallenge(arg1, arg2) {

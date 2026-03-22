@@ -579,6 +579,27 @@ func (a *App) GetConfig() config.Config {
 	return a.config
 }
 
+// GetIdleTimeoutSeconds returns the current idle lock timeout in seconds.
+func (a *App) GetIdleTimeoutSeconds() int {
+	return int(a.config.IdleTimeout.Seconds())
+}
+
+// SetIdleTimeoutSeconds updates the idle lock timeout and restarts the timer.
+// A value of 0 disables auto-lock.
+func (a *App) SetIdleTimeoutSeconds(seconds int) error {
+	if seconds < 0 {
+		return fmt.Errorf("timeout must be non-negative")
+	}
+	a.config.IdleTimeout = time.Duration(seconds) * time.Second
+	if a.idleTimer != nil {
+		a.idleTimer.Stop()
+	}
+	if seconds > 0 && a.vault != nil {
+		a.startIdleTimer()
+	}
+	return nil
+}
+
 // CheckForUpdate checks the GitHub Releases API for a newer version. Returns
 // nil if the current version is up to date or if the check is disabled.
 func (a *App) CheckForUpdate() (*UpdateInfo, error) {

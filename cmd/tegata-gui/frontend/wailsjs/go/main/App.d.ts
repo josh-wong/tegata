@@ -26,6 +26,8 @@ export function GetConfig():Promise<config.Config>;
 
 export function GetCredential(arg1:string):Promise<model.Credential>;
 
+export function GetIdleTimeoutSeconds():Promise<number>;
+
 export function GetStaticPassword(arg1:string):Promise<void>;
 
 export function ImportVault(arg1:Array<number>,arg2:string):Promise<number>;
@@ -43,6 +45,8 @@ export function RemoveCredential(arg1:string):Promise<void>;
 export function ScanForVaults():Promise<Array<main.VaultLocation>>;
 
 export function ScanRemovableDrives():Promise<Array<main.VaultLocation>>;
+
+export function SetIdleTimeoutSeconds(arg1:number):Promise<void>;
 
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
 

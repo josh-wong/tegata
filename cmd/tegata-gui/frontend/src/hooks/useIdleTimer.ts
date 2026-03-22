@@ -10,6 +10,8 @@ export function useIdleTimer(timeoutMs: number, onIdle: () => void) {
   }, [])
 
   useEffect(() => {
+    if (timeoutMs <= 0) return
+
     lastActivity.current = Date.now()
 
     const handler = () => {
