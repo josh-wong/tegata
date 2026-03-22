@@ -1,9 +1,10 @@
 import { type FormEvent, useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { App } from "@/lib/wails"
-import { cn, formatError } from "@/lib/utils"
+import { formatError } from "@/lib/utils"
 import type { CredentialType } from "@/lib/types"
 
 interface AddCredentialDialogProps {
@@ -27,6 +28,8 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
   const [period, setPeriod] = useState(30)
   const [tags, setTags] = useState("")
 
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
   // URI state
   const [uri, setUri] = useState("")
 
@@ -41,6 +44,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     setDigits(6)
     setPeriod(30)
     setTags("")
+    setShowAdvanced(false)
     setUri("")
     setError("")
   }
@@ -124,7 +128,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 autoFocus
               />
               <Input
-                placeholder="Issuer (optional)"
+                placeholder="Service name, e.g. GitHub, Microsoft (optional)"
                 value={issuer}
                 onChange={(e) => setIssuer(e.target.value)}
               />
@@ -161,32 +165,56 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 )}
               </div>
               {(credType === "totp" || credType === "hotp" || credType === "challenge-response") && (
-                <div className="flex gap-2">
-                  <select
-                    className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={algorithm}
-                    onChange={(e) => setAlgorithm(e.target.value)}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
                   >
-                    <option value="SHA1">SHA-1</option>
-                    <option value="SHA256">SHA-256</option>
-                    <option value="SHA512">SHA-512</option>
-                  </select>
-                  <select
-                    className={cn("w-20 rounded-md border border-input bg-background px-3 py-2 text-sm", credType === "challenge-response" && "invisible")}
-                    value={digits}
-                    onChange={(e) => setDigits(Number(e.target.value))}
-                  >
-                    <option value={6}>6</option>
-                    <option value={8}>8</option>
-                  </select>
-                  <Input
-                    type="number"
-                    className={cn("w-20", credType !== "totp" && "invisible")}
-                    value={period}
-                    onChange={(e) => setPeriod(Number(e.target.value))}
-                    min={15}
-                    max={120}
-                  />
+                    {showAdvanced ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    Advanced options
+                  </button>
+                  {showAdvanced && (
+                    <div className="space-y-2 rounded-md border border-border p-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Hash algorithm</label>
+                        <select
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={algorithm}
+                          onChange={(e) => setAlgorithm(e.target.value)}
+                        >
+                          <option value="SHA1">SHA-1 (default)</option>
+                          <option value="SHA256">SHA-256</option>
+                          <option value="SHA512">SHA-512</option>
+                        </select>
+                      </div>
+                      {credType !== "challenge-response" && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Code length</label>
+                          <select
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={digits}
+                            onChange={(e) => setDigits(Number(e.target.value))}
+                          >
+                            <option value={6}>6 digits (default)</option>
+                            <option value={8}>8 digits</option>
+                          </select>
+                        </div>
+                      )}
+                      {credType === "totp" && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Refresh interval (seconds)</label>
+                          <Input
+                            type="number"
+                            value={period}
+                            onChange={(e) => setPeriod(Number(e.target.value))}
+                            min={15}
+                            max={120}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <Input
