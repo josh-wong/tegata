@@ -241,6 +241,10 @@ func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, d
 	}
 	a.resetIdle()
 
+	if model.CredentialType(credType) == model.CredentialTOTP && (period < 15 || period > 120) {
+		return "", fmt.Errorf("period must be between 15 and 120 seconds")
+	}
+
 	cred := model.Credential{
 		Label:     label,
 		Issuer:    issuer,
@@ -426,6 +430,7 @@ func (a *App) ExportVaultToFile(exportPassphrase string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("exporting: %w", err)
 	}
+	defer zeroBytes(data)
 
 	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
 		Title:           "Export Credentials",
@@ -508,6 +513,7 @@ func (a *App) ImportVaultFromFile(path, importPassphrase string) (*ImportResult,
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
+	defer zeroBytes(data)
 
 	passBytes := []byte(importPassphrase)
 	defer zeroBytes(passBytes)
