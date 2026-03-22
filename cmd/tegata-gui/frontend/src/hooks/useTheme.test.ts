@@ -72,4 +72,44 @@ describe("useTheme", () => {
     unmount()
     expect(removeEventListener).toHaveBeenCalledWith("change", expect.any(Function))
   })
+
+  it("matchMedia change handler applies system theme when theme is 'system'", () => {
+    let capturedHandler: (() => void) | null = null
+
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((_event: string, handler: () => void) => {
+        capturedHandler = handler
+      }),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })
+
+    // Theme defaults to "system" when localStorage is empty
+    renderHook(() => useTheme())
+
+    expect(capturedHandler).not.toBeNull()
+
+    // Simulate OS switching to dark mode
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: true,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })
+
+    act(() => {
+      capturedHandler!()
+    })
+
+    expect(document.documentElement.classList.contains("dark")).toBe(true)
+  })
 })
