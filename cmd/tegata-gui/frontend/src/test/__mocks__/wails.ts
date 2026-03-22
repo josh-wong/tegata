@@ -1,0 +1,33 @@
+import { vi } from "vitest"
+
+export const App = {
+  ScanForVaults: vi.fn().mockResolvedValue([]),
+  ScanRemovableDrives: vi.fn().mockResolvedValue([]),
+  CreateVault: vi.fn().mockResolvedValue("recovery-key-abc123"),
+  UnlockVault: vi.fn().mockResolvedValue(undefined),
+  LockVault: vi.fn().mockResolvedValue(undefined),
+  ListCredentials: vi.fn().mockResolvedValue([]),
+  GetCredential: vi.fn().mockResolvedValue(null),
+  AddCredential: vi.fn().mockResolvedValue("new-id"),
+  AddCredentialFromURI: vi.fn().mockResolvedValue("new-id"),
+  RemoveCredential: vi.fn().mockResolvedValue(undefined),
+  GenerateTOTP: vi.fn().mockResolvedValue({ code: "123456", remaining: 15 }),
+  GenerateHOTP: vi.fn().mockResolvedValue("654321"),
+  GetStaticPassword: vi.fn().mockResolvedValue(undefined),
+  SignChallenge: vi.fn().mockResolvedValue("abcdef0123456789"),
+  ExportVault: vi.fn().mockResolvedValue([]),
+  ExportVaultToFile: vi.fn().mockResolvedValue("/tmp/export.tegata"),
+  ImportVault: vi.fn().mockResolvedValue({ imported: 0, skipped: 0 }),
+  PickImportFile: vi.fn().mockResolvedValue(""),
+  ImportVaultFromFile: vi.fn().mockResolvedValue(null),
+  ChangePassphrase: vi.fn().mockResolvedValue(undefined),
+  VerifyRecoveryKey: vi.fn().mockResolvedValue(true),
+  GetVersion: vi.fn().mockResolvedValue("1.0.0"),
+  GetConfig: vi.fn().mockResolvedValue({}),
+  GetIdleTimeoutSeconds: vi.fn().mockResolvedValue(300),
+  SetIdleTimeoutSeconds: vi.fn().mockResolvedValue(undefined),
+  CheckForUpdate: vi.fn().mockResolvedValue(null),
+}
+
+export const EventsOn = vi.fn()
+export const EventsOff = vi.fn()
