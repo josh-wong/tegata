@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 interface TOTPCountdownProps {
@@ -21,6 +21,8 @@ export function TOTPCountdown({
   onExpired,
 }: TOTPCountdownProps) {
   const [secondsLeft, setSecondsLeft] = useState(remaining)
+  const onExpiredRef = useRef(onExpired)
+  onExpiredRef.current = onExpired
 
   useEffect(() => {
     setSecondsLeft(remaining)
@@ -30,14 +32,14 @@ export function TOTPCountdown({
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          onExpired()
+          onExpiredRef.current()
           return 0
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [onExpired])
+  }, [])
 
   const radius = 20
   const circumference = 2 * Math.PI * radius
