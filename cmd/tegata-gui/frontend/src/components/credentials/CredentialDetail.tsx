@@ -153,14 +153,19 @@ function StaticView({ credential }: { credential: Credential }) {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  const [error, setError] = useState<string | null>(null)
+
   function copyPassword() {
     setLoading(true)
+    setError(null)
     App.GetStaticPassword(credential.label)
       .then(() => {
         setCopied(true)
         setTimeout(() => setCopied(false), 3000)
       })
-      .catch(() => {})
+      .catch((err) => {
+        setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to copy password")
+      })
       .finally(() => setLoading(false))
   }
 
@@ -169,6 +174,7 @@ function StaticView({ credential }: { credential: Credential }) {
       <p className="text-sm text-muted-foreground">
         The password will be copied to your clipboard and auto-cleared after 45 seconds.
       </p>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button onClick={copyPassword} disabled={loading}>
         {loading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

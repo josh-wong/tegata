@@ -37,7 +37,6 @@ export function UnlockView({
     e.preventDefault()
     if (!passphrase || loading) return
     onUnlock(passphrase)
-    setPassphrase("")
   }
 
   const currentLocation = vaultLocations.find((v) => v.path === vaultPath)
