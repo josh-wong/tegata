@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { App, EventsOn, EventsOff } from "@/lib/wails"
+import { formatError } from "@/lib/utils"
 import type { AppView, VaultLocation } from "@/lib/types"
 
 export function useVault() {
@@ -45,7 +46,7 @@ export function useVault() {
         await App.UnlockVault(vaultPath, passphrase)
         setView("main")
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to unlock vault")
+        setError(formatError(err, "Failed to unlock vault"))
       } finally {
         setLoading(false)
       }
@@ -74,7 +75,7 @@ export function useVault() {
         await App.UnlockVault(path, passphrase)
         return recoveryKey
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create vault")
+        setError(formatError(err, "Failed to create vault"))
         throw err
       } finally {
         setLoading(false)

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { TOTPCountdown } from "@/components/shared/TOTPCountdown"
 import { App } from "@/lib/wails"
+import { formatError } from "@/lib/utils"
 import type { Credential, TOTPResult } from "@/lib/types"
 
 interface CredentialDetailProps {
@@ -74,7 +75,7 @@ function TOTPView({ credential }: { credential: Credential }) {
         if (result) setTotp(result)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err))
+        setError(formatError(err, "Failed to generate code"))
       })
   }, [credential.label])
 
@@ -100,7 +101,6 @@ function TOTPView({ credential }: { credential: Credential }) {
         onExpired={fetchCode}
       />
       <CopyButton
-        text={totp.code}
         copied={copied}
         onCopy={() => {
           navigator.clipboard.writeText(totp.code)
@@ -123,7 +123,7 @@ function HOTPView({ credential }: { credential: Credential }) {
     setError(null)
     App.GenerateHOTP(credential.label)
       .then(setCode)
-      .catch((err) => setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to generate code"))
+      .catch((err) => setError(formatError(err, "Failed to generate code")))
       .finally(() => setLoading(false))
   }
 
@@ -139,7 +139,6 @@ function HOTPView({ credential }: { credential: Credential }) {
         </Button>
         {code && (
           <CopyButton
-            text={code}
             copied={copied}
             onCopy={() => {
               navigator.clipboard.writeText(code)
@@ -169,7 +168,7 @@ function StaticView({ credential }: { credential: Credential }) {
         setTimeout(() => setCopied(false), 3000)
       })
       .catch((err) => {
-        setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to copy password")
+        setError(formatError(err, "Failed to copy password"))
       })
       .finally(() => setLoading(false))
   }
@@ -207,7 +206,7 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
     setError(null)
     App.SignChallenge(credential.label, challenge)
       .then(setResponse)
-      .catch((err) => setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Signing failed"))
+      .catch((err) => setError(formatError(err, "Signing failed")))
       .finally(() => setLoading(false))
   }
 
@@ -235,7 +234,6 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
             {response}
           </code>
           <CopyButton
-            text={response}
             copied={copied}
             onCopy={() => {
               navigator.clipboard.writeText(response)
@@ -250,11 +248,9 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
 }
 
 function CopyButton({
-  text: _text,
   copied,
   onCopy,
 }: {
-  text: string
   copied: boolean
   onCopy: () => void
 }) {

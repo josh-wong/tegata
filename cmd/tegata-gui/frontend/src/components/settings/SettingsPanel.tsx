@@ -7,7 +7,7 @@ import { StrengthMeter } from "@/components/shared/StrengthMeter"
 import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
-import { cn } from "@/lib/utils"
+import { cn, formatError } from "@/lib/utils"
 
 interface SettingsPanelProps {
   open: boolean
@@ -50,7 +50,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       setConfirmPass("")
       setTimeout(() => { setPassSuccess(false); setShowPassChange(false) }, 2000)
     } catch (err) {
-      setPassError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to change passphrase")
+      setPassError(formatError(err, "Failed to change passphrase"))
     }
   }
 
@@ -249,7 +249,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
         setExportConfirm("")
       }
     } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Export failed", error: true })
+      setMessage({ text: formatError(err, "Export failed"), error: true })
     } finally {
       setLoading(false)
     }
@@ -262,7 +262,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
         setImportFile(path)
       }
     } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Failed to select file", error: true })
+      setMessage({ text: formatError(err, "Failed to select file"), error: true })
     }
   }
 
@@ -279,7 +279,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
         onImported()
       }
     } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Import failed", error: true })
+      setMessage({ text: formatError(err, "Import failed"), error: true })
     } finally {
       setLoading(false)
     }

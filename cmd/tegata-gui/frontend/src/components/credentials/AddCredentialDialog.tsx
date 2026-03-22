@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { App } from "@/lib/wails"
-import { cn } from "@/lib/utils"
+import { cn, formatError } from "@/lib/utils"
 import type { CredentialType } from "@/lib/types"
 
 interface AddCredentialDialogProps {
@@ -77,7 +77,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to add credential")
+      setError(formatError(err, "Failed to add credential"))
     } finally {
       setLoading(false)
     }
@@ -97,7 +97,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Failed to add credential")
+      setError(formatError(err, "Failed to add credential"))
     } finally {
       setLoading(false)
     }
