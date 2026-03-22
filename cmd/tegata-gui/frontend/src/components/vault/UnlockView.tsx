@@ -91,6 +91,7 @@ export function UnlockView({
               placeholder="Passphrase"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
+              maxLength={256}
               autoFocus
               disabled={loading}
             />

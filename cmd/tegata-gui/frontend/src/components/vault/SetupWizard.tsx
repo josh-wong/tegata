@@ -267,6 +267,7 @@ export function SetupWizard({
                   placeholder="Passphrase"
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
+                  maxLength={256}
                   autoFocus
                 />
                 {passphrase && <StrengthMeter passphrase={passphrase} />}
@@ -277,6 +278,7 @@ export function SetupWizard({
                 placeholder="Confirm passphrase"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
+                maxLength={256}
               />
             </div>
 
