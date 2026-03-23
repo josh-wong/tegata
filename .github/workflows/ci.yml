@@ -41,3 +41,34 @@ jobs:
 
       - name: Check binary size
         run: make check-size
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: cmd/tegata-gui/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cmd/tegata-gui/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
