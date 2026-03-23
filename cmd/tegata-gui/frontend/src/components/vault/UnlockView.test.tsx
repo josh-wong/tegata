@@ -41,7 +41,7 @@ describe("UnlockView", () => {
 
   it("Unlock button is disabled when passphrase is empty", () => {
     render(<UnlockView {...defaultProps} />)
-    expect(screen.getByText("Unlock").closest("button")).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Unlock" })).toBeDisabled()
   })
 
   it("Unlock button is disabled when loading is true", async () => {
