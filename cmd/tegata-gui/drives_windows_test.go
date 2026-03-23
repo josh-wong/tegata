@@ -29,7 +29,8 @@ func TestPlatformScanRemovable_Windows(t *testing.T) {
 
 func TestGetVolumeLabel_InvalidRoot(t *testing.T) {
 	// Calling getVolumeLabel with a path that is not a valid volume root
-	// should return an empty string, not panic.
+	// should return an empty string, not panic. If a CI runner ever has a
+	// real Z: drive this could pass vacuously, but that is extremely unlikely.
 	label := getVolumeLabel("Z:\\nonexistent\\")
 	if label != "" {
 		t.Errorf("expected empty label for invalid root, got %q", label)
