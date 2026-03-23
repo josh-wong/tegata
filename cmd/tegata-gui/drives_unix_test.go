@@ -9,11 +9,11 @@ import (
 )
 
 func TestPlatformScanRemovable_Unix(t *testing.T) {
-	results := platformScanRemovable()
-
 	// CI runners typically have no removable drives, so an empty result is
 	// expected. The test verifies that OS-specific directory reads complete
 	// without panicking and that any returned entries are well-formed.
+	results := platformScanRemovable()
+
 	for _, r := range results {
 		if r.Path == "" {
 			t.Error("VaultLocation.Path must not be empty")
@@ -21,12 +21,8 @@ func TestPlatformScanRemovable_Unix(t *testing.T) {
 		if r.DriveName == "" {
 			t.Error("VaultLocation.DriveName must not be empty")
 		}
-	}
-}
 
-func TestPlatformScanRemovable_PathPrefix(t *testing.T) {
-	results := platformScanRemovable()
-	for _, r := range results {
+		// Verify platform-appropriate path prefixes.
 		switch runtime.GOOS {
 		case "darwin":
 			if !strings.HasPrefix(r.Path, "/Volumes/") {

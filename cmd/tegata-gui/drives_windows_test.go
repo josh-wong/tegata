@@ -39,9 +39,9 @@ func TestGetVolumeLabel_InvalidRoot(t *testing.T) {
 func TestScanMountedDrives_WindowsDriveLetters(t *testing.T) {
 	results := scanMountedDrives()
 	for _, r := range results {
-		// Every result path on Windows should contain a drive letter and colon.
-		if !strings.Contains(r.Path, ":") {
-			t.Errorf("expected Windows-style path with colon, got %q", r.Path)
+		// Every result path on Windows should start with a drive letter and colon.
+		if len(r.Path) < 2 || r.Path[1] != ':' {
+			t.Errorf("expected Windows drive letter path (e.g. D:\\), got %q", r.Path)
 		}
 	}
 }
