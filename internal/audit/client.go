@@ -242,20 +242,50 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 }
 
 // validateResult is the JSON shape returned by the object.Validate contract.
+// Matches the official ScalarDL generic contracts response schema.
 type validateResult struct {
-	Valid       bool   `json:"valid"`
-	EventCount  int    `json:"event_count"`
-	ErrorDetail string `json:"error_detail"`
+	Status         string   `json:"status"`
+	Details        string   `json:"details"`
+	FaultyVersions []string `json:"faulty_versions"`
 }
 
-// Validate calls the object.Validate contract and checks ledger integrity for objectID.
+// Validate verifies the integrity of all records for objectID on the ledger.
+// It uses a two-step flow: first calls object.Get to retrieve stored records,
+// then calls object.Validate with a versions array built from those records.
+// If Get returns no records, it returns Valid=true with EventCount=0 without
+// calling object.Validate (nothing to validate).
 func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*ValidationResult, error) {
+	// Step 1: Retrieve all stored records via object.Get.
+	records, err := c.Get(ctx, objectID)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving records for validation: %w", err)
+	}
+
+	// If no records exist, there is nothing to validate.
+	if len(records) == 0 {
+		return &ValidationResult{Valid: true, EventCount: 0}, nil
+	}
+
+	// Step 2: Build versions array from retrieved records.
+	versions := make([]map[string]string, len(records))
+	for i, r := range records {
+		versions[i] = map[string]string{
+			"version_id": r.ObjectID,
+			"hash_value": r.HashValue,
+		}
+	}
+
+	// Step 3: Marshal the validate argument with object_id and versions.
 	contractID := "object.Validate"
-	arg, err := json.Marshal(map[string]string{"object_id": objectID})
+	arg, err := json.Marshal(map[string]interface{}{
+		"object_id": objectID,
+		"versions":  versions,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("marshalling Validate argument: %w", err)
 	}
 
+	// Step 4: Sign and execute object.Validate.
 	nonce := uuid.New().String()
 	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
 	if err != nil {
@@ -274,6 +304,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 		return nil, fmt.Errorf("%w: Validate contract failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 
+	// Step 5: Parse and map the response.
 	var vr validateResult
 	if resp.GetContractResult() != "" {
 		if err := json.Unmarshal([]byte(resp.GetContractResult()), &vr); err != nil {
@@ -282,9 +313,9 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 	}
 
 	return &ValidationResult{
-		Valid:       vr.Valid,
-		EventCount:  vr.EventCount,
-		ErrorDetail: vr.ErrorDetail,
+		Valid:       vr.Status == "correct",
+		EventCount:  len(records),
+		ErrorDetail: vr.Details,
 	}, nil
 }
 
