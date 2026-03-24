@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/josh-wong/tegata/internal/audit"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
@@ -315,5 +316,81 @@ func TestQuitFromMainViewAfterUnlock(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if cmd == nil {
 		t.Error("expected tea.Quit command from 'q' in stateMainView, got nil")
+	}
+}
+
+// TestTUI_AuditBuilderFromUnlock verifies that handleUnlockResult stores the
+// builder from unlockResultMsg onto the model.
+func TestTUI_AuditBuilderFromUnlock(t *testing.T) {
+	m := initialModel("/tmp/fake/vault.tegata")
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	msg := unlockResultMsg{mgr: nil, builder: builder}
+	updated, _ := m.Update(msg)
+	m = updated.(model)
+	if m.builder != builder {
+		t.Error("expected builder to be assigned from unlockResultMsg")
+	}
+}
+
+// TestTUI_AuditNilBuilderNoCredentialPanic verifies that handleCredentialAction
+// does not panic when builder is nil (audit disabled). The nil-guard must
+// protect every LogEvent call site.
+func TestTUI_AuditNilBuilderNoCredentialPanic(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	m.credList.SetItems([]list.Item{
+		credItem{cred: pkgmodel.Credential{
+			Label:  "test-totp",
+			Type:   pkgmodel.CredentialTOTP,
+			Secret: "JBSWY3DPEHPK3PXP",
+		}},
+	})
+	// builder is nil — should not panic.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = updated.(model)
+}
+
+// TestTUI_AuditQuitClosesBuilder verifies that quit() closes the EventBuilder
+// and nils the field so resources are released on exit.
+func TestTUI_AuditQuitClosesBuilder(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	m.builder = builder
+
+	updated, _ := m.quit()
+	result := updated.(model)
+	if result.builder != nil {
+		t.Error("expected builder to be nil after quit()")
+	}
+}
+
+// TestTUI_AuditIdleLockClosesBuilder verifies that the idle-lock handler
+// closes the EventBuilder when auto-locking the vault.
+func TestTUI_AuditIdleLockClosesBuilder(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	m.lastActivity = time.Now().Add(-m.idleTimeout - time.Second)
+
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	m.builder = builder
+
+	tick := tickMsg{t: time.Now()}
+	updated, _ := m.Update(tick)
+	result := updated.(model)
+	if result.state != stateLockedIdle {
+		t.Errorf("expected stateLockedIdle, got %v", result.state)
+	}
+	if result.builder != nil {
+		t.Error("expected builder to be nil after idle lock")
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
@@ -97,6 +98,9 @@ type model struct {
 	settingsMsg      string
 	settingsTagIdx   int          // selected tag index in tag management
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
+
+	// Audit event builder (nil when audit disabled or vault locked)
+	builder *audit.EventBuilder
 
 	// Sub-models
 	passphraseInput textinput.Model
@@ -254,6 +258,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			effectiveState == stateOverlayRemove ||
 			effectiveState == stateOverlaySettings
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
+			if m.builder != nil {
+				_ = m.builder.Close()
+				m.builder = nil
+			}
 			if m.vaultMgr != nil {
 				m.vaultMgr.Close()
 				m.vaultMgr = nil
@@ -328,6 +336,10 @@ func (m model) View() string {
 
 // quit cleanly closes all resources and returns tea.Quit.
 func (m model) quit() (tea.Model, tea.Cmd) {
+	if m.builder != nil {
+		_ = m.builder.Close()
+		m.builder = nil
+	}
 	if m.clipMgr != nil {
 		m.clipMgr.Close()
 	}

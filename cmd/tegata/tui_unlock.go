@@ -2,38 +2,57 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
 // unlockResultMsg is returned by unlockVaultCmd when the async vault unlock
 // goroutine completes. On success, mgr is non-nil. On failure, err is set.
+// The builder field carries the EventBuilder constructed while the passphrase
+// was still available; it may be nil when audit is disabled or unavailable.
 type unlockResultMsg struct {
-	mgr *vault.Manager
-	err error
+	mgr     *vault.Manager
+	err     error
+	builder *audit.EventBuilder
 }
 
 // unlockVaultCmd spawns an async tea.Cmd that opens and unlocks the vault.
 // Argon2id derivation inside Unlock blocks for ~1-3s, so it runs off the
 // event loop. The caller must zero the passphrase slice after this call.
+//
+// The EventBuilder is constructed here — while the passphrase is still
+// available — so the queue encryption key can be derived before zeroing.
 func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 	return func() tea.Msg {
-		defer zeroBytes(passphrase)
 		mgr, err := vault.Open(path)
 		if err != nil {
+			zeroBytes(passphrase)
 			return unlockResultMsg{err: err}
 		}
 		if err := mgr.Unlock(passphrase); err != nil {
 			mgr.Close()
+			zeroBytes(passphrase)
 			return unlockResultMsg{err: err}
 		}
-		return unlockResultMsg{mgr: mgr}
+
+		// Build EventBuilder while passphrase is available (AUDT-02).
+		cfg, _ := config.Load(filepath.Dir(path))
+		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
+		if builderErr != nil {
+			// Non-fatal: TUI works without audit.
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit unavailable: %v\n", builderErr)
+		}
+
+		zeroBytes(passphrase)
+		return unlockResultMsg{mgr: mgr, builder: builder}
 	}
 }
 
@@ -64,6 +83,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.vaultMgr = msg.mgr
+	m.builder = msg.builder
 	m.passphraseInput.Blur()
 	m = loadCredentials(m)
 	m.state = stateMainView
