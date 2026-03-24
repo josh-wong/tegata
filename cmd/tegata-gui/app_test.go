@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/josh-wong/tegata/pkg/model"
@@ -366,4 +368,61 @@ func TestAdapter_TypeExports(t *testing.T) {
 	}
 
 	_ = model.CredentialTOTP // Ensure model package is accessible.
+}
+
+// TestApp_AuditBuilderNilSafe verifies that credential actions do not panic
+// when builder is nil (audit not configured). The nil-guard must protect
+// every LogEvent call site.
+func TestApp_AuditBuilderNilSafe(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+	app.locked = false
+	app.config = config.DefaultConfig()
+	// builder is nil (audit not configured)
+
+	// Add a TOTP credential.
+	_, err = app.AddCredential("test-totp", "Test", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil)
+	if err != nil {
+		t.Fatalf("adding credential: %v", err)
+	}
+
+	// GenerateTOTP with nil builder should not panic.
+	result, err := app.GenerateTOTP("test-totp")
+	if err != nil {
+		t.Fatalf("GenerateTOTP: %v", err)
+	}
+	if result.Code == "" {
+		t.Error("expected non-empty TOTP code")
+	}
+
+	app.LockVault()
+}
+
+// TestApp_LockClearsBuilder verifies that LockVault closes the EventBuilder
+// and sets the field to nil so resources are released.
+func TestApp_LockClearsBuilder(t *testing.T) {
+	app := NewApp()
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	app.builder = builder
+
+	app.LockVault()
+
+	if app.builder != nil {
+		t.Error("expected builder to be nil after LockVault")
+	}
 }

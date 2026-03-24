@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
@@ -49,6 +52,7 @@ type App struct {
 	vaultPath string
 	idleTimer *IdleTimer
 	locked    bool
+	builder   *audit.EventBuilder // nil when audit disabled or vault locked
 }
 
 // NewApp creates a new App instance with default configuration.
@@ -158,16 +162,17 @@ func cleanVaultPath(path string) string {
 // the idle timer.
 func (a *App) UnlockVault(path, passphrase string) error {
 	passBytes := []byte(passphrase)
-	defer zeroBytes(passBytes)
 
 	path = cleanVaultPath(path)
 	mgr, err := vault.Open(path)
 	if err != nil {
+		zeroBytes(passBytes)
 		return fmt.Errorf("opening vault: %w", err)
 	}
 
 	if err := mgr.Unlock(passBytes); err != nil {
 		mgr.Close()
+		zeroBytes(passBytes)
 		return fmt.Errorf("unlocking vault: %w", err)
 	}
 
@@ -182,6 +187,16 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 	a.config = cfg
 
+	// Build EventBuilder while passphrase is available (AUDT-02).
+	builder, builderErr := a.buildEventBuilder(cfg, path, passBytes)
+	if builderErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit unavailable: %v\n", builderErr)
+	}
+	a.builder = builder
+
+	// Zero passphrase AFTER builder construction.
+	zeroBytes(passBytes)
+
 	// Initialize clipboard manager.
 	a.clipboard = clipboard.NewManager()
 
@@ -194,6 +209,10 @@ func (a *App) UnlockVault(path, passphrase string) error {
 // LockVault locks the vault by closing the manager and zeroing sensitive memory.
 // It emits a "vault:locked" event to the frontend.
 func (a *App) LockVault() {
+	if a.builder != nil {
+		_ = a.builder.Close()
+		a.builder = nil
+	}
 	if a.idleTimer != nil {
 		a.idleTimer.Stop()
 	}
@@ -315,6 +334,9 @@ func (a *App) GenerateTOTP(label string) (*TOTPResult, error) {
 	}
 
 	code, remaining := auth.GenerateTOTP(secret, time.Now(), period, digits, cred.Algorithm)
+	if a.builder != nil {
+		_ = a.builder.LogEvent("totp", cred.Label, cred.Issuer, hostname(), true)
+	}
 	return &TOTPResult{Code: code, Remaining: remaining}, nil
 }
 
@@ -350,6 +372,9 @@ func (a *App) GenerateHOTP(label string) (string, error) {
 		return "", fmt.Errorf("updating counter: %w", err)
 	}
 
+	if a.builder != nil {
+		_ = a.builder.LogEvent("hotp", cred.Label, cred.Issuer, hostname(), true)
+	}
 	return code, nil
 }
 
@@ -372,6 +397,9 @@ func (a *App) GetStaticPassword(label string) error {
 	}
 	defer zeroBytes(password)
 
+	if a.builder != nil {
+		_ = a.builder.LogEvent("static", cred.Label, cred.Issuer, hostname(), true)
+	}
 	if a.clipboard != nil {
 		return a.clipboard.CopyWithAutoClear(string(password), a.config.ClipboardTimeout)
 	}
@@ -399,7 +427,14 @@ func (a *App) SignChallenge(label, challenge string) (string, error) {
 	}
 	defer zeroBytes(secret)
 
-	return auth.SignChallenge(cred, secret, []byte(challenge))
+	result, err := auth.SignChallenge(cred, secret, []byte(challenge))
+	if err != nil {
+		return "", err
+	}
+	if a.builder != nil {
+		_ = a.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, hostname(), true)
+	}
+	return result, nil
 }
 
 // ExportVault exports all credentials encrypted with the given passphrase.
@@ -628,6 +663,104 @@ func (a *App) resetIdle() {
 	if a.idleTimer != nil {
 		a.idleTimer.Reset()
 	}
+}
+
+// hostname returns the current machine hostname. On error returns an empty
+// string so audit events can still be emitted without a valid host field.
+func hostname() string {
+	h, _ := os.Hostname()
+	return h
+}
+
+// buildEventBuilder constructs an EventBuilder from config and the vault
+// passphrase. Returns a disabled builder (no-op) when cfg.Audit.Enabled is
+// false. Replicates the logic from cmd/tegata/helpers.go since this is a
+// separate package.
+func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase []byte) (*audit.EventBuilder, error) {
+	if !cfg.Audit.Enabled {
+		return audit.NewEventBuilder(nil, "", nil, 0)
+	}
+
+	dir := vaultDir(vaultPath)
+	queuePath := filepath.Join(dir, "queue.tegata")
+
+	// Read Argon2id salt from existing queue file header, or generate new.
+	var queueSalt []byte
+	if data, err := os.ReadFile(queuePath); err == nil && len(data) >= 32 {
+		queueSalt = make([]byte, 32)
+		copy(queueSalt, data[:32])
+	} else {
+		var genErr error
+		queueSalt, genErr = crypto.GenerateSalt()
+		if genErr != nil {
+			return nil, fmt.Errorf("generating queue salt: %w", genErr)
+		}
+	}
+
+	// Derive 32-byte queue encryption key using Argon2id.
+	keyBuf := crypto.DeriveKey(passphrase, queueSalt, crypto.DefaultParams)
+	defer keyBuf.Destroy()
+
+	queueKey := make([]byte, 32)
+	copy(queueKey, keyBuf.Bytes())
+
+	client, err := a.buildLedgerClient(cfg.Audit)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
+		zeroBytes(queueKey)
+		return audit.NewEventBuilder(nil, "", nil, 0)
+	}
+
+	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	zeroBytes(queueKey)
+	return eb, err
+}
+
+// buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
+func (a *App) buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
+	keyPEM, err := os.ReadFile(cfg.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key: %w", err)
+	}
+	defer zeroBytes(keyPEM)
+
+	signer, err := audit.NewECDSASigner(keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("building signer: %w", err)
+	}
+
+	if cfg.Insecure {
+		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
+	}
+
+	certPEM, err := os.ReadFile(cfg.CertPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading certificate: %w", err)
+	}
+
+	cert, tlsErr := tls.X509KeyPair(certPEM, keyPEM)
+	if tlsErr != nil {
+		return nil, fmt.Errorf("loading TLS key pair: %w", tlsErr)
+	}
+
+	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+	}
+
+	if cfg.CACertPath != "" {
+		caPEM, err := os.ReadFile(cfg.CACertPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading CA cert: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parsing CA cert: no valid PEM")
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
 }
 
 // vaultDir returns the directory containing the vault file.
