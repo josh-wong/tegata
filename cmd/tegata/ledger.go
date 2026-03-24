@@ -144,6 +144,24 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	if err := client.Ping(ctx); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "ScalarDL Ledger is reachable. Audit setup complete.")
+
+	// Verify that the generic contracts are registered by attempting a test Put.
+	fmt.Fprintln(os.Stderr, "Verifying generic contracts are registered...")
+	if err := verifyContracts(ctx, client); err != nil {
+		fmt.Fprintln(os.Stderr, "Generic contracts are NOT registered on this ScalarDL instance.")
+		fmt.Fprintln(os.Stderr, "Register them using: docker compose run --rm scalardl-contract-registration")
+		fmt.Fprintln(os.Stderr, "See docs/scalardl-setup.md for instructions.")
+		return fmt.Errorf("contract verification failed: %w", err)
+	}
+	fmt.Fprintln(os.Stderr, "Generic contracts verified. Audit setup complete.")
 	return nil
+}
+
+// verifyContracts attempts a test Put to confirm that the generic contracts
+// (object.Put, object.Get, object.Validate) are registered on the ScalarDL
+// instance. Returns nil on success, or an error if the contracts are not
+// registered (typically CONTRACT_NOT_FOUND from the ledger).
+func verifyContracts(ctx context.Context, client audit.Client) error {
+	testObjID := fmt.Sprintf("tegata-setup-test-%d", time.Now().UnixNano())
+	return client.Put(ctx, testObjID, "0000000000000000000000000000000000000000000000000000000000000000")
 }

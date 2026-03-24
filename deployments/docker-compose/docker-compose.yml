@@ -46,3 +46,23 @@ services:
     ports:
       - "50051:50051"
       - "50052:50052"
+
+  # Register the generic contracts (object.Put, object.Get, object.Validate)
+  # on the ScalarDL Ledger. Must complete before any tegata audit commands.
+  # Idempotent — safe to run multiple times.
+  scalardl-contract-registration:
+    image: ghcr.io/scalar-labs/scalardl-tools:3.12.0
+    depends_on:
+      scalardl-ledger:
+        condition: service_started
+    volumes:
+      - ./certs:/certs:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for ledger to accept connections..."
+        sleep 10
+        scalardl generic-contracts register-contracts \
+          --properties=/certs/client.properties
+        echo "Generic contracts registered."
+    restart: on-failure:3

@@ -1,0 +1,17 @@
+# ScalarDL client properties for contract registration.
+# Used by the scalardl-contract-registration init container.
+#
+# Copy this file to certs/client.properties and generate certificates:
+#   mkdir -p certs
+#   cp client.properties.example certs/client.properties
+#   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out certs/client-key.pem
+#   openssl req -new -x509 -key certs/client-key.pem -out certs/client-cert.pem \
+#     -days 1095 -subj "/CN=tegata-client"
+
+scalar.dl.client.server.host=scalardl-ledger
+scalar.dl.client.server.port=50051
+scalar.dl.client.server.privileged_port=50052
+scalar.dl.client.cert_path=/certs/client-cert.pem
+scalar.dl.client.private_key_path=/certs/client-key.pem
+scalar.dl.client.entity.id=tegata-client
+scalar.dl.client.entity.identity.hmac.cipher_key=

@@ -59,6 +59,18 @@ insecure = true
 
 `entity_id` is a unique identifier for this vault instance. Use a descriptive name such as `tegata-vault-alice` or `tegata-usb-work`. `key_version` starts at `1` and is incremented if you rotate your certificate.
 
+## Registering generic contracts
+
+Generic contracts (`object.Put`, `object.Get`, `object.Validate`) must be registered on the ScalarDL Ledger before any audit operations. The Docker Compose setup includes a registration init container that handles this automatically.
+
+If you need to run registration manually (or re-run it after a fresh Ledger deploy), use the following command.
+
+```bash
+docker compose run --rm scalardl-contract-registration
+```
+
+This step is idempotent and safe to run multiple times. If you skip it, `tegata ledger setup` will report "Generic contracts are NOT registered" and exit with an error.
+
 ## Running tegata ledger setup
 
 After writing the configuration, register the certificate and verify connectivity in one step.
@@ -67,16 +79,17 @@ After writing the configuration, register the certificate and verify connectivit
 tegata ledger setup --vault /media/usb
 ```
 
-This command reads `tegata.toml`, connects to the ScalarDL `LedgerPrivileged` service on the configured server, calls `RegisterCert` to associate your certificate with `entity_id` and `key_version`, then calls `Ping` on the Ledger service to confirm end-to-end connectivity.
+This command reads `tegata.toml`, connects to the ScalarDL `LedgerPrivileged` service on the configured server, calls `RegisterCert` to associate your certificate with `entity_id` and `key_version`, calls `Ping` on the Ledger service to confirm connectivity, and then verifies that the generic contracts are registered by performing a test `object.Put` call.
 
 A successful run prints output similar to:
 
 ```
-Connecting to ScalarDL Ledger at localhost:50051...
+Connecting to ScalarDL Ledger at 127.0.0.1:50051 (privileged: 127.0.0.1:50052)...
 Registering certificate for entity "tegata-vault-alice" (key version 1)...
 Certificate registered successfully.
 Verifying ledger connectivity...
-ScalarDL Ledger is reachable. Audit setup complete.
+Verifying generic contracts are registered...
+Generic contracts verified. Audit setup complete.
 ```
 
 If the server is unreachable, the command exits with code 8 (`ErrNetworkFailed`).

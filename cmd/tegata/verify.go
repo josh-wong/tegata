@@ -62,6 +62,11 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if result.EventCount == 0 {
+		fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
+		return nil
+	}
+
 	if result.Valid {
 		fmt.Printf("Audit log integrity verified. %d events checked.\n", result.EventCount)
 		return nil
