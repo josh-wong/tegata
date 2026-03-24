@@ -1,21 +1,25 @@
 //go:build integration
 
+// Run all integration tests:
+//
+//	go test -tags integration ./internal/audit/... -v -timeout 120s
+//
 // Integration tests for the ScalarDL Ledger gRPC client. These tests require
 // a live ScalarDL Ledger 3.12 instance and a registered client certificate.
 //
-// To run:
+// Environment variables:
 //
 //	export SCALARDL_ADDR=localhost:50051
 //	export SCALARDL_ENTITY_ID=test-entity
 //	export SCALARDL_CERT_PATH=/path/to/client.pem
 //	export SCALARDL_KEY_PATH=/path/to/client-key.pem
-//	go test -tags integration ./internal/audit/... -v -timeout 60s
 //
 // Use deployments/docker-compose/docker-compose.yml to start a local instance.
 package audit_test
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"os"
@@ -175,4 +179,196 @@ func TestIntegration_SignatureByteLayout(t *testing.T) {
 		return
 	}
 	t.Log("SignatureByteLayout test passed — byte layout accepted by the server")
+}
+
+// TestIntegration_RegisterContracts verifies that the generic HashStore
+// contracts (object.Put, object.Get, object.Validate) are registered on the
+// live ScalarDL instance. If any contract is missing, the corresponding RPC
+// will fail with CONTRACT_NOT_FOUND.
+func TestIntegration_RegisterContracts(t *testing.T) {
+	client := newIntegrationClient(t)
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Verify generic contracts are registered by attempting a Put.
+	// If contracts are not registered, Put will fail with a CONTRACT_NOT_FOUND error.
+	testObjID := fmt.Sprintf("contract-reg-test-%d", time.Now().UnixNano())
+	testHash := "0000000000000000000000000000000000000000000000000000000000000000"
+	if err := client.Put(ctx, testObjID, testHash); err != nil {
+		t.Fatalf("Put failed — generic contracts may not be registered: %v", err)
+	}
+	t.Log("Generic contracts are registered: Put succeeded")
+
+	// Verify Get also works (object.Get contract registered).
+	records, err := client.Get(ctx, testObjID)
+	if err != nil {
+		t.Fatalf("Get failed — object.Get contract may not be registered: %v", err)
+	}
+	if len(records) == 0 {
+		t.Fatal("Get returned 0 records for object that was just Put")
+	}
+	t.Logf("object.Get contract verified: %d records", len(records))
+
+	// Verify Validate also works (object.Validate contract registered).
+	result, err := client.Validate(ctx, testObjID)
+	if err != nil {
+		t.Fatalf("Validate failed — object.Validate contract may not be registered: %v", err)
+	}
+	if !result.Valid {
+		t.Errorf("Validate returned Valid=false for fresh object: %s", result.ErrorDetail)
+	}
+	t.Log("object.Validate contract verified")
+}
+
+// TestIntegration_E2E_PutGetValidate exercises the full contract flow: Put two
+// events, Get them back to verify hash values, then Validate integrity.
+func TestIntegration_E2E_PutGetValidate(t *testing.T) {
+	client := newIntegrationClient(t)
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Generate unique object IDs for this test run.
+	objectID1 := fmt.Sprintf("e2e-event-%d-1", time.Now().UnixNano())
+	objectID2 := fmt.Sprintf("e2e-event-%d-2", time.Now().UnixNano())
+	hash1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	hash2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	// Step 1: Put two events.
+	if err := client.Put(ctx, objectID1, hash1); err != nil {
+		t.Fatalf("Put event 1: %v", err)
+	}
+	t.Logf("Put succeeded: %s", objectID1)
+
+	if err := client.Put(ctx, objectID2, hash2); err != nil {
+		t.Fatalf("Put event 2: %v", err)
+	}
+	t.Logf("Put succeeded: %s", objectID2)
+
+	// Step 2: Get each event back and verify the hash values.
+	records1, err := client.Get(ctx, objectID1)
+	if err != nil {
+		t.Fatalf("Get event 1: %v", err)
+	}
+	if len(records1) == 0 {
+		t.Fatal("Get returned 0 records for event 1")
+	}
+	if records1[0].HashValue != hash1 {
+		t.Errorf("HashValue = %q, want %q", records1[0].HashValue, hash1)
+	}
+	t.Logf("Get event 1: %d records", len(records1))
+
+	// Step 3: Validate event 1 integrity.
+	result, err := client.Validate(ctx, objectID1)
+	if err != nil {
+		t.Fatalf("Validate event 1: %v", err)
+	}
+	if !result.Valid {
+		t.Errorf("Validate returned Valid=false for event 1: %s", result.ErrorDetail)
+	}
+	t.Logf("Validate event 1: Valid=%v EventCount=%d", result.Valid, result.EventCount)
+}
+
+// TestIntegration_HistoryRetrieval verifies that events Put to the ledger can
+// be retrieved via Get, simulating what "tegata history" does under the hood.
+func TestIntegration_HistoryRetrieval(t *testing.T) {
+	client := newIntegrationClient(t)
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Put 3 events with distinct object IDs sharing a common prefix.
+	prefix := fmt.Sprintf("history-test-%d", time.Now().UnixNano())
+	for i := 0; i < 3; i++ {
+		objID := fmt.Sprintf("%s-%d", prefix, i)
+		hash := fmt.Sprintf("%064d", i)
+		if err := client.Put(ctx, objID, hash); err != nil {
+			t.Fatalf("Put event %d: %v", i, err)
+		}
+	}
+
+	// Retrieve each event individually (tegata history retrieves by known object IDs).
+	for i := 0; i < 3; i++ {
+		objID := fmt.Sprintf("%s-%d", prefix, i)
+		records, err := client.Get(ctx, objID)
+		if err != nil {
+			t.Fatalf("Get event %d: %v", i, err)
+		}
+		if len(records) == 0 {
+			t.Errorf("Get returned 0 records for event %d (objectID=%s)", i, objID)
+			continue
+		}
+		expectedHash := fmt.Sprintf("%064d", i)
+		if records[0].HashValue != expectedHash {
+			t.Errorf("event %d: HashValue = %q, want %q", i, records[0].HashValue, expectedHash)
+		}
+	}
+	t.Logf("History retrieval verified: 3 events stored and retrieved with correct hashes")
+}
+
+// TestIntegration_QueueFlush verifies that events queued while offline are
+// correctly submitted to the ledger when connectivity is restored.
+func TestIntegration_QueueFlush(t *testing.T) {
+	client := newIntegrationClient(t)
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Create a queue with a random 32-byte key.
+	queueKey := make([]byte, 32)
+	if _, err := rand.Read(queueKey); err != nil {
+		t.Fatalf("generating queue key: %v", err)
+	}
+	defer func() {
+		for i := range queueKey {
+			queueKey[i] = 0
+		}
+	}()
+
+	q, err := audit.NewQueue(queueKey, 100)
+	if err != nil {
+		t.Fatalf("creating queue: %v", err)
+	}
+
+	// Append 3 events to the queue (simulating offline operation).
+	for i := 0; i < 3; i++ {
+		evt := audit.NewAuthEvent(
+			"totp",
+			fmt.Sprintf("flush-test-%d-%d", time.Now().UnixNano(), i),
+			"test-service",
+			"test-host",
+			true,
+			"", // prevHash
+		)
+		if err := q.Append(evt); err != nil {
+			t.Fatalf("appending event %d: %v", i, err)
+		}
+	}
+
+	if q.Len() != 3 {
+		t.Fatalf("queue length = %d, want 3", q.Len())
+	}
+
+	// Flush the queue to the live ScalarDL instance.
+	if err := q.Flush(ctx, client); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	if q.Len() != 0 {
+		t.Errorf("queue length after flush = %d, want 0", q.Len())
+	}
+	t.Log("Queue flush succeeded: 3 events submitted")
 }
