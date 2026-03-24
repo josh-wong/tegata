@@ -167,6 +167,167 @@ func TestClient_RegisterCertUsesPrivilegedService(t *testing.T) {
 	}
 }
 
+// mockLedgerServerMulti is a mock that returns different results for sequential
+// ExecuteContract calls, allowing tests to verify multi-step flows like
+// Get-then-Validate.
+type mockLedgerServerMulti struct {
+	rpc.UnimplementedLedgerServer
+	results []string // each call pops the first element
+	errs    []error
+	calls   []*rpc.ContractExecutionRequest
+}
+
+func (m *mockLedgerServerMulti) ExecuteContract(_ context.Context, req *rpc.ContractExecutionRequest) (*rpc.ContractExecutionResponse, error) {
+	m.calls = append(m.calls, req)
+	idx := len(m.calls) - 1
+	var execErr error
+	if idx < len(m.errs) {
+		execErr = m.errs[idx]
+	}
+	if execErr != nil {
+		return nil, execErr
+	}
+	var result string
+	if idx < len(m.results) {
+		result = m.results[idx]
+	}
+	return &rpc.ContractExecutionResponse{ContractResult: result}, nil
+}
+
+// newBufconnServerMulti is like newBufconnServer but uses mockLedgerServerMulti
+// for multi-step flow tests.
+func newBufconnServerMulti(t *testing.T, ledger *mockLedgerServerMulti, privileged *mockPrivilegedServer) *grpc.ClientConn {
+	t.Helper()
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	rpc.RegisterLedgerServer(srv, ledger)
+	rpc.RegisterLedgerPrivilegedServer(srv, privileged)
+
+	go func() {
+		if err := srv.Serve(lis); err != nil && err != grpc.ErrServerStopped {
+			t.Logf("bufconn server error: %v", err)
+		}
+	}()
+	t.Cleanup(func() { srv.Stop(); _ = lis.Close() })
+
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("bufconn dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+// TestClient_ValidateArgSchema verifies that Validate calls object.Get first,
+// then object.Validate with a versions array containing version_id and
+// hash_value pairs from the Get result.
+func TestClient_ValidateArgSchema(t *testing.T) {
+	signer := &mockSigner{sig: []byte("fake-sig")}
+
+	// The Get response returns two records.
+	getResult := `[{"object_id":"evt-001","hash_value":"aaa","age":100},{"object_id":"evt-002","hash_value":"bbb","age":200}]`
+	// The Validate response returns correct status.
+	validateResult := `{"status":"correct","details":"","faulty_versions":[]}`
+
+	ledgerSrv := &mockLedgerServerMulti{
+		results: []string{getResult, validateResult},
+	}
+	privSrv := &mockPrivilegedServer{}
+	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
+
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
+	defer func() { _ = client.Close() }()
+
+	result, err := client.Validate(context.Background(), "tegata-")
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	// Verify two ExecuteContract calls were made (Get + Validate).
+	if len(ledgerSrv.calls) != 2 {
+		t.Fatalf("expected 2 ExecuteContract calls, got %d", len(ledgerSrv.calls))
+	}
+
+	// First call should be object.Get.
+	if ledgerSrv.calls[0].ContractId != "object.Get" {
+		t.Errorf("first call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.Get")
+	}
+
+	// Second call should be object.Validate with versions array.
+	if ledgerSrv.calls[1].ContractId != "object.Validate" {
+		t.Errorf("second call contract ID = %q, want %q", ledgerSrv.calls[1].ContractId, "object.Validate")
+	}
+
+	// The second call's argument must contain "versions" and "object_id" keys.
+	arg := ledgerSrv.calls[1].ContractArgument
+	if !contains(arg, `"versions"`) {
+		t.Errorf("Validate argument missing 'versions' key: %s", arg)
+	}
+	if !contains(arg, `"object_id"`) {
+		t.Errorf("Validate argument missing 'object_id' key: %s", arg)
+	}
+
+	// Result should be valid with 2 events.
+	if !result.Valid {
+		t.Error("expected Valid=true, got false")
+	}
+	if result.EventCount != 2 {
+		t.Errorf("EventCount = %d, want 2", result.EventCount)
+	}
+}
+
+// TestClient_ValidateEmptyRecords verifies that when Get returns no records,
+// Validate returns Valid=true with EventCount=0 without making a second RPC call.
+func TestClient_ValidateEmptyRecords(t *testing.T) {
+	signer := &mockSigner{sig: []byte("fake-sig")}
+
+	// The Get response returns an empty array.
+	ledgerSrv := &mockLedgerServerMulti{
+		results: []string{"[]"},
+	}
+	privSrv := &mockPrivilegedServer{}
+	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
+
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
+	defer func() { _ = client.Close() }()
+
+	result, err := client.Validate(context.Background(), "tegata-")
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	// Only one call should have been made (Get only, no Validate).
+	if len(ledgerSrv.calls) != 1 {
+		t.Fatalf("expected 1 ExecuteContract call (Get only), got %d", len(ledgerSrv.calls))
+	}
+
+	if !result.Valid {
+		t.Error("expected Valid=true for empty records, got false")
+	}
+	if result.EventCount != 0 {
+		t.Errorf("EventCount = %d, want 0", result.EventCount)
+	}
+}
+
+// contains is a simple substring check helper for test assertions.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && stringContains(s, substr))
+}
+
+func stringContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 // TestClient_TLSEnforced_WithValidConfig verifies that NewLedgerClient accepts a
 // non-nil TLS config (actual dial failure expected since there is no server).
 func TestClient_TLSEnforced_WithValidConfig(t *testing.T) {
