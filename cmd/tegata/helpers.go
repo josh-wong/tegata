@@ -3,8 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base32"
 	"fmt"
 	"io"
@@ -323,83 +321,19 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	return eb, err
 }
 
-// buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
-// In TLS mode the private key PEM is read once and shared between the ECDSA
-// signer and the TLS config to avoid a second disk read and extra heap copy.
+// buildLedgerClient constructs a LedgerClient from AuditConfig.
+// Uses HMAC signer with the configured secret key.
 func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
+	if cfg.SecretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
+	}
+	signer := audit.NewHMACSigner(cfg.SecretKey)
+
 	if cfg.Insecure {
-		signer, err := buildSigner(cfg.KeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("building ECDSA signer: %w", err)
-		}
 		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
 	}
 
-	// Read key PEM once; shared between signer and TLS config.
-	keyPEM, err := os.ReadFile(cfg.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("building ECDSA signer: %w", err)
-	}
-
-	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("building TLS config: %w", err)
-	}
-
-	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
-}
-
-// buildTLSConfigFromBytes constructs a *tls.Config from certPath, already-read
-// keyPEM bytes, and an optional CA cert path. The caller is responsible for
-// zeroing keyPEM after this call returns.
-func buildTLSConfigFromBytes(certPath string, keyPEM []byte, caPath string) (*tls.Config, error) {
-	certPEM, err := os.ReadFile(certPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading client certificate from %s: %w", certPath, err)
-	}
-
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("loading TLS key pair: %w", err)
-	}
-
-	tlsCfg := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-	}
-
-	if caPath != "" {
-		caPEM, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, fmt.Errorf("reading CA certificate from %s: %w", caPath, err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("parsing CA certificate from %s: no valid PEM block found", caPath)
-		}
-		tlsCfg.RootCAs = pool
-	}
-
-	return tlsCfg, nil
-}
-
-// buildSigner loads an ECDSA private key PEM file and returns a Signer.
-func buildSigner(keyPath string) (audit.Signer, error) {
-	if keyPath == "" {
-		return &audit.NoOpSigner{}, nil
-	}
-	keyPEM, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-	return audit.NewECDSASigner(keyPEM)
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // hostname returns the current machine hostname. On error returns an empty

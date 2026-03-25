@@ -108,36 +108,17 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 }
 
 // buildAuditClient creates a Client from AuditConfig for history and verify commands.
-// These commands do not need the passphrase — they use TLS cert only.
-// In TLS mode the private key PEM is read once and shared between the ECDSA
-// signer and the TLS config to avoid a second disk read and extra heap copy.
 func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
+	if cfg.SecretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
+	}
+	signer := audit.NewHMACSigner(cfg.SecretKey)
+
 	if cfg.Insecure {
-		signer, err := buildSigner(cfg.KeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("building ECDSA signer: %w", err)
-		}
 		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
 	}
 
-	// Read key PEM once; shared between signer and TLS config.
-	keyPEM, err := os.ReadFile(cfg.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("building ECDSA signer: %w", err)
-	}
-
-	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("building TLS config: %w", err)
-	}
-
-	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // historyRecord is the display/JSON shape for a single history entry.

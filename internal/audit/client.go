@@ -156,11 +156,24 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 	}
 }
 
+// formatArgument wraps a contract argument in the ScalarDL V2 envelope that
+// the server expects. The format is:
+//
+//	"V2" \x01 nonce \x03 functionIDs \x03 jsonArgument
+//
+// functionIDs is empty for direct contract calls (no functions). The same
+// formatted string must be used both as the ContractArgument proto field AND
+// as the contractArgument input to the signer, because the server validates
+// the signature against the formatted (not raw) argument.
+func formatArgument(jsonArg string, nonce string) string {
+	return "V2\x01" + nonce + "\x03\x03" + jsonArg
+}
+
 // Put calls the object.Put contract on the ledger to store objectID → hashValue.
 // A UUID v4 nonce is generated per request. The request is signed with the
 // configured Signer before transmission.
 func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) error {
-	contractID := "object.Put"
+	contractID := "object.v1_0_0.Put"
 	arg, err := json.Marshal(map[string]string{
 		"object_id":  objectID,
 		"hash_value": hashValue,
@@ -170,18 +183,18 @@ func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) erro
 	}
 
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return fmt.Errorf("signing Put request: %w", err)
 	}
 
 	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
-		Nonce:            nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: Put contract failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -198,21 +211,22 @@ type getResult struct {
 
 // Get calls the object.Get contract and returns all records for objectID.
 func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord, error) {
-	contractID := "object.Get"
+	contractID := "object.v1_0_0.Get"
 	arg, err := json.Marshal(map[string]string{"object_id": objectID})
 	if err != nil {
 		return nil, fmt.Errorf("marshalling Get argument: %w", err)
 	}
 
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return nil, fmt.Errorf("signing Get request: %w", err)
 	}
 
 	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
@@ -276,7 +290,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 	}
 
 	// Step 3: Marshal the validate argument with object_id and versions.
-	contractID := "object.Validate"
+	contractID := "object.v1_0_0.Validate"
 	arg, err := json.Marshal(map[string]interface{}{
 		"object_id": objectID,
 		"versions":  versions,
@@ -287,14 +301,15 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 
 	// Step 4: Sign and execute object.Validate.
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return nil, fmt.Errorf("signing Validate request: %w", err)
 	}
 
 	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
@@ -334,6 +349,24 @@ func (c *LedgerClient) RegisterCert(ctx context.Context, entityID string, keyVer
 			return nil
 		}
 		return fmt.Errorf("%w: RegisterCert failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// RegisterSecret registers an HMAC secret key with the ScalarDL Ledger for
+// the given entity and key version. Used with HMAC authentication mode.
+// Idempotent — AlreadyExists is treated as success.
+func (c *LedgerClient) RegisterSecret(ctx context.Context, entityID string, keyVersion uint32, secretKey string) error {
+	_, err := c.privileged.RegisterSecret(ctx, &rpc.SecretRegistrationRequest{
+		EntityId:   entityID,
+		KeyVersion: keyVersion,
+		SecretKey:  secretKey,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
+			return nil
+		}
+		return fmt.Errorf("%w: RegisterSecret failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	return nil
 }

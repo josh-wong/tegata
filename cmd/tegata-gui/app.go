@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base32"
 	"fmt"
 	"os"
@@ -716,51 +714,18 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 	return eb, err
 }
 
-// buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
+// buildLedgerClient constructs a LedgerClient from AuditConfig.
 func (a *App) buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
-	keyPEM, err := os.ReadFile(cfg.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key: %w", err)
+	if cfg.SecretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
 	}
-	defer zeroBytes(keyPEM)
-
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("building signer: %w", err)
-	}
+	signer := audit.NewHMACSigner(cfg.SecretKey)
 
 	if cfg.Insecure {
 		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
 	}
 
-	certPEM, err := os.ReadFile(cfg.CertPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading certificate: %w", err)
-	}
-
-	cert, tlsErr := tls.X509KeyPair(certPEM, keyPEM)
-	if tlsErr != nil {
-		return nil, fmt.Errorf("loading TLS key pair: %w", tlsErr)
-	}
-
-	tlsCfg := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-	}
-
-	if cfg.CACertPath != "" {
-		caPEM, err := os.ReadFile(cfg.CACertPath)
-		if err != nil {
-			return nil, fmt.Errorf("reading CA cert: %w", err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("parsing CA cert: no valid PEM")
-		}
-		tlsCfg.RootCAs = pool
-	}
-
-	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // vaultDir returns the directory containing the vault file.

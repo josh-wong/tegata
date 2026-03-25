@@ -109,7 +109,7 @@ func TestClient_RequiresTLS(t *testing.T) {
 }
 
 // TestClient_PutCallsSigner verifies that Put calls Sign exactly once with the
-// correct fields (contractID="object.Put", entityID, keyVersion).
+// correct fields (contractID="object.v1_0_0.Put", entityID, keyVersion).
 func TestClient_PutCallsSigner(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 	ledgerSrv := &mockLedgerServer{}
@@ -128,8 +128,8 @@ func TestClient_PutCallsSigner(t *testing.T) {
 		t.Fatalf("expected 1 Sign call, got %d", len(signer.calls))
 	}
 	call := signer.calls[0]
-	if call.contractID != "object.Put" {
-		t.Errorf("contractID = %q, want %q", call.contractID, "object.Put")
+	if call.contractID != "object.v1_0_0.Put" {
+		t.Errorf("contractID = %q, want %q", call.contractID, "object.v1_0_0.Put")
 	}
 	if call.entityID != "test-entity" {
 		t.Errorf("entityID = %q, want %q", call.entityID, "test-entity")
@@ -223,8 +223,8 @@ func newBufconnServerMulti(t *testing.T, ledger *mockLedgerServerMulti, privileg
 	return conn
 }
 
-// TestClient_ValidateArgSchema verifies that Validate calls object.Get first,
-// then object.Validate with a versions array containing version_id and
+// TestClient_ValidateArgSchema verifies that Validate calls object.v1_0_0.Get first,
+// then object.v1_0_0.Validate with a versions array containing version_id and
 // hash_value pairs from the Get result.
 func TestClient_ValidateArgSchema(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
@@ -253,14 +253,14 @@ func TestClient_ValidateArgSchema(t *testing.T) {
 		t.Fatalf("expected 2 ExecuteContract calls, got %d", len(ledgerSrv.calls))
 	}
 
-	// First call should be object.Get.
-	if ledgerSrv.calls[0].ContractId != "object.Get" {
-		t.Errorf("first call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.Get")
+	// First call should be object.v1_0_0.Get.
+	if ledgerSrv.calls[0].ContractId != "object.v1_0_0.Get" {
+		t.Errorf("first call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.v1_0_0.Get")
 	}
 
-	// Second call should be object.Validate with versions array.
-	if ledgerSrv.calls[1].ContractId != "object.Validate" {
-		t.Errorf("second call contract ID = %q, want %q", ledgerSrv.calls[1].ContractId, "object.Validate")
+	// Second call should be object.v1_0_0.Validate with versions array.
+	if ledgerSrv.calls[1].ContractId != "object.v1_0_0.Validate" {
+		t.Errorf("second call contract ID = %q, want %q", ledgerSrv.calls[1].ContractId, "object.v1_0_0.Validate")
 	}
 
 	// The second call's argument must contain "versions" and "object_id" keys.
