@@ -30,3 +30,14 @@ export interface UpdateInfo {
   url: string
   notes: string
 }
+
+export interface AuditHistoryRecord {
+  hash_value: string
+  version: number
+}
+
+export interface AuditVerifyResult {
+  valid: boolean
+  event_count: number
+  error_detail?: string
+}

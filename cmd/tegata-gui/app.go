@@ -728,6 +728,96 @@ func (a *App) buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error)
 	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
+// AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.
+type AuditHistoryRecord struct {
+	HashValue string `json:"hash_value"`
+	Version   int64  `json:"version"`
+}
+
+// AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
+type AuditVerifyResult struct {
+	Valid       bool   `json:"valid"`
+	EventCount  int    `json:"event_count"`
+	ErrorDetail string `json:"error_detail,omitempty"`
+}
+
+// IsAuditEnabled returns whether audit logging is configured and enabled.
+func (a *App) IsAuditEnabled() bool {
+	return a.config.Audit.Enabled
+}
+
+// GetAuditHistory retrieves audit event records from the ScalarDL Ledger.
+func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
+	if a.vault == nil {
+		return nil, fmt.Errorf("vault is locked")
+	}
+
+	client, err := a.buildFullAuditClient(a.config.Audit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	records, err := client.Get(ctx, "tegata-"+a.config.Audit.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]AuditHistoryRecord, len(records))
+	for i, r := range records {
+		result[i] = AuditHistoryRecord{
+			HashValue: r.HashValue,
+			Version:   r.Version,
+		}
+	}
+	return result, nil
+}
+
+// VerifyAuditLog verifies the hash-chain integrity of the audit log.
+func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
+	if a.vault == nil {
+		return nil, fmt.Errorf("vault is locked")
+	}
+
+	client, err := a.buildFullAuditClient(a.config.Audit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	vr, err := client.Validate(ctx, "tegata-"+a.config.Audit.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuditVerifyResult{
+		Valid:       vr.Valid,
+		EventCount:  vr.EventCount,
+		ErrorDetail: vr.ErrorDetail,
+	}, nil
+}
+
+// buildFullAuditClient creates an audit.Client (not just Submitter) for
+// history and verify operations.
+func (a *App) buildFullAuditClient(cfg config.AuditConfig) (audit.Client, error) {
+	if cfg.SecretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
+	}
+	signer := audit.NewHMACSigner(cfg.SecretKey)
+
+	if cfg.Insecure {
+		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
+	}
+
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
+}
+
 // vaultDir returns the directory containing the vault file.
 func vaultDir(vaultPath string) string {
 	return filepath.Dir(vaultPath)

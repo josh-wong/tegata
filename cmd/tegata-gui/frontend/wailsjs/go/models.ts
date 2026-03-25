@@ -4,6 +4,7 @@ export namespace config {
 	    Enabled: boolean;
 	    Server: string;
 	    PrivilegedServer: string;
+	    SecretKey: string;
 	    CertPath: string;
 	    KeyPath: string;
 	    CACertPath: string;
@@ -21,6 +22,7 @@ export namespace config {
 	        this.Enabled = source["Enabled"];
 	        this.Server = source["Server"];
 	        this.PrivilegedServer = source["PrivilegedServer"];
+	        this.SecretKey = source["SecretKey"];
 	        this.CertPath = source["CertPath"];
 	        this.KeyPath = source["KeyPath"];
 	        this.CACertPath = source["CACertPath"];
@@ -69,6 +71,36 @@ export namespace config {
 
 export namespace main {
 	
+	export class AuditHistoryRecord {
+	    hash_value: string;
+	    version: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuditHistoryRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hash_value = source["hash_value"];
+	        this.version = source["version"];
+	    }
+	}
+	export class AuditVerifyResult {
+	    valid: boolean;
+	    event_count: number;
+	    error_detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuditVerifyResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.valid = source["valid"];
+	        this.event_count = source["event_count"];
+	        this.error_detail = source["error_detail"];
+	    }
+	}
 	export class ImportResult {
 	    imported: number;
 	    skipped: number;

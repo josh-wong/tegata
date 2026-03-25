@@ -27,6 +27,9 @@ export const App = {
   GetIdleTimeoutSeconds: vi.fn().mockResolvedValue(300),
   SetIdleTimeoutSeconds: vi.fn().mockResolvedValue(undefined),
   CheckForUpdate: vi.fn().mockResolvedValue(null),
+  IsAuditEnabled: vi.fn().mockResolvedValue(false),
+  GetAuditHistory: vi.fn().mockResolvedValue([]),
+  VerifyAuditLog: vi.fn().mockResolvedValue({ valid: true, event_count: 0 }),
 }
 
 export const EventsOn = vi.fn()

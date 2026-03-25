@@ -426,3 +426,42 @@ func TestApp_LockClearsBuilder(t *testing.T) {
 		t.Error("expected builder to be nil after LockVault")
 	}
 }
+
+func TestApp_IsAuditEnabled(t *testing.T) {
+	app := NewApp()
+	if app.IsAuditEnabled() {
+		t.Error("expected audit disabled by default")
+	}
+	app.config.Audit.Enabled = true
+	if !app.IsAuditEnabled() {
+		t.Error("expected audit enabled after setting config")
+	}
+}
+
+func TestApp_AuditTypeExports(t *testing.T) {
+	rec := AuditHistoryRecord{HashValue: "abc", Version: 0}
+	if rec.HashValue != "abc" {
+		t.Errorf("unexpected HashValue: %q", rec.HashValue)
+	}
+
+	vr := AuditVerifyResult{Valid: true, EventCount: 5}
+	if !vr.Valid || vr.EventCount != 5 {
+		t.Errorf("unexpected AuditVerifyResult: %+v", vr)
+	}
+}
+
+func TestApp_GetAuditHistory_RequiresUnlock(t *testing.T) {
+	app := NewApp()
+	_, err := app.GetAuditHistory()
+	if err == nil {
+		t.Fatal("expected error when vault is locked")
+	}
+}
+
+func TestApp_VerifyAuditLog_RequiresUnlock(t *testing.T) {
+	app := NewApp()
+	_, err := app.VerifyAuditLog()
+	if err == nil {
+		t.Fatal("expected error when vault is locked")
+	}
+}

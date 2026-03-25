@@ -38,6 +38,10 @@ export function GenerateTOTP(arg1) {
   return window['go']['main']['App']['GenerateTOTP'](arg1);
 }
 
+export function GetAuditHistory() {
+  return window['go']['main']['App']['GetAuditHistory']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
@@ -64,6 +68,10 @@ export function ImportVault(arg1, arg2) {
 
 export function ImportVaultFromFile(arg1, arg2) {
   return window['go']['main']['App']['ImportVaultFromFile'](arg1, arg2);
+}
+
+export function IsAuditEnabled() {
+  return window['go']['main']['App']['IsAuditEnabled']();
 }
 
 export function ListCredentials() {
@@ -100,6 +108,10 @@ export function SignChallenge(arg1, arg2) {
 
 export function UnlockVault(arg1, arg2) {
   return window['go']['main']['App']['UnlockVault'](arg1, arg2);
+}
+
+export function VerifyAuditLog() {
+  return window['go']['main']['App']['VerifyAuditLog']();
 }
 
 export function VerifyRecoveryKey(arg1) {

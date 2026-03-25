@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { CredentialDetail } from "@/components/credentials/CredentialDetail"
 import { AddCredentialDialog } from "@/components/credentials/AddCredentialDialog"
 import { SettingsPanel } from "@/components/settings/SettingsPanel"
+import { AuditPanel } from "@/components/audit/AuditPanel"
 import { UnlockView } from "@/components/vault/UnlockView"
 import { SetupWizard } from "@/components/vault/SetupWizard"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
@@ -20,6 +21,7 @@ function App() {
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [auditOpen, setAuditOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -133,6 +135,7 @@ function App() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
+        onAuditClick={() => setAuditOpen(true)}
         onSwitchVault={() => {
           setSetupStep(1)
           setIsSwitching(true)
@@ -169,6 +172,11 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         onCredentialsChanged={creds.refresh}
         updateInfo={updateInfo}
+      />
+
+      <AuditPanel
+        open={auditOpen}
+        onClose={() => setAuditOpen(false)}
       />
     </div>
   )
