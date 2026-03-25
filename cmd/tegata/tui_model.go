@@ -29,6 +29,7 @@ const (
 	stateOverlayAdd                          // Add-credential overlay
 	stateOverlayRemove                       // Remove-credential confirmation overlay
 	stateOverlaySettings                     // Settings overlay
+	stateOverlayAudit                        // Audit history/verify overlay
 	stateTerminalTooNarrow                   // Terminal is narrower than 80 columns
 )
 
@@ -98,6 +99,13 @@ type model struct {
 	settingsMsg      string
 	settingsTagIdx   int          // selected tag index in tag management
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
+
+	// Audit overlay state
+	auditMenuIdx int            // 0=History, 1=Verify
+	auditSubFlow string         // ""|"history"|"verify"
+	auditMsg     string         // result/status message
+	auditRecords []historyRecord // fetched records
+	auditLoading bool           // true while async gRPC call is in progress
 
 	// Audit event builder (nil when audit disabled or vault locked)
 	builder *audit.EventBuilder
@@ -256,7 +264,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		idleLockable := effectiveState == stateMainView ||
 			effectiveState == stateOverlayAdd ||
 			effectiveState == stateOverlayRemove ||
-			effectiveState == stateOverlaySettings
+			effectiveState == stateOverlaySettings ||
+			effectiveState == stateOverlayAudit
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
 				_ = m.builder.Close()
@@ -274,6 +283,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// does not suppress keybindings after re-unlock.
 			m.resetAddOverlay()
 			m.resetSettingsOverlay()
+			m.resetAuditOverlay()
 			m.crChallengeActive = false
 			m.crChallengeInput.Reset()
 			m.crChallengeInput.Blur()
@@ -285,6 +295,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case unlockResultMsg:
 		return m.handleUnlockResult(msg)
+
+	case auditHistoryMsg:
+		m.auditLoading = false
+		if msg.err != nil {
+			m.auditMsg = fmt.Sprintf("Error: %v", msg.err)
+		} else if len(msg.records) == 0 {
+			m.auditMsg = "No audit events found."
+			m.auditRecords = nil
+		} else {
+			m.auditRecords = msg.records
+			m.auditMsg = fmt.Sprintf("%d events", len(msg.records))
+		}
+		return m, nil
+
+	case auditVerifyMsg:
+		m.auditLoading = false
+		if msg.err != nil {
+			m.auditMsg = fmt.Sprintf("Error: %v", msg.err)
+		} else if msg.eventCount == 0 {
+			m.auditMsg = "No audit events found. Nothing to verify."
+		} else if msg.valid {
+			m.auditMsg = fmt.Sprintf("Audit log integrity verified. %d events checked.", msg.eventCount)
+		} else {
+			m.auditMsg = fmt.Sprintf("TAMPER DETECTED: %s", msg.detail)
+		}
+		return m, nil
 	}
 
 	// Delegate to per-state handlers.
@@ -301,7 +337,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stateMainView:
 		return m.updateMainView(msg)
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
 		return m.updateOverlay(msg)
 	}
 
@@ -327,7 +363,7 @@ func (m model) View() string {
 	case stateMainView:
 		return m.viewMainView()
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
 		return m.viewOverlay()
 	}
 
@@ -381,6 +417,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateOverlayRemove(msg)
 	case stateOverlaySettings:
 		return m.updateOverlaySettings(msg)
+	case stateOverlayAudit:
+		return m.updateOverlayAudit(msg)
 	}
 	return m, nil
 }
@@ -394,6 +432,8 @@ func (m model) viewOverlay() string {
 		return m.viewOverlayRemove()
 	case stateOverlaySettings:
 		return m.viewOverlaySettings()
+	case stateOverlayAudit:
+		return m.viewOverlayAudit()
 	}
 	return "[overlay not yet implemented]"
 }

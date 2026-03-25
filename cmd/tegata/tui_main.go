@@ -124,6 +124,14 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case len(msg.Runes) == 1 && msg.Runes[0] == 's':
 			m.state = stateOverlaySettings
 			return m, nil
+
+		case len(msg.Runes) == 1 && msg.Runes[0] == 'v':
+			if !m.cfg.Audit.Enabled {
+				m.errMsg = "Audit not enabled"
+				return m, nil
+			}
+			m.state = stateOverlayAudit
+			return m, nil
 		}
 	}
 
@@ -322,7 +330,7 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit")
+	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit")
 
 	return columns + "\n" + help
 }

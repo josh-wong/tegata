@@ -394,3 +394,113 @@ func TestTUI_AuditIdleLockClosesBuilder(t *testing.T) {
 		t.Error("expected builder to be nil after idle lock")
 	}
 }
+
+// --- Audit overlay tests ---
+
+func TestTUI_AuditOverlay(t *testing.T) {
+	m := model{state: stateMainView}
+	m.cfg.Audit.Enabled = true
+	result := sendKey(m, "v")
+	if result.state != stateOverlayAudit {
+		t.Errorf("expected stateOverlayAudit, got %v", result.state)
+	}
+	result = sendKey(result, "esc")
+	if result.state != stateMainView {
+		t.Errorf("expected stateMainView after Esc, got %v", result.state)
+	}
+}
+
+func TestTUI_AuditDisabled(t *testing.T) {
+	m := model{state: stateMainView}
+	// Audit.Enabled defaults to false
+	result := sendKey(m, "v")
+	if result.state != stateMainView {
+		t.Errorf("expected stateMainView when audit disabled, got %v", result.state)
+	}
+	if !strings.Contains(result.errMsg, "not enabled") {
+		t.Errorf("expected error about audit not enabled, got %q", result.errMsg)
+	}
+}
+
+func TestTUI_AuditHistoryResult(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "history", auditLoading: true}
+	msg := auditHistoryMsg{records: []historyRecord{
+		{HashValue: "abcd", Version: 0},
+		{HashValue: "ef01", Version: 1},
+	}}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if len(result.auditRecords) != 2 {
+		t.Errorf("expected 2 records, got %d", len(result.auditRecords))
+	}
+	if !strings.Contains(result.auditMsg, "2 events") {
+		t.Errorf("expected '2 events' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditVerifyValid(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: true, eventCount: 5}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "verified") {
+		t.Errorf("expected 'verified' in msg, got %q", result.auditMsg)
+	}
+	if !strings.Contains(result.auditMsg, "5 events") {
+		t.Errorf("expected '5 events' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditTamperDetected(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: false, eventCount: 3, detail: "hash mismatch at version 2"}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "TAMPER DETECTED") {
+		t.Errorf("expected 'TAMPER DETECTED' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditNoEvents(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: true, eventCount: 0}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "Nothing to verify") {
+		t.Errorf("expected 'Nothing to verify' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditIdleLock(t *testing.T) {
+	m := model{
+		state:        stateOverlayAudit,
+		auditSubFlow: "history",
+		auditRecords: []historyRecord{{HashValue: "test"}},
+		lastActivity: time.Now().Add(-10 * time.Minute),
+		idleTimeout:  5 * time.Minute,
+		builder:      nil,
+		credList:     list.New(nil, list.NewDefaultDelegate(), 0, 0),
+	}
+	updated, _ := m.Update(tickMsg{t: time.Now()})
+	result := updated.(model)
+	if result.state != stateLockedIdle {
+		t.Errorf("expected stateLockedIdle, got %v", result.state)
+	}
+	if result.auditSubFlow != "" {
+		t.Errorf("expected auditSubFlow reset, got %q", result.auditSubFlow)
+	}
+	if result.auditRecords != nil {
+		t.Errorf("expected auditRecords reset")
+	}
+}
+
+func TestTUI_AuditMenu(t *testing.T) {
+	m := model{state: stateOverlayAudit, width: 80, height: 24}
+	view := m.View()
+	if !strings.Contains(view, "View history") {
+		t.Error("expected 'View history' in audit menu")
+	}
+	if !strings.Contains(view, "Verify integrity") {
+		t.Error("expected 'Verify integrity' in audit menu")
+	}
+}
