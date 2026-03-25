@@ -1,0 +1,48 @@
+// Subset of the ScalarDL 3.12 proto definitions used by the Tegata audit layer.
+// Source: https://github.com/scalar-labs/scalardl/blob/v3.12.0/rpc/src/main/proto/scalar.proto
+// Only the message types and RPCs required by Tegata are included.
+syntax = "proto3";
+
+package rpc;
+
+option go_package = "github.com/josh-wong/tegata/internal/audit/rpc";
+
+import "google/protobuf/empty.proto";
+
+message CertificateRegistrationRequest {
+  string entity_id = 1;
+  uint32 key_version = 2;
+  string cert_pem = 3;
+}
+
+message SecretRegistrationRequest {
+  string entity_id = 1;
+  uint32 key_version = 2;
+  string secret_key = 3;
+}
+
+message ContractExecutionRequest {
+  string contract_id = 1;
+  string contract_argument = 2;
+  string entity_id = 3;
+  uint32 key_version = 4;
+  string function_argument = 5;
+  bytes signature = 6;
+  bytes auditor_signature = 7;
+  bool use_function_ids = 8;
+  repeated string function_ids = 9;
+  string nonce = 10;
+}
+
+message ContractExecutionResponse {
+  string contract_result = 1;
+}
+
+service Ledger {
+  rpc ExecuteContract(ContractExecutionRequest) returns (ContractExecutionResponse);
+}
+
+service LedgerPrivileged {
+  rpc RegisterCert(CertificateRegistrationRequest) returns (google.protobuf.Empty);
+  rpc RegisterSecret(SecretRegistrationRequest) returns (google.protobuf.Empty);
+}

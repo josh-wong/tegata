@@ -1,8 +1,9 @@
-// Package audit — Signer interface for ECDSA SHA-256 signature computation.
+// Package audit — Signer interface for signing ScalarDL contract execution requests.
 package audit
 
 import (
 	"crypto/ecdsa"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -10,11 +11,11 @@ import (
 	"fmt"
 )
 
-// Signer computes an ECDSA-SHA256 signature over the fields of a
-// ContractExecutionRequest. The exact byte layout must match what the
-// ScalarDL Java ClientService.RequestBuilder produces.
+// Signer computes a signature over the fields of a ContractExecutionRequest.
+// The exact byte layout must match what the ScalarDL Java
+// ClientService.RequestBuilder produces.
 type Signer interface {
-	// Sign returns the ECDSA signature bytes for a contract execution request.
+	// Sign returns the signature bytes for a contract execution request.
 	// Parameters correspond directly to ContractExecutionRequest fields.
 	Sign(contractID, contractArgument, nonce, entityID string, keyVersion uint32) ([]byte, error)
 }
@@ -94,6 +95,45 @@ func (s *ECDSASigner) Sign(contractID, contractArgument, nonce, entityID string,
 		return nil, fmt.Errorf("signing contract execution request: %w", err)
 	}
 	return sig, nil
+}
+
+// HMACSigner implements Signer using HMAC-SHA256. Used with ScalarDL HMAC
+// authentication mode instead of digital-signature (ECDSA).
+//
+// Byte serialization matches ContractExecutionRequest.serialize() from
+// scalar-labs/scalardl:
+//
+//	contractId (UTF-8) || contractArgument (UTF-8) || entityId (UTF-8) || keyVersion (4-byte big-endian int)
+type HMACSigner struct {
+	secretKey []byte
+}
+
+// NewHMACSigner creates a signer from the HMAC secret key string.
+func NewHMACSigner(secretKey string) *HMACSigner {
+	return &HMACSigner{secretKey: []byte(secretKey)}
+}
+
+// Sign computes an HMAC-SHA256 over the serialized contract execution request.
+func (s *HMACSigner) Sign(contractID, contractArgument, nonce, entityID string, keyVersion uint32) ([]byte, error) {
+	cid := []byte(contractID)
+	arg := []byte(contractArgument)
+	eid := []byte(entityID)
+
+	msg := make([]byte, 0, len(cid)+len(arg)+len(eid)+4)
+	msg = append(msg, cid...)
+	msg = append(msg, arg...)
+	msg = append(msg, eid...)
+	msg = append(msg, byte(keyVersion>>24), byte(keyVersion>>16), byte(keyVersion>>8), byte(keyVersion))
+
+	mac := hmac.New(sha256.New, s.secretKey)
+	mac.Write(msg)
+
+	// Zero the message buffer.
+	for i := range msg {
+		msg[i] = 0
+	}
+
+	return mac.Sum(nil), nil
 }
 
 // NoOpSigner always returns a nil signature. Use for initial connectivity
