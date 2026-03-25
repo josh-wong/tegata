@@ -109,7 +109,7 @@ Verifying generic contracts are registered...
 Generic contracts verified. Audit setup complete.
 ```
 
-## Step 5: Test credential actions
+## Step 5: Test audit in the CLI
 
 Generate a TOTP code to trigger an audit event.
 
@@ -117,27 +117,54 @@ Generate a TOTP code to trigger an audit event.
 ./tegata code my-totp-credential --vault /path/to/your/vault
 ```
 
-## Step 6: Check audit history
+Check audit history to confirm the event was recorded.
 
 ```bash
 ./tegata history --vault /path/to/your/vault
 ```
 
-This queries the ScalarDL Ledger and displays all recorded audit events.
-
-## Step 7: Verify hash-chain integrity
+Verify hash-chain integrity.
 
 ```bash
 ./tegata verify --vault /path/to/your/vault
 ```
 
-This command calls the ScalarDL Ledger to verify the integrity of all recorded audit events. It exits with code 9 if an integrity violation is detected, or code 8 if the ledger is unreachable.
+This command exits with code 9 if an integrity violation is detected, or code 8 if the ledger is unreachable.
 
 Expected output when the audit log is intact:
 
 ```
 Audit log integrity verified. 3 events checked.
 ```
+
+## Step 6: Test audit in the TUI
+
+Launch the TUI and unlock your vault.
+
+```bash
+./tegata tui --vault /path/to/your/vault
+```
+
+Press `v` to open the audit overlay. Use the arrow keys or `j`/`k` to select an option and press Enter.
+
+- **View history** fetches and displays all audit events from the ledger.
+- **Verify integrity** validates the hash chain and reports whether the log is intact or tampered.
+
+Press Esc to return to the menu or close the overlay.
+
+## Step 7: Test audit in the GUI
+
+Build and run the desktop GUI.
+
+```bash
+cd cmd/tegata-gui
+wails dev
+```
+
+Unlock your vault, then click the shield icon in the header bar to open the audit panel. The panel provides two buttons.
+
+- **View history** fetches and displays a table of audit events.
+- **Verify integrity** runs the hash-chain check. A green banner indicates a valid log. A red banner with "TAMPER DETECTED" appears if the log has been modified.
 
 ## Step 8: Demonstrate tamper detection
 

@@ -62,7 +62,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			defer cancel()
 
 			// Retrieve all records from the ledger using the "tegata-" prefix.
-			records, err := client.Get(ctx, "tegata-")
+			records, err := client.Get(ctx, "tegata-"+cfg.Audit.EntityID)
 			if err != nil {
 				return err
 			}
@@ -125,31 +125,19 @@ func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
 // ScalarDL stores hashes, so we display the raw hash values rather than
 // attempting to reverse them.
 type historyRecord struct {
-	ObjectID  string `json:"object_id"`
 	HashValue string `json:"hash_value"`
-	Timestamp int64  `json:"timestamp"`
+	Version   int64  `json:"version"`
 }
 
-// filterRecords applies date filters to the records using the Timestamp field
-// (unix epoch seconds). From/to values that are zero are treated as no filter.
+// filterRecords converts EventRecords to historyRecords. Date filtering is
+// not available since ScalarDL stores version numbers, not timestamps.
 func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRecord {
-	var result []historyRecord
-	for _, r := range records {
-		if !from.IsZero() || !to.IsZero() {
-			eventTime := time.Unix(r.Timestamp, 0).UTC()
-			if !from.IsZero() && eventTime.Before(from) {
-				continue
-			}
-			if !to.IsZero() && eventTime.After(to) {
-				continue
-			}
-		}
-
-		result = append(result, historyRecord{
-			ObjectID:  r.ObjectID,
+	result := make([]historyRecord, len(records))
+	for i, r := range records {
+		result[i] = historyRecord{
 			HashValue: r.HashValue,
-			Timestamp: r.Timestamp,
-		})
+			Version:   r.Version,
+		}
 	}
 	return result
 }
@@ -162,10 +150,10 @@ func printRecordsTable(records []historyRecord) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Object ID\tHash Value\tTimestamp")
-	_, _ = fmt.Fprintln(w, "---------\t----------\t---------")
+	_, _ = fmt.Fprintln(w, "Version\tHash Value")
+	_, _ = fmt.Fprintln(w, "-------\t----------")
 	for _, r := range records {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Timestamp)
+		_, _ = fmt.Fprintf(w, "%d\t%s\n", r.Version, r.HashValue)
 	}
 	_ = w.Flush()
 }

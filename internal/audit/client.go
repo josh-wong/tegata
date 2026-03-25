@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"crypto/sha256"
@@ -47,7 +48,7 @@ type Client interface {
 type EventRecord struct {
 	ObjectID  string
 	HashValue string
-	Timestamp int64 // unix epoch seconds
+	Version   int64 // ScalarDL version number (age)
 }
 
 // ValidationResult is returned by Validate.
@@ -236,11 +237,21 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 		return nil, fmt.Errorf("%w: Get contract failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 
-	// Parse the contract_result JSON.
+	// Parse the contract_result JSON. The response may be a single object
+	// (latest version) or an array of objects (all versions).
 	var results []getResult
-	if resp.GetContractResult() != "" {
-		if err := json.Unmarshal([]byte(resp.GetContractResult()), &results); err != nil {
-			return nil, fmt.Errorf("parsing Get result: %w", err)
+	if raw := resp.GetContractResult(); raw != "" {
+		raw = strings.TrimSpace(raw)
+		if strings.HasPrefix(raw, "[") {
+			if err := json.Unmarshal([]byte(raw), &results); err != nil {
+				return nil, fmt.Errorf("parsing Get result array: %w", err)
+			}
+		} else {
+			var single getResult
+			if err := json.Unmarshal([]byte(raw), &single); err != nil {
+				return nil, fmt.Errorf("parsing Get result: %w", err)
+			}
+			results = []getResult{single}
 		}
 	}
 
@@ -249,7 +260,7 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 		records[i] = &EventRecord{
 			ObjectID:  r.ObjectID,
 			HashValue: r.HashValue,
-			Timestamp: r.Age,
+			Version:   r.Age,
 		}
 	}
 	return records, nil
@@ -425,6 +436,9 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	}
 	hashValue := hex.EncodeToString(sum[:])
 
-	return c.Put(ctx, entry.Event.EventID, hashValue)
+	// Use the entity ID as the object ID so all events from this vault are
+	// stored as versions of the same ScalarDL object. Get(entityID) then
+	// returns all versions (the full audit history).
+	return c.Put(ctx, "tegata-"+c.entityID, hashValue)
 }
 

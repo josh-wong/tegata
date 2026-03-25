@@ -770,21 +770,20 @@ func TestIntegration_AuditWiring(t *testing.T) {
 }
 
 // TestHistory_FilterByDate verifies that filterRecords correctly applies
-// --from and --to date filters using the Timestamp field (unix epoch seconds).
-func TestHistory_FilterByDate(t *testing.T) {
-	base := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+// filterRecords converts all EventRecords to historyRecords.
+func TestHistory_FilterRecords(t *testing.T) {
 	records := []*audit.EventRecord{
-		{ObjectID: "aaa-111", HashValue: "hash1", Timestamp: base.Add(-24 * time.Hour).Unix()}, // 2026-01-14
-		{ObjectID: "bbb-222", HashValue: "hash2", Timestamp: base.Unix()},                       // 2026-01-15
-		{ObjectID: "ccc-333", HashValue: "hash3", Timestamp: base.Add(24 * time.Hour).Unix()},   // 2026-01-16
+		{ObjectID: "obj-1", HashValue: "hash1", Version: 0},
+		{ObjectID: "obj-1", HashValue: "hash2", Version: 1},
+		{ObjectID: "obj-1", HashValue: "hash3", Version: 2},
 	}
 
-	from := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 1, 15, 23, 59, 59, 999999999, time.UTC)
-
-	filtered := filterRecords(records, from, to)
-	if len(filtered) != 1 || filtered[0].ObjectID != "bbb-222" {
-		t.Errorf("filterRecords with date range: got %v, want single record bbb-222", filtered)
+	filtered := filterRecords(records, time.Time{}, time.Time{})
+	if len(filtered) != 3 {
+		t.Errorf("filterRecords: got %d records, want 3", len(filtered))
+	}
+	if filtered[1].HashValue != "hash2" {
+		t.Errorf("filterRecords[1].HashValue = %q, want %q", filtered[1].HashValue, "hash2")
 	}
 }
 

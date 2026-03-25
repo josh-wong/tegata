@@ -57,7 +57,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := client.Validate(ctx, "tegata-")
+	result, err := client.Validate(ctx, "tegata-"+cfg.Audit.EntityID)
 	if err != nil {
 		return err
 	}

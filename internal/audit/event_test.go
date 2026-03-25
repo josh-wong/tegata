@@ -53,20 +53,25 @@ func TestAuthEvent_NoPlaintextInJSON(t *testing.T) {
 func TestAuthEvent_EventIDIsUUIDv4(t *testing.T) {
 	evt := audit.NewAuthEvent("totp", "GitHub", "acme", "hostname", true, "")
 
-	// UUID v4 format: 8-4-4-4-12 hex chars with version=4 and variant bits
+	// EventID format: "tegata-" prefix + UUID v4 (8-4-4-4-12 hex chars)
 	id := evt.EventID
-	if len(id) != 36 {
-		t.Fatalf("EventID length = %d, want 36: %q", len(id), id)
+	const prefix = "tegata-"
+	if !strings.HasPrefix(id, prefix) {
+		t.Fatalf("EventID missing prefix: %q", id)
+	}
+	uuidPart := id[len(prefix):]
+	if len(uuidPart) != 36 {
+		t.Fatalf("EventID UUID part length = %d, want 36: %q", len(uuidPart), id)
 	}
 	// Check dashes at positions 8, 13, 18, 23
 	for _, pos := range []int{8, 13, 18, 23} {
-		if id[pos] != '-' {
-			t.Errorf("EventID[%d] = %q, want '-': %q", pos, id[pos], id)
+		if uuidPart[pos] != '-' {
+			t.Errorf("EventID UUID[%d] = %q, want '-': %q", pos, uuidPart[pos], id)
 		}
 	}
 	// Version nibble at position 14 must be '4'
-	if id[14] != '4' {
-		t.Errorf("EventID version nibble = %q, want '4': %q", id[14], id)
+	if uuidPart[14] != '4' {
+		t.Errorf("EventID version nibble = %q, want '4': %q", uuidPart[14], id)
 	}
 }
 

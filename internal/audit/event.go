@@ -39,7 +39,7 @@ func HashString(s string) string {
 // through directly — callers are responsible for computing the chain linkage.
 func NewAuthEvent(opType, label, service, host string, success bool, prevHash string) AuthEvent {
 	return AuthEvent{
-		EventID:       uuid.New().String(),
+		EventID:       "tegata-" + uuid.New().String(),
 		Timestamp:     time.Now().UTC(),
 		OperationType: opType,
 		LabelHash:     HashString(label),

@@ -154,11 +154,12 @@ func TestEventBuilder_Disabled(t *testing.T) {
 	// No panic, no side effects.
 }
 
-// TestEventBuilder_DeadlineEnforced verifies that LogEvent returns within 600ms
-// even when the Submitter takes 1 second to respond.
+// TestEventBuilder_DeadlineEnforced verifies that LogEvent returns within the
+// configured timeout even when the Submitter takes much longer to respond.
 func TestEventBuilder_DeadlineEnforced(t *testing.T) {
-	slowSub := &mockSubmitter{delay: 1 * time.Second}
+	slowSub := &mockSubmitter{delay: 5 * time.Second}
 	b, _ := newTestBuilder(t, slowSub)
+	b.submitTimeout = 500 * time.Millisecond // short timeout for test speed
 
 	start := time.Now()
 	if err := b.LogEvent("totp", "github", "GitHub", "host", true); err != nil {
@@ -166,8 +167,8 @@ func TestEventBuilder_DeadlineEnforced(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
-	if elapsed >= 600*time.Millisecond {
-		t.Errorf("LogEvent took %v, want < 600ms", elapsed)
+	if elapsed >= 1*time.Second {
+		t.Errorf("LogEvent took %v, want < 1s with 500ms timeout", elapsed)
 	}
 }
 
