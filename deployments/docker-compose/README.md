@@ -6,6 +6,10 @@ This Docker Compose template starts an instance of ScalarDL Ledger 3.12 and a Po
 
 Running this setup requires Docker Engine 24 or later with the Compose v2 plugin (`docker compose`, not the older `docker-compose` command).
 
+### macOS with Apple Silicon
+
+The ScalarDL and PostgreSQL Docker images are built for x86-64 (AMD64) only. The `docker-compose.yml` includes `platform: linux/amd64` directives so Docker Desktop runs these images under Rosetta emulation automatically. No extra flags are needed.
+
 ## Starting the services
 
 The `--bootstrap` flag on the `scalardl-ledger` service automatically registers the built-in HashStore contracts (`object.Put`, `object.Get`, `object.Validate`, `collection.Create`, `collection.Add`, `collection.Get`) the first time the container starts. These are the contracts that Tegata uses to record and retrieve audit events.

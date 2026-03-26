@@ -252,6 +252,16 @@ docker compose down -v
 docker compose up -d
 ```
 
+### Docker image errors on macOS with Apple Silicon
+
+If you see errors like `no matching manifest for linux/arm64/v8` or `exec format error` when starting Docker Compose on macOS with Apple Silicon (M1/M2/M3/M4), the ScalarDL and PostgreSQL images are x86-64 only. The `docker-compose.yml` includes `platform: linux/amd64` directives to handle this automatically. If you are using a custom compose file without these directives, add `platform: linux/amd64` to each service or set the environment variable before starting.
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up -d
+```
+
+The images run under Rosetta emulation, which is fully supported by Docker Desktop for Mac.
+
 ### Connection refused or timeout
 
 Confirm the ScalarDL containers are running with `docker compose ps`. On WSL, use `127.0.0.1` instead of `localhost` in `tegata.toml` because WSL resolves `localhost` to IPv6 `::1`, but the ScalarDL containers only listen on IPv4.

@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
+    platform: linux/amd64
     environment:
       POSTGRES_DB: scalardl
       POSTGRES_USER: scalardl
@@ -15,6 +16,7 @@ services:
 
   scalardl-schema-loader:
     image: ghcr.io/scalar-labs/scalardl-schema-loader:3.12.0
+    platform: linux/amd64
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,6 +34,7 @@ services:
   # and registers it in the ScalarDB metadata table.
   scalardl-coordinator-schema:
     image: postgres:15-alpine
+    platform: linux/amd64
     depends_on:
       scalardl-schema-loader:
         condition: service_completed_successfully
@@ -59,6 +62,7 @@ services:
 
   scalardl-ledger:
     image: ghcr.io/scalar-labs/scalardl-ledger:3.12.0
+    platform: linux/amd64
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,6 +89,7 @@ services:
   # all generic contracts in one step.
   scalardl-contract-registration:
     image: eclipse-temurin:17-jre-alpine
+    platform: linux/amd64
     depends_on:
       scalardl-ledger:
         condition: service_started

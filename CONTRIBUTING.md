@@ -16,7 +16,7 @@ The following tools are required for CLI and TUI development.
 
 For GUI development, you also need the following.
 
-- **Wails CLI:** Install with `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- **Wails CLI:** Install with `go install github.com/wailsapp/wails/v2/cmd/wails@latest`. Ensure `$(go env GOPATH)/bin` is in your `PATH` so the `wails` command is available. On macOS and Linux, add `export PATH="$PATH:$(go env GOPATH)/bin"` to your shell profile (`~/.zshrc` or `~/.bashrc`) if `wails version` returns "command not found".
 - **Node.js 18+** (check with `node --version`)
 - **Platform WebView dependencies:**
   - **Windows:** WebView2 runtime (included in Windows 10 1803+ and Windows 11)
