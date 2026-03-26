@@ -27,10 +27,18 @@ import (
 type Client interface {
 	// Put stores an event record (objectID → hashValue) on the ledger.
 	Put(ctx context.Context, objectID, hashValue string) error
+	// PutWithMetadata stores an event with metadata (operation, label, timestamp).
+	PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error
 	// Get retrieves all event records for objectID from the ledger.
 	Get(ctx context.Context, objectID string) ([]*EventRecord, error)
 	// Validate verifies the integrity of all records for objectID on the ledger.
 	Validate(ctx context.Context, objectID string) (*ValidationResult, error)
+	// CollectionCreate creates a new collection with the given object IDs.
+	CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error
+	// CollectionAdd adds object IDs to an existing collection.
+	CollectionAdd(ctx context.Context, collectionID string, objectIDs []string) error
+	// CollectionGet retrieves all object IDs in a collection.
+	CollectionGet(ctx context.Context, collectionID string) ([]string, error)
 	// RegisterCert registers the client certificate with the LedgerPrivileged
 	// service. Must be called once before any Put/Get/Validate calls.
 	RegisterCert(ctx context.Context, entityID string, keyVersion uint32, certPEM string) error
@@ -39,8 +47,8 @@ type Client interface {
 	Ping(ctx context.Context) error
 	// Close releases the underlying gRPC connection.
 	Close() error
-	// Submit implements the Submitter interface from the offline queue package.
-	// It calls Put with the entry's EventID as objectID and hex(SHA-256(entryJSON)) as hashValue.
+	// Submit stores each event as its own ScalarDL object with metadata and
+	// adds it to a per-entity collection.
 	Submit(ctx context.Context, entry QueueEntry) error
 }
 
@@ -49,6 +57,7 @@ type EventRecord struct {
 	ObjectID  string
 	HashValue string
 	Version   int64 // ScalarDL version number (age)
+	Metadata  map[string]interface{}
 }
 
 // ValidationResult is returned by Validate.
@@ -203,11 +212,150 @@ func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) erro
 	return nil
 }
 
+// PutWithMetadata stores an event with metadata in the ledger. The metadata
+// contains human-readable event details (operation type, label, timestamp).
+func (c *LedgerClient) PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error {
+	contractID := "object.v1_0_0.Put"
+	argMap := map[string]interface{}{
+		"object_id":  objectID,
+		"hash_value": hashValue,
+	}
+	if metadata != nil {
+		argMap["metadata"] = metadata
+	}
+	arg, err := json.Marshal(argMap)
+	if err != nil {
+		return fmt.Errorf("marshalling Put argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing Put request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: Put contract failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// CollectionCreate creates a new collection in the ledger.
+func (c *LedgerClient) CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error {
+	contractID := "collection.v1_0_0.Create"
+	arg, err := json.Marshal(map[string]interface{}{
+		"collection_id": collectionID,
+		"object_ids":    objectIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling CollectionCreate argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing CollectionCreate request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: CollectionCreate failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// CollectionAdd adds object IDs to an existing collection.
+func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, objectIDs []string) error {
+	contractID := "collection.v1_0_0.Add"
+	arg, err := json.Marshal(map[string]interface{}{
+		"collection_id": collectionID,
+		"object_ids":    objectIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling CollectionAdd argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing CollectionAdd request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// collectionGetResult is the JSON shape returned by collection.Get.
+type collectionGetResult struct {
+	ObjectIDs []string `json:"object_ids"`
+}
+
+// CollectionGet retrieves all object IDs in a collection.
+func (c *LedgerClient) CollectionGet(ctx context.Context, collectionID string) ([]string, error) {
+	contractID := "collection.v1_0_0.Get"
+	arg, err := json.Marshal(map[string]string{"collection_id": collectionID})
+	if err != nil {
+		return nil, fmt.Errorf("marshalling CollectionGet argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return nil, fmt.Errorf("signing CollectionGet request: %w", err)
+	}
+
+	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: CollectionGet failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+
+	var result collectionGetResult
+	if raw := resp.GetContractResult(); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &result); err != nil {
+			return nil, fmt.Errorf("parsing CollectionGet result: %w", err)
+		}
+	}
+	return result.ObjectIDs, nil
+}
+
 // getResult is the JSON shape returned by the object.Get contract.
 type getResult struct {
-	ObjectID  string `json:"object_id"`
-	HashValue string `json:"hash_value"`
-	Age       int64  `json:"age"`
+	ObjectID  string                 `json:"object_id"`
+	HashValue string                 `json:"hash_value"`
+	Age       int64                  `json:"age"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // Get calls the object.Get contract and returns all records for objectID.
@@ -261,6 +409,7 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 			ObjectID:  r.ObjectID,
 			HashValue: r.HashValue,
 			Version:   r.Age,
+			Metadata:  r.Metadata,
 		}
 	}
 	return records, nil
@@ -420,11 +569,9 @@ func (c *LedgerClient) Close() error {
 	return err
 }
 
-// Submit implements the Submitter interface. It calls Put with:
-//   - objectID = entry.Event.EventID
-//   - hashValue = hex(SHA-256(JSON(entry.Event)))
-//
-// This allows the LedgerClient to be used directly as the Submitter for Queue.Flush.
+// Submit implements the Submitter interface. Each event is stored as its own
+// ScalarDL object with metadata (operation, label hash, timestamp) and added
+// to a per-entity collection for listing.
 func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	entryJSON, err := json.Marshal(entry.Event)
 	if err != nil {
@@ -436,9 +583,27 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	}
 	hashValue := hex.EncodeToString(sum[:])
 
-	// Use the entity ID as the object ID so all events from this vault are
-	// stored as versions of the same ScalarDL object. Get(entityID) then
-	// returns all versions (the full audit history).
-	return c.Put(ctx, "tegata-"+c.entityID, hashValue)
+	metadata := map[string]interface{}{
+		"operation":  entry.Event.OperationType,
+		"label_hash": entry.Event.LabelHash,
+		"timestamp":  entry.Event.Timestamp.Unix(),
+	}
+
+	objectID := entry.Event.EventID
+	if err := c.PutWithMetadata(ctx, objectID, hashValue, metadata); err != nil {
+		return err
+	}
+
+	// Add the event to the entity's audit collection. If the collection
+	// doesn't exist yet, create it with this event as the first member.
+	collectionID := "tegata-audit-" + c.entityID
+	if err := c.CollectionAdd(ctx, collectionID, []string{objectID}); err != nil {
+		// Collection might not exist yet — try creating it.
+		if createErr := c.CollectionCreate(ctx, collectionID, []string{objectID}); createErr != nil {
+			return fmt.Errorf("adding event to collection: add=%v, create=%v", err, createErr)
+		}
+	}
+
+	return nil
 }
 

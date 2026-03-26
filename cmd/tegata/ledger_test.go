@@ -42,6 +42,22 @@ func (m *mockAuditClient) Submit(_ context.Context, _ audit.QueueEntry) error {
 	return nil
 }
 
+func (m *mockAuditClient) PutWithMetadata(_ context.Context, _, _ string, _ map[string]interface{}) error {
+	return m.putErr
+}
+
+func (m *mockAuditClient) CollectionCreate(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *mockAuditClient) CollectionAdd(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *mockAuditClient) CollectionGet(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
+
 // TestLedgerSetup_ContractVerification tests the verifyContracts function
 // that checks whether generic contracts are registered on the ledger.
 func TestLedgerSetup_ContractVerification(t *testing.T) {
