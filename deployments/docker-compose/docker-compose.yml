@@ -103,7 +103,14 @@ services:
         curl -sOL https://github.com/scalar-labs/scalardl/releases/download/v3.12.0/scalardl-hashstore-java-client-sdk-3.12.0.zip
         unzip -qo scalardl-hashstore-java-client-sdk-3.12.0.zip
         echo "Waiting for ledger to accept connections..."
-        sleep 10
+        for i in $(seq 1 30); do
+          if nc -z scalardl-ledger 50051 2>/dev/null; then
+            echo "Ledger is ready."
+            break
+          fi
+          echo "  attempt $$i/30 — ledger not ready, retrying in 2s..."
+          sleep 2
+        done
         scalardl-hashstore-java-client-sdk-3.12.0/bin/scalardl-hashstore bootstrap \
           --properties /certs/client.properties
         echo "Generic contracts registered."
