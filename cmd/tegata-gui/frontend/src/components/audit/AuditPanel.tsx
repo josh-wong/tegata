@@ -122,15 +122,21 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="text-left p-2">Version</th>
+                        <th className="text-left p-2">Operation</th>
+                        <th className="text-left p-2">Label</th>
+                        <th className="text-left p-2">Timestamp</th>
                         <th className="text-left p-2">Hash</th>
                       </tr>
                     </thead>
                     <tbody>
                       {history.map((record, i) => (
                         <tr key={i} className="border-b last:border-0">
-                          <td className="p-2">{record.version}</td>
-                          <td className="p-2 font-mono truncate max-w-[300px]">{record.hash_value}</td>
+                          <td className="p-2">{record.operation}</td>
+                          <td className="p-2 font-mono">{record.label_hash?.slice(0, 12)}</td>
+                          <td className="p-2 text-muted-foreground">
+                            {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
+                          </td>
+                          <td className="p-2 font-mono truncate max-w-[200px]">{record.hash_value}</td>
                         </tr>
                       ))}
                     </tbody>

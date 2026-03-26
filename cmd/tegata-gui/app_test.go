@@ -439,9 +439,9 @@ func TestApp_IsAuditEnabled(t *testing.T) {
 }
 
 func TestApp_AuditTypeExports(t *testing.T) {
-	rec := AuditHistoryRecord{HashValue: "abc", Version: 0}
-	if rec.HashValue != "abc" {
-		t.Errorf("unexpected HashValue: %q", rec.HashValue)
+	rec := AuditHistoryRecord{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: 1700000000, HashValue: "abc"}
+	if rec.Operation != "totp" {
+		t.Errorf("unexpected Operation: %q", rec.Operation)
 	}
 
 	vr := AuditVerifyResult{Valid: true, EventCount: 5}

@@ -730,8 +730,11 @@ func (a *App) buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error)
 
 // AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.
 type AuditHistoryRecord struct {
+	ObjectID  string `json:"object_id"`
+	Operation string `json:"operation"`
+	LabelHash string `json:"label_hash"`
+	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
-	Version   int64  `json:"version"`
 }
 
 // AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
@@ -761,22 +764,34 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	records, err := client.Get(ctx, "tegata-"+a.config.Audit.EntityID)
+	collectionID := "tegata-audit-" + a.config.Audit.EntityID
+	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]AuditHistoryRecord, len(records))
-	for i, r := range records {
-		result[i] = AuditHistoryRecord{
-			HashValue: r.HashValue,
-			Version:   r.Version,
+	var result []AuditHistoryRecord
+	for _, id := range eventIDs {
+		events, err := client.Get(ctx, id)
+		if err != nil {
+			continue
+		}
+		if len(events) > 0 {
+			r := events[0]
+			result = append(result, AuditHistoryRecord{
+				ObjectID:  r.ObjectID,
+				Operation: guiMetadataString(r.Metadata, "operation"),
+				LabelHash: guiMetadataString(r.Metadata, "label_hash"),
+				Timestamp: guiMetadataInt64(r.Metadata, "timestamp"),
+				HashValue: r.HashValue,
+			})
 		}
 	}
 	return result, nil
 }
 
-// VerifyAuditLog verifies the hash-chain integrity of the audit log.
+// VerifyAuditLog verifies the integrity of the audit log by validating each
+// event individually via the per-entity collection.
 func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	if a.vault == nil {
 		return nil, fmt.Errorf("vault is locked")
@@ -791,16 +806,73 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	vr, err := client.Validate(ctx, "tegata-"+a.config.Audit.EntityID)
+	collectionID := "tegata-audit-" + a.config.Audit.EntityID
+	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
 		return nil, err
 	}
 
+	if len(eventIDs) == 0 {
+		return &AuditVerifyResult{Valid: true, EventCount: 0}, nil
+	}
+
+	var faults []string
+	for _, id := range eventIDs {
+		vr, err := client.Validate(ctx, id)
+		if err != nil {
+			faults = append(faults, fmt.Sprintf("%s: %v", id, err))
+			continue
+		}
+		if !vr.Valid {
+			faults = append(faults, fmt.Sprintf("%s: %s", id, vr.ErrorDetail))
+		}
+	}
+
+	if len(faults) > 0 {
+		detail := fmt.Sprintf("%d of %d events failed", len(faults), len(eventIDs))
+		return &AuditVerifyResult{
+			Valid:       false,
+			EventCount:  len(eventIDs),
+			ErrorDetail: detail,
+		}, nil
+	}
+
 	return &AuditVerifyResult{
-		Valid:       vr.Valid,
-		EventCount:  vr.EventCount,
-		ErrorDetail: vr.ErrorDetail,
+		Valid:      true,
+		EventCount: len(eventIDs),
 	}, nil
+}
+
+// guiMetadataString extracts a string value from a metadata map.
+func guiMetadataString(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
+}
+
+// guiMetadataInt64 extracts an int64 value from a metadata map (stored as float64 in JSON).
+func guiMetadataInt64(m map[string]interface{}, key string) int64 {
+	if m == nil {
+		return 0
+	}
+	v, ok := m[key]
+	if !ok {
+		return 0
+	}
+	f, ok := v.(float64)
+	if !ok {
+		return 0
+	}
+	return int64(f)
 }
 
 // buildFullAuditClient creates an audit.Client (not just Submitter) for

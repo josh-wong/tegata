@@ -72,17 +72,23 @@ export namespace config {
 export namespace main {
 	
 	export class AuditHistoryRecord {
+	    object_id: string;
+	    operation: string;
+	    label_hash: string;
+	    timestamp: number;
 	    hash_value: string;
-	    version: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AuditHistoryRecord(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.object_id = source["object_id"];
+	        this.operation = source["operation"];
+	        this.label_hash = source["label_hash"];
+	        this.timestamp = source["timestamp"];
 	        this.hash_value = source["hash_value"];
-	        this.version = source["version"];
 	    }
 	}
 	export class AuditVerifyResult {
