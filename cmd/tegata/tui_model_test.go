@@ -425,8 +425,8 @@ func TestTUI_AuditDisabled(t *testing.T) {
 func TestTUI_AuditHistoryResult(t *testing.T) {
 	m := model{state: stateOverlayAudit, auditSubFlow: "history", auditLoading: true}
 	msg := auditHistoryMsg{records: []historyRecord{
-		{HashValue: "abcd", Version: 0},
-		{HashValue: "ef01", Version: 1},
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: 1700000000, HashValue: "abcd"},
+		{ObjectID: "evt-2", Operation: "hotp", LabelHash: "def", Timestamp: 1700000100, HashValue: "ef01"},
 	}}
 	updated, _ := m.Update(msg)
 	result := updated.(model)
@@ -475,7 +475,7 @@ func TestTUI_AuditIdleLock(t *testing.T) {
 	m := model{
 		state:        stateOverlayAudit,
 		auditSubFlow: "history",
-		auditRecords: []historyRecord{{HashValue: "test"}},
+		auditRecords: []historyRecord{{ObjectID: "evt-1", Operation: "totp", HashValue: "test"}},
 		lastActivity: time.Now().Add(-10 * time.Minute),
 		idleTimeout:  5 * time.Minute,
 		builder:      nil,

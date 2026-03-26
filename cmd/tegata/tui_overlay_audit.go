@@ -39,17 +39,29 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		records, err := client.Get(ctx, "tegata-"+cfg.EntityID)
+		collectionID := "tegata-audit-" + cfg.EntityID
+		eventIDs, err := client.CollectionGet(ctx, collectionID)
 		if err != nil {
 			return auditHistoryMsg{err: err}
 		}
 
-		hist := make([]historyRecord, len(records))
-		for i, r := range records {
-			hist[i] = historyRecord{
-				HashValue: r.HashValue,
-				Version:   r.Version,
+		var hist []historyRecord
+		for _, id := range eventIDs {
+			evts, err := client.Get(ctx, id)
+			if err != nil {
+				continue
 			}
+			if len(evts) == 0 {
+				continue
+			}
+			r := evts[0]
+			hist = append(hist, historyRecord{
+				ObjectID:  r.ObjectID,
+				Operation: metadataString(r.Metadata, "operation"),
+				LabelHash: metadataString(r.Metadata, "label_hash"),
+				Timestamp: metadataInt64(r.Metadata, "timestamp"),
+				HashValue: r.HashValue,
+			})
 		}
 		return auditHistoryMsg{records: hist}
 	}
@@ -69,14 +81,27 @@ func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		result, err := client.Validate(ctx, "tegata-"+cfg.EntityID)
+		collectionID := "tegata-audit-" + cfg.EntityID
+		eventIDs, err := client.CollectionGet(ctx, collectionID)
 		if err != nil {
 			return auditVerifyMsg{err: err}
 		}
+
+		var faults int
+		for _, id := range eventIDs {
+			result, err := client.Validate(ctx, id)
+			if err != nil {
+				faults++
+				continue
+			}
+			if !result.Valid {
+				faults++
+			}
+		}
 		return auditVerifyMsg{
-			valid:      result.Valid,
-			eventCount: result.EventCount,
-			detail:     result.ErrorDetail,
+			valid:      faults == 0,
+			eventCount: len(eventIDs),
+			detail:     fmt.Sprintf("%d of %d events have issues", faults, len(eventIDs)),
 		}
 	}
 }
@@ -177,14 +202,19 @@ func (m model) viewAuditHistory() string {
 
 	var body strings.Builder
 	if len(m.auditRecords) > 0 {
-		body.WriteString(fmt.Sprintf("%-9s %s\n", "Version", "Hash"))
-		body.WriteString(strings.Repeat("─", 50) + "\n")
+		body.WriteString(fmt.Sprintf("%-12s %-12s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
+		body.WriteString(strings.Repeat("─", 65) + "\n")
 		for _, r := range m.auditRecords {
-			hash := r.HashValue
-			if len(hash) > 40 {
-				hash = hash[:40] + "…"
+			label := r.LabelHash
+			if len(label) > 12 {
+				label = label[:12]
 			}
-			body.WriteString(fmt.Sprintf("%-9d %s\n", r.Version, hash))
+			ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+			hash := r.HashValue
+			if len(hash) > 16 {
+				hash = hash[:16] + "…"
+			}
+			body.WriteString(fmt.Sprintf("%-12s %-12s %-20s %s\n", r.Operation, label, ts, hash))
 		}
 	}
 

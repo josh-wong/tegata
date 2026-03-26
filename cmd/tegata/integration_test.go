@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/josh-wong/tegata/internal/audit"
+
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
@@ -769,13 +769,14 @@ func TestIntegration_AuditWiring(t *testing.T) {
 	}
 }
 
-// TestHistory_FilterByDate verifies that filterRecords correctly applies
-// filterRecords converts all EventRecords to historyRecords.
+// TestHistory_FilterRecords verifies that filterRecords correctly applies
+// date filtering using metadata timestamps.
 func TestHistory_FilterRecords(t *testing.T) {
-	records := []*audit.EventRecord{
-		{ObjectID: "obj-1", HashValue: "hash1", Version: 0},
-		{ObjectID: "obj-1", HashValue: "hash2", Version: 1},
-		{ObjectID: "obj-1", HashValue: "hash3", Version: 2},
+	now := time.Now().Unix()
+	records := []historyRecord{
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: now, HashValue: "hash1"},
+		{ObjectID: "evt-2", Operation: "totp", LabelHash: "def", Timestamp: now - 86400, HashValue: "hash2"},
+		{ObjectID: "evt-3", Operation: "hotp", LabelHash: "ghi", Timestamp: now + 86400, HashValue: "hash3"},
 	}
 
 	filtered := filterRecords(records, time.Time{}, time.Time{})

@@ -61,10 +61,32 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Retrieve all records from the ledger using the "tegata-" prefix.
-			records, err := client.Get(ctx, "tegata-"+cfg.Audit.EntityID)
+			// Retrieve event IDs from the entity's audit collection.
+			collectionID := "tegata-audit-" + cfg.Audit.EntityID
+			eventIDs, err := client.CollectionGet(ctx, collectionID)
 			if err != nil {
 				return err
+			}
+
+			// Fetch each event individually and build history records.
+			var records []historyRecord
+			for _, id := range eventIDs {
+				evts, err := client.Get(ctx, id)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to get event %s: %v\n", id, err)
+					continue
+				}
+				if len(evts) == 0 {
+					continue
+				}
+				r := evts[0]
+				records = append(records, historyRecord{
+					ObjectID:  r.ObjectID,
+					Operation: metadataString(r.Metadata, "operation"),
+					LabelHash: metadataString(r.Metadata, "label_hash"),
+					Timestamp: metadataInt64(r.Metadata, "timestamp"),
+					HashValue: r.HashValue,
+				})
 			}
 
 			// Parse --from and --to date filters.
@@ -86,7 +108,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}
 
-			// Apply date filters and build the display list.
+			// Apply date filters.
 			filtered := filterRecords(records, fromTime, toTime)
 
 			if jsonOut {
@@ -122,27 +144,68 @@ func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
 }
 
 // historyRecord is the display/JSON shape for a single history entry.
-// ScalarDL stores hashes, so we display the raw hash values rather than
-// attempting to reverse them.
+// Each record corresponds to one ScalarDL object with metadata.
 type historyRecord struct {
+	ObjectID  string `json:"object_id"`
+	Operation string `json:"operation"`
+	LabelHash string `json:"label_hash"`
+	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
-	Version   int64  `json:"version"`
 }
 
-// filterRecords converts EventRecords to historyRecords. Date filtering is
-// not available since ScalarDL stores version numbers, not timestamps.
-func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRecord {
-	result := make([]historyRecord, len(records))
-	for i, r := range records {
-		result[i] = historyRecord{
-			HashValue: r.HashValue,
-			Version:   r.Version,
-		}
+// metadataString extracts a string value from a metadata map.
+func metadataString(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
 	}
-	return result
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
 }
 
-// printRecordsTable writes a human-readable tabular display of history records.
+// metadataInt64 extracts an int64 value from a metadata map (stored as float64 in JSON).
+func metadataInt64(m map[string]interface{}, key string) int64 {
+	if m == nil {
+		return 0
+	}
+	v, ok := m[key]
+	if !ok {
+		return 0
+	}
+	f, ok := v.(float64)
+	if !ok {
+		return 0
+	}
+	return int64(f)
+}
+
+// filterRecords applies date filtering using the metadata timestamp.
+func filterRecords(records []historyRecord, from, to time.Time) []historyRecord {
+	if from.IsZero() && to.IsZero() {
+		return records
+	}
+	var filtered []historyRecord
+	for _, r := range records {
+		t := time.Unix(r.Timestamp, 0).UTC()
+		if !from.IsZero() && t.Before(from) {
+			continue
+		}
+		if !to.IsZero() && t.After(to) {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
+// printRecordsTable writes a human-readable tabular display of history records
+// with operation, label hash, timestamp, and hash columns.
 func printRecordsTable(records []historyRecord) {
 	if len(records) == 0 {
 		fmt.Println("No audit events found.")
@@ -150,10 +213,19 @@ func printRecordsTable(records []historyRecord) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Version\tHash Value")
-	_, _ = fmt.Fprintln(w, "-------\t----------")
+	_, _ = fmt.Fprintln(w, "Operation\tLabel\tTimestamp\tHash")
+	_, _ = fmt.Fprintln(w, "---------\t-----\t---------\t----")
 	for _, r := range records {
-		_, _ = fmt.Fprintf(w, "%d\t%s\n", r.Version, r.HashValue)
+		label := r.LabelHash
+		if len(label) > 12 {
+			label = label[:12]
+		}
+		ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+		hash := r.HashValue
+		if len(hash) > 16 {
+			hash = hash[:16] + "..."
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", r.Operation, label, ts, hash)
 	}
 	_ = w.Flush()
 }
