@@ -169,6 +169,12 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 // NewClientFromConfig creates a LedgerClient using HMAC authentication.
 // Returns an error if secretKey is empty or if insecure is false (TLS mode is
 // not yet supported with HMAC auth).
+//
+// TODO(#22): Add TLS support for HMAC authentication. Currently only insecure
+// (plaintext) connections work with HMAC. The ECDSA path supports TLS via
+// NewLedgerClient, but HMAC+TLS requires building a tls.Config without client
+// certificates (server-side TLS only). Until this is implemented, production
+// deployments should use network-level encryption (e.g. VPN, SSH tunnel).
 func NewClientFromConfig(server, privilegedServer, entityID string, keyVersion uint32, secretKey string, insecure bool) (*LedgerClient, error) {
 	if secretKey == "" {
 		return nil, fmt.Errorf("audit.secret_key is required")
@@ -179,7 +185,7 @@ func NewClientFromConfig(server, privilegedServer, entityID string, keyVersion u
 		return NewLedgerClientInsecure(server, privilegedServer, entityID, keyVersion, signer)
 	}
 
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true in tegata.toml (see #22)")
 }
 
 // formatArgument wraps a contract argument in the ScalarDL V2 envelope that
