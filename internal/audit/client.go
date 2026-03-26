@@ -463,6 +463,10 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 	}
 
 	// Step 2: Build versions array from retrieved records.
+	// The HashStore object.Validate contract expects each version entry to
+	// contain "version_id" (the object ID string, not a numeric version) and
+	// "hash_value". This matches the HashStore SDK's ValidateRequest schema
+	// where version_id identifies the object, not a sequential version number.
 	versions := make([]map[string]string, len(records))
 	for i, r := range records {
 		versions[i] = map[string]string{
