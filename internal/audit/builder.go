@@ -28,7 +28,7 @@ type EventBuilder struct {
 	queueKey   []byte         // 32-byte key; EventBuilder does NOT own lifecycle
 	disabled   bool           // true when client == nil
 	lastHash   string         // SHA-256 of the last successfully submitted event JSON
-	submitTimeout time.Duration // timeout for submit operations (default 10s)
+	submitTimeout time.Duration // timeout for submit operations (default 3s)
 }
 
 // NewEventBuilder creates an EventBuilder. If client is nil the builder is
@@ -47,7 +47,7 @@ func NewEventBuilder(client Submitter, queuePath string, queueKey []byte, maxLen
 
 	return &EventBuilder{
 		client:        client,
-		submitTimeout: 10 * time.Second,
+		submitTimeout: 3 * time.Second,
 		queue:     q,
 		queuePath: queuePath,
 		queueKey:  queueKey,
@@ -62,13 +62,13 @@ type submitResult struct {
 
 // LogEvent records an authentication operation in the audit log. It builds an
 // AuthEvent from the provided fields, then attempts to flush any queued events
-// and submit the new event to the ledger within a 500ms deadline. On any
+// and submit the new event to the ledger within a 3-second deadline. On any
 // network error the new event is appended to the offline queue and nil is
 // returned — auth operations must succeed regardless of ledger availability.
 //
 // The flush+submit attempt is run in a goroutine so that a non-cooperative
 // Submitter (one that ignores context cancellation) cannot block the caller
-// longer than 500ms plus negligible goroutine scheduling overhead.
+// longer than 3 seconds plus negligible goroutine scheduling overhead.
 //
 // The goroutine works exclusively from a snapshot of the queue entries taken
 // before it is spawned, so it never accesses b.queue concurrently with the
@@ -94,7 +94,7 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 
 	timeout := b.submitTimeout
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = 3 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
