@@ -772,20 +772,73 @@ func TestIntegration_AuditWiring(t *testing.T) {
 // TestHistory_FilterRecords verifies that filterRecords correctly applies
 // date filtering using metadata timestamps.
 func TestHistory_FilterRecords(t *testing.T) {
-	now := time.Now().Unix()
+	// Use fixed timestamps: 2026-03-25, 2026-03-26, 2026-03-27.
+	day1 := time.Date(2026, 3, 25, 12, 0, 0, 0, time.UTC).Unix()
+	day2 := time.Date(2026, 3, 26, 12, 0, 0, 0, time.UTC).Unix()
+	day3 := time.Date(2026, 3, 27, 12, 0, 0, 0, time.UTC).Unix()
+
 	records := []historyRecord{
-		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: now, HashValue: "hash1"},
-		{ObjectID: "evt-2", Operation: "totp", LabelHash: "def", Timestamp: now - 86400, HashValue: "hash2"},
-		{ObjectID: "evt-3", Operation: "hotp", LabelHash: "ghi", Timestamp: now + 86400, HashValue: "hash3"},
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: day1, HashValue: "hash1"},
+		{ObjectID: "evt-2", Operation: "totp", LabelHash: "def", Timestamp: day2, HashValue: "hash2"},
+		{ObjectID: "evt-3", Operation: "hotp", LabelHash: "ghi", Timestamp: day3, HashValue: "hash3"},
 	}
 
-	filtered := filterRecords(records, time.Time{}, time.Time{})
-	if len(filtered) != 3 {
-		t.Errorf("filterRecords: got %d records, want 3", len(filtered))
-	}
-	if filtered[1].HashValue != "hash2" {
-		t.Errorf("filterRecords[1].HashValue = %q, want %q", filtered[1].HashValue, "hash2")
-	}
+	t.Run("no filter returns all", func(t *testing.T) {
+		filtered := filterRecords(records, time.Time{}, time.Time{})
+		if len(filtered) != 3 {
+			t.Errorf("got %d records, want 3", len(filtered))
+		}
+	})
+
+	t.Run("from filter excludes earlier records", func(t *testing.T) {
+		from := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
+		filtered := filterRecords(records, from, time.Time{})
+		if len(filtered) != 2 {
+			t.Fatalf("got %d records, want 2", len(filtered))
+		}
+		if filtered[0].ObjectID != "evt-2" {
+			t.Errorf("first record = %q, want evt-2", filtered[0].ObjectID)
+		}
+		if filtered[1].ObjectID != "evt-3" {
+			t.Errorf("second record = %q, want evt-3", filtered[1].ObjectID)
+		}
+	})
+
+	t.Run("to filter excludes later records", func(t *testing.T) {
+		// to = end of 2026-03-26 (filterRecords compares with After).
+		to := time.Date(2026, 3, 26, 23, 59, 59, 999999999, time.UTC)
+		filtered := filterRecords(records, time.Time{}, to)
+		if len(filtered) != 2 {
+			t.Fatalf("got %d records, want 2", len(filtered))
+		}
+		if filtered[0].ObjectID != "evt-1" {
+			t.Errorf("first record = %q, want evt-1", filtered[0].ObjectID)
+		}
+		if filtered[1].ObjectID != "evt-2" {
+			t.Errorf("second record = %q, want evt-2", filtered[1].ObjectID)
+		}
+	})
+
+	t.Run("from and to filter together", func(t *testing.T) {
+		from := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
+		to := time.Date(2026, 3, 26, 23, 59, 59, 999999999, time.UTC)
+		filtered := filterRecords(records, from, to)
+		if len(filtered) != 1 {
+			t.Fatalf("got %d records, want 1", len(filtered))
+		}
+		if filtered[0].ObjectID != "evt-2" {
+			t.Errorf("record = %q, want evt-2", filtered[0].ObjectID)
+		}
+	})
+
+	t.Run("range with no matches returns empty", func(t *testing.T) {
+		from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+		to := time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC)
+		filtered := filterRecords(records, from, to)
+		if len(filtered) != 0 {
+			t.Errorf("got %d records, want 0", len(filtered))
+		}
+	})
 }
 
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
