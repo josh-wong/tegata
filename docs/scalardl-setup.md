@@ -30,7 +30,7 @@ This starts four services.
 - **scalardl-coordinator-schema** — creates the coordinator table needed by the transaction manager
 - **scalardl-ledger** — the ScalarDL Ledger gRPC server (ports 50051 and 50052)
 
-A fifth service, **scalardl-contract-registration**, downloads the HashStore SDK and registers the generic contracts (`object.Put`, `object.Get`, `object.Validate`). Wait about 30 seconds after starting for this service to finish.
+A fifth service, **scalardl-contract-registration**, downloads the HashStore SDK and registers the generic contracts (`object.Put`, `object.Get`, `object.Validate`, `collection.Create`, `collection.Add`, `collection.Get`). Wait about 30 seconds after starting for this service to finish.
 
 Verify the registration succeeded.
 
@@ -215,11 +215,11 @@ docker compose up -d
 
 ## Where tamper detection is surfaced
 
-Tamper detection is currently available through the CLI only.
+Tamper detection is available in all three interfaces.
 
-- **CLI:** `tegata verify` checks the hash chain and reports violations. `tegata history` displays recorded events.
-- **TUI:** Emits audit events during credential operations but does not have built-in verify or history views. Use the CLI to check integrity.
-- **GUI:** Emits audit events during credential operations but does not have built-in verify or history views. Use the CLI to check integrity.
+- **CLI:** `tegata verify` validates each event individually via the per-entity collection and reports all faults. `tegata history` displays events with operation, label hash, timestamp, and hash columns.
+- **TUI:** Press `v` to open the audit overlay, which provides "View history" and "Verify integrity" options matching the CLI output.
+- **GUI:** Click the shield icon in the header bar to open the audit panel with "View history" and "Verify integrity" buttons.
 
 ## Troubleshooting
 

@@ -630,128 +630,86 @@ Enter code 2: 789012
 
 ### 3.5 `tegata history`
 
-The history command retrieves recent audit events from the ScalarDL Ledger and displays them in a table. The `--around N` variant shows context surrounding a specific event number, useful when `tegata verify` reports an integrity violation.
+The history command retrieves audit events from the ScalarDL Ledger by fetching the entity's collection and then retrieving each event's metadata. Events are displayed in a four-column table showing operation type, label hash (truncated to 12 characters), timestamp, and hash value.
 
-**Variant (a) – Default (recent events):**
+**Default output (all events):**
 
 ```
 $ tegata history
 
-#     Timestamp             Label (hashed)    Type  Status  (cinnabar)
-────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
-843   2026-03-14 07:42:11   a3f8c2d9…        totp  ok
-844   2026-03-14 08:15:03   7b19e4f2…        cr    ok
-845   2026-03-14 09:30:47   a3f8c2d9…        totp  ok
-846   2026-03-14 11:02:18   c8d5e3a1…        hotp  ok
-847   2026-03-14 12:45:59   a3f8c2d9…        totp  ok
-
-847 events total
+Operation  Label         Timestamp             Hash
+---------  -----         ---------             ----
+totp       a3f8c2d9e1b7  2026-03-14 07:42:11   7b19e4f2c8d5e3a1...
+cr         7b19e4f2c8d5  2026-03-14 08:15:03   a3f8c2d9e1b70450...
+totp       a3f8c2d9e1b7  2026-03-14 09:30:47   c8d5e3a1f2b70459...
+hotp       c8d5e3a17b19  2026-03-14 11:02:18   e4f2a3f8c2d9e1b7...
 ```
 
-**Variant (b) – Context around a specific event (`--around 843`):**
+**Date-filtered output:**
 
 ```
-$ tegata history --around 843
-
-#     Timestamp             Label (hashed)    Type  Status  (cinnabar)
-────  ────────────────────  ────────────────  ────  ──────  (cinnabar)
-840   2026-03-14 06:11:22   7b19e4f2…        cr    ok
-841   2026-03-14 06:44:09   a3f8c2d9…        totp  ok
-842   2026-03-14 07:15:33   c8d5e3a1…        hotp  ok
->>> 843   2026-03-14 07:42:11   a3f8c2d9…   totp  ok
-844   2026-03-14 08:15:03   7b19e4f2…        cr    ok
-845   2026-03-14 09:30:47   a3f8c2d9…        totp  ok
-
-Showing 3 events before and after event #843
+$ tegata history --from 2026-03-14 --to 2026-03-14
 ```
 
 **JSON output (`--json`):**
 
 ```json
-{
-  "status": "ok",
-  "total": 847,
-  "events": [
-    {
-      "index": 843,
-      "timestamp": "2026-03-14T07:42:11Z",
-      "label_hash": "a3f8c2d9e1b7045f",
-      "type": "totp",
-      "status": "ok"
-    },
-    {
-      "index": 844,
-      "timestamp": "2026-03-14T08:15:03Z",
-      "label_hash": "7b19e4f2c8d5e3a1",
-      "type": "cr",
-      "status": "ok"
-    }
-  ]
-}
+[
+  {
+    "object_id": "evt-abc123",
+    "operation": "totp",
+    "label_hash": "a3f8c2d9e1b7045f",
+    "timestamp": 1710399731,
+    "hash_value": "7b19e4f2c8d5e3a1..."
+  },
+  {
+    "object_id": "evt-def456",
+    "operation": "cr",
+    "label_hash": "7b19e4f2c8d5e3a1",
+    "timestamp": 1710401703,
+    "hash_value": "a3f8c2d9e1b70450..."
+  }
+]
 ```
 
 > [!NOTE]
 >
 > Design notes:
-> 
+>
 > - Labels are stored as hashed values in the audit log—the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text.
-> - The `--around N` flag is the primary investigation tool when `tegata verify` (section 3.6) reports an integrity violation at a specific event: the user runs `tegata history --around N` to see the surrounding context.
-> - The `>>>` marker on the target event makes it visually unambiguous even when the terminal has no color.
 > - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault), same as `tegata verify`.
 > - The `history` command requires a reachable ScalarDL Ledger instance—it cannot operate from the offline queue.
 
 ### 3.6 `tegata verify`
 
-The verify command checks the full audit chain integrity by calling the ScalarDL Ledger's validate contract. It traverses all stored events and confirms that the hash chain is unbroken from event 1 to the latest event.
+The verify command checks audit integrity by retrieving all event IDs from the entity's collection and validating each event individually. It continues past individual failures and reports all faults.
 
-**Variant (a) – Chain valid:**
-
-```
-$ tegata verify
-
-✓ Audit chain verified. 847 events, all hashes valid.  (green)
-```
-
-**Variant (b) – Integrity violation detected:**
+**Success:**
 
 ```
 $ tegata verify
 
-✗ Audit chain integrity violation at event #843. Expected hash does not match stored hash. Run 'tegata history --around 843' for details.  (red)
+Audit log integrity verified. 5 events checked.
 ```
 
-[exit 5]
+**Integrity violation detected:**
 
-**JSON output (`--json`, success):**
+```
+$ tegata verify
 
-```json
-{
-  "status": "ok",
-  "events_verified": 847,
-  "valid": true
-}
+Integrity violation detected in 1 of 5 events:
+  evt-abc123: hash mismatch at version 1
 ```
 
-**JSON output (`--json`, failure):**
-
-```json
-{
-  "status": "error",
-  "code": 5,
-  "category": "integrity",
-  "message": "Audit chain integrity violation at event #843. Expected hash does not match stored hash.",
-  "event_index": 843
-}
-```
+[exit 9]
 
 > [!NOTE]
 >
 > Design notes:
-> 
-> - Verification checks the complete chain from event 1 to the latest—partial verification is not supported in v0.3 because a partial check provides incomplete assurance.
+>
+> - Verification validates every event in the collection individually—partial failures do not stop the check.
 > - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault).
-> - The failure output is identical to section 4.5 (integrity violation error state), ensuring consistency: whichever entry point leads to the integrity violation, the user sees the same message and the same recovery step.
-> - The `"event_index"` field in the JSON error response is separate from the message string, making it easy for scripts to extract the event index without parsing text.
+> - Exit code 9 indicates integrity violation, exit code 8 indicates network failure.
 
 ### 3.7 `tegata ledger setup`
 

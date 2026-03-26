@@ -167,7 +167,7 @@ tegata get backup-key --show
 
 ### tegata history
 
-View authentication event history from the ScalarDL Ledger. Requires audit to be enabled in `tegata.toml`.
+View authentication event history from the ScalarDL Ledger. Events are retrieved from the entity's audit collection and displayed with metadata columns. Requires audit to be enabled in `tegata.toml`.
 
 **Usage:** `tegata history [flags]`
 
@@ -178,6 +178,8 @@ View authentication event history from the ScalarDL Ledger. Requires audit to be
 | `--from` | string | (none)  | Start date filter (YYYY-MM-DD)      |
 | `--to`   | string | (none)  | End date filter (YYYY-MM-DD)        |
 | `--json` | bool   | false   | Output as JSON array                |
+
+The default table output shows four columns: Operation (totp, hotp, cr, static), Label (first 12 characters of the label hash), Timestamp (UTC), and Hash (truncated event hash). With `--json`, each record includes `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), and `hash_value`.
 
 **Examples:**
 
@@ -348,7 +350,7 @@ tegata ui
 
 ### tegata verify
 
-Verify the hash-chain integrity of the audit log stored in ScalarDL Ledger. Reports the number of events checked and whether the chain is intact.
+Verify the integrity of the audit log stored in ScalarDL Ledger. Retrieves all event IDs from the entity's collection and validates each event individually. Reports the total number of events checked and lists per-event faults if any are detected.
 
 **Usage:** `tegata verify`
 

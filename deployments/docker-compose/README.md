@@ -8,7 +8,7 @@ Running this setup requires Docker Engine 24 or later with the Compose v2 plugin
 
 ## Starting the services
 
-The `--bootstrap` flag on the `scalardl-ledger` service automatically registers the built-in HashStore contracts (`object.Put`, `object.Get`, `object.Validate`) the first time the container starts. These are the contracts that Tegata uses to record audit events.
+The `--bootstrap` flag on the `scalardl-ledger` service automatically registers the built-in HashStore contracts (`object.Put`, `object.Get`, `object.Validate`, `collection.Create`, `collection.Add`, `collection.Get`) the first time the container starts. These are the contracts that Tegata uses to record and retrieve audit events.
 
 ```bash
 docker compose up -d
