@@ -40,7 +40,7 @@ Add a credential to the vault. Supports TOTP, HOTP, static password, and challen
 | `--issuer`    | string | (none)  | Credential issuer name                                         |
 | `--algorithm` | string | SHA1    | HMAC algorithm (SHA1, SHA256, SHA512)                          |
 | `--digits`    | int    | 6       | Number of digits in generated code (1-10)                      |
-| `--period`    | int    | 30      | TOTP period in seconds                                         |
+| `--period`    | int    | 30      | TOTP period in seconds (15-120)                                |
 | `--tag`       | string | (none)  | Tag to apply (repeatable, e.g. `--tag work --tag totp`)        |
 
 **Examples:**
@@ -179,7 +179,7 @@ View authentication event history from the ScalarDL Ledger. Events are retrieved
 | `--to`   | string | (none)  | End date filter (YYYY-MM-DD)        |
 | `--json` | bool   | false   | Output as JSON array                |
 
-The default table output shows four columns: Operation (totp, hotp, cr, static), Label (first 12 characters of the label hash), Timestamp (UTC), and Hash (truncated event hash). With `--json`, each record includes `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), and `hash_value`.
+The default table output shows four columns: Operation (totp, hotp, challenge-response, static), Label (first 12 characters of the label hash), Timestamp (UTC), and Hash (truncated event hash). With `--json`, each record includes `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), and `hash_value`.
 
 **Examples:**
 
