@@ -136,6 +136,13 @@ func (s *HMACSigner) Sign(contractID, contractArgument, nonce, entityID string, 
 	return mac.Sum(nil), nil
 }
 
+// Zero overwrites the secret key material in memory.
+func (s *HMACSigner) Zero() {
+	for i := range s.secretKey {
+		s.secretKey[i] = 0
+	}
+}
+
 // NoOpSigner always returns a nil signature. Use for initial connectivity
 // testing only — a live ScalarDL instance will reject nil signatures if
 // authentication is enabled.

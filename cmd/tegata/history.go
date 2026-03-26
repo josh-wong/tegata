@@ -50,13 +50,11 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return nil
 			}
 
-			client, err := buildAuditClient(cfg.Audit)
+			client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 			if err != nil {
 				return fmt.Errorf("%w: %s", tegerrors.ErrNetworkFailed, err)
 			}
-			if closer, ok := client.(interface{ Close() error }); ok {
-				defer func() { _ = closer.Close() }()
-			}
+			defer func() { _ = client.Close() }()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -82,9 +80,9 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				r := evts[0]
 				records = append(records, historyRecord{
 					ObjectID:  r.ObjectID,
-					Operation: metadataString(r.Metadata, "operation"),
-					LabelHash: metadataString(r.Metadata, "label_hash"),
-					Timestamp: metadataInt64(r.Metadata, "timestamp"),
+					Operation: audit.MetadataString(r.Metadata, "operation"),
+					LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
+					Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
 					HashValue: r.HashValue,
 				})
 			}
@@ -129,20 +127,6 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 	return cmd
 }
 
-// buildAuditClient creates a Client from AuditConfig for history and verify commands.
-func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
-	if cfg.SecretKey == "" {
-		return nil, fmt.Errorf("audit.secret_key is required")
-	}
-	signer := audit.NewHMACSigner(cfg.SecretKey)
-
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
-}
-
 // historyRecord is the display/JSON shape for a single history entry.
 // Each record corresponds to one ScalarDL object with metadata.
 type historyRecord struct {
@@ -151,38 +135,6 @@ type historyRecord struct {
 	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
-}
-
-// metadataString extracts a string value from a metadata map.
-func metadataString(m map[string]interface{}, key string) string {
-	if m == nil {
-		return ""
-	}
-	v, ok := m[key]
-	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// metadataInt64 extracts an int64 value from a metadata map (stored as float64 in JSON).
-func metadataInt64(m map[string]interface{}, key string) int64 {
-	if m == nil {
-		return 0
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0
-	}
-	f, ok := v.(float64)
-	if !ok {
-		return 0
-	}
-	return int64(f)
 }
 
 // filterRecords applies date filtering using the metadata timestamp.

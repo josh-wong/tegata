@@ -198,7 +198,7 @@ func WriteDefaults(dir string) error {
 # queue_max_events = 10000
 `
 	path := filepath.Join(dir, configFileName)
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 // FormatEffective returns a human-readable display of the effective

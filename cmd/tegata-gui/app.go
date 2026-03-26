@@ -702,7 +702,7 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
 
-	client, err := a.buildLedgerClient(cfg.Audit)
+	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
 		zeroBytes(queueKey)
@@ -712,20 +712,6 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
 	zeroBytes(queueKey)
 	return eb, err
-}
-
-// buildLedgerClient constructs a LedgerClient from AuditConfig.
-func (a *App) buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
-	if cfg.SecretKey == "" {
-		return nil, fmt.Errorf("audit.secret_key is required")
-	}
-	signer := audit.NewHMACSigner(cfg.SecretKey)
-
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.
@@ -755,7 +741,7 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
-	client, err := a.buildFullAuditClient(a.config.Audit)
+	client, err := audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
 	if err != nil {
 		return nil, err
 	}
@@ -771,21 +757,26 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	}
 
 	var result []AuditHistoryRecord
+	var skipped int
 	for _, id := range eventIDs {
 		events, err := client.Get(ctx, id)
 		if err != nil {
+			skipped++
 			continue
 		}
 		if len(events) > 0 {
 			r := events[0]
 			result = append(result, AuditHistoryRecord{
 				ObjectID:  r.ObjectID,
-				Operation: guiMetadataString(r.Metadata, "operation"),
-				LabelHash: guiMetadataString(r.Metadata, "label_hash"),
-				Timestamp: guiMetadataInt64(r.Metadata, "timestamp"),
+				Operation: audit.MetadataString(r.Metadata, "operation"),
+				LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
+				Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
 				HashValue: r.HashValue,
 			})
 		}
+	}
+	if skipped > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: %d of %d audit events could not be fetched\n", skipped, len(eventIDs))
 	}
 	return result, nil
 }
@@ -797,7 +788,7 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
-	client, err := a.buildFullAuditClient(a.config.Audit)
+	client, err := audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
 	if err != nil {
 		return nil, err
 	}
@@ -841,53 +832,6 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		Valid:      true,
 		EventCount: len(eventIDs),
 	}, nil
-}
-
-// guiMetadataString extracts a string value from a metadata map.
-func guiMetadataString(m map[string]interface{}, key string) string {
-	if m == nil {
-		return ""
-	}
-	v, ok := m[key]
-	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// guiMetadataInt64 extracts an int64 value from a metadata map (stored as float64 in JSON).
-func guiMetadataInt64(m map[string]interface{}, key string) int64 {
-	if m == nil {
-		return 0
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0
-	}
-	f, ok := v.(float64)
-	if !ok {
-		return 0
-	}
-	return int64(f)
-}
-
-// buildFullAuditClient creates an audit.Client (not just Submitter) for
-// history and verify operations.
-func (a *App) buildFullAuditClient(cfg config.AuditConfig) (audit.Client, error) {
-	if cfg.SecretKey == "" {
-		return nil, fmt.Errorf("audit.secret_key is required")
-	}
-	signer := audit.NewHMACSigner(cfg.SecretKey)
-
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // vaultDir returns the directory containing the vault file.

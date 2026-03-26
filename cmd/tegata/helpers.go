@@ -307,7 +307,7 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
 
-	client, err := buildLedgerClient(cfg.Audit)
+	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		// A failed ledger connection is not fatal — the queue will hold events.
 		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
@@ -319,21 +319,6 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
 	zeroBytes(queueKey)
 	return eb, err
-}
-
-// buildLedgerClient constructs a LedgerClient from AuditConfig.
-// Uses HMAC signer with the configured secret key.
-func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
-	if cfg.SecretKey == "" {
-		return nil, fmt.Errorf("audit.secret_key is required")
-	}
-	signer := audit.NewHMACSigner(cfg.SecretKey)
-
-	if cfg.Insecure {
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
 }
 
 // hostname returns the current machine hostname. On error returns an empty

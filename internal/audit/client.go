@@ -166,6 +166,22 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 	}
 }
 
+// NewClientFromConfig creates a LedgerClient using HMAC authentication.
+// Returns an error if secretKey is empty or if insecure is false (TLS mode is
+// not yet supported with HMAC auth).
+func NewClientFromConfig(server, privilegedServer, entityID string, keyVersion uint32, secretKey string, insecure bool) (*LedgerClient, error) {
+	if secretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
+	}
+	signer := NewHMACSigner(secretKey)
+
+	if insecure {
+		return NewLedgerClientInsecure(server, privilegedServer, entityID, keyVersion, signer)
+	}
+
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true")
+}
+
 // formatArgument wraps a contract argument in the ScalarDL V2 envelope that
 // the server expects. The format is:
 //
@@ -558,8 +574,11 @@ func (c *LedgerClient) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close releases the underlying gRPC connections.
+// Close releases the underlying gRPC connections and zeros signer key material.
 func (c *LedgerClient) Close() error {
+	if z, ok := c.signer.(interface{ Zero() }); ok {
+		z.Zero()
+	}
 	err := c.conn.Close()
 	if c.privilegedConn != nil {
 		if err2 := c.privilegedConn.Close(); err2 != nil && err == nil {

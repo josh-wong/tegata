@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
@@ -46,13 +47,11 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	client, err := buildAuditClient(cfg.Audit)
+	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}
-	if closer, ok := client.(interface{ Close() error }); ok {
-		defer func() { _ = closer.Close() }()
-	}
+	defer func() { _ = client.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

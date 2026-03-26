@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 )
 
@@ -15,6 +16,7 @@ import (
 type auditHistoryMsg struct {
 	records []historyRecord
 	err     error
+	warning string // non-fatal issues (e.g. some events couldn't be fetched)
 }
 
 // auditVerifyMsg carries the result of an async verify call.
@@ -28,13 +30,11 @@ type auditVerifyMsg struct {
 // auditHistoryCmd creates a tea.Cmd that fetches audit history asynchronously.
 func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 	return func() tea.Msg {
-		client, err := buildAuditClient(cfg)
+		client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
 		if err != nil {
 			return auditHistoryMsg{err: err}
 		}
-		if closer, ok := client.(interface{ Close() error }); ok {
-			defer func() { _ = closer.Close() }()
-		}
+		defer func() { _ = client.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -46,9 +46,11 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 		}
 
 		var hist []historyRecord
+		var skipped int
 		for _, id := range eventIDs {
 			evts, err := client.Get(ctx, id)
 			if err != nil {
+				skipped++
 				continue
 			}
 			if len(evts) == 0 {
@@ -57,26 +59,28 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 			r := evts[0]
 			hist = append(hist, historyRecord{
 				ObjectID:  r.ObjectID,
-				Operation: metadataString(r.Metadata, "operation"),
-				LabelHash: metadataString(r.Metadata, "label_hash"),
-				Timestamp: metadataInt64(r.Metadata, "timestamp"),
+				Operation: audit.MetadataString(r.Metadata, "operation"),
+				LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
+				Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
 				HashValue: r.HashValue,
 			})
 		}
-		return auditHistoryMsg{records: hist}
+		msg := auditHistoryMsg{records: hist}
+		if skipped > 0 {
+			msg.warning = fmt.Sprintf("%d of %d events could not be fetched", skipped, len(eventIDs))
+		}
+		return msg
 	}
 }
 
 // auditVerifyCmd creates a tea.Cmd that runs audit verification asynchronously.
 func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 	return func() tea.Msg {
-		client, err := buildAuditClient(cfg)
+		client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
 		if err != nil {
 			return auditVerifyMsg{err: err}
 		}
-		if closer, ok := client.(interface{ Close() error }); ok {
-			defer func() { _ = closer.Close() }()
-		}
+		defer func() { _ = client.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
