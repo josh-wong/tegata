@@ -5,9 +5,16 @@
 //	go test -tags integration ./internal/audit/... -v -timeout 120s
 //
 // Integration tests for the ScalarDL Ledger gRPC client. These tests require
-// a live ScalarDL Ledger 3.12 instance and a registered client certificate.
+// a live ScalarDL Ledger 3.12 instance.
 //
-// Environment variables:
+// For HMAC authentication (recommended):
+//
+//	export SCALARDL_ADDR=localhost:50051
+//	export SCALARDL_PRIVILEGED_ADDR=localhost:50052
+//	export SCALARDL_ENTITY_ID=test-entity
+//	export SCALARDL_SECRET_KEY=tegata-dev-secret-key
+//
+// For ECDSA authentication (legacy):
 //
 //	export SCALARDL_ADDR=localhost:50051
 //	export SCALARDL_ENTITY_ID=test-entity
@@ -49,6 +56,42 @@ func integrationEnv(t *testing.T) (addr, privilegedAddr, entityID, certPath, key
 		privilegedAddr = addr
 	}
 	return addr, privilegedAddr, entityID, certPath, keyPath, true
+}
+
+// integrationEnvHMAC reads HMAC-specific environment variables. Returns false
+// and skips the test if any required variable is unset.
+func integrationEnvHMAC(t *testing.T) (addr, privilegedAddr, entityID, secretKey string, ok bool) {
+	t.Helper()
+	addr = os.Getenv("SCALARDL_ADDR")
+	privilegedAddr = os.Getenv("SCALARDL_PRIVILEGED_ADDR")
+	entityID = os.Getenv("SCALARDL_ENTITY_ID")
+	secretKey = os.Getenv("SCALARDL_SECRET_KEY")
+
+	if addr == "" || entityID == "" || secretKey == "" {
+		t.Skip("integration test skipped: set SCALARDL_ADDR, SCALARDL_ENTITY_ID, SCALARDL_SECRET_KEY")
+		return "", "", "", "", false
+	}
+	if privilegedAddr == "" {
+		privilegedAddr = addr
+	}
+	return addr, privilegedAddr, entityID, secretKey, true
+}
+
+// newIntegrationClientHMAC builds a LedgerClient using HMAC authentication
+// via NewClientFromConfig, matching the production code path.
+func newIntegrationClientHMAC(t *testing.T) *audit.LedgerClient {
+	t.Helper()
+	addr, privilegedAddr, entityID, secretKey, ok := integrationEnvHMAC(t)
+	if !ok {
+		return nil
+	}
+
+	client, err := audit.NewClientFromConfig(addr, privilegedAddr, entityID, 1, secretKey, true)
+	if err != nil {
+		t.Fatalf("creating HMAC ledger client: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client
 }
 
 // newIntegrationClient builds a LedgerClient from environment variables.
@@ -371,4 +414,98 @@ func TestIntegration_QueueFlush(t *testing.T) {
 		t.Errorf("queue length after flush = %d, want 0", q.Len())
 	}
 	t.Log("Queue flush succeeded: 3 events submitted")
+}
+
+// TestIntegration_HMAC_RegisterSecretAndPut verifies the production HMAC code
+// path: NewClientFromConfig → RegisterSecret → Put → Get round-trip.
+func TestIntegration_HMAC_RegisterSecretAndPut(t *testing.T) {
+	client := newIntegrationClientHMAC(t)
+	if client == nil {
+		return
+	}
+
+	_, _, entityID, secretKey, _ := integrationEnvHMAC(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Register the HMAC secret (idempotent).
+	if err := client.RegisterSecret(ctx, entityID, 1, secretKey); err != nil {
+		t.Fatalf("RegisterSecret: %v", err)
+	}
+	t.Log("RegisterSecret succeeded")
+
+	// Put an event and retrieve it.
+	objectID := fmt.Sprintf("hmac-test-%d", time.Now().UnixNano())
+	hashValue := "cafebabe00000000000000000000000000000000000000000000000000000000"
+
+	if err := client.Put(ctx, objectID, hashValue); err != nil {
+		t.Fatalf("Put (HMAC): %v", err)
+	}
+	t.Logf("Put succeeded: %s", objectID)
+
+	records, err := client.Get(ctx, objectID)
+	if err != nil {
+		t.Fatalf("Get (HMAC): %v", err)
+	}
+	if len(records) == 0 {
+		t.Fatal("Get returned 0 records")
+	}
+	if records[0].HashValue != hashValue {
+		t.Errorf("HashValue = %q, want %q", records[0].HashValue, hashValue)
+	}
+	t.Log("HMAC Put+Get round-trip succeeded")
+}
+
+// TestIntegration_HMAC_SubmitAndCollectionGet verifies Submit (the production
+// event storage path) followed by CollectionGet for retrieval.
+func TestIntegration_HMAC_SubmitAndCollectionGet(t *testing.T) {
+	client := newIntegrationClientHMAC(t)
+	if client == nil {
+		return
+	}
+
+	_, _, entityID, secretKey, _ := integrationEnvHMAC(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Register the HMAC secret (idempotent).
+	if err := client.RegisterSecret(ctx, entityID, 1, secretKey); err != nil {
+		t.Fatalf("RegisterSecret: %v", err)
+	}
+
+	// Submit an event via the production Submit path.
+	evt := audit.NewAuthEvent(
+		"totp",
+		fmt.Sprintf("hmac-submit-%d", time.Now().UnixNano()),
+		"test-service",
+		"test-host",
+		true,
+		"",
+	)
+	entry := audit.QueueEntry{Event: evt}
+	if err := client.Submit(ctx, entry); err != nil {
+		t.Fatalf("Submit (HMAC): %v", err)
+	}
+	t.Logf("Submit succeeded: %s", evt.EventID)
+
+	// Verify the event appears in the collection.
+	collectionID := audit.CollectionID(entityID)
+	eventIDs, err := client.CollectionGet(ctx, collectionID)
+	if err != nil {
+		t.Fatalf("CollectionGet (HMAC): %v", err)
+	}
+
+	found := false
+	for _, id := range eventIDs {
+		if id == evt.EventID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("event %s not found in collection %s (has %d events)", evt.EventID, collectionID, len(eventIDs))
+	}
+	t.Log("HMAC Submit+CollectionGet round-trip succeeded")
 }
