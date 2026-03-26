@@ -72,6 +72,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 
 	// Create HMAC signer from secret key.
 	signer := audit.NewHMACSigner(cfg.Audit.SecretKey)
+	defer signer.Zero()
 
 	// Dial the ScalarDL Ledger.
 	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",

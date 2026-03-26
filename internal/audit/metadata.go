@@ -1,5 +1,19 @@
 package audit
 
+import "os"
+
+// Hostname returns the current machine hostname. On error returns an empty
+// string so audit events can still be emitted without a valid host field.
+func Hostname() string {
+	h, _ := os.Hostname()
+	return h
+}
+
+// CollectionID returns the ScalarDL collection ID for a given entity.
+func CollectionID(entityID string) string {
+	return "tegata-audit-" + entityID
+}
+
 // MetadataString extracts a string value from an EventRecord metadata map.
 func MetadataString(m map[string]interface{}, key string) string {
 	if m == nil {

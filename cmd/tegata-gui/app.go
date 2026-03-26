@@ -333,7 +333,7 @@ func (a *App) GenerateTOTP(label string) (*TOTPResult, error) {
 
 	code, remaining := auth.GenerateTOTP(secret, time.Now(), period, digits, cred.Algorithm)
 	if a.builder != nil {
-		_ = a.builder.LogEvent("totp", cred.Label, cred.Issuer, hostname(), true)
+		_ = a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 	}
 	return &TOTPResult{Code: code, Remaining: remaining}, nil
 }
@@ -371,7 +371,7 @@ func (a *App) GenerateHOTP(label string) (string, error) {
 	}
 
 	if a.builder != nil {
-		_ = a.builder.LogEvent("hotp", cred.Label, cred.Issuer, hostname(), true)
+		_ = a.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
 	}
 	return code, nil
 }
@@ -396,7 +396,7 @@ func (a *App) GetStaticPassword(label string) error {
 	defer zeroBytes(password)
 
 	if a.builder != nil {
-		_ = a.builder.LogEvent("static", cred.Label, cred.Issuer, hostname(), true)
+		_ = a.builder.LogEvent("static", cred.Label, cred.Issuer, audit.Hostname(), true)
 	}
 	if a.clipboard != nil {
 		return a.clipboard.CopyWithAutoClear(string(password), a.config.ClipboardTimeout)
@@ -430,7 +430,7 @@ func (a *App) SignChallenge(label, challenge string) (string, error) {
 		return "", err
 	}
 	if a.builder != nil {
-		_ = a.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, hostname(), true)
+		_ = a.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true)
 	}
 	return result, nil
 }
@@ -663,13 +663,6 @@ func (a *App) resetIdle() {
 	}
 }
 
-// hostname returns the current machine hostname. On error returns an empty
-// string so audit events can still be emitted without a valid host field.
-func hostname() string {
-	h, _ := os.Hostname()
-	return h
-}
-
 // buildEventBuilder constructs an EventBuilder from config and the vault
 // passphrase. Returns a disabled builder (no-op) when cfg.Audit.Enabled is
 // false. Replicates the logic from cmd/tegata/helpers.go since this is a
@@ -701,17 +694,15 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
+	defer zeroBytes(queueKey)
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
-		zeroBytes(queueKey)
 		return audit.NewEventBuilder(nil, "", nil, 0)
 	}
 
-	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
-	zeroBytes(queueKey)
-	return eb, err
+	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
 }
 
 // AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.
@@ -750,7 +741,7 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := "tegata-audit-" + a.config.Audit.EntityID
+	collectionID := audit.CollectionID(a.config.Audit.EntityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
 		return nil, err
@@ -797,7 +788,7 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := "tegata-audit-" + a.config.Audit.EntityID
+	collectionID := audit.CollectionID(a.config.Audit.EntityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
 		return nil, err

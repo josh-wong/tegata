@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
@@ -172,7 +173,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
 				m.errMsg = ""
 				if m.builder != nil {
-					_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, hostname(), true)
+					_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 				}
 				return m, nil
 			}
@@ -182,7 +183,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		m.errMsg = ""
 		if m.builder != nil {
-			_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, hostname(), true)
+			_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 		}
 
 	case pkgmodel.CredentialHOTP:
@@ -212,7 +213,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
 				m.errMsg = ""
 				if m.builder != nil {
-					_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, hostname(), true)
+					_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
 				}
 				return m, nil
 			}
@@ -222,7 +223,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		m.errMsg = ""
 		if m.builder != nil {
-			_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, hostname(), true)
+			_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
 		}
 
 	case pkgmodel.CredentialStatic:
@@ -233,7 +234,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		defer zeroBytes(password)
 		if m.builder != nil {
-			_ = m.builder.LogEvent("static", cred.Label, cred.Issuer, hostname(), true)
+			_ = m.builder.LogEvent("static", cred.Label, cred.Issuer, audit.Hostname(), true)
 		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(string(password), m.cfg.ClipboardTimeout); err != nil {
@@ -290,7 +291,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 	}
 
 	if m.builder != nil {
-		_ = m.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, hostname(), true)
+		_ = m.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true)
 	}
 
 	if m.clipMgr != nil {

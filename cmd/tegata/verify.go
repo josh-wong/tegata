@@ -56,14 +56,14 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := "tegata-audit-" + cfg.Audit.EntityID
+	collectionID := audit.CollectionID(cfg.Audit.EntityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
 		return err
 	}
 
 	if len(eventIDs) == 0 {
-		fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
+		_, _ = fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
 		return nil
 	}
 

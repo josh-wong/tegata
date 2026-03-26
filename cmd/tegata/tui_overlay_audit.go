@@ -39,7 +39,7 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		collectionID := "tegata-audit-" + cfg.EntityID
+		collectionID := audit.CollectionID(cfg.EntityID)
 		eventIDs, err := client.CollectionGet(ctx, collectionID)
 		if err != nil {
 			return auditHistoryMsg{err: err}
@@ -85,7 +85,7 @@ func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		collectionID := "tegata-audit-" + cfg.EntityID
+		collectionID := audit.CollectionID(cfg.EntityID)
 		eventIDs, err := client.CollectionGet(ctx, collectionID)
 		if err != nil {
 			return auditVerifyMsg{err: err}

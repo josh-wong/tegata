@@ -60,7 +60,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			defer cancel()
 
 			// Retrieve event IDs from the entity's audit collection.
-			collectionID := "tegata-audit-" + cfg.Audit.EntityID
+			collectionID := audit.CollectionID(cfg.Audit.EntityID)
 			eventIDs, err := client.CollectionGet(ctx, collectionID)
 			if err != nil {
 				return err

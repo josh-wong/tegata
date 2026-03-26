@@ -615,7 +615,7 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 
 	// Add the event to the entity's audit collection. If the collection
 	// doesn't exist yet, create it with this event as the first member.
-	collectionID := "tegata-audit-" + c.entityID
+	collectionID := CollectionID(c.entityID)
 	if err := c.CollectionAdd(ctx, collectionID, []string{objectID}); err != nil {
 		// Collection might not exist yet — try creating it.
 		if createErr := c.CollectionCreate(ctx, collectionID, []string{objectID}); createErr != nil {

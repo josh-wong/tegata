@@ -97,6 +97,16 @@ func (s *ECDSASigner) Sign(contractID, contractArgument, nonce, entityID string,
 	return sig, nil
 }
 
+// Zero clears the ECDSA private key scalar. This does not fully protect against
+// memory forensics since Go's crypto/ecdsa may retain internal copies, but it
+// removes the most accessible reference.
+func (s *ECDSASigner) Zero() {
+	if s.privateKey != nil {
+		s.privateKey.D.SetInt64(0)
+		s.privateKey = nil
+	}
+}
+
 // HMACSigner implements Signer using HMAC-SHA256. Used with ScalarDL HMAC
 // authentication mode instead of digital-signature (ECDSA).
 //

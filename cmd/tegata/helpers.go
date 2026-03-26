@@ -306,24 +306,16 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	// Copy key bytes out of the SecretBuffer before it is destroyed.
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
+	defer zeroBytes(queueKey)
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		// A failed ledger connection is not fatal — the queue will hold events.
 		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
 		// Return a disabled builder so auth commands are not blocked.
-		zeroBytes(queueKey)
 		return audit.NewEventBuilder(nil, "", nil, 0)
 	}
 
-	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
-	zeroBytes(queueKey)
-	return eb, err
+	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
 }
 
-// hostname returns the current machine hostname. On error returns an empty
-// string so audit events can still be emitted without a valid host field.
-func hostname() string {
-	h, _ := os.Hostname()
-	return h
-}
