@@ -22,6 +22,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Sentinels for collection gRPC status codes, used in the Submit flow to
+// distinguish "collection not found" from transient errors.
+var (
+	errCollectionNotFound = fmt.Errorf("collection does not exist")
+	errCollectionExists   = fmt.Errorf("collection already exists")
+)
+
 // Client is the minimal interface for interacting with a ScalarDL Ledger.
 // LedgerClient implements this interface. Tests should use a mock Client.
 type Client interface {
@@ -299,6 +306,9 @@ func (c *LedgerClient) CollectionCreate(ctx context.Context, collectionID string
 		Nonce:            nonce,
 	})
 	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
+			return fmt.Errorf("%w: %s", errCollectionExists, err)
+		}
 		return fmt.Errorf("%w: CollectionCreate failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	return nil
@@ -331,6 +341,9 @@ func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, o
 		Nonce:            nonce,
 	})
 	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+			return fmt.Errorf("%w: %s", errCollectionNotFound, err)
+		}
 		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	return nil
@@ -634,16 +647,21 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	// return AlreadyExists — in that case retry CollectionAdd.
 	collectionID := CollectionID(c.entityID)
 	if err := c.CollectionAdd(ctx, collectionID, []string{objectID}); err != nil {
+		// Only fall through to CollectionCreate when the collection does
+		// not exist. Transient or other errors should propagate immediately.
+		if !tegerrors.Is(err, errCollectionNotFound) {
+			return fmt.Errorf("adding event to collection: %w", err)
+		}
 		createErr := c.CollectionCreate(ctx, collectionID, []string{objectID})
 		if createErr != nil {
-			if s, ok := status.FromError(createErr); ok && s.Code() == codes.AlreadyExists {
+			if tegerrors.Is(createErr, errCollectionExists) {
 				// Another caller created the collection between our Add
 				// and Create — retry Add now that the collection exists.
 				if retryErr := c.CollectionAdd(ctx, collectionID, []string{objectID}); retryErr != nil {
 					return fmt.Errorf("adding event to collection after retry: %w", retryErr)
 				}
 			} else {
-				return fmt.Errorf("adding event to collection: add=%v, create=%v", err, createErr)
+				return fmt.Errorf("creating audit collection: %w", createErr)
 			}
 		}
 	}
