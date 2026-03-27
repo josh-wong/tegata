@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/josh-wong/tegata/internal/config"
 )
 
 // TestEntityIDFromVaultID verifies the entity ID derivation format.
@@ -90,7 +92,8 @@ func TestDetectDocker_NotFound(t *testing.T) {
 func TestMaybeAutoStart_NoPath(t *testing.T) {
 	// MaybeAutoStart should return immediately without spawning a goroutine
 	// that panics when DockerComposePath is empty. This test confirms the
-	// function returns and the process does not crash. The actual auto-start
-	// behavior will be wired in Plan 04.
-	t.Log("MaybeAutoStart with empty path: no-op confirmed (implementation pending)")
+	// function returns and the process does not crash.
+	cfg := config.AuditConfig{DockerComposePath: ""}
+	MaybeAutoStart(cfg)
+	// If we reach here without panic or hang, the no-op path works.
 }
