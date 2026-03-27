@@ -168,13 +168,13 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			digits = 6
 		}
 		code, _ := auth.GenerateTOTP(secret, m.now, period, digits, cred.Algorithm)
+		if m.builder != nil {
+			_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
 				m.errMsg = ""
-				if m.builder != nil {
-					_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
-				}
 				return m, nil
 			}
 			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
@@ -182,9 +182,6 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
 		}
 		m.errMsg = ""
-		if m.builder != nil {
-			_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
-		}
 
 	case pkgmodel.CredentialHOTP:
 		secret, err := decodeBase32Secret(cred.Secret)
@@ -208,13 +205,13 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			}
 			m = refreshCredList(m, cred.Label)
 		}
+		if m.builder != nil {
+			_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
 				m.errMsg = ""
-				if m.builder != nil {
-					_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
-				}
 				return m, nil
 			}
 			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
@@ -222,9 +219,6 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
 		}
 		m.errMsg = ""
-		if m.builder != nil {
-			_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
-		}
 
 	case pkgmodel.CredentialStatic:
 		password, err := auth.GetStaticPassword(&cred)

@@ -33,7 +33,7 @@ type AuditConfig struct {
 	// service (e.g. "localhost:50052"). Used only for RegisterCert during setup.
 	PrivilegedServer string
 	// SecretKey is the HMAC secret key for ScalarDL HMAC authentication.
-	SecretKey string
+	SecretKey string `json:"-"`
 	// CertPath, KeyPath, and CACertPath are TLS certificate paths for
 	// mutual TLS transport with the ledger (not used for HMAC signing).
 	CertPath   string

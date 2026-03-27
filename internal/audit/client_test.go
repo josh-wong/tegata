@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -265,10 +266,10 @@ func TestClient_ValidateArgSchema(t *testing.T) {
 
 	// The second call's argument must contain "versions" and "object_id" keys.
 	arg := ledgerSrv.calls[1].ContractArgument
-	if !contains(arg, `"versions"`) {
+	if !strings.Contains(arg, `"versions"`) {
 		t.Errorf("Validate argument missing 'versions' key: %s", arg)
 	}
-	if !contains(arg, `"object_id"`) {
+	if !strings.Contains(arg, `"object_id"`) {
 		t.Errorf("Validate argument missing 'object_id' key: %s", arg)
 	}
 
@@ -312,20 +313,6 @@ func TestClient_ValidateEmptyRecords(t *testing.T) {
 	if result.EventCount != 0 {
 		t.Errorf("EventCount = %d, want 0", result.EventCount)
 	}
-}
-
-// contains is a simple substring check helper for test assertions.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && stringContains(s, substr))
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // TestClient_TLSEnforced_WithValidConfig verifies that NewLedgerClient accepts a

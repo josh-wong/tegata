@@ -39,37 +39,22 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		collectionID := audit.CollectionID(cfg.EntityID)
-		eventIDs, err := client.CollectionGet(ctx, collectionID)
+		result, err := audit.FetchHistory(ctx, client, cfg.EntityID)
 		if err != nil {
 			return auditHistoryMsg{err: err}
 		}
 
-		var hist []historyRecord
-		var skipped int
-		for _, id := range eventIDs {
-			evts, err := client.Get(ctx, id)
-			if err != nil {
-				skipped++
-				continue
-			}
-			if len(evts) == 0 {
-				continue
-			}
-			r := evts[0]
-			hist = append(hist, historyRecord{
+		hist := make([]historyRecord, len(result.Records))
+		for i, r := range result.Records {
+			hist[i] = historyRecord{
 				ObjectID:  r.ObjectID,
-				Operation: audit.MetadataString(r.Metadata, "operation"),
-				LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
-				Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
+				Operation: r.Operation,
+				LabelHash: r.LabelHash,
+				Timestamp: r.Timestamp,
 				HashValue: r.HashValue,
-			})
+			}
 		}
-		msg := auditHistoryMsg{records: hist}
-		if skipped > 0 {
-			msg.warning = fmt.Sprintf("%d of %d events could not be fetched", skipped, len(eventIDs))
-		}
-		return msg
+		return auditHistoryMsg{records: hist, warning: result.Warning}
 	}
 }
 
@@ -85,27 +70,14 @@ func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		collectionID := audit.CollectionID(cfg.EntityID)
-		eventIDs, err := client.CollectionGet(ctx, collectionID)
+		result, err := audit.VerifyAll(ctx, client, cfg.EntityID)
 		if err != nil {
 			return auditVerifyMsg{err: err}
 		}
-
-		var faults int
-		for _, id := range eventIDs {
-			result, err := client.Validate(ctx, id)
-			if err != nil {
-				faults++
-				continue
-			}
-			if !result.Valid {
-				faults++
-			}
-		}
 		return auditVerifyMsg{
-			valid:      faults == 0,
-			eventCount: len(eventIDs),
-			detail:     fmt.Sprintf("%d of %d events have issues", faults, len(eventIDs)),
+			valid:      result.Valid,
+			eventCount: result.EventCount,
+			detail:     result.ErrorDetail,
 		}
 	}
 }

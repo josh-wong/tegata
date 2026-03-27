@@ -694,7 +694,8 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
-	defer zeroBytes(queueKey)
+	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
+	// lifetime of the session and will use it for queue Save operations.
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
@@ -726,13 +727,18 @@ func (a *App) IsAuditEnabled() bool {
 	return a.config.Audit.Enabled
 }
 
+// newAuditClient creates a new LedgerClient from the current config.
+func (a *App) newAuditClient() (*audit.LedgerClient, error) {
+	return audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
+}
+
 // GetAuditHistory retrieves audit event records from the ScalarDL Ledger.
 func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	if a.vault == nil {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
-	client, err := audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
+	client, err := a.newAuditClient()
 	if err != nil {
 		return nil, err
 	}
@@ -741,35 +747,25 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := audit.CollectionID(a.config.Audit.EntityID)
-	eventIDs, err := client.CollectionGet(ctx, collectionID)
+	result, err := audit.FetchHistory(ctx, client, a.config.Audit.EntityID)
 	if err != nil {
 		return nil, err
 	}
+	if result.Warning != "" {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: %s\n", result.Warning)
+	}
 
-	var result []AuditHistoryRecord
-	var skipped int
-	for _, id := range eventIDs {
-		events, err := client.Get(ctx, id)
-		if err != nil {
-			skipped++
-			continue
-		}
-		if len(events) > 0 {
-			r := events[0]
-			result = append(result, AuditHistoryRecord{
-				ObjectID:  r.ObjectID,
-				Operation: audit.MetadataString(r.Metadata, "operation"),
-				LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
-				Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
-				HashValue: r.HashValue,
-			})
+	records := make([]AuditHistoryRecord, len(result.Records))
+	for i, r := range result.Records {
+		records[i] = AuditHistoryRecord{
+			ObjectID:  r.ObjectID,
+			Operation: r.Operation,
+			LabelHash: r.LabelHash,
+			Timestamp: r.Timestamp,
+			HashValue: r.HashValue,
 		}
 	}
-	if skipped > 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: %d of %d audit events could not be fetched\n", skipped, len(eventIDs))
-	}
-	return result, nil
+	return records, nil
 }
 
 // VerifyAuditLog verifies the integrity of the audit log by validating each
@@ -779,7 +775,7 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
-	client, err := audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
+	client, err := a.newAuditClient()
 	if err != nil {
 		return nil, err
 	}
@@ -788,40 +784,15 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := audit.CollectionID(a.config.Audit.EntityID)
-	eventIDs, err := client.CollectionGet(ctx, collectionID)
+	result, err := audit.VerifyAll(ctx, client, a.config.Audit.EntityID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(eventIDs) == 0 {
-		return &AuditVerifyResult{Valid: true, EventCount: 0}, nil
-	}
-
-	var faults []string
-	for _, id := range eventIDs {
-		vr, err := client.Validate(ctx, id)
-		if err != nil {
-			faults = append(faults, fmt.Sprintf("%s: %v", id, err))
-			continue
-		}
-		if !vr.Valid {
-			faults = append(faults, fmt.Sprintf("%s: %s", id, vr.ErrorDetail))
-		}
-	}
-
-	if len(faults) > 0 {
-		detail := fmt.Sprintf("%d of %d events failed", len(faults), len(eventIDs))
-		return &AuditVerifyResult{
-			Valid:       false,
-			EventCount:  len(eventIDs),
-			ErrorDetail: detail,
-		}, nil
-	}
-
 	return &AuditVerifyResult{
-		Valid:      true,
-		EventCount: len(eventIDs),
+		Valid:       result.Valid,
+		EventCount:  result.EventCount,
+		ErrorDetail: result.ErrorDetail,
 	}, nil
 }
 

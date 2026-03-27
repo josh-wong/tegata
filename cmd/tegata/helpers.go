@@ -304,9 +304,10 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	defer keyBuf.Destroy()
 
 	// Copy key bytes out of the SecretBuffer before it is destroyed.
+	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
+	// lifetime of the command and will use it for queue Save operations.
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
-	defer zeroBytes(queueKey)
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {

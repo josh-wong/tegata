@@ -56,36 +56,23 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	collectionID := audit.CollectionID(cfg.Audit.EntityID)
-	eventIDs, err := client.CollectionGet(ctx, collectionID)
+	result, err := audit.VerifyAll(ctx, client, cfg.Audit.EntityID)
 	if err != nil {
 		return err
 	}
 
-	if len(eventIDs) == 0 {
+	if result.EventCount == 0 {
 		_, _ = fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
 		return nil
 	}
 
-	var faults []string
-	for _, id := range eventIDs {
-		result, err := client.Validate(ctx, id)
-		if err != nil {
-			faults = append(faults, fmt.Sprintf("%s: error: %v", id, err))
-			continue
-		}
-		if !result.Valid {
-			faults = append(faults, fmt.Sprintf("%s: %s", id, result.ErrorDetail))
-		}
-	}
-
-	if len(faults) == 0 {
-		fmt.Printf("Audit log integrity verified. %d events checked.\n", len(eventIDs))
+	if result.Valid {
+		fmt.Printf("Audit log integrity verified. %d events checked.\n", result.EventCount)
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Integrity violation detected in %d of %d events:\n", len(faults), len(eventIDs))
-	for _, f := range faults {
+	fmt.Fprintf(os.Stderr, "Integrity violation detected in %d of %d events:\n", len(result.Faults), result.EventCount)
+	for _, f := range result.Faults {
 		fmt.Fprintf(os.Stderr, "  %s\n", f)
 	}
 	return tegerrors.ErrIntegrityViolation

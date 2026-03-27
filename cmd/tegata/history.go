@@ -59,32 +59,24 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Retrieve event IDs from the entity's audit collection.
-			collectionID := audit.CollectionID(cfg.Audit.EntityID)
-			eventIDs, err := client.CollectionGet(ctx, collectionID)
+			result, err := audit.FetchHistory(ctx, client, cfg.Audit.EntityID)
 			if err != nil {
 				return err
 			}
+			if result.Warning != "" {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", result.Warning)
+			}
 
-			// Fetch each event individually and build history records.
-			var records []historyRecord
-			for _, id := range eventIDs {
-				evts, err := client.Get(ctx, id)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "warning: failed to get event %s: %v\n", id, err)
-					continue
-				}
-				if len(evts) == 0 {
-					continue
-				}
-				r := evts[0]
-				records = append(records, historyRecord{
+			// Convert to local historyRecord for filtering/display.
+			records := make([]historyRecord, len(result.Records))
+			for i, r := range result.Records {
+				records[i] = historyRecord{
 					ObjectID:  r.ObjectID,
-					Operation: audit.MetadataString(r.Metadata, "operation"),
-					LabelHash: audit.MetadataString(r.Metadata, "label_hash"),
-					Timestamp: audit.MetadataInt64(r.Metadata, "timestamp"),
+					Operation: r.Operation,
+					LabelHash: r.LabelHash,
+					Timestamp: r.Timestamp,
 					HashValue: r.HashValue,
-				})
+				}
 			}
 
 			// Parse --from and --to date filters.

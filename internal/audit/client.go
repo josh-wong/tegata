@@ -227,6 +227,7 @@ func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) erro
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
+		Nonce:            nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: Put contract failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -263,6 +264,7 @@ func (c *LedgerClient) PutWithMetadata(ctx context.Context, objectID, hashValue 
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
+		Nonce:            nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: Put contract failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -294,6 +296,7 @@ func (c *LedgerClient) CollectionCreate(ctx context.Context, collectionID string
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
+		Nonce:            nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: CollectionCreate failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -325,6 +328,7 @@ func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, o
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
+		Nonce:            nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -358,6 +362,7 @@ func (c *LedgerClient) CollectionGet(ctx context.Context, collectionID string) (
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
+		Nonce:            nonce,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: CollectionGet failed: %s", tegerrors.ErrNetworkFailed, err)
@@ -625,11 +630,21 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 
 	// Add the event to the entity's audit collection. If the collection
 	// doesn't exist yet, create it with this event as the first member.
+	// A race between concurrent Submit calls can cause CollectionCreate to
+	// return AlreadyExists — in that case retry CollectionAdd.
 	collectionID := CollectionID(c.entityID)
 	if err := c.CollectionAdd(ctx, collectionID, []string{objectID}); err != nil {
-		// Collection might not exist yet — try creating it.
-		if createErr := c.CollectionCreate(ctx, collectionID, []string{objectID}); createErr != nil {
-			return fmt.Errorf("adding event to collection: add=%v, create=%v", err, createErr)
+		createErr := c.CollectionCreate(ctx, collectionID, []string{objectID})
+		if createErr != nil {
+			if s, ok := status.FromError(createErr); ok && s.Code() == codes.AlreadyExists {
+				// Another caller created the collection between our Add
+				// and Create — retry Add now that the collection exists.
+				if retryErr := c.CollectionAdd(ctx, collectionID, []string{objectID}); retryErr != nil {
+					return fmt.Errorf("adding event to collection after retry: %w", retryErr)
+				}
+			} else {
+				return fmt.Errorf("adding event to collection: add=%v, create=%v", err, createErr)
+			}
 		}
 	}
 
