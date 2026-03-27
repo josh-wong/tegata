@@ -4,7 +4,6 @@ export namespace config {
 	    Enabled: boolean;
 	    Server: string;
 	    PrivilegedServer: string;
-	    SecretKey: string;
 	    CertPath: string;
 	    KeyPath: string;
 	    CACertPath: string;
@@ -22,7 +21,6 @@ export namespace config {
 	        this.Enabled = source["Enabled"];
 	        this.Server = source["Server"];
 	        this.PrivilegedServer = source["PrivilegedServer"];
-	        this.SecretKey = source["SecretKey"];
 	        this.CertPath = source["CertPath"];
 	        this.KeyPath = source["KeyPath"];
 	        this.CACertPath = source["CACertPath"];

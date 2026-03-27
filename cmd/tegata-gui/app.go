@@ -699,6 +699,7 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
+		zeroBytes(queueKey)
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
 		return audit.NewEventBuilder(nil, "", nil, 0)
 	}

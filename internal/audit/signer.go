@@ -124,6 +124,9 @@ func NewHMACSigner(secretKey string) *HMACSigner {
 }
 
 // Sign computes an HMAC-SHA256 over the serialized contract execution request.
+// The nonce parameter is accepted for interface conformance but is not included
+// directly in the HMAC message — it is already embedded inside contractArgument
+// via the V2 envelope produced by formatArgument.
 func (s *HMACSigner) Sign(contractID, contractArgument, nonce, entityID string, keyVersion uint32) ([]byte, error) {
 	cid := []byte(contractID)
 	arg := []byte(contractArgument)

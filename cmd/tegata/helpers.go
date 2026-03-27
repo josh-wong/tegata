@@ -311,6 +311,7 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 
 	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
+		zeroBytes(queueKey)
 		// A failed ledger connection is not fatal — the queue will hold events.
 		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
 		// Return a disabled builder so auth commands are not blocked.

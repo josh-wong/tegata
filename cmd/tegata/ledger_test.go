@@ -8,6 +8,9 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 )
 
+// Compile-time check: mockAuditClient must satisfy audit.Client.
+var _ audit.Client = (*mockAuditClient)(nil)
+
 // mockAuditClient implements audit.Client with configurable return values
 // for testing verifyContracts without a live ScalarDL instance.
 type mockAuditClient struct {

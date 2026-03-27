@@ -119,9 +119,13 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// setupTestObjectID is a fixed well-known key used by `ledger setup` to verify
+// that the generic contracts are registered. Using a constant avoids
+// accumulating unique orphan objects on every run.
+const setupTestObjectID = "tegata-setup-probe"
+
 // verifyContracts attempts a test Put to confirm that the generic contracts
 // are registered on the ScalarDL instance.
 func verifyContracts(ctx context.Context, client audit.Client) error {
-	testObjID := fmt.Sprintf("tegata-setup-test-%d", time.Now().UnixNano())
-	return client.Put(ctx, testObjID, "0000000000000000000000000000000000000000000000000000000000000000")
+	return client.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
 }

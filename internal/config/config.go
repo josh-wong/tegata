@@ -138,6 +138,9 @@ func Load(dir string) (Config, error) {
 	}
 	if a.SecretKey != nil {
 		cfg.Audit.SecretKey = *a.SecretKey
+		// Zero the TOML intermediate to limit copies of secret material.
+		clear := make([]byte, len(*a.SecretKey))
+		*a.SecretKey = string(clear)
 	}
 	if a.CertPath != nil {
 		cfg.Audit.CertPath = *a.CertPath

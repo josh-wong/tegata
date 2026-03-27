@@ -26,12 +26,21 @@ function App() {
   const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
   const [isSwitching, setIsSwitching] = useState(false)
   const [idleTimeoutMs, setIdleTimeoutMs] = useState(5 * 60 * 1000)
+  const [auditEnabled, setAuditEnabled] = useState(false)
 
   useEffect(() => {
     WailsApp.GetIdleTimeoutSeconds()
       .then((s) => setIdleTimeoutMs(s * 1000))
       .catch(() => {})
   }, [settingsOpen])
+
+  useEffect(() => {
+    if (vault.view === "main") {
+      WailsApp.IsAuditEnabled()
+        .then(setAuditEnabled)
+        .catch(() => setAuditEnabled(false))
+    }
+  }, [vault.view])
 
   const handleLock = useCallback(() => {
     vault.lock()
@@ -135,7 +144,7 @@ function App() {
     <div className="flex h-screen flex-col bg-background text-foreground">
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
-        onAuditClick={() => setAuditOpen(true)}
+        onAuditClick={auditEnabled ? () => setAuditOpen(true) : undefined}
         onSwitchVault={() => {
           setSetupStep(1)
           setIsSwitching(true)
