@@ -49,6 +49,10 @@ type AuditConfig struct {
 	// Insecure disables TLS for the ScalarDL Ledger connection. For local
 	// development only — never set this in production.
 	Insecure bool
+	// DockerComposePath is the path to the Docker Compose file used by the
+	// one-click audit setup. When set, auto-start behavior is enabled on
+	// vault unlock (D-06, D-09).
+	DockerComposePath string
 }
 
 // tomlAuditConfig is the TOML deserialization intermediate for [audit].
@@ -63,8 +67,9 @@ type tomlAuditConfig struct {
 	CACertPath     *string `toml:"ca_cert_path"`
 	EntityID       *string `toml:"entity_id"`
 	KeyVersion     *uint32 `toml:"key_version"`
-	QueueMaxEvents *int  `toml:"queue_max_events"`
-	Insecure       *bool `toml:"insecure"`
+	QueueMaxEvents    *int    `toml:"queue_max_events"`
+	Insecure          *bool   `toml:"insecure"`
+	DockerComposePath *string `toml:"docker_compose_path"`
 }
 
 // tomlConfig is the intermediate deserialization struct. Pointer fields
@@ -162,6 +167,9 @@ func Load(dir string) (Config, error) {
 	}
 	if a.Insecure != nil {
 		cfg.Audit.Insecure = *a.Insecure
+	}
+	if a.DockerComposePath != nil {
+		cfg.Audit.DockerComposePath = *a.DockerComposePath
 	}
 
 	return cfg, nil
