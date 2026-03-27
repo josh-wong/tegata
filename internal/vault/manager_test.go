@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1016,6 +1017,100 @@ const (
 	hdrOffArgonMemory      = 14 // uint32 big-endian
 	hdrOffArgonParallelism = 18 // uint8
 )
+
+func TestVaultID_PresentAfterCreate(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	id := m.VaultID()
+	uuidV4Pattern := `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`
+	matched, _ := regexp.MatchString(uuidV4Pattern, id)
+	if !matched {
+		t.Errorf("VaultID = %q, does not match UUID v4 pattern", id)
+	}
+}
+
+func TestVaultID_UniquePerVault(t *testing.T) {
+	path1, _ := createTestVault(t)
+	m1, err := Open(path1)
+	if err != nil {
+		t.Fatalf("Open vault 1: %v", err)
+	}
+	defer m1.Close()
+	if err := m1.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock vault 1: %v", err)
+	}
+
+	path2, _ := createTestVault(t)
+	m2, err := Open(path2)
+	if err != nil {
+		t.Fatalf("Open vault 2: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock vault 2: %v", err)
+	}
+
+	if m1.VaultID() == m2.VaultID() {
+		t.Errorf("two vaults have the same VaultID: %q", m1.VaultID())
+	}
+}
+
+func TestVaultID_RoundTrip(t *testing.T) {
+	path, _ := createTestVault(t)
+
+	// First open: read the VaultID.
+	m1, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open 1: %v", err)
+	}
+	if err := m1.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock 1: %v", err)
+	}
+	originalID := m1.VaultID()
+
+	// Save triggers re-encryption of the payload (increments WriteCounter).
+	if err := m1.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	m1.Close()
+
+	// Second open: VaultID must be preserved.
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open 2: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock 2: %v", err)
+	}
+
+	if got := m2.VaultID(); got != originalID {
+		t.Errorf("VaultID after round-trip = %q, want %q", got, originalID)
+	}
+}
+
+func TestVaultID_EmptyWhenLocked(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	// Vault is opened but not unlocked — VaultID should be empty.
+	if got := m.VaultID(); got != "" {
+		t.Errorf("VaultID on locked vault = %q, want empty string", got)
+	}
+}
 
 func TestOpenWithTamperedArgonParameters(t *testing.T) {
 	tests := []struct {
