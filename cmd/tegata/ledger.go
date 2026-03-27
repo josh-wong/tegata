@@ -1,14 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/user"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +29,8 @@ tamper-evident ledger for post-hoc integrity verification.`,
 	}
 
 	ledgerCmd.AddCommand(newLedgerSetupCmd())
+	ledgerCmd.AddCommand(newLedgerStartCmd())
+	ledgerCmd.AddCommand(newLedgerStopCmd())
 	return ledgerCmd
 }
 
@@ -128,4 +136,152 @@ const setupTestObjectID = "tegata-setup-probe"
 // are registered on the ScalarDL instance.
 func verifyContracts(ctx context.Context, client audit.Client) error {
 	return client.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
+}
+
+// newLedgerStartCmd returns the 'tegata ledger start' command.
+func newLedgerStartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start",
+		Short: "One-click Docker audit setup",
+		Long: `Start the ScalarDL Ledger Docker stack and configure audit logging.
+
+This command:
+  1. Checks Docker is installed
+  2. Extracts the bundled docker-compose.yml to ~/.tegata/docker/
+  3. Generates an entity ID and secret key from your vault
+  4. Starts the Docker stack (docker compose up -d)
+  5. Waits for the ledger to become ready (up to 30 seconds)
+  6. Registers audit credentials with the ledger
+  7. Writes the [audit] section to tegata.toml
+
+After running this command, audit logging is active immediately. Subsequent
+vault unlocks auto-start the Docker stack if it is not already running.`,
+		Example: `  tegata ledger start
+  tegata ledger start --vault /media/usb`,
+		Args: cobra.NoArgs,
+		RunE: runLedgerStart,
+	}
+}
+
+func runLedgerStart(cmd *cobra.Command, _ []string) error {
+	vaultPath, err := resolveVaultPath(cmd)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(vaultPath)
+
+	// Get vault VaultID for entity ID derivation.
+	// We must open and unlock the vault to read the VaultID from the payload.
+	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
+	if err != nil {
+		return fmt.Errorf("reading passphrase: %w", err)
+	}
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		zeroBytes(passphraseBytes)
+		return fmt.Errorf("opening vault: %w", err)
+	}
+	if err := mgr.Unlock(passphraseBytes); err != nil {
+		zeroBytes(passphraseBytes)
+		mgr.Close()
+		return fmt.Errorf("unlocking vault: %w", err)
+	}
+	vaultID := mgr.VaultID()
+	zeroBytes(passphraseBytes)
+	mgr.Close()
+
+	// Resolve compose directory: ~/.tegata/docker/
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("resolving home directory: %w", err)
+	}
+	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+
+	// Strip the docker-bundle/ prefix from the embed.FS so SetupStack
+	// receives an FS rooted at the docker-compose.yml level.
+	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
+	if err != nil {
+		return fmt.Errorf("accessing embedded docker bundle: %w", err)
+	}
+
+	// progress: print each step to stderr (per UI-SPEC CLI surface).
+	progressFn := func(msg string) {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+
+	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn)
+	if err != nil {
+		return err
+	}
+
+	// Write [audit] section to tegata.toml. Per D-03 step 8.
+	if err := config.WriteAuditSection(dir, auditCfg); err != nil {
+		return fmt.Errorf("writing audit config: %w", err)
+	}
+
+	fmt.Fprintln(os.Stderr, "Audit server started. Audit logging is now active.")
+	return nil
+}
+
+// newLedgerStopCmd returns the 'tegata ledger stop' command.
+func newLedgerStopCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the audit server Docker containers",
+		Long: `Stop the ScalarDL Ledger Docker containers.
+
+By default, containers are stopped but your audit history is preserved
+(docker compose stop, named volume retained).
+
+Use --wipe to permanently delete all audit history (docker compose down -v).
+This action cannot be undone.`,
+		Example: `  tegata ledger stop
+  tegata ledger stop --wipe`,
+		Args: cobra.NoArgs,
+		RunE: runLedgerStop,
+	}
+	cmd.Flags().Bool("wipe", false, "Permanently delete all audit history (cannot be undone)")
+	return cmd
+}
+
+func runLedgerStop(cmd *cobra.Command, _ []string) error {
+	wipe, _ := cmd.Flags().GetBool("wipe")
+
+	vaultPath, err := resolveVaultPath(cmd)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(vaultPath)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	if cfg.Audit.DockerComposePath == "" {
+		return fmt.Errorf("audit Docker setup not found. Run 'tegata ledger start' first")
+	}
+
+	if wipe {
+		// Print prominent warning and require "yes" confirmation (per D-15).
+		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type 'yes' to confirm:")
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		answer := strings.TrimSpace(scanner.Text())
+		if answer != "yes" {
+			fmt.Fprintln(os.Stderr, "Cancelled. Audit history was not deleted.")
+			return nil
+		}
+	}
+
+	if err := audit.StopStack(cfg.Audit.DockerComposePath, wipe); err != nil {
+		return err
+	}
+
+	if wipe {
+		fmt.Fprintln(os.Stderr, "Audit history deleted and containers removed.")
+	} else {
+		fmt.Fprintln(os.Stderr, "Audit server stopped. Your audit history is preserved.")
+	}
+	return nil
 }
