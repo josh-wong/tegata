@@ -22,6 +22,8 @@ export function GenerateHOTP(arg1:string):Promise<string>;
 
 export function GenerateTOTP(arg1:string):Promise<main.TOTPResult>;
 
+export function GetAuditHistory():Promise<Array<main.AuditHistoryRecord>>;
+
 export function GetConfig():Promise<config.Config>;
 
 export function GetCredential(arg1:string):Promise<model.Credential>;
@@ -35,6 +37,8 @@ export function GetVersion():Promise<string>;
 export function ImportVault(arg1:Array<number>,arg2:string):Promise<number>;
 
 export function ImportVaultFromFile(arg1:string,arg2:string):Promise<main.ImportResult>;
+
+export function IsAuditEnabled():Promise<boolean>;
 
 export function ListCredentials():Promise<Array<model.Credential>>;
 
@@ -53,5 +57,7 @@ export function SetIdleTimeoutSeconds(arg1:number):Promise<void>;
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
 
 export function UnlockVault(arg1:string,arg2:string):Promise<void>;
+
+export function VerifyAuditLog():Promise<main.AuditVerifyResult>;
 
 export function VerifyRecoveryKey(arg1:string):Promise<boolean>;

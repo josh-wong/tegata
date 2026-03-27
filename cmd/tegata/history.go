@@ -50,21 +50,53 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return nil
 			}
 
-			client, err := buildAuditClient(cfg.Audit)
+			// Unlock vault to resolve label hashes to human-readable names.
+			passphrase, err := promptPassphrase("Passphrase: ")
+			if err != nil {
+				return err
+			}
+			mgr, err := openAndUnlock(vaultPath, passphrase)
+			zeroBytes(passphrase)
+			if err != nil {
+				return fmt.Errorf("unlocking vault: %w", err)
+			}
+			defer mgr.Close()
+
+			// Build hash→label lookup from vault credentials.
+			creds := mgr.ListCredentials()
+			labels := make([]string, len(creds))
+			for i, c := range creds {
+				labels[i] = c.Label
+			}
+			labelMap := audit.BuildLabelMap(labels)
+
+			client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 			if err != nil {
 				return fmt.Errorf("%w: %s", tegerrors.ErrNetworkFailed, err)
 			}
-			if closer, ok := client.(interface{ Close() error }); ok {
-				defer func() { _ = closer.Close() }()
-			}
+			defer func() { _ = client.Close() }()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Retrieve all records from the ledger using the "tegata-" prefix.
-			records, err := client.Get(ctx, "tegata-")
+			result, err := audit.FetchHistory(ctx, client, cfg.Audit.EntityID)
 			if err != nil {
 				return err
+			}
+			if result.Warning != "" {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", result.Warning)
+			}
+
+			// Convert to local historyRecord for filtering/display.
+			records := make([]historyRecord, len(result.Records))
+			for i, r := range result.Records {
+				records[i] = historyRecord{
+					ObjectID:  r.ObjectID,
+					Operation: r.Operation,
+					LabelHash: r.LabelHash,
+					Timestamp: r.Timestamp,
+					HashValue: r.HashValue,
+				}
 			}
 
 			// Parse --from and --to date filters.
@@ -86,7 +118,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}
 
-			// Apply date filters and build the display list.
+			// Apply date filters.
 			filtered := filterRecords(records, fromTime, toTime)
 
 			if jsonOut {
@@ -95,7 +127,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return enc.Encode(filtered)
 			}
 
-			printRecordsTable(filtered)
+			printRecordsTable(filtered, labelMap)
 			return nil
 		},
 	}
@@ -107,84 +139,56 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 	return cmd
 }
 
-// buildAuditClient creates a Client from AuditConfig for history and verify commands.
-// These commands do not need the passphrase — they use TLS cert only.
-// In TLS mode the private key PEM is read once and shared between the ECDSA
-// signer and the TLS config to avoid a second disk read and extra heap copy.
-func buildAuditClient(cfg config.AuditConfig) (audit.Client, error) {
-	if cfg.Insecure {
-		signer, err := buildSigner(cfg.KeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("building ECDSA signer: %w", err)
-		}
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	// Read key PEM once; shared between signer and TLS config.
-	keyPEM, err := os.ReadFile(cfg.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("building ECDSA signer: %w", err)
-	}
-
-	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("building TLS config: %w", err)
-	}
-
-	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
-}
-
 // historyRecord is the display/JSON shape for a single history entry.
-// ScalarDL stores hashes, so we display the raw hash values rather than
-// attempting to reverse them.
+// Each record corresponds to one ScalarDL object with metadata.
 type historyRecord struct {
 	ObjectID  string `json:"object_id"`
-	HashValue string `json:"hash_value"`
+	Operation string `json:"operation"`
+	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
+	HashValue string `json:"hash_value"`
 }
 
-// filterRecords applies date filters to the records using the Timestamp field
-// (unix epoch seconds). From/to values that are zero are treated as no filter.
-func filterRecords(records []*audit.EventRecord, from, to time.Time) []historyRecord {
-	var result []historyRecord
-	for _, r := range records {
-		if !from.IsZero() || !to.IsZero() {
-			eventTime := time.Unix(r.Timestamp, 0).UTC()
-			if !from.IsZero() && eventTime.Before(from) {
-				continue
-			}
-			if !to.IsZero() && eventTime.After(to) {
-				continue
-			}
-		}
-
-		result = append(result, historyRecord{
-			ObjectID:  r.ObjectID,
-			HashValue: r.HashValue,
-			Timestamp: r.Timestamp,
-		})
+// filterRecords applies date filtering using the metadata timestamp.
+func filterRecords(records []historyRecord, from, to time.Time) []historyRecord {
+	if from.IsZero() && to.IsZero() {
+		return records
 	}
-	return result
+	var filtered []historyRecord
+	for _, r := range records {
+		t := time.Unix(r.Timestamp, 0).UTC()
+		if !from.IsZero() && t.Before(from) {
+			continue
+		}
+		if !to.IsZero() && t.After(to) {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
 }
 
-// printRecordsTable writes a human-readable tabular display of history records.
-func printRecordsTable(records []historyRecord) {
+// printRecordsTable writes a human-readable tabular display of history records
+// with operation, label, timestamp, and hash columns. Labels are resolved from
+// hashes using labelMap; unresolved hashes are truncated to 12 characters.
+func printRecordsTable(records []historyRecord, labelMap map[string]string) {
 	if len(records) == 0 {
 		fmt.Println("No audit events found.")
 		return
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Object ID\tHash Value\tTimestamp")
-	_, _ = fmt.Fprintln(w, "---------\t----------\t---------")
+	_, _ = fmt.Fprintln(w, "Operation\tLabel\tTimestamp\tHash")
+	_, _ = fmt.Fprintln(w, "---------\t-----\t---------\t----")
 	for _, r := range records {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", r.ObjectID, r.HashValue, r.Timestamp)
+		label := audit.ResolveLabel(r.LabelHash, labelMap)
+		op := audit.FormatOperation(r.Operation)
+		ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+		hash := r.HashValue
+		if len(hash) > 16 {
+			hash = hash[:16] + "..."
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", op, label, ts, hash)
 	}
 	_ = w.Flush()
 }

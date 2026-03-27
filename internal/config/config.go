@@ -32,8 +32,10 @@ type AuditConfig struct {
 	// PrivilegedServer is the gRPC address of the ScalarDL LedgerPrivileged
 	// service (e.g. "localhost:50052"). Used only for RegisterCert during setup.
 	PrivilegedServer string
-	// CertPath, KeyPath, and CACertPath are optional TLS certificate paths for
-	// mutual TLS authentication with the ledger.
+	// SecretKey is the HMAC secret key for ScalarDL HMAC authentication.
+	SecretKey string `json:"-"`
+	// CertPath, KeyPath, and CACertPath are TLS certificate paths for
+	// mutual TLS transport with the ledger (not used for HMAC signing).
 	CertPath   string
 	KeyPath    string
 	CACertPath string
@@ -55,6 +57,7 @@ type tomlAuditConfig struct {
 	Enabled        *bool   `toml:"enabled"`
 	Server           *string `toml:"server"`
 	PrivilegedServer *string `toml:"privileged_server"`
+	SecretKey      *string `toml:"secret_key"`
 	CertPath       *string `toml:"cert_path"`
 	KeyPath        *string `toml:"key_path"`
 	CACertPath     *string `toml:"ca_cert_path"`
@@ -133,6 +136,12 @@ func Load(dir string) (Config, error) {
 	if a.PrivilegedServer != nil {
 		cfg.Audit.PrivilegedServer = *a.PrivilegedServer
 	}
+	if a.SecretKey != nil {
+		cfg.Audit.SecretKey = *a.SecretKey
+		// Zero the TOML intermediate to limit copies of secret material.
+		clear := make([]byte, len(*a.SecretKey))
+		*a.SecretKey = string(clear)
+	}
 	if a.CertPath != nil {
 		cfg.Audit.CertPath = *a.CertPath
 	}
@@ -179,10 +188,8 @@ func WriteDefaults(dir string) error {
 # gRPC address of the ScalarDL Ledger server
 # server = "localhost:50051"
 #
-# TLS certificate paths for mutual TLS (optional — omit for plaintext)
-# cert_path = ""
-# key_path = ""
-# ca_cert_path = ""
+# HMAC secret key for ScalarDL authentication
+# secret_key = ""
 #
 # ScalarDL entity identifier for this vault
 # entity_id = ""
@@ -194,7 +201,7 @@ func WriteDefaults(dir string) error {
 # queue_max_events = 10000
 `
 	path := filepath.Join(dir, configFileName)
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 // FormatEffective returns a human-readable display of the effective

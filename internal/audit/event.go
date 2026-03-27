@@ -33,13 +33,52 @@ func HashString(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// BuildLabelMap creates a hash→label lookup table from a list of label strings.
+// This allows client-side resolution of label hashes back to human-readable
+// names without exposing plaintext labels in the audit ledger.
+func BuildLabelMap(labels []string) map[string]string {
+	m := make(map[string]string, len(labels))
+	for _, label := range labels {
+		m[HashString(label)] = label
+	}
+	return m
+}
+
+// ResolveLabel returns the human-readable label for a hash if found in the
+// lookup map, otherwise returns "(deleted)" to indicate the credential no
+// longer exists in the vault.
+func ResolveLabel(labelHash string, labelMap map[string]string) string {
+	if name, ok := labelMap[labelHash]; ok {
+		return name
+	}
+	return "(deleted)"
+}
+
+// FormatOperation returns a human-readable display string for an operation
+// type stored in audit records (e.g. "totp" → "TOTP", "challenge-response" →
+// "Challenge-response").
+func FormatOperation(op string) string {
+	switch op {
+	case "totp":
+		return "TOTP"
+	case "hotp":
+		return "HOTP"
+	case "static":
+		return "Static password"
+	case "challenge-response":
+		return "Challenge-response"
+	default:
+		return op
+	}
+}
+
 // NewAuthEvent constructs an AuthEvent with a UUID v4 EventID, a UTC timestamp,
 // and hashed label/service/host fields. The prevHash argument is the SHA-256
 // of the previous queue entry's JSON (or "" for the first event) and is passed
 // through directly — callers are responsible for computing the chain linkage.
 func NewAuthEvent(opType, label, service, host string, success bool, prevHash string) AuthEvent {
 	return AuthEvent{
-		EventID:       uuid.New().String(),
+		EventID:       "tegata-" + uuid.New().String(),
 		Timestamp:     time.Now().UTC(),
 		OperationType: opType,
 		LabelHash:     HashString(label),

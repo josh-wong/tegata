@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/josh-wong/tegata/internal/audit"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
@@ -315,5 +316,191 @@ func TestQuitFromMainViewAfterUnlock(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if cmd == nil {
 		t.Error("expected tea.Quit command from 'q' in stateMainView, got nil")
+	}
+}
+
+// TestTUI_AuditBuilderFromUnlock verifies that handleUnlockResult stores the
+// builder from unlockResultMsg onto the model.
+func TestTUI_AuditBuilderFromUnlock(t *testing.T) {
+	m := initialModel("/tmp/fake/vault.tegata")
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	msg := unlockResultMsg{mgr: nil, builder: builder}
+	updated, _ := m.Update(msg)
+	m = updated.(model)
+	if m.builder != builder {
+		t.Error("expected builder to be assigned from unlockResultMsg")
+	}
+}
+
+// TestTUI_AuditNilBuilderNoCredentialPanic verifies that handleCredentialAction
+// does not panic when builder is nil (audit disabled). The nil-guard must
+// protect every LogEvent call site.
+func TestTUI_AuditNilBuilderNoCredentialPanic(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	m.credList.SetItems([]list.Item{
+		credItem{cred: pkgmodel.Credential{
+			Label:  "test-totp",
+			Type:   pkgmodel.CredentialTOTP,
+			Secret: "JBSWY3DPEHPK3PXP",
+		}},
+	})
+	// builder is nil — should not panic.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = updated.(model)
+}
+
+// TestTUI_AuditQuitClosesBuilder verifies that quit() closes the EventBuilder
+// and nils the field so resources are released on exit.
+func TestTUI_AuditQuitClosesBuilder(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	m.builder = builder
+
+	updated, _ := m.quit()
+	result := updated.(model)
+	if result.builder != nil {
+		t.Error("expected builder to be nil after quit()")
+	}
+}
+
+// TestTUI_AuditIdleLockClosesBuilder verifies that the idle-lock handler
+// closes the EventBuilder when auto-locking the vault.
+func TestTUI_AuditIdleLockClosesBuilder(t *testing.T) {
+	m := initialModel("")
+	m.state = stateMainView
+	m.lastActivity = time.Now().Add(-m.idleTimeout - time.Second)
+
+	builder, err := audit.NewEventBuilder(nil, "", nil, 0)
+	if err != nil {
+		t.Fatalf("creating disabled builder: %v", err)
+	}
+	m.builder = builder
+
+	tick := tickMsg{t: time.Now()}
+	updated, _ := m.Update(tick)
+	result := updated.(model)
+	if result.state != stateLockedIdle {
+		t.Errorf("expected stateLockedIdle, got %v", result.state)
+	}
+	if result.builder != nil {
+		t.Error("expected builder to be nil after idle lock")
+	}
+}
+
+// --- Audit overlay tests ---
+
+func TestTUI_AuditOverlay(t *testing.T) {
+	m := model{state: stateMainView}
+	m.cfg.Audit.Enabled = true
+	result := sendKey(m, "v")
+	if result.state != stateOverlayAudit {
+		t.Errorf("expected stateOverlayAudit, got %v", result.state)
+	}
+	result = sendKey(result, "esc")
+	if result.state != stateMainView {
+		t.Errorf("expected stateMainView after Esc, got %v", result.state)
+	}
+}
+
+func TestTUI_AuditDisabled(t *testing.T) {
+	m := model{state: stateMainView}
+	// Audit.Enabled defaults to false
+	result := sendKey(m, "v")
+	if result.state != stateMainView {
+		t.Errorf("expected stateMainView when audit disabled, got %v", result.state)
+	}
+	if !strings.Contains(result.errMsg, "not enabled") {
+		t.Errorf("expected error about audit not enabled, got %q", result.errMsg)
+	}
+}
+
+func TestTUI_AuditHistoryResult(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "history", auditLoading: true}
+	msg := auditHistoryMsg{records: []historyRecord{
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: 1700000000, HashValue: "abcd"},
+		{ObjectID: "evt-2", Operation: "hotp", LabelHash: "def", Timestamp: 1700000100, HashValue: "ef01"},
+	}}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if len(result.auditRecords) != 2 {
+		t.Errorf("expected 2 records, got %d", len(result.auditRecords))
+	}
+	if !strings.Contains(result.auditMsg, "2 events") {
+		t.Errorf("expected '2 events' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditVerifyValid(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: true, eventCount: 5}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "verified") {
+		t.Errorf("expected 'verified' in msg, got %q", result.auditMsg)
+	}
+	if !strings.Contains(result.auditMsg, "5 events") {
+		t.Errorf("expected '5 events' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditTamperDetected(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: false, eventCount: 3, detail: "hash mismatch at version 2"}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "TAMPER DETECTED") {
+		t.Errorf("expected 'TAMPER DETECTED' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditNoEvents(t *testing.T) {
+	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
+	msg := auditVerifyMsg{valid: true, eventCount: 0}
+	updated, _ := m.Update(msg)
+	result := updated.(model)
+	if !strings.Contains(result.auditMsg, "Nothing to verify") {
+		t.Errorf("expected 'Nothing to verify' in msg, got %q", result.auditMsg)
+	}
+}
+
+func TestTUI_AuditIdleLock(t *testing.T) {
+	m := model{
+		state:        stateOverlayAudit,
+		auditSubFlow: "history",
+		auditRecords: []historyRecord{{ObjectID: "evt-1", Operation: "totp", HashValue: "test"}},
+		lastActivity: time.Now().Add(-10 * time.Minute),
+		idleTimeout:  5 * time.Minute,
+		builder:      nil,
+		credList:     list.New(nil, list.NewDefaultDelegate(), 0, 0),
+	}
+	updated, _ := m.Update(tickMsg{t: time.Now()})
+	result := updated.(model)
+	if result.state != stateLockedIdle {
+		t.Errorf("expected stateLockedIdle, got %v", result.state)
+	}
+	if result.auditSubFlow != "" {
+		t.Errorf("expected auditSubFlow reset, got %q", result.auditSubFlow)
+	}
+	if result.auditRecords != nil {
+		t.Errorf("expected auditRecords reset")
+	}
+}
+
+func TestTUI_AuditMenu(t *testing.T) {
+	m := model{state: stateOverlayAudit, width: 80, height: 24}
+	view := m.View()
+	if !strings.Contains(view, "View history") {
+		t.Error("expected 'View history' in audit menu")
+	}
+	if !strings.Contains(view, "Verify integrity") {
+		t.Error("expected 'Verify integrity' in audit menu")
 	}
 }

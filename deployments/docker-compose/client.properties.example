@@ -1,0 +1,10 @@
+# WARNING: The secret_key below is a development-only default. Do NOT use it
+# in production. Generate a strong random key (at least 32 hex characters)
+# for any non-local deployment.
+scalar.dl.client.server.host=scalardl-ledger
+scalar.dl.client.server.port=50051
+scalar.dl.client.server.privileged_port=50052
+scalar.dl.client.authentication.method=hmac
+scalar.dl.client.entity.id=tegata-client
+scalar.dl.client.entity.identity.hmac.secret_key=tegata-test-secret-key-1234567890abcdef
+scalar.dl.client.entity.identity.hmac.secret_key_version=1

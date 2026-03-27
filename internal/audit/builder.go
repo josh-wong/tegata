@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -21,12 +22,13 @@ import (
 // Auth commands are never blocked or returned errors due to audit failures
 // — audit errors are silently absorbed, keeping the event in the queue.
 type EventBuilder struct {
-	client    Submitter // nil when audit is disabled
-	queue     *Queue
-	queuePath string
-	queueKey  []byte // 32-byte key; EventBuilder does NOT own lifecycle
-	disabled  bool   // true when client == nil
-	lastHash  string // SHA-256 of the last successfully submitted event JSON
+	client     Submitter      // nil when audit is disabled
+	queue      *Queue
+	queuePath  string
+	queueKey   []byte         // 32-byte key; EventBuilder does NOT own lifecycle
+	disabled   bool           // true when client == nil
+	lastHash   string         // SHA-256 of the last successfully submitted event JSON
+	submitTimeout time.Duration // timeout for submit operations (default 3s)
 }
 
 // NewEventBuilder creates an EventBuilder. If client is nil the builder is
@@ -44,7 +46,8 @@ func NewEventBuilder(client Submitter, queuePath string, queueKey []byte, maxLen
 	}
 
 	return &EventBuilder{
-		client:    client,
+		client:        client,
+		submitTimeout: 3 * time.Second,
 		queue:     q,
 		queuePath: queuePath,
 		queueKey:  queueKey,
@@ -59,13 +62,13 @@ type submitResult struct {
 
 // LogEvent records an authentication operation in the audit log. It builds an
 // AuthEvent from the provided fields, then attempts to flush any queued events
-// and submit the new event to the ledger within a 500ms deadline. On any
+// and submit the new event to the ledger within a 3-second deadline. On any
 // network error the new event is appended to the offline queue and nil is
 // returned — auth operations must succeed regardless of ledger availability.
 //
 // The flush+submit attempt is run in a goroutine so that a non-cooperative
 // Submitter (one that ignores context cancellation) cannot block the caller
-// longer than 500ms plus negligible goroutine scheduling overhead.
+// longer than 3 seconds plus negligible goroutine scheduling overhead.
 //
 // The goroutine works exclusively from a snapshot of the queue entries taken
 // before it is spawned, so it never accesses b.queue concurrently with the
@@ -89,7 +92,11 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 	// submits from this local slice and never touches b.queue.
 	snapshot := b.queue.Entries()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	timeout := b.submitTimeout
+	if timeout == 0 {
+		timeout = 3 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	resultCh := make(chan submitResult, 1)
@@ -125,8 +132,14 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 
 	select {
 	case res := <-resultCh:
-		if res.err != nil || res.lastHash == "" {
-			// Network/submit failure — append to queue and persist.
+		if res.err != nil {
+			slog.Debug("audit submit error", "err", res.err)
+			_ = b.queue.Append(evt)
+			_ = b.queue.Save(b.queuePath)
+			return nil
+		}
+		if res.lastHash == "" {
+			slog.Debug("audit submit returned empty hash")
 			_ = b.queue.Append(evt)
 			_ = b.queue.Save(b.queuePath)
 			return nil
@@ -137,8 +150,7 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		_ = b.queue.Save(b.queuePath)
 		return nil
 	case <-ctx.Done():
-		// Deadline exceeded — goroutine is still running against its snapshot,
-		// not b.queue. Safe to append here without a concurrent access.
+		slog.Debug("audit submit timed out", "timeout", timeout)
 		_ = b.queue.Append(evt)
 		_ = b.queue.Save(b.queuePath)
 		return nil

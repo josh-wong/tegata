@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
@@ -100,7 +101,7 @@ func newCodeCmd() *cobra.Command {
 			// Emit audit event (non-fatal: errors are logged, not propagated).
 			if builder != nil {
 				opType := string(cred.Type)
-				if logErr := builder.LogEvent(opType, cred.Label, cred.Issuer, hostname(), true); logErr != nil {
+				if logErr := builder.LogEvent(opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
 				}
 			}

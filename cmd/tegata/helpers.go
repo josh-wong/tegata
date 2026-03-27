@@ -3,8 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base32"
 	"fmt"
 	"io"
@@ -306,105 +304,20 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	defer keyBuf.Destroy()
 
 	// Copy key bytes out of the SecretBuffer before it is destroyed.
+	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
+	// lifetime of the command and will use it for queue Save operations.
 	queueKey := make([]byte, 32)
 	copy(queueKey, keyBuf.Bytes())
 
-	client, err := buildLedgerClient(cfg.Audit)
+	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
+		zeroBytes(queueKey)
 		// A failed ledger connection is not fatal — the queue will hold events.
 		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
 		// Return a disabled builder so auth commands are not blocked.
-		zeroBytes(queueKey)
 		return audit.NewEventBuilder(nil, "", nil, 0)
 	}
 
-	eb, err := audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
-	zeroBytes(queueKey)
-	return eb, err
+	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
 }
 
-// buildLedgerClient constructs a LedgerClient from AuditConfig cert paths.
-// In TLS mode the private key PEM is read once and shared between the ECDSA
-// signer and the TLS config to avoid a second disk read and extra heap copy.
-func buildLedgerClient(cfg config.AuditConfig) (audit.Submitter, error) {
-	if cfg.Insecure {
-		signer, err := buildSigner(cfg.KeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("building ECDSA signer: %w", err)
-		}
-		return audit.NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, signer)
-	}
-
-	// Read key PEM once; shared between signer and TLS config.
-	keyPEM, err := os.ReadFile(cfg.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", cfg.KeyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("building ECDSA signer: %w", err)
-	}
-
-	tlsCfg, err := buildTLSConfigFromBytes(cfg.CertPath, keyPEM, cfg.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("building TLS config: %w", err)
-	}
-
-	return audit.NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg, cfg.EntityID, cfg.KeyVersion, signer)
-}
-
-// buildTLSConfigFromBytes constructs a *tls.Config from certPath, already-read
-// keyPEM bytes, and an optional CA cert path. The caller is responsible for
-// zeroing keyPEM after this call returns.
-func buildTLSConfigFromBytes(certPath string, keyPEM []byte, caPath string) (*tls.Config, error) {
-	certPEM, err := os.ReadFile(certPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading client certificate from %s: %w", certPath, err)
-	}
-
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("loading TLS key pair: %w", err)
-	}
-
-	tlsCfg := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-	}
-
-	if caPath != "" {
-		caPEM, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, fmt.Errorf("reading CA certificate from %s: %w", caPath, err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("parsing CA certificate from %s: no valid PEM block found", caPath)
-		}
-		tlsCfg.RootCAs = pool
-	}
-
-	return tlsCfg, nil
-}
-
-// buildSigner loads an ECDSA private key PEM file and returns a Signer.
-func buildSigner(keyPath string) (audit.Signer, error) {
-	if keyPath == "" {
-		return &audit.NoOpSigner{}, nil
-	}
-	keyPEM, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading private key from %s: %w", keyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-	return audit.NewECDSASigner(keyPEM)
-}
-
-// hostname returns the current machine hostname. On error returns an empty
-// string so audit events can still be emitted without a valid host field.
-func hostname() string {
-	h, _ := os.Hostname()
-	return h
-}

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"crypto/sha256"
@@ -21,15 +22,30 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Sentinels for collection gRPC status codes, used in the Submit flow to
+// distinguish "collection not found" from transient errors.
+var (
+	errCollectionNotFound = fmt.Errorf("collection does not exist")
+	errCollectionExists   = fmt.Errorf("collection already exists")
+)
+
 // Client is the minimal interface for interacting with a ScalarDL Ledger.
 // LedgerClient implements this interface. Tests should use a mock Client.
 type Client interface {
 	// Put stores an event record (objectID → hashValue) on the ledger.
 	Put(ctx context.Context, objectID, hashValue string) error
+	// PutWithMetadata stores an event with metadata (operation, label, timestamp).
+	PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error
 	// Get retrieves all event records for objectID from the ledger.
 	Get(ctx context.Context, objectID string) ([]*EventRecord, error)
 	// Validate verifies the integrity of all records for objectID on the ledger.
 	Validate(ctx context.Context, objectID string) (*ValidationResult, error)
+	// CollectionCreate creates a new collection with the given object IDs.
+	CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error
+	// CollectionAdd adds object IDs to an existing collection.
+	CollectionAdd(ctx context.Context, collectionID string, objectIDs []string) error
+	// CollectionGet retrieves all object IDs in a collection.
+	CollectionGet(ctx context.Context, collectionID string) ([]string, error)
 	// RegisterCert registers the client certificate with the LedgerPrivileged
 	// service. Must be called once before any Put/Get/Validate calls.
 	RegisterCert(ctx context.Context, entityID string, keyVersion uint32, certPEM string) error
@@ -38,8 +54,8 @@ type Client interface {
 	Ping(ctx context.Context) error
 	// Close releases the underlying gRPC connection.
 	Close() error
-	// Submit implements the Submitter interface from the offline queue package.
-	// It calls Put with the entry's EventID as objectID and hex(SHA-256(entryJSON)) as hashValue.
+	// Submit stores each event as its own ScalarDL object with metadata and
+	// adds it to a per-entity collection.
 	Submit(ctx context.Context, entry QueueEntry) error
 }
 
@@ -47,7 +63,8 @@ type Client interface {
 type EventRecord struct {
 	ObjectID  string
 	HashValue string
-	Timestamp int64 // unix epoch seconds
+	Version   int64 // ScalarDL version number (age)
+	Metadata  map[string]interface{}
 }
 
 // ValidationResult is returned by Validate.
@@ -156,11 +173,46 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 	}
 }
 
+// NewClientFromConfig creates a LedgerClient using HMAC authentication.
+// Returns an error if secretKey is empty or if insecure is false (TLS mode is
+// not yet supported with HMAC auth).
+//
+// TODO(#22): Add TLS support for HMAC authentication. Currently only insecure
+// (plaintext) connections work with HMAC. The ECDSA path supports TLS via
+// NewLedgerClient, but HMAC+TLS requires building a tls.Config without client
+// certificates (server-side TLS only). Until this is implemented, production
+// deployments should use network-level encryption (e.g. VPN, SSH tunnel).
+func NewClientFromConfig(server, privilegedServer, entityID string, keyVersion uint32, secretKey string, insecure bool) (*LedgerClient, error) {
+	if secretKey == "" {
+		return nil, fmt.Errorf("audit.secret_key is required")
+	}
+	signer := NewHMACSigner(secretKey)
+
+	if insecure {
+		return NewLedgerClientInsecure(server, privilegedServer, entityID, keyVersion, signer)
+	}
+
+	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true in tegata.toml (see #22)")
+}
+
+// formatArgument wraps a contract argument in the ScalarDL V2 envelope that
+// the server expects. The format is:
+//
+//	"V2" \x01 nonce \x03 functionIDs \x03 jsonArgument
+//
+// functionIDs is empty for direct contract calls (no functions). The same
+// formatted string must be used both as the ContractArgument proto field AND
+// as the contractArgument input to the signer, because the server validates
+// the signature against the formatted (not raw) argument.
+func formatArgument(jsonArg string, nonce string) string {
+	return "V2\x01" + nonce + "\x03\x03" + jsonArg
+}
+
 // Put calls the object.Put contract on the ledger to store objectID → hashValue.
 // A UUID v4 nonce is generated per request. The request is signed with the
 // configured Signer before transmission.
 func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) error {
-	contractID := "object.Put"
+	contractID := "object.v1_0_0.Put"
 	arg, err := json.Marshal(map[string]string{
 		"object_id":  objectID,
 		"hash_value": hashValue,
@@ -170,14 +222,15 @@ func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) erro
 	}
 
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return fmt.Errorf("signing Put request: %w", err)
 	}
 
 	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
@@ -189,30 +242,180 @@ func (c *LedgerClient) Put(ctx context.Context, objectID, hashValue string) erro
 	return nil
 }
 
+// PutWithMetadata stores an event with metadata in the ledger. The metadata
+// contains human-readable event details (operation type, label, timestamp).
+func (c *LedgerClient) PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error {
+	contractID := "object.v1_0_0.Put"
+	argMap := map[string]interface{}{
+		"object_id":  objectID,
+		"hash_value": hashValue,
+	}
+	if metadata != nil {
+		argMap["metadata"] = metadata
+	}
+	arg, err := json.Marshal(argMap)
+	if err != nil {
+		return fmt.Errorf("marshalling Put argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing Put request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+		Nonce:            nonce,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: Put contract failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// CollectionCreate creates a new collection in the ledger.
+func (c *LedgerClient) CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error {
+	contractID := "collection.v1_0_0.Create"
+	arg, err := json.Marshal(map[string]interface{}{
+		"collection_id": collectionID,
+		"object_ids":    objectIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling CollectionCreate argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing CollectionCreate request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+		Nonce:            nonce,
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
+			return fmt.Errorf("%w: %s", errCollectionExists, err)
+		}
+		return fmt.Errorf("%w: CollectionCreate failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// CollectionAdd adds object IDs to an existing collection.
+func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, objectIDs []string) error {
+	contractID := "collection.v1_0_0.Add"
+	arg, err := json.Marshal(map[string]interface{}{
+		"collection_id": collectionID,
+		"object_ids":    objectIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling CollectionAdd argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return fmt.Errorf("signing CollectionAdd request: %w", err)
+	}
+
+	_, err = c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+		Nonce:            nonce,
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+			return fmt.Errorf("%w: %s", errCollectionNotFound, err)
+		}
+		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// collectionGetResult is the JSON shape returned by collection.Get.
+type collectionGetResult struct {
+	ObjectIDs []string `json:"object_ids"`
+}
+
+// CollectionGet retrieves all object IDs in a collection.
+func (c *LedgerClient) CollectionGet(ctx context.Context, collectionID string) ([]string, error) {
+	contractID := "collection.v1_0_0.Get"
+	arg, err := json.Marshal(map[string]string{"collection_id": collectionID})
+	if err != nil {
+		return nil, fmt.Errorf("marshalling CollectionGet argument: %w", err)
+	}
+
+	nonce := uuid.New().String()
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
+	if err != nil {
+		return nil, fmt.Errorf("signing CollectionGet request: %w", err)
+	}
+
+	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
+		ContractId:       contractID,
+		ContractArgument: formatted,
+		EntityId:         c.entityID,
+		KeyVersion:       c.keyVersion,
+		Signature:        sig,
+		Nonce:            nonce,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: CollectionGet failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+
+	var result collectionGetResult
+	if raw := resp.GetContractResult(); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &result); err != nil {
+			return nil, fmt.Errorf("parsing CollectionGet result: %w", err)
+		}
+	}
+	return result.ObjectIDs, nil
+}
+
 // getResult is the JSON shape returned by the object.Get contract.
 type getResult struct {
-	ObjectID  string `json:"object_id"`
-	HashValue string `json:"hash_value"`
-	Age       int64  `json:"age"`
+	ObjectID  string                 `json:"object_id"`
+	HashValue string                 `json:"hash_value"`
+	Age       int64                  `json:"age"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // Get calls the object.Get contract and returns all records for objectID.
 func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord, error) {
-	contractID := "object.Get"
+	contractID := "object.v1_0_0.Get"
 	arg, err := json.Marshal(map[string]string{"object_id": objectID})
 	if err != nil {
 		return nil, fmt.Errorf("marshalling Get argument: %w", err)
 	}
 
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return nil, fmt.Errorf("signing Get request: %w", err)
 	}
 
 	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
@@ -222,11 +425,21 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 		return nil, fmt.Errorf("%w: Get contract failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 
-	// Parse the contract_result JSON.
+	// Parse the contract_result JSON. The response may be a single object
+	// (latest version) or an array of objects (all versions).
 	var results []getResult
-	if resp.GetContractResult() != "" {
-		if err := json.Unmarshal([]byte(resp.GetContractResult()), &results); err != nil {
-			return nil, fmt.Errorf("parsing Get result: %w", err)
+	if raw := resp.GetContractResult(); raw != "" {
+		raw = strings.TrimSpace(raw)
+		if strings.HasPrefix(raw, "[") {
+			if err := json.Unmarshal([]byte(raw), &results); err != nil {
+				return nil, fmt.Errorf("parsing Get result array: %w", err)
+			}
+		} else {
+			var single getResult
+			if err := json.Unmarshal([]byte(raw), &single); err != nil {
+				return nil, fmt.Errorf("parsing Get result: %w", err)
+			}
+			results = []getResult{single}
 		}
 	}
 
@@ -235,36 +448,72 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 		records[i] = &EventRecord{
 			ObjectID:  r.ObjectID,
 			HashValue: r.HashValue,
-			Timestamp: r.Age,
+			Version:   r.Age,
+			Metadata:  r.Metadata,
 		}
 	}
 	return records, nil
 }
 
 // validateResult is the JSON shape returned by the object.Validate contract.
+// Matches the official ScalarDL generic contracts response schema.
 type validateResult struct {
-	Valid       bool   `json:"valid"`
-	EventCount  int    `json:"event_count"`
-	ErrorDetail string `json:"error_detail"`
+	Status         string   `json:"status"`
+	Details        string   `json:"details"`
+	FaultyVersions []string `json:"faulty_versions"`
 }
 
-// Validate calls the object.Validate contract and checks ledger integrity for objectID.
+// Validate verifies the integrity of all records for objectID on the ledger.
+// It uses a two-step flow: first calls object.Get to retrieve stored records,
+// then calls object.Validate with a versions array built from those records.
+// If Get returns no records, it returns Valid=true with EventCount=0 without
+// calling object.Validate (nothing to validate).
 func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*ValidationResult, error) {
-	contractID := "object.Validate"
-	arg, err := json.Marshal(map[string]string{"object_id": objectID})
+	// Step 1: Retrieve all stored records via object.Get.
+	records, err := c.Get(ctx, objectID)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving records for validation: %w", err)
+	}
+
+	// If no records exist, there is nothing to validate.
+	if len(records) == 0 {
+		return &ValidationResult{Valid: true, EventCount: 0}, nil
+	}
+
+	// Step 2: Build versions array from retrieved records.
+	// The HashStore object.Validate contract expects each version entry to
+	// contain "version_id" (the object ID string, not a numeric version) and
+	// "hash_value". This matches the HashStore SDK's ValidateRequest schema
+	// where version_id identifies the object, not a sequential version number.
+	versions := make([]map[string]string, len(records))
+	for i, r := range records {
+		versions[i] = map[string]string{
+			"version_id": r.ObjectID,
+			"hash_value": r.HashValue,
+		}
+	}
+
+	// Step 3: Marshal the validate argument with object_id and versions.
+	contractID := "object.v1_0_0.Validate"
+	arg, err := json.Marshal(map[string]interface{}{
+		"object_id": objectID,
+		"versions":  versions,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("marshalling Validate argument: %w", err)
 	}
 
+	// Step 4: Sign and execute object.Validate.
 	nonce := uuid.New().String()
-	sig, err := c.signer.Sign(contractID, string(arg), nonce, c.entityID, c.keyVersion)
+	formatted := formatArgument(string(arg), nonce)
+	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
 	if err != nil {
 		return nil, fmt.Errorf("signing Validate request: %w", err)
 	}
 
 	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
 		ContractId:       contractID,
-		ContractArgument: string(arg),
+		ContractArgument: formatted,
 		EntityId:         c.entityID,
 		KeyVersion:       c.keyVersion,
 		Signature:        sig,
@@ -274,6 +523,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 		return nil, fmt.Errorf("%w: Validate contract failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 
+	// Step 5: Parse and map the response.
 	var vr validateResult
 	if resp.GetContractResult() != "" {
 		if err := json.Unmarshal([]byte(resp.GetContractResult()), &vr); err != nil {
@@ -282,9 +532,9 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 	}
 
 	return &ValidationResult{
-		Valid:       vr.Valid,
-		EventCount:  vr.EventCount,
-		ErrorDetail: vr.ErrorDetail,
+		Valid:       vr.Status == "correct",
+		EventCount:  len(records),
+		ErrorDetail: vr.Details,
 	}, nil
 }
 
@@ -303,6 +553,24 @@ func (c *LedgerClient) RegisterCert(ctx context.Context, entityID string, keyVer
 			return nil
 		}
 		return fmt.Errorf("%w: RegisterCert failed: %s", tegerrors.ErrNetworkFailed, err)
+	}
+	return nil
+}
+
+// RegisterSecret registers an HMAC secret key with the ScalarDL Ledger for
+// the given entity and key version. Used with HMAC authentication mode.
+// Idempotent — AlreadyExists is treated as success.
+func (c *LedgerClient) RegisterSecret(ctx context.Context, entityID string, keyVersion uint32, secretKey string) error {
+	_, err := c.privileged.RegisterSecret(ctx, &rpc.SecretRegistrationRequest{
+		EntityId:   entityID,
+		KeyVersion: keyVersion,
+		SecretKey:  secretKey,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
+			return nil
+		}
+		return fmt.Errorf("%w: RegisterSecret failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	return nil
 }
@@ -334,8 +602,11 @@ func (c *LedgerClient) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close releases the underlying gRPC connections.
+// Close releases the underlying gRPC connections and zeros signer key material.
 func (c *LedgerClient) Close() error {
+	if z, ok := c.signer.(interface{ Zero() }); ok {
+		z.Zero()
+	}
 	err := c.conn.Close()
 	if c.privilegedConn != nil {
 		if err2 := c.privilegedConn.Close(); err2 != nil && err == nil {
@@ -345,11 +616,9 @@ func (c *LedgerClient) Close() error {
 	return err
 }
 
-// Submit implements the Submitter interface. It calls Put with:
-//   - objectID = entry.Event.EventID
-//   - hashValue = hex(SHA-256(JSON(entry.Event)))
-//
-// This allows the LedgerClient to be used directly as the Submitter for Queue.Flush.
+// Submit implements the Submitter interface. Each event is stored as its own
+// ScalarDL object with metadata (operation, label hash, timestamp) and added
+// to a per-entity collection for listing.
 func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	entryJSON, err := json.Marshal(entry.Event)
 	if err != nil {
@@ -361,6 +630,42 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 	}
 	hashValue := hex.EncodeToString(sum[:])
 
-	return c.Put(ctx, entry.Event.EventID, hashValue)
+	metadata := map[string]interface{}{
+		"operation":  entry.Event.OperationType,
+		"label_hash": entry.Event.LabelHash,
+		"timestamp":  entry.Event.Timestamp.Unix(),
+	}
+
+	objectID := entry.Event.EventID
+	if err := c.PutWithMetadata(ctx, objectID, hashValue, metadata); err != nil {
+		return err
+	}
+
+	// Add the event to the entity's audit collection. If the collection
+	// doesn't exist yet, create it with this event as the first member.
+	// A race between concurrent Submit calls can cause CollectionCreate to
+	// return AlreadyExists — in that case retry CollectionAdd.
+	collectionID := CollectionID(c.entityID)
+	if err := c.CollectionAdd(ctx, collectionID, []string{objectID}); err != nil {
+		// Only fall through to CollectionCreate when the collection does
+		// not exist. Transient or other errors should propagate immediately.
+		if !tegerrors.Is(err, errCollectionNotFound) {
+			return fmt.Errorf("adding event to collection: %w", err)
+		}
+		createErr := c.CollectionCreate(ctx, collectionID, []string{objectID})
+		if createErr != nil {
+			if tegerrors.Is(createErr, errCollectionExists) {
+				// Another caller created the collection between our Add
+				// and Create — retry Add now that the collection exists.
+				if retryErr := c.CollectionAdd(ctx, collectionID, []string{objectID}); retryErr != nil {
+					return fmt.Errorf("adding event to collection after retry: %w", retryErr)
+				}
+			} else {
+				return fmt.Errorf("creating audit collection: %w", createErr)
+			}
+		}
+	}
+
+	return nil
 }
 

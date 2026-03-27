@@ -1,4 +1,4 @@
-import type { Credential, VaultLocation, TOTPResult, UpdateInfo } from "./types"
+import type { Credential, VaultLocation, TOTPResult, UpdateInfo, AuditHistoryRecord, AuditVerifyResult } from "./types"
 
 // Wails runtime bindings facade. At build time with `wails build`, the real
 // bindings are injected. This module provides typed stubs so the frontend
@@ -54,6 +54,9 @@ interface WailsAppBindings {
   GetIdleTimeoutSeconds(): Promise<number>
   SetIdleTimeoutSeconds(seconds: number): Promise<void>
   CheckForUpdate(): Promise<UpdateInfo | null>
+  IsAuditEnabled(): Promise<boolean>
+  GetAuditHistory(): Promise<AuditHistoryRecord[]>
+  VerifyAuditLog(): Promise<AuditVerifyResult>
 }
 
 function getApp(): WailsAppBindings {
@@ -88,6 +91,9 @@ export const App = {
   GetIdleTimeoutSeconds: () => getApp().GetIdleTimeoutSeconds(),
   SetIdleTimeoutSeconds: (seconds: number) => getApp().SetIdleTimeoutSeconds(seconds),
   CheckForUpdate: () => getApp().CheckForUpdate(),
+  IsAuditEnabled: () => getApp().IsAuditEnabled(),
+  GetAuditHistory: () => getApp().GetAuditHistory(),
+  VerifyAuditLog: () => getApp().VerifyAuditLog(),
 }
 
 export function EventsOn(event: string, callback: (...data: unknown[]) => void) {

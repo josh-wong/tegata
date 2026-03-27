@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
@@ -124,6 +125,14 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case len(msg.Runes) == 1 && msg.Runes[0] == 's':
 			m.state = stateOverlaySettings
 			return m, nil
+
+		case len(msg.Runes) == 1 && msg.Runes[0] == 'v':
+			if !m.cfg.Audit.Enabled {
+				m.errMsg = "Audit not enabled"
+				return m, nil
+			}
+			m.state = stateOverlayAudit
+			return m, nil
 		}
 	}
 
@@ -159,6 +168,9 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			digits = 6
 		}
 		code, _ := auth.GenerateTOTP(secret, m.now, period, digits, cred.Algorithm)
+		if m.builder != nil {
+			_ = m.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
@@ -193,6 +205,9 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			}
 			m = refreshCredList(m, cred.Label)
 		}
+		if m.builder != nil {
+			_ = m.builder.LogEvent("hotp", cred.Label, cred.Issuer, audit.Hostname(), true)
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
@@ -212,6 +227,9 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		defer zeroBytes(password)
+		if m.builder != nil {
+			_ = m.builder.LogEvent("static", cred.Label, cred.Issuer, audit.Hostname(), true)
+		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(string(password), m.cfg.ClipboardTimeout); err != nil {
 				m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable — select to copy)", password)
@@ -266,6 +284,10 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.builder != nil {
+		_ = m.builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true)
+	}
+
 	if m.clipMgr != nil {
 		if err := m.clipMgr.CopyWithAutoClear(response, m.cfg.ClipboardTimeout); err != nil {
 			m.statusMsg = fmt.Sprintf("Response: %s  (clipboard unavailable — select to copy)", response)
@@ -303,7 +325,7 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit")
+	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit")
 
 	return columns + "\n" + help
 }

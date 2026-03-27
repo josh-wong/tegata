@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"os"
 	"time"
@@ -32,15 +30,15 @@ tamper-evident ledger for post-hoc integrity verification.`,
 func newLedgerSetupCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
-		Short: "Register client certificate and verify connectivity",
-		Long: `Register the client TLS certificate with the ScalarDL LedgerPrivileged
+		Short: "Register HMAC secret and verify connectivity",
+		Long: `Register the HMAC secret key with the ScalarDL LedgerPrivileged
 service and verify that the ledger is reachable.
 
 This command must be run once before audit logging is active. It reads the
 [audit] section from tegata.toml (located in the vault directory) and uses
-the configured certificate paths and server address.
+the configured secret key and server address.
 
-See docs/scalardl-setup.md for certificate generation and configuration steps.`,
+See docs/scalardl-setup.md for configuration steps.`,
 		Example: `  tegata ledger setup
   tegata ledger setup --vault /media/usb`,
 		Args: cobra.NoArgs,
@@ -68,48 +66,13 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Read client certificate PEM.
-	certPEM, err := os.ReadFile(cfg.Audit.CertPath)
-	if err != nil {
-		return fmt.Errorf("reading client certificate from %s: %w", cfg.Audit.CertPath, err)
+	if cfg.Audit.SecretKey == "" {
+		return fmt.Errorf("audit.secret_key is required in tegata.toml")
 	}
 
-	// Read private key PEM.
-	keyPEM, err := os.ReadFile(cfg.Audit.KeyPath)
-	if err != nil {
-		return fmt.Errorf("reading private key from %s: %w", cfg.Audit.KeyPath, err)
-	}
-	defer zeroBytes(keyPEM)
-
-	// Build TLS config from cert + key.
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return fmt.Errorf("loading client TLS key pair: %w", err)
-	}
-
-	tlsCfg := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-	}
-
-	// Load CA certificate if provided.
-	if cfg.Audit.CACertPath != "" {
-		caPEM, err := os.ReadFile(cfg.Audit.CACertPath)
-		if err != nil {
-			return fmt.Errorf("reading CA certificate from %s: %w", cfg.Audit.CACertPath, err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return fmt.Errorf("parsing CA certificate from %s: no valid PEM block found", cfg.Audit.CACertPath)
-		}
-		tlsCfg.RootCAs = pool
-	}
-
-	// Create ECDSA signer from private key.
-	signer, err := audit.NewECDSASigner(keyPEM)
-	if err != nil {
-		return fmt.Errorf("creating ECDSA signer: %w", err)
-	}
+	// Create HMAC signer from secret key.
+	signer := audit.NewHMACSigner(cfg.Audit.SecretKey)
+	defer signer.Zero()
 
 	// Dial the ScalarDL Ledger.
 	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",
@@ -119,31 +82,50 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, "WARNING: Insecure mode enabled — TLS disabled. Do not use in production.")
 		client, err = audit.NewLedgerClientInsecure(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
 	} else {
-		client, err = audit.NewLedgerClient(cfg.Audit.Server, cfg.Audit.PrivilegedServer, tlsCfg, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
+		return fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true for local development")
 	}
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}
 	defer func() { _ = client.Close() }()
 
-	// Use a 30-second timeout covering both RegisterCert and Ping so that
-	// a slow or unresponsive ledger does not hang the setup command indefinitely.
+	// Use a 30-second timeout covering both registration and verification.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Register the client certificate with the LedgerPrivileged service.
-	fmt.Fprintf(os.Stderr, "Registering certificate for entity %q (key version %d)...\n",
+	// Register the HMAC secret with the LedgerPrivileged service.
+	fmt.Fprintf(os.Stderr, "Registering secret for entity %q (key version %d)...\n",
 		cfg.Audit.EntityID, cfg.Audit.KeyVersion)
-	if err := client.RegisterCert(ctx, cfg.Audit.EntityID, cfg.Audit.KeyVersion, string(certPEM)); err != nil {
+	if err := client.RegisterSecret(ctx, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "Certificate registered successfully.")
+	fmt.Fprintln(os.Stderr, "Secret registered successfully.")
 
 	// Ping the Ledger service to confirm connectivity.
 	fmt.Fprintln(os.Stderr, "Verifying ledger connectivity...")
 	if err := client.Ping(ctx); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "ScalarDL Ledger is reachable. Audit setup complete.")
+
+	// Verify that the generic contracts are registered by attempting a test Put.
+	fmt.Fprintln(os.Stderr, "Verifying generic contracts are registered...")
+	if err := verifyContracts(ctx, client); err != nil {
+		fmt.Fprintln(os.Stderr, "Generic contracts are NOT registered on this ScalarDL instance.")
+		fmt.Fprintln(os.Stderr, "Register them using: docker compose run --rm scalardl-contract-registration")
+		fmt.Fprintln(os.Stderr, "See docs/scalardl-setup.md for instructions.")
+		return fmt.Errorf("contract verification failed: %w", err)
+	}
+	fmt.Fprintln(os.Stderr, "Generic contracts verified. Audit setup complete.")
 	return nil
+}
+
+// setupTestObjectID is a fixed well-known key used by `ledger setup` to verify
+// that the generic contracts are registered. Using a constant avoids
+// accumulating unique orphan objects on every run.
+const setupTestObjectID = "tegata-setup-probe"
+
+// verifyContracts attempts a test Put to confirm that the generic contracts
+// are registered on the ScalarDL instance.
+func verifyContracts(ctx context.Context, client audit.Client) error {
+	return client.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
 }

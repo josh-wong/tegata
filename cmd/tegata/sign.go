@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
@@ -77,7 +78,7 @@ func newSignCmd() *cobra.Command {
 
 			// Emit audit event after successful sign.
 			if builder != nil {
-				if logErr := builder.LogEvent("challenge-response", cred.Label, cred.Issuer, hostname(), true); logErr != nil {
+				if logErr := builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
 				}
 			}

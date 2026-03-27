@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
@@ -46,20 +47,23 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	client, err := buildAuditClient(cfg.Audit)
+	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}
-	if closer, ok := client.(interface{ Close() error }); ok {
-		defer func() { _ = closer.Close() }()
-	}
+	defer func() { _ = client.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := client.Validate(ctx, "tegata-")
+	result, err := audit.VerifyAll(ctx, client, cfg.Audit.EntityID)
 	if err != nil {
 		return err
+	}
+
+	if result.EventCount == 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
+		return nil
 	}
 
 	if result.Valid {
@@ -67,7 +71,9 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Integrity violation: print detail and return the sentinel error (exit code 9).
-	fmt.Fprintf(os.Stderr, "Integrity violation detected. %s\n", result.ErrorDetail)
+	fmt.Fprintf(os.Stderr, "Integrity violation detected in %d of %d events:\n", len(result.Faults), result.EventCount)
+	for _, f := range result.Faults {
+		fmt.Fprintf(os.Stderr, "  %s\n", f)
+	}
 	return tegerrors.ErrIntegrityViolation
 }

@@ -745,11 +745,14 @@ This section details how Tegata communicates with ScalarDL Ledger for tamper-evi
 
 Tegata implements a lightweight gRPC client by using `grpc-go` against ScalarDL's protobuf service definitions. The client communicates with the `Ledger` gRPC service by using a single RPC method—`ExecuteContract`—and varies behavior by passing different contract identifiers.
 
-| Operation  | Contract identifier | Purpose                                       |
-|------------|---------------------|-----------------------------------------------|
-| Put        | `object.Put`        | Store an authentication event record          |
-| Get        | `object.Get`        | Retrieve event records for history display    |
-| Validate   | `object.Validate`   | Verify hash-chain integrity across all events |
+| Operation        | Contract identifier      | Purpose                                              |
+|------------------|--------------------------|------------------------------------------------------|
+| Put              | `object.v1_0_0.Put`      | Store an event with metadata (operation, label, ts)  |
+| Get              | `object.v1_0_0.Get`      | Retrieve a single event record by object ID          |
+| Validate         | `object.v1_0_0.Validate` | Verify hash-chain integrity for a single event       |
+| CollectionCreate | `collection.v1_0_0.Create` | Create a per-entity collection with initial members |
+| CollectionAdd    | `collection.v1_0_0.Add`   | Add event IDs to an existing collection             |
+| CollectionGet    | `collection.v1_0_0.Get`   | Retrieve all event IDs in a collection              |
 
 All three operations are invoked via the `ExecuteContract` RPC method on ScalarDL's `Ledger` gRPC service. The contract identifier is passed as the `ContractId` field in `ContractExecutionRequest`, along with a JSON-formatted `ContractArgument` and certificate credentials. The ScalarDL proto file defines the `Ledger` service with `ExecuteContract(ContractExecutionRequest) returns (ContractExecutionResponse)` as the primary entry point.
 
@@ -816,15 +819,16 @@ Tegata uses ScalarDL's HashStore abstraction rather than custom Java contracts. 
 **Event storage flow:**
 
 1. Serialize the `AuthEvent` to JSON.
-2. Compute `SHA-256(serialized_event)`.
-3. Call `ExecuteContract` with contract identifier `object.Put`, passing the event hash as the value and a sequential asset ID in the JSON argument.
-4. ScalarDL appends the entry to the hash chain and returns confirmation.
+2. Compute `SHA-256(serialized_event)` as the hash value.
+3. Call `object.v1_0_0.Put` with the event's UUID as the object ID, the hash value, and metadata containing `operation`, `label_hash`, and `timestamp`.
+4. Call `collection.v1_0_0.Add` to add the event ID to the entity's audit collection (`tegata-audit-{entityID}`). If the collection does not exist yet, fall back to `collection.v1_0_0.Create`.
+5. ScalarDL appends the entry to the hash chain and returns confirmation.
 
 **Verification flow:**
 
-1. Call `ExecuteContract` with contract identifier `object.Validate` and the asset ID range to verify.
-2. ScalarDL traverses the hash chain, recomputes hashes, and returns the validation result.
-3. Tegata reports the result to the user.
+1. Call `collection.v1_0_0.Get` with the entity's collection ID to retrieve all event IDs.
+2. For each event ID, call `object.v1_0_0.Validate` to verify hash-chain integrity.
+3. Aggregate results: if any event fails validation, collect the fault details and report all failures to the user.
 
 ### 8.4 Offline queue
 
@@ -843,9 +847,9 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 ### 8.5 `tegata verify` and `tegata history`
 
-**`tegata verify`:** Calls `ExecuteContract` with the `object.Validate` contract on the ScalarDL Ledger instance. Reports the total number of events verified and whether the hash chain is intact. If tampering is detected, reports the range of affected events.
+**`tegata verify`:** Retrieves all event IDs from the entity's collection via `collection.v1_0_0.Get`, then validates each event individually via `object.v1_0_0.Validate`. Reports the total number of events verified, whether all are intact, and lists per-event faults if tampering is detected.
 
-**`tegata history`:** Calls `ExecuteContract` with the `object.Get` contract to retrieve event records. Supports filtering by date range (`--from`, `--to`), credential label (`--label`), and operation type (`--type`). Displays results in a human-readable table or JSON (`--json`).
+**`tegata history`:** Retrieves event IDs from the entity's collection, then fetches each event's metadata (operation type, label hash, timestamp) and hash value. Supports filtering by date range (`--from`, `--to`). Displays results in a four-column table (Operation, Label, Timestamp, Hash) or JSON (`--json`).
 
 **`tegata ledger setup`:** Calls `RegisterCert` on the `LedgerPrivileged` gRPC service to register the user's TLS certificate, then performs a test `ExecuteContract` call on the `Ledger` service using `object.Put` with a sentinel value to confirm connectivity. The `RegisterCertRequest` proto message uses `entity_id` and `key_version` fields (not `CertHolderId`/`CertVersion` as originally noted — corrected after verifying the ScalarDL 3.12 proto file). Note that `RegisterCert` and `ExecuteContract` use separate gRPC service clients: `rpc.NewLedgerPrivilegedClient` and `rpc.NewLedgerClient` respectively, both on the same connection.
 

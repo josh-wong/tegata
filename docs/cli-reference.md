@@ -40,7 +40,7 @@ Add a credential to the vault. Supports TOTP, HOTP, static password, and challen
 | `--issuer`    | string | (none)  | Credential issuer name                                         |
 | `--algorithm` | string | SHA1    | HMAC algorithm (SHA1, SHA256, SHA512)                          |
 | `--digits`    | int    | 6       | Number of digits in generated code (1-10)                      |
-| `--period`    | int    | 30      | TOTP period in seconds                                         |
+| `--period`    | int    | 30      | TOTP period in seconds (15-120)                                |
 | `--tag`       | string | (none)  | Tag to apply (repeatable, e.g. `--tag work --tag totp`)        |
 
 **Examples:**
@@ -167,7 +167,9 @@ tegata get backup-key --show
 
 ### tegata history
 
-View authentication event history from the ScalarDL Ledger. Requires audit to be enabled in `tegata.toml`.
+View authentication event history from the ScalarDL Ledger. Events are retrieved from the entity's audit collection and displayed with metadata columns. Requires audit to be enabled in `tegata.toml`.
+
+Tegata prompts for the vault passphrase to resolve label hashes to human-readable credential names. If a credential has been removed since the event was recorded, the label displays as `(deleted)`.
 
 **Usage:** `tegata history [flags]`
 
@@ -178,6 +180,8 @@ View authentication event history from the ScalarDL Ledger. Requires audit to be
 | `--from` | string | (none)  | Start date filter (YYYY-MM-DD)      |
 | `--to`   | string | (none)  | End date filter (YYYY-MM-DD)        |
 | `--json` | bool   | false   | Output as JSON array                |
+
+The default table output shows four columns: Operation (totp, hotp, challenge-response, static), Label (first 12 characters of the label hash), Timestamp (UTC), and Hash (truncated event hash). With `--json`, each record includes `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), and `hash_value`.
 
 **Examples:**
 
@@ -348,7 +352,7 @@ tegata ui
 
 ### tegata verify
 
-Verify the hash-chain integrity of the audit log stored in ScalarDL Ledger. Reports the number of events checked and whether the chain is intact.
+Verify the integrity of the audit log stored in ScalarDL Ledger. Retrieves all event IDs from the entity's collection and validates each event individually. Reports the total number of events checked and lists per-event faults if any are detected.
 
 **Usage:** `tegata verify`
 

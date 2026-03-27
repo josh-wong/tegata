@@ -1,8 +1,7 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:15-alpine
+    platform: linux/amd64
     environment:
       POSTGRES_DB: scalardl
       POSTGRES_USER: scalardl
@@ -17,6 +16,7 @@ services:
 
   scalardl-schema-loader:
     image: ghcr.io/scalar-labs/scalardl-schema-loader:3.12.0
+    platform: linux/amd64
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,20 +29,89 @@ services:
     command: ["--config=/tmp/database.properties"]
     restart: on-failure
 
+  # The ScalarDL schema loader does not create the coordinator schema needed
+  # by the transaction manager. This init container creates it via raw SQL
+  # and registers it in the ScalarDB metadata table.
+  scalardl-coordinator-schema:
+    image: postgres:15-alpine
+    platform: linux/amd64
+    depends_on:
+      scalardl-schema-loader:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGUSER: scalardl
+      PGPASSWORD: scalardl
+      PGDATABASE: scalardl
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        psql -c "CREATE SCHEMA IF NOT EXISTS coordinator;"
+        psql -c "CREATE TABLE IF NOT EXISTS coordinator.state (
+          tx_id TEXT NOT NULL,
+          tx_state INT NOT NULL,
+          tx_created_at BIGINT NOT NULL,
+          PRIMARY KEY (tx_id)
+        );"
+        psql -c "INSERT INTO scalardb.metadata (full_table_name, column_name, data_type, key_type, clustering_order, indexed, ordinal_position) VALUES
+          ('coordinator.state', 'tx_id', 'TEXT', 'PARTITION', NULL, false, 1),
+          ('coordinator.state', 'tx_state', 'INT', NULL, NULL, false, 2),
+          ('coordinator.state', 'tx_created_at', 'BIGINT', NULL, NULL, false, 3)
+        ON CONFLICT DO NOTHING;"
+    restart: "no"
+
   scalardl-ledger:
     image: ghcr.io/scalar-labs/scalardl-ledger:3.12.0
+    platform: linux/amd64
     depends_on:
       postgres:
         condition: service_healthy
       scalardl-schema-loader:
+        condition: service_completed_successfully
+      scalardl-coordinator-schema:
         condition: service_completed_successfully
     environment:
       SCALAR_DB_STORAGE: jdbc
       SCALAR_DB_CONTACT_POINTS: jdbc:postgresql://postgres:5432/scalardl
       SCALAR_DB_USERNAME: scalardl
       SCALAR_DB_PASSWORD: scalardl
-      SCALAR_DL_LEDGER_AUTHENTICATION_METHOD: digital-signature
+      SCALAR_DL_LEDGER_AUTHENTICATION_METHOD: hmac
+      SCALAR_DL_LEDGER_AUTHENTICATION_HMAC_CIPHER_KEY: tegata-dev-cipher-key-do-not-use-in-production
       SCALAR_DL_LEDGER_TX_STATE_MANAGEMENT_ENABLED: "false"
     ports:
       - "50051:50051"
       - "50052:50052"
+
+  # Register the generic contracts (object.Put, object.Get, object.Validate)
+  # on the ScalarDL Ledger. Must complete before any tegata audit commands.
+  # Uses the public HashStore SDK from GitHub releases. Idempotent — safe to
+  # run multiple times. The bootstrap command registers the HMAC secret and
+  # all generic contracts in one step.
+  scalardl-contract-registration:
+    image: eclipse-temurin:17-jre-alpine
+    platform: linux/amd64
+    depends_on:
+      scalardl-ledger:
+        condition: service_started
+    volumes:
+      - ./certs:/certs:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl unzip
+        echo "Downloading ScalarDL HashStore SDK..."
+        curl -sOL https://github.com/scalar-labs/scalardl/releases/download/v3.12.0/scalardl-hashstore-java-client-sdk-3.12.0.zip
+        unzip -qo scalardl-hashstore-java-client-sdk-3.12.0.zip
+        echo "Waiting for ledger to accept connections..."
+        for i in $(seq 1 30); do
+          if nc -z scalardl-ledger 50051 2>/dev/null; then
+            echo "Ledger is ready."
+            break
+          fi
+          echo "  attempt $$i/30 — ledger not ready, retrying in 2s..."
+          sleep 2
+        done
+        scalardl-hashstore-java-client-sdk-3.12.0/bin/scalardl-hashstore bootstrap \
+          --properties /certs/client.properties
+        echo "Generic contracts registered."
+    restart: on-failure:3

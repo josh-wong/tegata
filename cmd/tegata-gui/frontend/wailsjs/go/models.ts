@@ -69,6 +69,42 @@ export namespace config {
 
 export namespace main {
 	
+	export class AuditHistoryRecord {
+	    object_id: string;
+	    operation: string;
+	    label_hash: string;
+	    timestamp: number;
+	    hash_value: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AuditHistoryRecord(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.object_id = source["object_id"];
+	        this.operation = source["operation"];
+	        this.label_hash = source["label_hash"];
+	        this.timestamp = source["timestamp"];
+	        this.hash_value = source["hash_value"];
+	    }
+	}
+	export class AuditVerifyResult {
+	    valid: boolean;
+	    event_count: number;
+	    error_detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuditVerifyResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.valid = source["valid"];
+	        this.event_count = source["event_count"];
+	        this.error_detail = source["error_detail"];
+	    }
+	}
 	export class ImportResult {
 	    imported: number;
 	    skipped: number;
