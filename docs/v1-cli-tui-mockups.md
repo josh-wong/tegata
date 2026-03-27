@@ -677,7 +677,7 @@ $ tegata history --from 2026-03-14 --to 2026-03-14
 > Design notes:
 >
 > - Labels are stored as hashed values in the audit log—the full credential name never appears on the ScalarDL Ledger. This protects privacy even if the ledger is accessed by a third party; the hash identifies the credential for correlation without revealing the label text.
-> - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault), same as `tegata verify`.
+> - The `history` command requires the vault passphrase to resolve label hashes back to human-readable credential names. Without the vault, only hashed labels are available.
 > - The `history` command requires a reachable ScalarDL Ledger instance—it cannot operate from the offline queue.
 
 ### 3.6 `tegata verify`
@@ -708,7 +708,7 @@ Integrity violation detected in 1 of 5 events:
 > Design notes:
 >
 > - Verification validates every event in the collection individually—partial failures do not stop the check.
-> - The command does not require a passphrase because it reads only from the ScalarDL Ledger (not the vault).
+> - The `verify` command does not require a passphrase because it validates hash-chain integrity on the ledger without needing credential names.
 > - Exit code 9 indicates integrity violation, exit code 8 indicates network failure.
 
 ### 3.7 `tegata ledger setup`

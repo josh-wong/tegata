@@ -1,3 +1,6 @@
+# WARNING: The secret_key below is a development-only default. Do NOT use it
+# in production. Generate a strong random key (at least 32 hex characters)
+# for any non-local deployment.
 scalar.dl.client.server.host=scalardl-ledger
 scalar.dl.client.server.port=50051
 scalar.dl.client.server.privileged_port=50052
