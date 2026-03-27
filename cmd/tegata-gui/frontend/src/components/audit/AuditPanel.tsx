@@ -1,10 +1,39 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { AlertTriangle, CheckCircle, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
+
+async function hashString(s: string): Promise<string> {
+  const data = new TextEncoder().encode(s)
+  const digest = await crypto.subtle.digest("SHA-256", data)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+const operationLabels: Record<string, string> = {
+  totp: "TOTP",
+  hotp: "HOTP",
+  static: "Static password",
+  "challenge-response": "Challenge-response",
+}
+
+async function buildLabelMap(): Promise<Record<string, string>> {
+  try {
+    const creds = await App.ListCredentials()
+    const map: Record<string, string> = {}
+    for (const cred of creds || []) {
+      const hash = await hashString(cred.label)
+      map[hash] = cred.label
+    }
+    return map
+  } catch {
+    return {}
+  }
+}
 
 interface AuditPanelProps {
   open: boolean
@@ -16,13 +45,20 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [labelMap, setLabelMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (open) {
       setError("")
       setVerifyResult(null)
+      buildLabelMap().then(setLabelMap)
     }
   }, [open])
+
+  const resolveLabel = useCallback(
+    (hash: string) => labelMap[hash] ?? "(deleted)",
+    [labelMap],
+  )
 
   async function handleFetchHistory() {
     setLoading(true)
@@ -131,8 +167,8 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     <tbody>
                       {history.map((record, i) => (
                         <tr key={i} className="border-b last:border-0">
-                          <td className="p-2">{record.operation}</td>
-                          <td className="p-2 font-mono">{record.label_hash?.slice(0, 12)}</td>
+                          <td className="p-2">{operationLabels[record.operation] ?? record.operation}</td>
+                          <td className="p-2">{resolveLabel(record.label_hash)}</td>
                           <td className="p-2 text-muted-foreground">
                             {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
                           </td>

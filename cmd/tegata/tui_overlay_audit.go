@@ -82,6 +82,18 @@ func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 	}
 }
 
+// buildLabelMap constructs a hash→label lookup from the credential list.
+func (m model) buildLabelMap() map[string]string {
+	items := m.credList.Items()
+	labels := make([]string, 0, len(items))
+	for _, item := range items {
+		if ci, ok := item.(credItem); ok {
+			labels = append(labels, ci.cred.Label)
+		}
+	}
+	return audit.BuildLabelMap(labels)
+}
+
 // resetAuditOverlay clears all audit overlay state.
 func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
@@ -176,21 +188,25 @@ func (m model) viewAuditHistory() string {
 			helpBarStyle.Render("[Esc] Back")
 	}
 
+	// Build hash→label lookup from loaded credentials.
+	labelMap := m.buildLabelMap()
+
 	var body strings.Builder
 	if len(m.auditRecords) > 0 {
-		body.WriteString(fmt.Sprintf("%-12s %-12s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
-		body.WriteString(strings.Repeat("─", 65) + "\n")
+		body.WriteString(fmt.Sprintf("%-20s %-20s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
+		body.WriteString(strings.Repeat("─", 80) + "\n")
 		for _, r := range m.auditRecords {
-			label := r.LabelHash
-			if len(label) > 12 {
-				label = label[:12]
+			label := audit.ResolveLabel(r.LabelHash, labelMap)
+			if len(label) > 20 {
+				label = label[:19] + "…"
 			}
+			op := audit.FormatOperation(r.Operation)
 			ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
 			hash := r.HashValue
 			if len(hash) > 16 {
 				hash = hash[:16] + "…"
 			}
-			body.WriteString(fmt.Sprintf("%-12s %-12s %-20s %s\n", r.Operation, label, ts, hash))
+			body.WriteString(fmt.Sprintf("%-20s %-20s %-20s %s\n", op, label, ts, hash))
 		}
 	}
 

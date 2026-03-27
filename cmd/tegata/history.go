@@ -50,6 +50,26 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return nil
 			}
 
+			// Unlock vault to resolve label hashes to human-readable names.
+			passphrase, err := promptPassphrase("Passphrase: ")
+			if err != nil {
+				return err
+			}
+			mgr, err := openAndUnlock(vaultPath, passphrase)
+			zeroBytes(passphrase)
+			if err != nil {
+				return fmt.Errorf("unlocking vault: %w", err)
+			}
+			defer mgr.Close()
+
+			// Build hash→label lookup from vault credentials.
+			creds := mgr.ListCredentials()
+			labels := make([]string, len(creds))
+			for i, c := range creds {
+				labels[i] = c.Label
+			}
+			labelMap := audit.BuildLabelMap(labels)
+
 			client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
 			if err != nil {
 				return fmt.Errorf("%w: %s", tegerrors.ErrNetworkFailed, err)
@@ -107,7 +127,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return enc.Encode(filtered)
 			}
 
-			printRecordsTable(filtered)
+			printRecordsTable(filtered, labelMap)
 			return nil
 		},
 	}
@@ -149,8 +169,9 @@ func filterRecords(records []historyRecord, from, to time.Time) []historyRecord 
 }
 
 // printRecordsTable writes a human-readable tabular display of history records
-// with operation, label hash, timestamp, and hash columns.
-func printRecordsTable(records []historyRecord) {
+// with operation, label, timestamp, and hash columns. Labels are resolved from
+// hashes using labelMap; unresolved hashes are truncated to 12 characters.
+func printRecordsTable(records []historyRecord, labelMap map[string]string) {
 	if len(records) == 0 {
 		fmt.Println("No audit events found.")
 		return
@@ -160,16 +181,14 @@ func printRecordsTable(records []historyRecord) {
 	_, _ = fmt.Fprintln(w, "Operation\tLabel\tTimestamp\tHash")
 	_, _ = fmt.Fprintln(w, "---------\t-----\t---------\t----")
 	for _, r := range records {
-		label := r.LabelHash
-		if len(label) > 12 {
-			label = label[:12]
-		}
+		label := audit.ResolveLabel(r.LabelHash, labelMap)
+		op := audit.FormatOperation(r.Operation)
 		ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
 		hash := r.HashValue
 		if len(hash) > 16 {
 			hash = hash[:16] + "..."
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", r.Operation, label, ts, hash)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", op, label, ts, hash)
 	}
 	_ = w.Flush()
 }
