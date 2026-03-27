@@ -81,6 +81,8 @@ insecure          = true
 
 The `insecure = true` flag disables TLS, which is appropriate for local Docker testing. Do not use this in production.
 
+> **Known limitation:** TLS transport with HMAC authentication is not yet supported (tracked in issue #22). For production deployments, protect the connection at the network level using a VPN or SSH tunnel until TLS support is available.
+
 `entity_id` is a unique identifier for this vault instance. Use a descriptive name such as `tegata-vault-alice` or `tegata-usb-work`. `key_version` starts at `1` and is incremented if you rotate your secret key.
 
 For production deployments, use a strong random secret key (at least 32 characters of hex). The `secret_key` value in `tegata.toml` and `client.properties` must match exactly.
