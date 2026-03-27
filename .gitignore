@@ -44,6 +44,8 @@ vault.db
 *.pem
 *.crt
 certs/
+!cmd/tegata/docker-bundle/certs/
+!cmd/tegata-gui/docker-bundle/certs/
 *.p12
 *.jks
 
