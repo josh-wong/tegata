@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
+	"log/slog"
 	"time"
 )
 
@@ -133,13 +133,13 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 	select {
 	case res := <-resultCh:
 		if res.err != nil {
-			fmt.Fprintf(os.Stderr, "tegata: audit submit error: %v\n", res.err)
+			slog.Debug("audit submit error", "err", res.err)
 			_ = b.queue.Append(evt)
 			_ = b.queue.Save(b.queuePath)
 			return nil
 		}
 		if res.lastHash == "" {
-			fmt.Fprintf(os.Stderr, "tegata: audit submit returned empty hash\n")
+			slog.Debug("audit submit returned empty hash")
 			_ = b.queue.Append(evt)
 			_ = b.queue.Save(b.queuePath)
 			return nil
@@ -150,7 +150,7 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		_ = b.queue.Save(b.queuePath)
 		return nil
 	case <-ctx.Done():
-		fmt.Fprintf(os.Stderr, "tegata: audit submit timed out after %v\n", timeout)
+		slog.Debug("audit submit timed out", "timeout", timeout)
 		_ = b.queue.Append(evt)
 		_ = b.queue.Save(b.queuePath)
 		return nil
