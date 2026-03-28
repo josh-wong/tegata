@@ -1,3 +1,5 @@
+name: tegata-ledger
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -100,9 +102,10 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache curl unzip
+        set -e
+        apk add --no-cache curl unzip netcat-openbsd
         echo "Downloading ScalarDL HashStore SDK..."
-        curl -sOL https://github.com/scalar-labs/scalardl/releases/download/v3.12.0/scalardl-hashstore-java-client-sdk-3.12.0.zip
+        curl -fsSL -O https://github.com/scalar-labs/scalardl/releases/download/v3.12.0/scalardl-hashstore-java-client-sdk-3.12.0.zip
         unzip -qo scalardl-hashstore-java-client-sdk-3.12.0.zip
         echo "Waiting for ledger to accept connections..."
         for i in $(seq 1 30); do
@@ -114,7 +117,7 @@ services:
           sleep 2
         done
         scalardl-hashstore-java-client-sdk-3.12.0/bin/scalardl-hashstore bootstrap \
-          --properties /certs/client.properties
+          --properties /certs/bootstrap.properties
         echo "Generic contracts registered."
     restart: on-failure:3
 

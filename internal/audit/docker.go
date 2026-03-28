@@ -37,6 +37,17 @@ const (
 	daemonPollInterval = 2 * time.Second
 )
 
+// contractRetries and contractRetryInterval control how long waitForContracts
+// polls for the generic ScalarDL contracts to become reachable. The
+// scalardl-contract-registration container runs `apk add curl unzip`,
+// downloads the ~50 MB HashStore SDK from GitHub, starts the JVM, and calls
+// `scalardl-hashstore bootstrap` — which can exceed 2 minutes on first run.
+// 30 retries x 10s = 5 minutes total.
+const (
+	contractRetries       = 30
+	contractRetryInterval = 10 * time.Second
+)
+
 // detectDocker checks that Docker is installed, the daemon is running (starting
 // it automatically if needed), and Compose v2 is available.
 func detectDocker() error {
@@ -78,21 +89,39 @@ func ensureDockerDaemon() error {
 }
 
 // startDockerDaemon attempts to launch the Docker daemon using
-// platform-specific methods. Returns an error only if the launch command
-// itself fails to start; daemon readiness is polled separately by the caller.
+// platform-specific methods. Returns an error only if no launch path
+// succeeded; daemon readiness is polled separately by the caller.
 func startDockerDaemon() error {
 	switch runtime.GOOS {
 	case "windows":
-		progFiles := os.Getenv("ProgramFiles")
-		if progFiles == "" {
-			progFiles = `C:\Program Files`
+		// Docker Desktop can be installed system-wide (%ProgramFiles%) or
+		// per-user (%LocalAppData%\Programs) on machines without admin rights.
+		// Try each known location in order and launch the first one found.
+		type candidate struct{ env, rel string }
+		for _, c := range []candidate{
+			{"ProgramFiles", `Docker\Docker\Docker Desktop.exe`},
+			{"LocalAppData", `Programs\Docker\Docker\Docker Desktop.exe`},
+			{"ProgramFiles(x86)", `Docker\Docker\Docker Desktop.exe`},
+		} {
+			dir := os.Getenv(c.env)
+			if dir == "" {
+				continue
+			}
+			exe := filepath.Join(dir, c.rel)
+			if _, err := os.Stat(exe); err == nil {
+				return exec.Command(exe).Start()
+			}
 		}
-		desktopExe := filepath.Join(progFiles, "Docker", "Docker", "Docker Desktop.exe")
-		return exec.Command("cmd", "/c", "start", "", desktopExe).Start()
+		return fmt.Errorf("Docker Desktop not found in any known location; please start it manually")
 	case "darwin":
 		return exec.Command("open", "-a", "Docker").Start()
 	default: // linux
-		return exec.Command("systemctl", "start", "docker").Start()
+		// Try systemd first, then sysvinit/OpenRC for distros or WSL2
+		// configurations that do not use systemd.
+		if exec.Command("systemctl", "start", "docker").Run() == nil {
+			return nil
+		}
+		return exec.Command("service", "docker", "start").Start()
 	}
 }
 
@@ -155,26 +184,35 @@ func extractComposeFiles(fsys fs.FS, targetDir string) error {
 	})
 }
 
-// writeClientProperties writes the client.properties file used by the
-// ScalarDL HashStore SDK for HMAC authentication. Uses 127.0.0.1 (not
-// localhost) to avoid IPv6 resolution issues on WSL.
+// writeClientProperties writes two properties files to composeDir/certs/:
+//
+//   - client.properties: used by the Go client running on the host. Uses
+//     127.0.0.1 (not localhost) to avoid IPv6 resolution issues on WSL.
+//
+//   - bootstrap.properties: used by scalardl-hashstore bootstrap running
+//     inside the Docker Compose network, where services reach each other by
+//     container hostname, not by the host-mapped 127.0.0.1 address.
 func writeClientProperties(composeDir, entityID, secretKey string) error {
 	certsDir := filepath.Join(composeDir, "certs")
 	if err := os.MkdirAll(certsDir, 0700); err != nil {
 		return fmt.Errorf("creating certs directory: %w", err)
 	}
 
-	content := fmt.Sprintf(`scalar.dl.client.server.host=127.0.0.1
+	props := func(host string) string {
+		return fmt.Sprintf(`scalar.dl.client.server.host=%s
 scalar.dl.client.server.port=50051
 scalar.dl.client.server.privileged_port=50052
 scalar.dl.client.authentication.method=hmac
 scalar.dl.client.entity.id=%s
 scalar.dl.client.entity.identity.hmac.secret_key=%s
 scalar.dl.client.entity.identity.hmac.secret_key_version=1
-`, entityID, secretKey)
+`, host, entityID, secretKey)
+	}
 
-	path := filepath.Join(certsDir, "client.properties")
-	return os.WriteFile(path, []byte(content), 0600)
+	if err := os.WriteFile(filepath.Join(certsDir, "client.properties"), []byte(props("127.0.0.1")), 0600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(certsDir, "bootstrap.properties"), []byte(props("scalardl-ledger")), 0600)
 }
 
 // runDockerCompose executes a docker compose command with the given compose
@@ -266,7 +304,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string))
 		return config.AuditConfig{}, fmt.Errorf("waiting for ledger: %w", err)
 	}
 
-	// Step 7: Register secret and verify contracts.
+	// Step 7: Register entity secret and verify the ledger is reachable.
 	progress(progressFn, "Registering audit credentials...")
 	client, err := NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
 	if err != nil {
@@ -285,12 +323,40 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string))
 		return config.AuditConfig{}, fmt.Errorf("ping after registration: %w", err)
 	}
 
-	if err := client.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000"); err != nil {
+	// Step 7b: Poll until the generic contracts are reachable. The
+	// scalardl-contract-registration container downloads and registers
+	// contracts asynchronously; this may take several minutes on first run.
+	progress(progressFn, "Waiting for contracts to be registered (up to 5 min)...")
+	if err := waitForContracts(client, progressFn); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("contract verification: %w", err)
 	}
 
 	// Step 8: Return populated config.
 	return cfg, nil
+}
+
+// waitForContracts polls client.Put until the generic ScalarDL contracts are
+// reachable, reporting elapsed time via progressFn on each failed attempt.
+// Must be called after RegisterSecret so the entity is authenticated.
+// Each attempt uses a fresh 5-second context; total wait is up to 5 minutes.
+func waitForContracts(c *LedgerClient, progressFn func(string)) error {
+	var lastErr error
+	for i := 0; i < contractRetries; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := c.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if i < contractRetries-1 {
+			elapsed := time.Duration(i+1) * contractRetryInterval
+			progress(progressFn, fmt.Sprintf("  still waiting... (%ds elapsed)", int(elapsed.Seconds())))
+			time.Sleep(contractRetryInterval)
+		}
+	}
+	total := time.Duration(contractRetries) * contractRetryInterval
+	return fmt.Errorf("contracts not ready after %v: %w", total, lastErr)
 }
 
 // waitForLedger retries connecting to the ledger up to autoStartRetries times
