@@ -90,7 +90,9 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.vaultMgr = msg.mgr
-	m.vaultID = msg.mgr.VaultID()
+	if msg.mgr != nil {
+		m.vaultID = msg.mgr.VaultID()
+	}
 	m.builder = msg.builder
 	m.passphraseInput.Blur()
 	m = loadCredentials(m)
