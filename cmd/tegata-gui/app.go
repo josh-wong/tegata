@@ -805,6 +805,13 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	}, nil
 }
 
+// GetAuditDockerPath returns the docker_compose_path from the audit config.
+// Returns empty string when Docker audit setup has not been run.
+// Called by AuditPanel on open to determine whether to show Start or Stop button.
+func (a *App) GetAuditDockerPath() string {
+	return a.config.Audit.DockerComposePath
+}
+
 // StartAuditServer runs the full Docker audit setup sequence. It calls
 // audit.SetupStack using the embedded docker bundle and writes the result
 // to tegata.toml. Returns a map with "steps" ([]string of status lines)

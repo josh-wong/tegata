@@ -57,6 +57,9 @@ interface WailsAppBindings {
   IsAuditEnabled(): Promise<boolean>
   GetAuditHistory(): Promise<AuditHistoryRecord[]>
   VerifyAuditLog(): Promise<AuditVerifyResult>
+  GetAuditDockerPath(): Promise<string>
+  StartAuditServer(): Promise<{ steps: string[] }>
+  StopAuditServer(wipe: boolean): Promise<void>
 }
 
 function getApp(): WailsAppBindings {
@@ -94,6 +97,9 @@ export const App = {
   IsAuditEnabled: () => getApp().IsAuditEnabled(),
   GetAuditHistory: () => getApp().GetAuditHistory(),
   VerifyAuditLog: () => getApp().VerifyAuditLog(),
+  GetAuditDockerPath: () => getApp().GetAuditDockerPath(),
+  StartAuditServer: () => getApp().StartAuditServer(),
+  StopAuditServer: (wipe: boolean) => getApp().StopAuditServer(wipe),
 }
 
 export function EventsOn(event: string, callback: (...data: unknown[]) => void) {
