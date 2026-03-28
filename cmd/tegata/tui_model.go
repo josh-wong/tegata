@@ -49,6 +49,7 @@ type model struct {
 
 	// Vault lifecycle
 	vaultPath string
+	vaultID   string         // stable vault UUID, captured from Manager.VaultID() at unlock time (D-04)
 	vaultMgr  *vault.Manager // nil until unlocked
 
 	// Configuration (loaded at startup)
@@ -101,8 +102,8 @@ type model struct {
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
 
 	// Audit overlay state
-	auditMenuIdx int            // 0=History, 1=Verify
-	auditSubFlow string         // ""|"history"|"verify"
+	auditMenuIdx int            // 0=History, 1=Verify, 2=Start
+	auditSubFlow string         // ""|"history"|"verify"|"start"
 	auditMsg     string         // result/status message
 	auditRecords []historyRecord // fetched records
 	auditLoading bool           // true while async gRPC call is in progress
@@ -322,6 +323,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.auditMsg = fmt.Sprintf("Audit log integrity verified. %d events checked.", msg.eventCount)
 		} else {
 			m.auditMsg = fmt.Sprintf("TAMPER DETECTED: %s", msg.detail)
+		}
+		return m, nil
+
+	case auditStartMsg:
+		m.auditLoading = false
+		if msg.err != nil {
+			m.auditMsg = "Setup failed: " + msg.err.Error()
+		} else {
+			m.auditMsg = "Audit server started. Audit logging is now active."
+			// Update in-memory config so the rest of the session sees audit enabled.
+			m.cfg.Audit = msg.newCfg
 		}
 		return m, nil
 	}

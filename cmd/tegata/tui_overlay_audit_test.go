@@ -11,7 +11,7 @@ func TestAuditOverlay_StartOption(t *testing.T) {
 	m := model{}
 	view := m.viewAuditMenu()
 	if !strings.Contains(view, "Start audit server") {
-		t.Skip("'Start audit server' not yet in viewAuditMenu — expected after Plan 04")
+		t.Error("viewAuditMenu should contain 'Start audit server'")
 	}
 }
 
@@ -27,7 +27,7 @@ func TestAuditOverlay_ThreeItems(t *testing.T) {
 		}
 	}
 	if count != 3 {
-		t.Skipf("viewAuditMenu contains %d of 3 expected items — expected after Plan 04", count)
+		t.Errorf("viewAuditMenu should contain 3 items, found %d", count)
 	}
 }
 
