@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -29,20 +30,70 @@ const (
 // unique orphan objects on every run.
 const setupTestObjectID = "tegata-setup-probe"
 
-// detectDocker checks that Docker and Docker Compose v2 are installed and
-// accessible in the system PATH. Returns nil if both are found.
+// daemonPollRetries and daemonPollInterval control how long detectDocker
+// waits for the Docker daemon to become ready after attempting an auto-start.
+const (
+	daemonPollRetries  = 30
+	daemonPollInterval = 2 * time.Second
+)
+
+// detectDocker checks that Docker is installed, the daemon is running (starting
+// it automatically if needed), and Compose v2 is available.
 func detectDocker() error {
-	_, err := exec.LookPath("docker")
-	if err != nil {
-		return fmt.Errorf("Docker is not installed or not in PATH. Install Docker from https://docs.docker.com/get-docker/")
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("Docker is not installed or not in PATH. Install Docker Desktop from https://docs.docker.com/get-docker/")
 	}
 
-	cmd := exec.Command("docker", "compose", "version")
-	if err := cmd.Run(); err != nil {
+	if err := ensureDockerDaemon(); err != nil {
+		return err
+	}
+
+	if err := exec.Command("docker", "compose", "version").Run(); err != nil {
 		return fmt.Errorf("Docker Compose v2 plugin is not available. Upgrade Docker to a version that includes Compose v2 (Docker Desktop 3.4+ or Docker Engine 20.10+ with compose plugin)")
 	}
 
 	return nil
+}
+
+// ensureDockerDaemon verifies the Docker daemon is reachable. If not, it
+// attempts a platform-specific auto-start and polls until ready or timeout.
+func ensureDockerDaemon() error {
+	if exec.Command("docker", "info").Run() == nil {
+		return nil
+	}
+
+	// Daemon not running — attempt auto-start.
+	_, _ = fmt.Fprintln(os.Stderr, "tegata: Docker daemon is not running; attempting to start it...")
+	_ = startDockerDaemon() // best-effort; ignore launch error and poll instead
+
+	for i := 0; i < daemonPollRetries; i++ {
+		time.Sleep(daemonPollInterval)
+		if exec.Command("docker", "info").Run() == nil {
+			return nil
+		}
+	}
+
+	waitSecs := daemonPollRetries * int(daemonPollInterval/time.Second)
+	return fmt.Errorf("Docker daemon did not start within %d seconds. Please start Docker Desktop and retry", waitSecs)
+}
+
+// startDockerDaemon attempts to launch the Docker daemon using
+// platform-specific methods. Returns an error only if the launch command
+// itself fails to start; daemon readiness is polled separately by the caller.
+func startDockerDaemon() error {
+	switch runtime.GOOS {
+	case "windows":
+		progFiles := os.Getenv("ProgramFiles")
+		if progFiles == "" {
+			progFiles = `C:\Program Files`
+		}
+		desktopExe := filepath.Join(progFiles, "Docker", "Docker", "Docker Desktop.exe")
+		return exec.Command("cmd", "/c", "start", "", desktopExe).Start()
+	case "darwin":
+		return exec.Command("open", "-a", "Docker").Start()
+	default: // linux
+		return exec.Command("systemctl", "start", "docker").Start()
+	}
 }
 
 // entityIDFromVaultID derives a ScalarDL entity ID from a vault UUID. The
