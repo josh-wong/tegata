@@ -45,6 +45,13 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 
 		// Build EventBuilder while passphrase is available (AUDT-02).
 		cfg, _ := config.Load(filepath.Dir(path))
+
+		// Auto-start Docker audit stack if configured (D-09, D-10).
+		// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
+		// Runs asynchronously — vault unlock is never blocked (D-10).
+		// On failure, MaybeAutoStart logs to stderr and queues events (D-13).
+		audit.MaybeAutoStart(cfg.Audit)
+
 		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
 		if builderErr != nil {
 			// Non-fatal: TUI works without audit.

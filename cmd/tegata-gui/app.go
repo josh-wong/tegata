@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -184,6 +186,12 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		cfg = config.DefaultConfig()
 	}
 	a.config = cfg
+
+	// Auto-start Docker audit stack if configured (D-09, D-10).
+	// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
+	// Runs asynchronously — vault unlock is never blocked (D-10).
+	// On failure, MaybeAutoStart logs to stderr and queues events (D-13).
+	audit.MaybeAutoStart(a.config.Audit)
 
 	// Build EventBuilder while passphrase is available (AUDT-02).
 	builder, builderErr := a.buildEventBuilder(cfg, path, passBytes)
@@ -795,6 +803,66 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		EventCount:  result.EventCount,
 		ErrorDetail: result.ErrorDetail,
 	}, nil
+}
+
+// StartAuditServer runs the full Docker audit setup sequence. It calls
+// audit.SetupStack using the embedded docker bundle and writes the result
+// to tegata.toml. Returns a map with "steps" ([]string of status lines)
+// on success.
+//
+// Called from the GUI "Start audit server" button in AuditPanel.
+func (a *App) StartAuditServer() (map[string]interface{}, error) {
+	if a.vault == nil {
+		return nil, fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+
+	vaultID := a.vault.VaultID()
+	dir := filepath.Dir(a.vaultPath)
+
+	u, err := user.Current()
+	if err != nil {
+		return nil, fmt.Errorf("resolving home directory: %w", err)
+	}
+	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+
+	// Strip the docker-bundle/ prefix from the embed.FS.
+	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
+	if err != nil {
+		return nil, fmt.Errorf("accessing embedded docker bundle: %w", err)
+	}
+
+	var steps []string
+	progress := func(msg string) {
+		steps = append(steps, msg)
+	}
+
+	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress)
+	if err != nil {
+		return map[string]interface{}{"steps": steps}, err
+	}
+
+	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+		return map[string]interface{}{"steps": steps}, fmt.Errorf("writing audit config: %w", writeErr)
+	}
+
+	// Update in-memory config so auto-start fires on next unlock.
+	a.config.Audit = auditCfg
+
+	return map[string]interface{}{"steps": steps}, nil
+}
+
+// StopAuditServer stops the audit Docker containers.
+// When wipe is true, runs docker compose down -v (permanently deletes audit history).
+// When wipe is false, runs docker compose stop (preserves named volume).
+func (a *App) StopAuditServer(wipe bool) error {
+	a.resetIdle()
+
+	if a.config.Audit.DockerComposePath == "" {
+		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
+	}
+
+	return audit.StopStack(a.config.Audit.DockerComposePath, wipe)
 }
 
 // vaultDir returns the directory containing the vault file.
