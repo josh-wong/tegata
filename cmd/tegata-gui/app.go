@@ -817,7 +817,7 @@ func (a *App) GetAuditDockerPath() string {
 // to tegata.toml. Returns a map with "steps" ([]string of status lines)
 // on success.
 //
-// Called from the GUI "Start audit server" button in AuditPanel.
+// Called from the GUI "Start ledger server" button in AuditPanel.
 func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	if a.vault == nil {
 		return nil, fmt.Errorf("vault is locked")

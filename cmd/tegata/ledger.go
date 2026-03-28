@@ -219,7 +219,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("writing audit config: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "Audit server started. Audit logging is now active.")
+	fmt.Fprintln(os.Stderr, "Ledger server started. Audit logging is now active.")
 	return nil
 }
 
@@ -227,7 +227,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 func newLedgerStopCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the audit server Docker containers",
+		Short: "Stop the ledger server Docker containers",
 		Long: `Stop the ScalarDL Ledger Docker containers.
 
 By default, containers are stopped but your audit history is preserved
@@ -281,7 +281,7 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	if wipe {
 		fmt.Fprintln(os.Stderr, "Audit history deleted and containers removed.")
 	} else {
-		fmt.Fprintln(os.Stderr, "Audit server stopped. Your audit history is preserved.")
+		fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
 	}
 	return nil
 }

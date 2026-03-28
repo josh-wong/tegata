@@ -331,7 +331,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.auditMsg = "Setup failed: " + msg.err.Error()
 		} else {
-			m.auditMsg = "Audit server started. Audit logging is now active."
+			m.auditMsg = "Ledger server started. Audit logging is now active."
 			// Update in-memory config so the rest of the session sees audit enabled.
 			m.cfg.Audit = msg.newCfg
 			// Rebuild EventBuilder so auth events are logged in this session.

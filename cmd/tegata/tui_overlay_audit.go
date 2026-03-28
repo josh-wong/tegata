@@ -186,7 +186,7 @@ func (m model) viewOverlayAudit() string {
 func (m model) viewAuditMenu() string {
 	title := titleStyle.Render("Audit")
 
-	items := []string{"View history", "Verify integrity", "Start audit server"}
+	items := []string{"View history", "Verify integrity", "Start ledger server"}
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
@@ -297,13 +297,13 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 	}
 }
 
-// viewAuditStart renders the audit server setup sub-flow. Shows a spinner
+// viewAuditStart renders the ledger server setup sub-flow. Shows a spinner
 // while running, then a success or error message.
 func (m model) viewAuditStart() string {
-	title := titleStyle.Render("Start audit server")
+	title := titleStyle.Render("Start ledger server")
 
 	if m.auditLoading {
-		return title + "\n\n" + m.spinner.View() + " Starting audit server...\n\n" +
+		return title + "\n\n" + m.spinner.View() + " Starting ledger server...\n\n" +
 			helpBarStyle.Render("[Esc] Back")
 	}
 

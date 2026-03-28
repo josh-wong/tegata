@@ -6,12 +6,12 @@ import (
 )
 
 // TestAuditOverlay_StartOption verifies that viewAuditMenu renders
-// "Start audit server" as the third item (index 2).
+// "Start ledger server" as the third item (index 2).
 func TestAuditOverlay_StartOption(t *testing.T) {
 	m := model{}
 	view := m.viewAuditMenu()
-	if !strings.Contains(view, "Start audit server") {
-		t.Error("viewAuditMenu should contain 'Start audit server'")
+	if !strings.Contains(view, "Start ledger server") {
+		t.Error("viewAuditMenu should contain 'Start ledger server'")
 	}
 }
 
@@ -21,7 +21,7 @@ func TestAuditOverlay_ThreeItems(t *testing.T) {
 	view := m.viewAuditMenu()
 
 	count := 0
-	for _, item := range []string{"View history", "Verify integrity", "Start audit server"} {
+	for _, item := range []string{"View history", "Verify integrity", "Start ledger server"} {
 		if strings.Contains(view, item) {
 			count++
 		}

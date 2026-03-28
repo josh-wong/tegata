@@ -81,7 +81,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       setDockerComposePath(path ?? "")
     } catch (err) {
       setSetupStatus("error")
-      setError(formatError(err, "Failed to start audit server"))
+      setError(formatError(err, "Failed to start ledger server"))
     }
   }
 
@@ -93,7 +93,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       setDockerComposePath("")
       setSetupStatus("idle")
     } catch (err) {
-      setError(formatError(err, "Failed to stop audit server"))
+      setError(formatError(err, "Failed to stop ledger server"))
     } finally {
       setLoading(false)
     }
@@ -144,7 +144,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
           {!dockerComposePath && setupStatus === "idle" && history.length === 0 && !verifyResult && (
             <p className="text-sm text-muted-foreground">
-              Audit logging is not configured. Start the audit server to enable tamper-evident logging.
+              Audit logging is not configured. Start the ledger server to enable tamper-evident logging.
             </p>
           )}
 
@@ -157,7 +157,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                   onClick={handleStopAuditServer}
                   disabled={loading || setupStatus === "in-progress"}
                 >
-                  Stop audit server
+                  Stop ledger server
                 </Button>
                 <Button
                   variant="outline"
@@ -175,7 +175,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 onClick={handleStartAuditServer}
                 disabled={loading || setupStatus === "in-progress"}
               >
-                Start audit server
+                Start ledger server
               </Button>
             )}
             <Button
@@ -203,14 +203,14 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               ))}
               {setupStatus === "complete" && (
                 <div className="text-green-600 dark:text-green-400">
-                  Audit server started. Audit logging is now active.
+                  Ledger server started. Audit logging is now active.
                 </div>
               )}
               {setupStatus === "error" && error && (
                 <div className="text-destructive">{error}</div>
               )}
               {setupStatus === "in-progress" && (
-                <div>Starting audit server...</div>
+                <div>Starting ledger server...</div>
               )}
             </div>
           )}
