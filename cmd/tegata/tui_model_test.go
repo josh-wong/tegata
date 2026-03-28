@@ -210,7 +210,7 @@ func TestIdleAutoLock(t *testing.T) {
 	}
 }
 
-// TestMainViewNavigation asserts that j/k move the credential list selection
+// TestMainViewNavigation asserts that ↑/↓ move the credential list selection
 // and that the cursor stays within bounds.
 func TestMainViewNavigation(t *testing.T) {
 	m := initialModel("")

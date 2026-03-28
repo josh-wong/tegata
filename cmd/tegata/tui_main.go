@@ -334,7 +334,7 @@ func (m model) viewMainView() string {
 func (m model) renderDetailPanel(width int) string {
 	selected := m.credList.SelectedItem()
 	if selected == nil {
-		content := "No credential selected.\n\nUse j/k to navigate."
+		content := "No credential selected.\n\nUse ↑↓ to navigate."
 		return panelStyle.Width(width - 2).Render(content)
 	}
 	item, ok := selected.(credItem)

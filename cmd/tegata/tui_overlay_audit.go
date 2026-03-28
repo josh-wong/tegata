@@ -197,7 +197,7 @@ func (m model) viewAuditMenu() string {
 		menu.WriteString("\n")
 	}
 
-	help := helpBarStyle.Render("[j/k] Navigate  [Enter] Select  [Esc] Close")
+	help := helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close")
 	return title + "\n\n" + menu.String() + "\n" + help
 }
 

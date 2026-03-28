@@ -644,7 +644,7 @@ func (m model) viewSettingsMenu() string {
 		lines = append(lines, successStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[j/k] Navigate  [Enter] Select  [Esc] Close"))
+	lines = append(lines, helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close"))
 	return strings.Join(lines, "\n")
 }
 
