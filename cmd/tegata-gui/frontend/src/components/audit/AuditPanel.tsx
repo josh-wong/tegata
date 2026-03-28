@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
+import { StopWipeConfirmDialog } from "./StopWipeConfirmDialog"
 
 async function hashString(s: string): Promise<string> {
   const data = new TextEncoder().encode(s)
@@ -46,12 +47,19 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [labelMap, setLabelMap] = useState<Record<string, string>>({})
+  const [setupSteps, setSetupSteps] = useState<string[]>([])
+  const [setupStatus, setSetupStatus] = useState<"idle" | "in-progress" | "complete" | "error">("idle")
+  const [dockerComposePath, setDockerComposePath] = useState("")
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
       setError("")
       setVerifyResult(null)
       buildLabelMap().then(setLabelMap)
+      // Check if Docker audit setup has been run by calling GetAuditDockerPath.
+      // Returns empty string when setup has not been run.
+      App.GetAuditDockerPath().then((path) => setDockerComposePath(path ?? "")).catch(() => setDockerComposePath(""))
     }
   }, [open])
 
@@ -59,6 +67,37 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     (hash: string) => labelMap[hash] ?? "(deleted)",
     [labelMap],
   )
+
+  async function handleStartAuditServer() {
+    setSetupStatus("in-progress")
+    setSetupSteps([])
+    setError("")
+    try {
+      const result = await App.StartAuditServer()
+      setSetupSteps(result?.steps ?? [])
+      setSetupStatus("complete")
+      // Re-check docker path so Stop button appears.
+      const path = await App.GetAuditDockerPath()
+      setDockerComposePath(path ?? "")
+    } catch (err) {
+      setSetupStatus("error")
+      setError(formatError(err, "Failed to start audit server"))
+    }
+  }
+
+  async function handleStopAuditServer() {
+    setLoading(true)
+    setError("")
+    try {
+      await App.StopAuditServer(false)
+      setDockerComposePath("")
+      setSetupStatus("idle")
+    } catch (err) {
+      setError(formatError(err, "Failed to stop audit server"))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function handleFetchHistory() {
     setLoading(true)
@@ -103,16 +142,80 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
-          <div className="flex gap-2">
-            <Button onClick={handleFetchHistory} disabled={loading} variant="outline" size="sm">
+          {!dockerComposePath && setupStatus === "idle" && history.length === 0 && !verifyResult && (
+            <p className="text-sm text-muted-foreground">
+              Audit logging is not configured. Start the audit server to enable tamper-evident logging.
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {dockerComposePath ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStopAuditServer}
+                  disabled={loading || setupStatus === "in-progress"}
+                >
+                  Stop audit server
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWipeDialogOpen(true)}
+                  disabled={loading || setupStatus === "in-progress"}
+                >
+                  Delete history...
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleStartAuditServer}
+                disabled={loading || setupStatus === "in-progress"}
+              >
+                Start audit server
+              </Button>
+            )}
+            <Button
+              onClick={handleFetchHistory}
+              disabled={loading || setupStatus === "in-progress"}
+              variant="outline"
+              size="sm"
+            >
               View history
             </Button>
-            <Button onClick={handleVerify} disabled={loading} variant="outline" size="sm">
+            <Button
+              onClick={handleVerify}
+              disabled={loading || setupStatus === "in-progress"}
+              variant="outline"
+              size="sm"
+            >
               Verify integrity
             </Button>
           </div>
 
-          {error && (
+          {(setupSteps.length > 0 || setupStatus === "in-progress") && (
+            <div className="space-y-1 text-sm text-muted-foreground mt-4">
+              {setupSteps.map((step, i) => (
+                <div key={i}>{step}</div>
+              ))}
+              {setupStatus === "complete" && (
+                <div className="text-green-600 dark:text-green-400">
+                  Audit server started. Audit logging is now active.
+                </div>
+              )}
+              {setupStatus === "error" && error && (
+                <div className="text-destructive">{error}</div>
+              )}
+              {setupStatus === "in-progress" && (
+                <div>Starting audit server...</div>
+              )}
+            </div>
+          )}
+
+          {error && setupStatus !== "error" && (
             <p className="text-sm text-destructive">{error}</p>
           )}
 
@@ -184,5 +287,14 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         </div>
       </div>
     </div>
+
+    <StopWipeConfirmDialog
+      open={wipeDialogOpen}
+      onClose={() => setWipeDialogOpen(false)}
+      onWipeComplete={() => {
+        setDockerComposePath("")
+        setSetupStatus("idle")
+      }}
+    />
   )
 }
