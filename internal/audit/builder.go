@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -51,6 +52,34 @@ func NewEventBuilder(client Submitter, queuePath string, queueKey []byte, maxLen
 		queue:     q,
 		queuePath: queuePath,
 		queueKey:  queueKey,
+	}, nil
+}
+
+// NewEventBuilderMemQueue creates an EventBuilder backed by an in-memory
+// queue (no disk persistence). Use when the vault passphrase is not available
+// to derive the persistent queue key — for example, after audit server setup
+// within the same session. Events that fail to submit are held in memory only
+// and are lost if the builder is closed or the process exits.
+func NewEventBuilderMemQueue(client Submitter) (*EventBuilder, error) {
+	if client == nil {
+		return &EventBuilder{disabled: true}, nil
+	}
+	var key [32]byte
+	if _, err := rand.Read(key[:]); err != nil {
+		return nil, fmt.Errorf("generating in-memory queue key: %w", err)
+	}
+	q, err := NewQueue(key[:], 1000)
+	for i := range key {
+		key[i] = 0
+	}
+	if err != nil {
+		return nil, fmt.Errorf("creating in-memory queue: %w", err)
+	}
+	return &EventBuilder{
+		client:        client,
+		submitTimeout: 3 * time.Second,
+		queue:         q,
+		// queuePath intentionally empty — Save calls fail silently.
 	}, nil
 }
 
