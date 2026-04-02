@@ -404,7 +404,7 @@ func StopStack(composePath string, wipe bool) error {
 // autoStartRetries times. Non-blocking -- never panics, logs to stderr on
 // failure. Per D-10 and D-13.
 func MaybeAutoStart(cfg config.AuditConfig) {
-	if cfg.DockerComposePath == "" {
+	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return
 	}
 	go func() {
