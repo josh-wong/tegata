@@ -45,6 +45,7 @@ export function SetupWizard({
   const [validationError, setValidationError] = useState("")
 
   const [existingVaults, setExistingVaults] = useState<VaultLocation[]>(vaultLocations ?? [])
+  const [auditOptIn, setAuditOptIn] = useState(false)
 
   // Fetch removable drives when entering step 2 (vault creation).
   useEffect(() => {
@@ -351,15 +352,38 @@ export function SetupWizard({
 
         {/* Step 5: Vault created */}
         {step === 5 && (
-          <div className="space-y-6 text-center">
-            <div>
-              <h2 className="text-lg font-semibold">Vault created</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your encrypted vault is ready.
+          <div className="space-y-4 text-center">
+            <h2 className="text-xl font-medium">Vault created</h2>
+            <p className="text-sm text-muted-foreground">
+              Your vault has been created and encrypted. Save your recovery key somewhere safe.
+            </p>
+            <label className="flex items-center justify-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={auditOptIn}
+                onChange={(e) => setAuditOptIn(e.target.checked)}
+                className="rounded border-input"
+              />
+              Enable audit logging
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Log every authentication event to a tamper-evident ledger. Requires Docker.
+            </p>
+            {auditOptIn && (
+              <p className="text-sm text-muted-foreground">
+                Go to Settings &gt; Audit to finish setup.
               </p>
-            </div>
-
-            <Button className="w-full" onClick={onComplete}>
+            )}
+            <Button className="w-full" onClick={async () => {
+              if (auditOptIn) {
+                try {
+                  await App.SetAuditAutoStart(true)
+                } catch (err) {
+                  console.error("Failed to save audit setting:", err)
+                }
+              }
+              onComplete()
+            }}>
               Open vault
             </Button>
           </div>
