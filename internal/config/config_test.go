@@ -195,3 +195,65 @@ func TestFormatEffectiveFromFile(t *testing.T) {
 		t.Errorf("FormatEffective missing clipboard.timeout = 30, got: %s", out)
 	}
 }
+
+func TestAutoStart_ExplicitTrue(t *testing.T) {
+	dir := t.TempDir()
+	content := "[audit]\nauto_start = true\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Audit.AutoStart {
+		t.Error("AutoStart should be true when auto_start = true in TOML")
+	}
+}
+
+func TestAutoStart_ExplicitFalse(t *testing.T) {
+	dir := t.TempDir()
+	content := "[audit]\nauto_start = false\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Audit.AutoStart {
+		t.Error("AutoStart should be false when auto_start = false in TOML")
+	}
+}
+
+func TestAutoStart_DefaultWithDockerComposePath(t *testing.T) {
+	dir := t.TempDir()
+	content := "[audit]\ndocker_compose_path = \"/some/path/docker-compose.yml\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	// D-06: when docker_compose_path is set but auto_start is absent, default to true
+	if !cfg.Audit.AutoStart {
+		t.Error("AutoStart should default to true when docker_compose_path is set and auto_start is absent")
+	}
+}
+
+func TestAutoStart_DefaultWithoutDockerComposePath(t *testing.T) {
+	dir := t.TempDir()
+	content := "[audit]\nenabled = false\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	// D-06: when neither docker_compose_path nor auto_start is set, default to false
+	if cfg.Audit.AutoStart {
+		t.Error("AutoStart should default to false when docker_compose_path is not set")
+	}
+}
