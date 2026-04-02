@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -125,5 +126,43 @@ func TestDockerComposePath_RoundTrip(t *testing.T) {
 	if loaded.Audit.DockerComposePath != cfg.DockerComposePath {
 		t.Errorf("DockerComposePath round-trip: got %q, want %q",
 			loaded.Audit.DockerComposePath, cfg.DockerComposePath)
+	}
+}
+
+func TestWriteAuditSection_AutoStartTrue(t *testing.T) {
+	cfg := AuditConfig{AutoStart: true}
+	out := formatAuditSection(cfg)
+	if !strings.Contains(out, "auto_start = true") {
+		t.Errorf("formatAuditSection with AutoStart=true should contain 'auto_start = true', got:\n%s", out)
+	}
+}
+
+func TestWriteAuditSection_AutoStartFalse(t *testing.T) {
+	cfg := AuditConfig{AutoStart: false}
+	out := formatAuditSection(cfg)
+	if !strings.Contains(out, "auto_start = false") {
+		t.Errorf("formatAuditSection with AutoStart=false should contain 'auto_start = false', got:\n%s", out)
+	}
+}
+
+func TestAutoStart_RoundTrip(t *testing.T) {
+	for _, want := range []bool{true, false} {
+		t.Run(fmt.Sprintf("AutoStart=%v", want), func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := AuditConfig{
+				Enabled:   true,
+				AutoStart: want,
+			}
+			if err := WriteAuditSection(dir, cfg); err != nil {
+				t.Fatalf("WriteAuditSection: %v", err)
+			}
+			loaded, err := Load(dir)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if loaded.Audit.AutoStart != want {
+				t.Errorf("AutoStart round-trip: got %v, want %v", loaded.Audit.AutoStart, want)
+			}
+		})
 	}
 }
