@@ -23,6 +23,7 @@ const (
 	stateWizardPassphrase                    // First-time setup: passphrase entry
 	stateWizardRecoveryKey                   // First-time setup: recovery key display
 	stateWizardAddCredential                 // First-time setup: optional first credential
+	stateWizardAuditOptIn                    // First-time setup: optional audit logging
 	stateUnlock                              // Vault found at launch; enter passphrase to unlock
 	stateLockedIdle                          // Vault was unlocked but idle timeout expired
 	stateMainView                            // Normal authenticated view
@@ -359,7 +360,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stateWizardWelcome,
 		stateWizardPassphrase,
 		stateWizardRecoveryKey,
-		stateWizardAddCredential:
+		stateWizardAddCredential,
+		stateWizardAuditOptIn:
 		return m.updateWizard(msg)
 
 	case stateUnlock, stateLockedIdle:
@@ -385,7 +387,8 @@ func (m model) View() string {
 	case stateWizardWelcome,
 		stateWizardPassphrase,
 		stateWizardRecoveryKey,
-		stateWizardAddCredential:
+		stateWizardAddCredential,
+		stateWizardAuditOptIn:
 		return m.viewWizard()
 
 	case stateUnlock, stateLockedIdle:
