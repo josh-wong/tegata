@@ -872,6 +872,23 @@ func (a *App) StopAuditServer(wipe bool) error {
 	return audit.StopStack(a.config.Audit.DockerComposePath, wipe)
 }
 
+// IsAuditConfigured returns whether Docker audit setup has been run (docker_compose_path is set).
+func (a *App) IsAuditConfigured() bool {
+	return a.config.Audit.DockerComposePath != ""
+}
+
+// GetAuditAutoStart returns whether audit auto-start is enabled.
+func (a *App) GetAuditAutoStart() bool {
+	return a.config.Audit.AutoStart
+}
+
+// SetAuditAutoStart persists the audit auto-start setting without wiping other audit fields.
+func (a *App) SetAuditAutoStart(enabled bool) error {
+	a.config.Audit.AutoStart = enabled
+	dir := vaultDir(a.vaultPath)
+	return config.WriteAuditSection(dir, a.config.Audit)
+}
+
 // vaultDir returns the directory containing the vault file.
 func vaultDir(vaultPath string) string {
 	return filepath.Dir(vaultPath)
