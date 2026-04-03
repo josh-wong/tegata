@@ -29,6 +29,14 @@ On macOS and Linux, mark the binary as executable after downloading:
 chmod +x tegata-darwin-arm64
 ```
 
+On Windows, PowerShell does not search the current directory for executables. If you are running Tegata from the same directory as the binary, prefix the command with `.\`:
+
+```powershell
+.\tegata.exe ui
+```
+
+Alternatively, add the directory containing the binary to your `PATH` so you can run `tegata` from anywhere.
+
 Copy the binary to your USB drive so it travels with your vault.
 
 ### Desktop GUI

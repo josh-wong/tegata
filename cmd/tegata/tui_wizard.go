@@ -357,8 +357,8 @@ func (m model) viewWizardAddCredential() string {
 }
 
 // updateWizardAuditOptIn handles input on the audit opt-in screen (step 5/5).
-// Pressing y enables audit logging by writing AutoStart=true to config.
-// Pressing n or Esc skips and advances to the main view.
+// Pressing y enables audit logging by writing Enabled=true and AutoStart=true
+// to config and updating m.cfg in memory. Pressing n or Esc skips.
 func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -373,6 +373,8 @@ func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := config.WriteAuditSection(dir, auditCfg); err != nil {
 				fmt.Fprintf(os.Stderr, "tegata: could not save audit setting: %v\n", err)
 			} else {
+				// Reload config from disk so in-memory state reflects the write.
+				m = loadCredentials(m)
 				// D-02: display follow-up guidance in TUI after opt-in.
 				m.statusMsg = "Audit enabled. Run tegata ledger start to finish setup."
 			}
