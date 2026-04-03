@@ -860,7 +860,9 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 }
 
 // StopAuditServer stops the audit Docker containers.
-// When wipe is true, runs docker compose down -v (permanently deletes audit history).
+// When wipe is true, runs docker compose down -v (permanently deletes audit history)
+// and clears DockerComposePath from both the in-memory config and tegata.toml so that
+// MaybeAutoStart does not fire on the next vault unlock.
 // When wipe is false, runs docker compose stop (preserves named volume).
 func (a *App) StopAuditServer(wipe bool) error {
 	a.resetIdle()
@@ -869,7 +871,17 @@ func (a *App) StopAuditServer(wipe bool) error {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
 
-	return audit.StopStack(a.config.Audit.DockerComposePath, wipe)
+	if err := audit.StopStack(a.config.Audit.DockerComposePath, wipe); err != nil {
+		return err
+	}
+
+	if wipe {
+		a.config.Audit.DockerComposePath = ""
+		a.config.Audit.AutoStart = false
+		return config.WriteAuditSection(vaultDir(a.vaultPath), a.config.Audit)
+	}
+
+	return nil
 }
 
 // IsAuditConfigured returns whether audit logging has been enabled by the user.

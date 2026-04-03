@@ -27,7 +27,7 @@ func WriteAuditSection(dir string, cfg AuditConfig) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.WriteString(block)
 	return err
 }

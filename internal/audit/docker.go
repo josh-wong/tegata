@@ -52,7 +52,7 @@ const (
 // it automatically if needed), and Compose v2 is available.
 func detectDocker() error {
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("Docker is not installed or not in PATH. Install Docker Desktop from https://docs.docker.com/get-docker/")
+		return fmt.Errorf("docker binary not found in PATH. Install Docker Desktop from https://docs.docker.com/get-docker/")
 	}
 
 	if err := ensureDockerDaemon(); err != nil {
@@ -60,7 +60,7 @@ func detectDocker() error {
 	}
 
 	if err := exec.Command("docker", "compose", "version").Run(); err != nil {
-		return fmt.Errorf("Docker Compose v2 plugin is not available. Upgrade Docker to a version that includes Compose v2 (Docker Desktop 3.4+ or Docker Engine 20.10+ with compose plugin)")
+		return fmt.Errorf("docker compose v2 plugin not available. Upgrade to Docker Desktop 3.4+ or Docker Engine 20.10+ with the compose plugin")
 	}
 
 	return nil
@@ -85,7 +85,7 @@ func ensureDockerDaemon() error {
 	}
 
 	waitSecs := daemonPollRetries * int(daemonPollInterval/time.Second)
-	return fmt.Errorf("Docker daemon did not start within %d seconds. Please start Docker Desktop and retry", waitSecs)
+	return fmt.Errorf("docker daemon did not start within %d seconds. Please start Docker Desktop and retry", waitSecs)
 }
 
 // startDockerDaemon attempts to launch the Docker daemon using

@@ -75,15 +75,15 @@ func TestExtractComposeFiles(t *testing.T) {
 // This test temporarily modifies PATH to simulate Docker being absent.
 func TestDetectDocker_NotFound(t *testing.T) {
 	orig := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", orig) })
-	os.Setenv("PATH", "")
+	t.Cleanup(func() { _ = os.Setenv("PATH", orig) })
+	_ = os.Setenv("PATH", "")
 
 	err := detectDocker()
 	if err == nil {
 		t.Fatal("detectDocker: expected error when docker not in PATH")
 	}
-	if !strings.Contains(err.Error(), "Docker is not installed") {
-		t.Errorf("detectDocker error = %q, want to contain 'Docker is not installed'", err.Error())
+	if !strings.Contains(err.Error(), "docker binary not found") {
+		t.Errorf("detectDocker error = %q, want to contain 'docker binary not found'", err.Error())
 	}
 }
 

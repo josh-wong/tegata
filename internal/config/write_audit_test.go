@@ -38,7 +38,9 @@ func TestWriteAuditSection_NewFile(t *testing.T) {
 func TestWriteAuditSection_Append(t *testing.T) {
 	dir := t.TempDir()
 	existing := "[clipboard]\ntimeout = 45\n"
-	os.WriteFile(dir+"/tegata.toml", []byte(existing), 0600)
+	if err := os.WriteFile(dir+"/tegata.toml", []byte(existing), 0600); err != nil {
+		t.Fatalf("writing existing config: %v", err)
+	}
 
 	cfg := AuditConfig{Enabled: true, Server: "127.0.0.1:50051", EntityID: "tegata-test"}
 	if err := WriteAuditSection(dir, cfg); err != nil {
@@ -60,7 +62,9 @@ func TestWriteAuditSection_Append(t *testing.T) {
 func TestWriteAuditSection_Replace(t *testing.T) {
 	dir := t.TempDir()
 	existing := "[clipboard]\ntimeout = 45\n\n[audit]\nenabled = false\nserver = \"old:50051\"\n"
-	os.WriteFile(dir+"/tegata.toml", []byte(existing), 0600)
+	if err := os.WriteFile(dir+"/tegata.toml", []byte(existing), 0600); err != nil {
+		t.Fatalf("writing existing config: %v", err)
+	}
 
 	cfg := AuditConfig{Enabled: true, Server: "127.0.0.1:50051", EntityID: "tegata-new"}
 	if err := WriteAuditSection(dir, cfg); err != nil {
