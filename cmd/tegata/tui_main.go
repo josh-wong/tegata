@@ -325,7 +325,11 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit")
+	helpText := "↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit"
+	if m.cfg.Audit.Enabled {
+		helpText = "↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit"
+	}
+	help := helpBarStyle.Render(helpText)
 
 	return columns + "\n" + help
 }

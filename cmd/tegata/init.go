@@ -71,7 +71,7 @@ vault directory; otherwise the current directory is used.`,
 			if scanner.Scan() {
 				answer := strings.TrimSpace(scanner.Text())
 				if strings.EqualFold(answer, "y") {
-					auditCfg := config.AuditConfig{AutoStart: true}
+					auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
 					if err := config.WriteAuditSection(dir, auditCfg); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: could not save audit setting: %v\n", err)
 					} else {

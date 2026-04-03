@@ -872,14 +872,24 @@ func (a *App) StopAuditServer(wipe bool) error {
 	return audit.StopStack(a.config.Audit.DockerComposePath, wipe)
 }
 
-// IsAuditConfigured returns whether Docker audit setup has been run (docker_compose_path is set).
+// IsAuditConfigured returns whether audit logging has been enabled by the user.
 func (a *App) IsAuditConfigured() bool {
-	return a.config.Audit.DockerComposePath != ""
+	return a.config.Audit.Enabled
 }
 
 // GetAuditAutoStart returns whether audit auto-start is enabled.
 func (a *App) GetAuditAutoStart() bool {
 	return a.config.Audit.AutoStart
+}
+
+// EnableAudit opts in to audit logging during vault creation.
+// Sets both Enabled and AutoStart to true, unlike SetAuditAutoStart which
+// only toggles AutoStart for the settings panel.
+func (a *App) EnableAudit() error {
+	a.config.Audit.Enabled = true
+	a.config.Audit.AutoStart = true
+	dir := vaultDir(a.vaultPath)
+	return config.WriteAuditSection(dir, a.config.Audit)
 }
 
 // SetAuditAutoStart persists the audit auto-start setting without wiping other audit fields.

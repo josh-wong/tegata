@@ -11,6 +11,8 @@ export namespace config {
 	    KeyVersion: number;
 	    QueueMaxEvents: number;
 	    Insecure: boolean;
+	    DockerComposePath: string;
+	    AutoStart: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuditConfig(source);
@@ -28,6 +30,8 @@ export namespace config {
 	        this.KeyVersion = source["KeyVersion"];
 	        this.QueueMaxEvents = source["QueueMaxEvents"];
 	        this.Insecure = source["Insecure"];
+	        this.DockerComposePath = source["DockerComposePath"];
+	        this.AutoStart = source["AutoStart"];
 	    }
 	}
 	export class Config {
@@ -75,11 +79,11 @@ export namespace main {
 	    label_hash: string;
 	    timestamp: number;
 	    hash_value: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AuditHistoryRecord(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.object_id = source["object_id"];

@@ -599,7 +599,7 @@ func (m model) updateSettingsConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'a':
-			if m.cfg.Audit.DockerComposePath == "" {
+			if !m.cfg.Audit.Enabled {
 				return m, nil // no-op when audit not configured
 			}
 			m.cfg.Audit.AutoStart = !m.cfg.Audit.AutoStart
@@ -850,7 +850,7 @@ func (m model) viewSettingsConfig() string {
 	idleSec := int(m.cfg.IdleTimeout.Seconds())
 	lines = append(lines, fmt.Sprintf("Clipboard timeout: %ds  [c to edit]", clipSec))
 	lines = append(lines, fmt.Sprintf("Idle timeout:      %ds  [i to edit]", idleSec))
-	if m.cfg.Audit.DockerComposePath != "" {
+	if m.cfg.Audit.Enabled {
 		autoStartLabel := "off"
 		if m.cfg.Audit.AutoStart {
 			autoStartLabel = "on"
@@ -867,7 +867,7 @@ func (m model) viewSettingsConfig() string {
 	}
 	lines = append(lines, "")
 	helpText := "[c] Edit clipboard  [i] Edit idle  [Esc] Back"
-	if m.cfg.Audit.DockerComposePath != "" {
+	if m.cfg.Audit.Enabled {
 		helpText = "[c] Edit clipboard  [i] Edit idle  [a] Toggle auto-start  [Esc] Back"
 	}
 	lines = append(lines, helpBarStyle.Render(helpText))

@@ -368,7 +368,7 @@ func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = stateMainView
 			return m, tickCmd()
 		case len(msg.Runes) == 1 && (msg.Runes[0] == 'y' || msg.Runes[0] == 'Y'):
-			auditCfg := config.AuditConfig{AutoStart: true}
+			auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
 			dir := filepath.Dir(m.vaultPath)
 			if err := config.WriteAuditSection(dir, auditCfg); err != nil {
 				fmt.Fprintf(os.Stderr, "tegata: could not save audit setting: %v\n", err)

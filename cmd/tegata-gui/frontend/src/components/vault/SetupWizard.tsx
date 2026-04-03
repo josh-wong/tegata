@@ -377,7 +377,7 @@ export function SetupWizard({
             <Button className="w-full" onClick={async () => {
               if (auditOptIn) {
                 try {
-                  await App.SetAuditAutoStart(true)
+                  await App.EnableAudit()
                 } catch (err) {
                   console.error("Failed to save audit setting:", err)
                 }

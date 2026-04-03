@@ -63,6 +63,7 @@ interface WailsAppBindings {
   IsAuditConfigured(): Promise<boolean>
   GetAuditAutoStart(): Promise<boolean>
   SetAuditAutoStart(enabled: boolean): Promise<void>
+  EnableAudit(): Promise<void>
 }
 
 function getApp(): WailsAppBindings {
@@ -106,6 +107,7 @@ export const App = {
   IsAuditConfigured: () => getApp().IsAuditConfigured(),
   GetAuditAutoStart: () => getApp().GetAuditAutoStart(),
   SetAuditAutoStart: (enabled: boolean) => getApp().SetAuditAutoStart(enabled),
+  EnableAudit: () => getApp().EnableAudit(),
 }
 
 export function EventsOn(event: string, callback: (...data: unknown[]) => void) {

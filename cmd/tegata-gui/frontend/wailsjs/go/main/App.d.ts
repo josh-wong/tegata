@@ -22,6 +22,10 @@ export function GenerateHOTP(arg1:string):Promise<string>;
 
 export function GenerateTOTP(arg1:string):Promise<main.TOTPResult>;
 
+export function GetAuditAutoStart():Promise<boolean>;
+
+export function GetAuditDockerPath():Promise<string>;
+
 export function GetAuditHistory():Promise<Array<main.AuditHistoryRecord>>;
 
 export function GetConfig():Promise<config.Config>;
@@ -38,6 +42,8 @@ export function ImportVault(arg1:Array<number>,arg2:string):Promise<number>;
 
 export function ImportVaultFromFile(arg1:string,arg2:string):Promise<main.ImportResult>;
 
+export function IsAuditConfigured():Promise<boolean>;
+
 export function IsAuditEnabled():Promise<boolean>;
 
 export function ListCredentials():Promise<Array<model.Credential>>;
@@ -52,9 +58,15 @@ export function ScanForVaults():Promise<Array<main.VaultLocation>>;
 
 export function ScanRemovableDrives():Promise<Array<main.VaultLocation>>;
 
+export function SetAuditAutoStart(arg1:boolean):Promise<void>;
+
 export function SetIdleTimeoutSeconds(arg1:number):Promise<void>;
 
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
+
+export function StartAuditServer():Promise<Record<string, any>>;
+
+export function StopAuditServer(arg1:boolean):Promise<void>;
 
 export function UnlockVault(arg1:string,arg2:string):Promise<void>;
 
