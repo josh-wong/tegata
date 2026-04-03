@@ -112,7 +112,7 @@ func startDockerDaemon() error {
 				return exec.Command(exe).Start()
 			}
 		}
-		return fmt.Errorf("Docker Desktop not found in any known location; please start it manually")
+		return fmt.Errorf("no Docker Desktop installation found in any known location; please start it manually")
 	case "darwin":
 		return exec.Command("open", "-a", "Docker").Start()
 	default: // linux

@@ -9,6 +9,9 @@ vi.mock("@/lib/wails")
 describe("AuditPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // GetAuditDockerPath is called automatically in useEffect when open=true.
+    // Without this, auto-mock returns undefined and .then() throws.
+    vi.mocked(App.GetAuditDockerPath).mockResolvedValue("")
   })
 
   it("renders nothing when closed", () => {
