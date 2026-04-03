@@ -14,6 +14,8 @@ export function CheckForUpdate():Promise<main.UpdateInfo>;
 
 export function CreateVault(arg1:string,arg2:string):Promise<string>;
 
+export function EnableAudit():Promise<void>;
+
 export function ExportVault(arg1:string):Promise<Array<number>>;
 
 export function ExportVaultToFile(arg1:string):Promise<string>;

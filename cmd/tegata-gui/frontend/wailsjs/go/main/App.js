@@ -22,6 +22,10 @@ export function CreateVault(arg1, arg2) {
   return window['go']['main']['App']['CreateVault'](arg1, arg2);
 }
 
+export function EnableAudit() {
+  return window['go']['main']['App']['EnableAudit']();
+}
+
 export function ExportVault(arg1) {
   return window['go']['main']['App']['ExportVault'](arg1);
 }
