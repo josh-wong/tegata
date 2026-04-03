@@ -25,10 +25,10 @@ const (
 	autoStartInterval = 2 * time.Second
 )
 
-// setupTestObjectID is a fixed well-known key used during setup to verify that
-// the generic contracts are registered. Using a constant avoids accumulating
-// unique orphan objects on every run.
-const setupTestObjectID = "tegata-setup-probe"
+// SetupTestObjectID is a fixed well-known key used during setup and by
+// `tegata ledger setup` to verify that the generic contracts are registered.
+// Using a constant avoids accumulating unique orphan objects on every run.
+const SetupTestObjectID = "tegata-setup-probe"
 
 // daemonPollRetries and daemonPollInterval control how long detectDocker
 // waits for the Docker daemon to become ready after attempting an auto-start.
@@ -343,7 +343,7 @@ func waitForContracts(c *LedgerClient, progressFn func(string)) error {
 	var lastErr error
 	for i := 0; i < contractRetries; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.Put(ctx, setupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
+		err := c.Put(ctx, SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
 		cancel()
 		if err == nil {
 			return nil

@@ -85,13 +85,25 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     }
   }
 
+  async function handleRestartAuditServer() {
+    setLoading(true)
+    setError("")
+    try {
+      await App.RestartAuditServer()
+    } catch (err) {
+      setError(formatError(err, "Failed to start ledger server"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleStopAuditServer() {
     setLoading(true)
     setError("")
     try {
       await App.StopAuditServer(false)
-      setDockerComposePath("")
-      setSetupStatus("idle")
+      // Do not clear dockerComposePath — the stack can be restarted from the
+      // Start button. Path is only cleared on wipe (handled by onWipeComplete).
     } catch (err) {
       setError(formatError(err, "Failed to stop ledger server"))
     } finally {
@@ -152,6 +164,14 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             <div className="flex flex-wrap gap-2">
               {dockerComposePath ? (
                 <>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleRestartAuditServer}
+                    disabled={loading || setupStatus === "in-progress"}
+                  >
+                    Start ledger server
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

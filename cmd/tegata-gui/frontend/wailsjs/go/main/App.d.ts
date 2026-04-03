@@ -66,6 +66,8 @@ export function SetIdleTimeoutSeconds(arg1:number):Promise<void>;
 
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
 
+export function RestartAuditServer():Promise<void>;
+
 export function StartAuditServer():Promise<Record<string, any>>;
 
 export function StopAuditServer(arg1:boolean):Promise<void>;

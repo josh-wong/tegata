@@ -126,6 +126,10 @@ export function SignChallenge(arg1, arg2) {
   return window['go']['main']['App']['SignChallenge'](arg1, arg2);
 }
 
+export function RestartAuditServer() {
+  return window['go']['main']['App']['RestartAuditServer']();
+}
+
 export function StartAuditServer() {
   return window['go']['main']['App']['StartAuditServer']();
 }

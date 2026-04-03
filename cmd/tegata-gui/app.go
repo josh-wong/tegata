@@ -807,9 +807,21 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 
 // GetAuditDockerPath returns the docker_compose_path from the audit config.
 // Returns empty string when Docker audit setup has not been run.
-// Called by AuditPanel on open to determine whether to show Start or Stop button.
+// Called by AuditPanel on open to determine whether to show the full setup
+// flow (empty) or the restart/stop/delete buttons (non-empty).
 func (a *App) GetAuditDockerPath() string {
 	return a.config.Audit.DockerComposePath
+}
+
+// RestartAuditServer starts the Docker containers without re-running the full
+// setup sequence. Use this when the stack was previously stopped with
+// StopAuditServer(false) and existing credentials should be reused.
+func (a *App) RestartAuditServer() error {
+	a.resetIdle()
+	if a.config.Audit.DockerComposePath == "" {
+		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
+	}
+	return audit.StartStack(a.config.Audit.DockerComposePath)
 }
 
 // StartAuditServer runs the full Docker audit setup sequence. It calls

@@ -1,3 +1,6 @@
+# Embedded Docker bundle for `tegata ledger start`. Keep in sync with
+# cmd/tegata-gui/docker-bundle/docker-compose.yml and
+# deployments/docker-compose/docker-compose.yml.
 name: tegata-ledger
 
 services:

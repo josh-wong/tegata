@@ -32,6 +32,7 @@ export const App = {
   VerifyAuditLog: vi.fn().mockResolvedValue({ valid: true, event_count: 0 }),
   GetAuditDockerPath: vi.fn().mockResolvedValue(""),
   StartAuditServer: vi.fn().mockResolvedValue({ steps: [] }),
+  RestartAuditServer: vi.fn().mockResolvedValue(undefined),
   StopAuditServer: vi.fn().mockResolvedValue(undefined),
   IsAuditConfigured: vi.fn().mockResolvedValue(false),
   GetAuditAutoStart: vi.fn().mockResolvedValue(false),

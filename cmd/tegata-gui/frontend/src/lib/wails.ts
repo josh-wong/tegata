@@ -59,6 +59,7 @@ interface WailsAppBindings {
   VerifyAuditLog(): Promise<AuditVerifyResult>
   GetAuditDockerPath(): Promise<string>
   StartAuditServer(): Promise<{ steps: string[] }>
+  RestartAuditServer(): Promise<void>
   StopAuditServer(wipe: boolean): Promise<void>
   IsAuditConfigured(): Promise<boolean>
   GetAuditAutoStart(): Promise<boolean>
@@ -103,6 +104,7 @@ export const App = {
   VerifyAuditLog: () => getApp().VerifyAuditLog(),
   GetAuditDockerPath: () => getApp().GetAuditDockerPath(),
   StartAuditServer: () => getApp().StartAuditServer(),
+  RestartAuditServer: () => getApp().RestartAuditServer(),
   StopAuditServer: (wipe: boolean) => getApp().StopAuditServer(wipe),
   IsAuditConfigured: () => getApp().IsAuditConfigured(),
   GetAuditAutoStart: () => getApp().GetAuditAutoStart(),
