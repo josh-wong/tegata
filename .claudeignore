@@ -1,0 +1,50 @@
+# Build artifacts
+bin/
+dist/
+build/
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+
+# Generated code
+*.pb.go
+*.pb.gw.go
+
+# Dependencies
+vendor/
+go.sum
+
+# Test data and secrets
+*.vault
+*.queue
+.env
+.env.local
+.env.*.local
+
+# IDE and editor config
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker and build artifacts
+docker-compose.override.yml
+Dockerfile.dev
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Large binaries and executables
+/tegata
+/tegata.exe
+/tegata-darwin
+
+# CI/CD artifacts
+.actrc
