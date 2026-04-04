@@ -88,7 +88,7 @@ func TestWizardStateMachine(t *testing.T) {
 }
 
 // TestWizardSkipCredential asserts that pressing Esc on stateWizardAddCredential
-// transitions directly to stateMainView without adding a credential.
+// advances to the audit opt-in step (step 5/5) rather than going directly to main view.
 func TestWizardSkipCredential(t *testing.T) {
 	m := initialModel("")
 	// Navigate to stateWizardAddCredential via the full passphrase confirm flow.
@@ -105,8 +105,8 @@ func TestWizardSkipCredential(t *testing.T) {
 		t.Fatalf("expected stateWizardAddCredential, got %v", m.state)
 	}
 	m = sendKey(m, "esc")
-	if m.state != stateMainView {
-		t.Errorf("expected stateMainView after Esc, got %v", m.state)
+	if m.state != stateWizardAuditOptIn {
+		t.Errorf("expected stateWizardAuditOptIn after Esc, got %v", m.state)
 	}
 }
 
@@ -210,7 +210,7 @@ func TestIdleAutoLock(t *testing.T) {
 	}
 }
 
-// TestMainViewNavigation asserts that j/k move the credential list selection
+// TestMainViewNavigation asserts that ↑/↓ move the credential list selection
 // and that the cursor stays within bounds.
 func TestMainViewNavigation(t *testing.T) {
 	m := initialModel("")

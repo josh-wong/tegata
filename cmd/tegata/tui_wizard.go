@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -70,6 +72,8 @@ func (m model) updateWizard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateWizardRecoveryKey(msg)
 	case stateWizardAddCredential:
 		return m.updateWizardAddCredential(msg)
+	case stateWizardAuditOptIn:
+		return m.updateWizardAuditOptIn(msg)
 	}
 	return m, nil
 }
@@ -258,16 +262,15 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // updateWizardAddCredential handles input on the optional first-credential
-// screen (step 4/4). Esc skips directly to the main view.
+// screen (step 4/5). Esc advances to the audit opt-in step.
 func (m model) updateWizardAddCredential(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc:
 			m = loadCredentials(m)
-			m.state = stateMainView
-			m.lastActivity = time.Now()
-			return m, tickCmd()
+			m.state = stateWizardAuditOptIn
+			return m, nil
 		case tea.KeyEnter:
 			m = loadCredentials(m)
 			m.lastActivity = time.Now()
@@ -290,6 +293,8 @@ func (m model) viewWizard() string {
 		return m.viewWizardRecoveryKey()
 	case stateWizardAddCredential:
 		return m.viewWizardAddCredential()
+	case stateWizardAuditOptIn:
+		return m.viewWizardAuditOptIn()
 	}
 	return ""
 }
@@ -309,7 +314,7 @@ func (m model) viewWizardPassphrase() string {
 	ppBytes := []byte(m.passphraseInput.Value())
 	strength := strengthLabel(ppBytes)
 	zeroBytes(ppBytes)
-	content := titleStyle.Render("Step 2/4: Set passphrase") + "\n\n" +
+	content := titleStyle.Render("Step 2/5: Set passphrase") + "\n\n" +
 		m.passphraseInput.View() + "\n" +
 		m.confirmInput.View() + "\n\n" +
 		"Strength: " + strength + "\n"
@@ -330,11 +335,11 @@ func (m model) viewWizardRecoveryKey() string {
 	var content string
 	if m.creating || m.recoveryKey == "" {
 		// Vault is still being created in the background; show a spinner.
-		content = titleStyle.Render("Step 3/4: Recovery key") + "\n\n" +
+		content = titleStyle.Render("Step 3/5: Recovery key") + "\n\n" +
 			m.spinner.View() + " Creating vault… please wait.\n"
 	} else {
 		keyBox := overlayBoxStyle.Render(m.recoveryKey)
-		content = titleStyle.Render("Step 3/4: Recovery key") + "\n\n" +
+		content = titleStyle.Render("Step 3/5: Recovery key") + "\n\n" +
 			keyBox + "\n\n" +
 			errorStyle.Render("Write this down. You cannot recover your vault without it.") + "\n\n" +
 			helpBarStyle.Render("[Enter] I have stored my recovery key")
@@ -344,10 +349,50 @@ func (m model) viewWizardRecoveryKey() string {
 
 // viewWizardAddCredential renders step 4/4.
 func (m model) viewWizardAddCredential() string {
-	content := titleStyle.Render("Step 4/4: Add your first credential") + "\n\n" +
+	content := titleStyle.Render("Step 4/5: Add your first credential") + "\n\n" +
 		"Add a TOTP, HOTP, challenge-response, or static password credential\n" +
 		"to get started. You can add more credentials later from the main view.\n\n" +
 		helpBarStyle.Render("[Enter] Add credential  [Esc] Skip")
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+// updateWizardAuditOptIn handles input on the audit opt-in screen (step 5/5).
+// Pressing y enables audit logging by writing Enabled=true and AutoStart=true
+// to config and updating m.cfg in memory. Pressing n or Esc skips.
+func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case msg.Type == tea.KeyEsc || (len(msg.Runes) == 1 && (msg.Runes[0] == 'n' || msg.Runes[0] == 'N')):
+			m.lastActivity = time.Now()
+			m.state = stateMainView
+			return m, tickCmd()
+		case len(msg.Runes) == 1 && (msg.Runes[0] == 'y' || msg.Runes[0] == 'Y'):
+			auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
+			dir := filepath.Dir(m.vaultPath)
+			if err := config.WriteAuditSection(dir, auditCfg); err != nil {
+				fmt.Fprintf(os.Stderr, "tegata: could not save audit setting: %v\n", err)
+			} else {
+				// Reload config from disk so in-memory state reflects the write.
+				m = loadCredentials(m)
+				// D-02: display follow-up guidance in TUI after opt-in.
+				m.statusMsg = "Audit enabled. Run tegata ledger start to finish setup."
+			}
+			m.lastActivity = time.Now()
+			m.state = stateMainView
+			return m, tickCmd()
+		}
+	}
+	return m, nil
+}
+
+// viewWizardAuditOptIn renders step 5/5.
+func (m model) viewWizardAuditOptIn() string {
+	content := titleStyle.Render("Step 5/5: Audit logging") + "\n\n" +
+		"Tegata can log every authentication event to a\n" +
+		"tamper-evident ledger. This requires Docker to be\n" +
+		"installed on the host machine.\n\n" +
+		helpBarStyle.Render("[y] Enable audit logging  [n] Skip for now")
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 

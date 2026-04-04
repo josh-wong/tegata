@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os/user"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,6 +28,15 @@ type auditVerifyMsg struct {
 	eventCount int
 	detail     string
 	err        error
+}
+
+// auditStartMsg carries the result of an async Docker audit setup run.
+// steps contains the sequential status lines emitted during setup.
+// On success, newCfg is the written AuditConfig. On failure, err is set.
+type auditStartMsg struct {
+	steps  []string
+	newCfg config.AuditConfig
+	err    error
 }
 
 // auditHistoryCmd creates a tea.Cmd that fetches audit history asynchronously.
@@ -120,7 +132,7 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case m.auditSubFlow == "" && (msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j')):
-			if m.auditMenuIdx < 1 {
+			if m.auditMenuIdx < 2 {
 				m.auditMenuIdx++
 			}
 			return m, nil
@@ -132,14 +144,21 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case m.auditSubFlow == "" && msg.Type == tea.KeyEnter:
-			if m.auditMenuIdx == 0 {
+			switch m.auditMenuIdx {
+			case 0:
 				m.auditSubFlow = "history"
 				m.auditLoading = true
 				return m, auditHistoryCmd(m.cfg.Audit)
+			case 1:
+				m.auditSubFlow = "verify"
+				m.auditLoading = true
+				return m, auditVerifyCmd(m.cfg.Audit)
+			case 2:
+				m.auditSubFlow = "start"
+				m.auditLoading = true
+				m.auditMsg = ""
+				return m, auditStartCmd(m.cfg, m.vaultPath, m.vaultID)
 			}
-			m.auditSubFlow = "verify"
-			m.auditLoading = true
-			return m, auditVerifyCmd(m.cfg.Audit)
 		}
 	}
 	return m, nil
@@ -156,6 +175,8 @@ func (m model) viewOverlayAudit() string {
 		content = m.viewAuditHistory()
 	case "verify":
 		content = m.viewAuditVerify()
+	case "start":
+		content = m.viewAuditStart()
 	}
 
 	box := overlayBoxStyle.Render(content)
@@ -165,7 +186,7 @@ func (m model) viewOverlayAudit() string {
 func (m model) viewAuditMenu() string {
 	title := titleStyle.Render("Audit")
 
-	items := []string{"View history", "Verify integrity"}
+	items := []string{"View history", "Verify integrity", "Start ledger server"}
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
@@ -176,7 +197,7 @@ func (m model) viewAuditMenu() string {
 		menu.WriteString("\n")
 	}
 
-	help := helpBarStyle.Render("[j/k] Navigate  [Enter] Select  [Esc] Close")
+	help := helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close")
 	return title + "\n\n" + menu.String() + "\n" + help
 }
 
@@ -233,6 +254,67 @@ func (m model) viewAuditVerify() string {
 		body = successStyle.Render(m.auditMsg)
 	} else {
 		body = m.auditMsg
+	}
+
+	help := helpBarStyle.Render("[Esc] Back")
+	return title + "\n\n" + body + "\n\n" + help
+}
+
+// auditStartCmd creates a tea.Cmd that runs Docker audit setup asynchronously.
+// cfg is the full Config (not just AuditConfig) — needed for vaultDir.
+// vaultID is the vault's stable UUID (per D-04), captured at unlock time
+// from Manager.VaultID() and stored in model.vaultID.
+func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
+	return func() tea.Msg {
+		vaultDir := filepath.Dir(vaultPath)
+
+		u, err := user.Current()
+		if err != nil {
+			return auditStartMsg{err: fmt.Errorf("resolving home directory: %w", err)}
+		}
+		composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+
+		bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
+		if err != nil {
+			return auditStartMsg{err: fmt.Errorf("accessing docker bundle: %w", err)}
+		}
+
+		var steps []string
+		progress := func(msg string) {
+			steps = append(steps, msg)
+		}
+
+		newCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress)
+		if err != nil {
+			return auditStartMsg{steps: steps, err: err}
+		}
+
+		if writeErr := config.WriteAuditSection(vaultDir, newCfg); writeErr != nil {
+			return auditStartMsg{steps: steps, err: fmt.Errorf("writing audit config: %w", writeErr)}
+		}
+
+		return auditStartMsg{steps: steps, newCfg: newCfg}
+	}
+}
+
+// viewAuditStart renders the ledger server setup sub-flow. Shows a spinner
+// while running, then a success or error message.
+func (m model) viewAuditStart() string {
+	title := titleStyle.Render("Start ledger server")
+
+	if m.auditLoading {
+		return title + "\n\n" + m.spinner.View() + " Starting ledger server...\n\n" +
+			helpBarStyle.Render("[Esc] Back")
+	}
+
+	var body string
+	if m.auditMsg != "" {
+		if strings.Contains(m.auditMsg, "failed") || strings.Contains(m.auditMsg, "Failed") ||
+			strings.Contains(m.auditMsg, "error") || strings.Contains(m.auditMsg, "Error") {
+			body = errorStyle.Render(m.auditMsg)
+		} else {
+			body = successStyle.Render(m.auditMsg)
+		}
 	}
 
 	help := helpBarStyle.Render("[Esc] Back")

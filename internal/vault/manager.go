@@ -130,6 +130,7 @@ func Create(path string, passphrase []byte, params crypto.KDFParams) (recoveryKe
 		ModifiedAt:      now,
 		Credentials:     []model.Credential{},
 		RecoveryKeyHash: recoveryHashHex,
+		VaultID:         uuid.New().String(),
 	}
 
 	payloadJSON, err := json.Marshal(payload)
@@ -470,6 +471,15 @@ func (m *Manager) UpdateCredential(cred *model.Credential) error {
 		}
 	}
 	return fmt.Errorf("credential %q: %w", cred.ID, errors.ErrNotFound)
+}
+
+// VaultID returns the stable unique identifier for this vault, set at
+// creation time. Returns empty string if the vault is locked (payload nil).
+func (m *Manager) VaultID() string {
+	if m.payload == nil {
+		return ""
+	}
+	return m.payload.VaultID
 }
 
 // Header returns the vault header for inspecting rate-limit state.

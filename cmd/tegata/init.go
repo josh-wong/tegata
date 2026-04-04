@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
@@ -62,6 +64,21 @@ vault directory; otherwise the current directory is used.`,
 			fmt.Println("Recovery key (store this somewhere safe -- you cannot see it again):")
 			fmt.Printf("\n    %s\n\n", recoveryKey)
 			fmt.Println("If you forget your passphrase, this key is the only way to recover your vault.")
+
+			// Audit opt-in (D-01: writes config only, never starts Docker).
+			fmt.Fprintf(os.Stderr, "\nEnable audit logging? (requires Docker) [y/N]: ")
+			scanner := bufio.NewScanner(os.Stdin)
+			if scanner.Scan() {
+				answer := strings.TrimSpace(scanner.Text())
+				if strings.EqualFold(answer, "y") {
+					auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
+					if err := config.WriteAuditSection(dir, auditCfg); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: could not save audit setting: %v\n", err)
+					} else {
+						fmt.Fprintln(os.Stderr, "Audit logging enabled. Run 'tegata ledger start' to finish setup.")
+					}
+				}
+			}
 
 			return nil
 		},

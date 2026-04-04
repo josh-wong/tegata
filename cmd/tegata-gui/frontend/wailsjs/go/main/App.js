@@ -22,6 +22,10 @@ export function CreateVault(arg1, arg2) {
   return window['go']['main']['App']['CreateVault'](arg1, arg2);
 }
 
+export function EnableAudit() {
+  return window['go']['main']['App']['EnableAudit']();
+}
+
 export function ExportVault(arg1) {
   return window['go']['main']['App']['ExportVault'](arg1);
 }
@@ -36,6 +40,14 @@ export function GenerateHOTP(arg1) {
 
 export function GenerateTOTP(arg1) {
   return window['go']['main']['App']['GenerateTOTP'](arg1);
+}
+
+export function GetAuditAutoStart() {
+  return window['go']['main']['App']['GetAuditAutoStart']();
+}
+
+export function GetAuditDockerPath() {
+  return window['go']['main']['App']['GetAuditDockerPath']();
 }
 
 export function GetAuditHistory() {
@@ -70,6 +82,10 @@ export function ImportVaultFromFile(arg1, arg2) {
   return window['go']['main']['App']['ImportVaultFromFile'](arg1, arg2);
 }
 
+export function IsAuditConfigured() {
+  return window['go']['main']['App']['IsAuditConfigured']();
+}
+
 export function IsAuditEnabled() {
   return window['go']['main']['App']['IsAuditEnabled']();
 }
@@ -98,12 +114,28 @@ export function ScanRemovableDrives() {
   return window['go']['main']['App']['ScanRemovableDrives']();
 }
 
+export function SetAuditAutoStart(arg1) {
+  return window['go']['main']['App']['SetAuditAutoStart'](arg1);
+}
+
 export function SetIdleTimeoutSeconds(arg1) {
   return window['go']['main']['App']['SetIdleTimeoutSeconds'](arg1);
 }
 
 export function SignChallenge(arg1, arg2) {
   return window['go']['main']['App']['SignChallenge'](arg1, arg2);
+}
+
+export function RestartAuditServer() {
+  return window['go']['main']['App']['RestartAuditServer']();
+}
+
+export function StartAuditServer() {
+  return window['go']['main']['App']['StartAuditServer']();
+}
+
+export function StopAuditServer(arg1) {
+  return window['go']['main']['App']['StopAuditServer'](arg1);
 }
 
 export function UnlockVault(arg1, arg2) {

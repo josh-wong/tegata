@@ -31,6 +31,8 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
   const [recoveryResult, setRecoveryResult] = useState<boolean | null>(null)
 
   const [idleTimeout, setIdleTimeout] = useState(300)
+  const [auditConfigured, setAuditConfigured] = useState(false)
+  const [autoStart, setAutoStart] = useState(false)
   const [appVersion, setAppVersion] = useState("")
   const [showTooltip, setShowTooltip] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
@@ -44,6 +46,16 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       App.GetVersion()
         .then(setAppVersion)
         .catch(() => {})
+      App.IsAuditConfigured()
+        .then((configured) => {
+          setAuditConfigured(configured)
+          if (configured) {
+            App.GetAuditAutoStart()
+              .then(setAutoStart)
+              .catch(() => {})
+          }
+        })
+        .catch(() => {})
     }
   }, [open])
 
@@ -55,6 +67,16 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       // Revert on failure
       const current = await App.GetIdleTimeoutSeconds()
       setIdleTimeout(current)
+    }
+  }
+
+  async function handleAutoStartChange(enabled: boolean) {
+    const prev = autoStart
+    setAutoStart(enabled)
+    try {
+      await App.SetAuditAutoStart(enabled)
+    } catch {
+      setAutoStart(prev)
     }
   }
 
@@ -252,6 +274,27 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
           )}
           <ExportImport onImported={onCredentialsChanged} />
         </section>
+
+        {auditConfigured && (
+          <>
+            <Separator className="my-4" />
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">Audit</h3>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={autoStart}
+                  onChange={(e) => handleAutoStartChange(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Auto-start ledger server
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Automatically start the audit ledger when you unlock the vault.
+              </p>
+            </section>
+          </>
+        )}
 
         <Separator className="my-4" />
 

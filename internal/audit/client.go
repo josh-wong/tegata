@@ -341,7 +341,7 @@ func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, o
 		Nonce:            nonce,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+		if s, ok := status.FromError(err); ok && (s.Code() == codes.NotFound || s.Code() == codes.InvalidArgument) {
 			return fmt.Errorf("%w: %s", errCollectionNotFound, err)
 		}
 		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)

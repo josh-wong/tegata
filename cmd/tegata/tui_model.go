@@ -23,6 +23,7 @@ const (
 	stateWizardPassphrase                    // First-time setup: passphrase entry
 	stateWizardRecoveryKey                   // First-time setup: recovery key display
 	stateWizardAddCredential                 // First-time setup: optional first credential
+	stateWizardAuditOptIn                    // First-time setup: optional audit logging
 	stateUnlock                              // Vault found at launch; enter passphrase to unlock
 	stateLockedIdle                          // Vault was unlocked but idle timeout expired
 	stateMainView                            // Normal authenticated view
@@ -49,6 +50,7 @@ type model struct {
 
 	// Vault lifecycle
 	vaultPath string
+	vaultID   string         // stable vault UUID, captured from Manager.VaultID() at unlock time (D-04)
 	vaultMgr  *vault.Manager // nil until unlocked
 
 	// Configuration (loaded at startup)
@@ -101,8 +103,8 @@ type model struct {
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
 
 	// Audit overlay state
-	auditMenuIdx int            // 0=History, 1=Verify
-	auditSubFlow string         // ""|"history"|"verify"
+	auditMenuIdx int            // 0=History, 1=Verify, 2=Start
+	auditSubFlow string         // ""|"history"|"verify"|"start"
 	auditMsg     string         // result/status message
 	auditRecords []historyRecord // fetched records
 	auditLoading bool           // true while async gRPC call is in progress
@@ -324,6 +326,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.auditMsg = fmt.Sprintf("TAMPER DETECTED: %s", msg.detail)
 		}
 		return m, nil
+
+	case auditStartMsg:
+		m.auditLoading = false
+		if msg.err != nil {
+			m.auditMsg = "Setup failed: " + msg.err.Error()
+		} else {
+			m.auditMsg = "Ledger server started. Audit logging is now active."
+			// Update in-memory config so the rest of the session sees audit enabled.
+			m.cfg.Audit = msg.newCfg
+			// Rebuild EventBuilder so auth events are logged in this session.
+			// The vault passphrase is unavailable at this point, so use an
+			// in-memory queue instead of the persistent on-disk queue.
+			client, clientErr := audit.NewClientFromConfig(
+				msg.newCfg.Server, msg.newCfg.PrivilegedServer,
+				msg.newCfg.EntityID, msg.newCfg.KeyVersion,
+				msg.newCfg.SecretKey, msg.newCfg.Insecure,
+			)
+			if clientErr == nil {
+				if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
+					if m.builder != nil {
+						_ = m.builder.Close()
+					}
+					m.builder = newBuilder
+				}
+			}
+		}
+		return m, nil
 	}
 
 	// Delegate to per-state handlers.
@@ -331,7 +360,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stateWizardWelcome,
 		stateWizardPassphrase,
 		stateWizardRecoveryKey,
-		stateWizardAddCredential:
+		stateWizardAddCredential,
+		stateWizardAuditOptIn:
 		return m.updateWizard(msg)
 
 	case stateUnlock, stateLockedIdle:
@@ -357,7 +387,8 @@ func (m model) View() string {
 	case stateWizardWelcome,
 		stateWizardPassphrase,
 		stateWizardRecoveryKey,
-		stateWizardAddCredential:
+		stateWizardAddCredential,
+		stateWizardAuditOptIn:
 		return m.viewWizard()
 
 	case stateUnlock, stateLockedIdle:

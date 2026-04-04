@@ -325,7 +325,11 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	help := helpBarStyle.Render("↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit")
+	helpText := "↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  q Quit"
+	if m.cfg.Audit.Enabled {
+		helpText = "↑↓ Navigate  Enter Copy/Act  a Add  r Remove  s Settings  v Audit  q Quit"
+	}
+	help := helpBarStyle.Render(helpText)
 
 	return columns + "\n" + help
 }
@@ -334,7 +338,7 @@ func (m model) viewMainView() string {
 func (m model) renderDetailPanel(width int) string {
 	selected := m.credList.SelectedItem()
 	if selected == nil {
-		content := "No credential selected.\n\nUse j/k to navigate."
+		content := "No credential selected.\n\nUse ↑↓ to navigate."
 		return panelStyle.Width(width - 2).Render(content)
 	}
 	item, ok := selected.(credItem)

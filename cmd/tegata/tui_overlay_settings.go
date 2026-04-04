@@ -597,6 +597,23 @@ func (m model) updateSettingsConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.EchoMode = textinput.EchoNormal
 			m.settingsInput1.Focus()
 			return m, nil
+
+		case len(msg.Runes) == 1 && msg.Runes[0] == 'a':
+			if !m.cfg.Audit.Enabled {
+				return m, nil // no-op when audit not configured
+			}
+			m.cfg.Audit.AutoStart = !m.cfg.Audit.AutoStart
+			dir := filepath.Dir(m.vaultPath)
+			if err := config.WriteAuditSection(dir, m.cfg.Audit); err != nil {
+				m.settingsMsg = fmt.Sprintf("Could not save audit setting: %v", err)
+			} else {
+				label := "disabled"
+				if m.cfg.Audit.AutoStart {
+					label = "enabled"
+				}
+				m.settingsMsg = fmt.Sprintf("Audit auto-start %s", label)
+			}
+			return m, nil
 		}
 	}
 	return m, nil
@@ -644,7 +661,7 @@ func (m model) viewSettingsMenu() string {
 		lines = append(lines, successStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[j/k] Navigate  [Enter] Select  [Esc] Close"))
+	lines = append(lines, helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close"))
 	return strings.Join(lines, "\n")
 }
 
@@ -833,6 +850,13 @@ func (m model) viewSettingsConfig() string {
 	idleSec := int(m.cfg.IdleTimeout.Seconds())
 	lines = append(lines, fmt.Sprintf("Clipboard timeout: %ds  [c to edit]", clipSec))
 	lines = append(lines, fmt.Sprintf("Idle timeout:      %ds  [i to edit]", idleSec))
+	if m.cfg.Audit.Enabled {
+		autoStartLabel := "off"
+		if m.cfg.Audit.AutoStart {
+			autoStartLabel = "on"
+		}
+		lines = append(lines, fmt.Sprintf("Audit auto-start:  %s  [a to toggle]", autoStartLabel))
+	}
 	if m.settingsInput1.Focused() {
 		lines = append(lines, "")
 		lines = append(lines, m.settingsInput1.View())
@@ -842,7 +866,11 @@ func (m model) viewSettingsConfig() string {
 		lines = append(lines, successStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[c] Edit clipboard  [i] Edit idle  [Esc] Back"))
+	helpText := "[c] Edit clipboard  [i] Edit idle  [Esc] Back"
+	if m.cfg.Audit.Enabled {
+		helpText = "[c] Edit clipboard  [i] Edit idle  [a] Toggle auto-start  [Esc] Back"
+	}
+	lines = append(lines, helpBarStyle.Render(helpText))
 	return strings.Join(lines, "\n")
 }
 
