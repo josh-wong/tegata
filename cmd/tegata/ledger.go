@@ -258,13 +258,13 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	}
 
 	if wipe {
-		// Print prominent warning and require "yes" confirmation (per D-15).
-		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type 'yes' to confirm:")
+		// Print prominent warning and require "Yes" confirmation (per D-15).
+		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type \"Yes\" to confirm:")
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		answer := strings.TrimSpace(scanner.Text())
-		if answer != "yes" {
-			fmt.Fprintln(os.Stderr, "Cancelled. Audit history was not deleted.")
+		if answer != "Yes" {
+			fmt.Fprintln(os.Stderr, "Canceled. Audit history was not deleted.")
 			return nil
 		}
 	}

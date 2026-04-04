@@ -485,7 +485,7 @@ func (a *App) ExportVaultToFile(exportPassphrase string) (string, error) {
 		return "", fmt.Errorf("save dialog: %w", err)
 	}
 	if path == "" {
-		return "", nil // User cancelled
+		return "", nil // User canceled
 	}
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {

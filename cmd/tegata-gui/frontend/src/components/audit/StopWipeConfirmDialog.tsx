@@ -34,7 +34,7 @@ export function StopWipeConfirmDialog({
   }
 
   async function handleConfirm() {
-    if (confirmText !== "yes") return
+    if (confirmText !== "Yes") return
     setLoading(true)
     setError("")
     try {
@@ -61,16 +61,13 @@ export function StopWipeConfirmDialog({
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
             This permanently deletes all audit history and cannot be undone.
-            Type &lsquo;yes&rsquo; to confirm.
+            Type "Yes" to confirm.
           </p>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              Type &lsquo;yes&rsquo; to confirm
-            </label>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="yes"
+              placeholder="Yes"
               autoComplete="off"
               data-testid="wipe-confirm-input"
             />
@@ -84,7 +81,7 @@ export function StopWipeConfirmDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={confirmText !== "yes" || loading}
+            disabled={confirmText !== "Yes" || loading}
           >
             Delete permanently
           </Button>
