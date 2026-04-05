@@ -854,27 +854,55 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	var steps []string
 	progress := func(msg string) {
 		steps = append(steps, msg)
+		if a.ctx != nil {
+			wailsruntime.EventsEmit(a.ctx, "audit:progress", msg)
+		}
 	}
 
-	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress)
+	// onRegistered is called by SetupStack as soon as the entity secret is
+	// registered and the ledger is confirmed reachable. Persisting tegata.toml
+	// and initialising the EventBuilder here ensures audit is active even if
+	// the contract-registration container is still running in the background.
+	onRegistered := func(auditCfg config.AuditConfig) error {
+		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+			return fmt.Errorf("writing audit config: %w", writeErr)
+		}
+
+		// Update in-memory config so auto-start fires on next unlock.
+		a.config.Audit = auditCfg
+
+		// Initialise the EventBuilder for this session. The vault passphrase is
+		// no longer available (zeroed after vault creation), so use an in-memory
+		// queue. Events queue until contracts are ready, then flush on submission.
+		client, clientErr := audit.NewClientFromConfig(
+			auditCfg.Server, auditCfg.PrivilegedServer,
+			auditCfg.EntityID, auditCfg.KeyVersion, auditCfg.SecretKey, auditCfg.Insecure,
+		)
+		if clientErr == nil {
+			if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
+				if a.builder != nil {
+					_ = a.builder.Close()
+				}
+				a.builder = newBuilder
+			} else {
+				_ = client.Close()
+			}
+		}
+		return nil
+	}
+
+	_, err = audit.SetupStack(bundleFS, composeDir, vaultID, progress, onRegistered)
 	if err != nil {
 		return map[string]interface{}{"steps": steps}, err
 	}
 
-	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-		return map[string]interface{}{"steps": steps}, fmt.Errorf("writing audit config: %w", writeErr)
-	}
-
-	// Update in-memory config so auto-start fires on next unlock.
-	a.config.Audit = auditCfg
-
 	return map[string]interface{}{"steps": steps}, nil
 }
 
-// StopAuditServer stops the audit Docker containers.
-// When wipe is true, runs docker compose down -v (permanently deletes audit history)
-// and clears DockerComposePath from both the in-memory config and tegata.toml so that
-// MaybeAutoStart does not fire on the next vault unlock.
+// StopAuditServer handles audit server operations.
+// When wipe is true, truncates the ScalarDL ledger database (including stored
+// entity credentials), restarts the ledger container, re-registers the entity
+// secret, and resets the EventBuilder so audit logging resumes immediately.
 // When wipe is false, runs docker compose stop (preserves named volume).
 func (a *App) StopAuditServer(wipe bool) error {
 	a.resetIdle()
@@ -883,17 +911,76 @@ func (a *App) StopAuditServer(wipe bool) error {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
 
-	if err := audit.StopStack(a.config.Audit.DockerComposePath, wipe); err != nil {
-		return err
-	}
-
 	if wipe {
-		a.config.Audit.DockerComposePath = ""
-		a.config.Audit.AutoStart = false
-		return config.WriteAuditSection(vaultDir(a.vaultPath), a.config.Audit)
+		if err := audit.WipeHistory(a.config.Audit.DockerComposePath); err != nil {
+			return err
+		}
+
+		cfg := a.config.Audit
+
+		// WipeHistory truncates the ledger database — including stored entity
+		// credentials — and restarts the ScalarDL ledger container. Wait for
+		// the ledger to become ready (up to 30s), then re-register the entity
+		// secret so audit logging resumes immediately after the wipe.
+		client, err := audit.NewClientFromConfig(
+			cfg.Server, cfg.PrivilegedServer,
+			cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure,
+		)
+		if err != nil {
+			return nil // audit unavailable; not fatal
+		}
+
+		// Wait for the privileged service to be ready, then re-register the
+		// entity secret. RegisterSecret may return AlreadyExists immediately
+		// (entity credentials are outside the truncated asset table), so this
+		// loop mostly guards against the privileged port not yet accepting calls.
+		var regErr error
+		for i := 0; i < 15; i++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			regErr = client.RegisterSecret(ctx, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey)
+			cancel()
+			if regErr == nil {
+				break
+			}
+			time.Sleep(2 * time.Second)
+		}
+		if regErr != nil {
+			_ = client.Close()
+			return fmt.Errorf("re-registering entity after wipe: %w", regErr)
+		}
+
+		// RegisterSecret only confirms the privileged port is ready. The regular
+		// ledger service (used for contract execution) may still be starting.
+		// Retry Ping until it succeeds so that the first Submit after a wipe
+		// does not silently time out and queue the event in the memory-only queue.
+		var pingErr error
+		for i := 0; i < 15; i++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr = client.Ping(ctx)
+			cancel()
+			if pingErr == nil {
+				break
+			}
+			time.Sleep(2 * time.Second)
+		}
+		if pingErr != nil {
+			_ = client.Close()
+			return fmt.Errorf("ledger did not become ready after wipe: %w", pingErr)
+		}
+
+		// Reset the EventBuilder so the hash chain restarts from a clean slate.
+		if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
+			if a.builder != nil {
+				_ = a.builder.Close()
+			}
+			a.builder = newBuilder
+		} else {
+			_ = client.Close()
+		}
+		return nil
 	}
 
-	return nil
+	return audit.StopStack(a.config.Audit.DockerComposePath, false)
 }
 
 // IsAuditConfigured returns whether audit logging has been enabled by the user.

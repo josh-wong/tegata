@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/vault"
@@ -65,22 +68,66 @@ vault directory; otherwise the current directory is used.`,
 			fmt.Printf("\n    %s\n\n", recoveryKey)
 			fmt.Println("If you forget your passphrase, this key is the only way to recover your vault.")
 
-			// Audit opt-in (D-01: writes config only, never starts Docker).
+			// Audit opt-in: run full SetupStack immediately on yes.
 			fmt.Fprintf(os.Stderr, "\nEnable audit logging? (requires Docker) [y/N]: ")
 			scanner := bufio.NewScanner(os.Stdin)
 			if scanner.Scan() {
 				answer := strings.TrimSpace(scanner.Text())
 				if strings.EqualFold(answer, "y") {
-					auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
-					if err := config.WriteAuditSection(dir, auditCfg); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: could not save audit setting: %v\n", err)
-					} else {
-						fmt.Fprintln(os.Stderr, "Audit logging enabled. Run 'tegata ledger start' to finish setup.")
-					}
+					runInitAudit(vaultPath, dir, passphrase)
 				}
 			}
 
 			return nil
 		},
 	}
+}
+
+// runInitAudit runs the full Docker audit setup immediately after vault
+// creation. It opens and unlocks the vault to derive the stable entity ID,
+// then calls audit.SetupStack. Errors are printed to stderr and the user is
+// directed to run 'tegata ledger start' to retry.
+func runInitAudit(vaultPath, dir string, passphrase []byte) {
+	fmt.Fprintln(os.Stderr, "Setting up audit ledger (this may take several minutes)...")
+
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		return
+	}
+	if err := mgr.Unlock(passphrase); err != nil {
+		mgr.Close()
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		return
+	}
+	vaultID := mgr.VaultID()
+	mgr.Close()
+
+	u, err := user.Current()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		return
+	}
+	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+
+	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\n", err)
+		return
+	}
+
+	progressFn := func(msg string) { fmt.Fprintln(os.Stderr, msg) }
+
+	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		return
+	}
+
+	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not save audit config: %v\n", writeErr)
+		return
+	}
+
+	fmt.Fprintln(os.Stderr, "Audit logging enabled and active.")
 }

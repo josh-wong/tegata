@@ -56,6 +56,8 @@ export function PickImportFile():Promise<string>;
 
 export function RemoveCredential(arg1:string):Promise<void>;
 
+export function RestartAuditServer():Promise<void>;
+
 export function ScanForVaults():Promise<Array<main.VaultLocation>>;
 
 export function ScanRemovableDrives():Promise<Array<main.VaultLocation>>;
@@ -65,8 +67,6 @@ export function SetAuditAutoStart(arg1:boolean):Promise<void>;
 export function SetIdleTimeoutSeconds(arg1:number):Promise<void>;
 
 export function SignChallenge(arg1:string,arg2:string):Promise<string>;
-
-export function RestartAuditServer():Promise<void>;
 
 export function StartAuditServer():Promise<Record<string, any>>;
 

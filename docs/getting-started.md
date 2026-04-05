@@ -167,7 +167,15 @@ The TUI provides visual countdown timers for TOTP codes, keyboard navigation for
 
 Tegata supports optional tamper-evident logging of authentication events via ScalarDL Ledger. When enabled, every code generation, password retrieval, and challenge-response signing is recorded in an immutable audit log.
 
-This feature requires a running ScalarDL Ledger instance. For setup instructions, see [ScalarDL setup guide](scalardl-setup.md).
+Enable it with one command after initializing your vault.
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+This downloads and starts a local ScalarDL instance via Docker, generates credentials, and writes the `[audit]` section to `tegata.toml`. After setup, every vault unlock automatically starts the Docker stack in the background — including starting the Docker daemon if it is not running — with no extra steps required.
+
+For full setup details and testing instructions, see [ScalarDL setup guide](scalardl-setup.md).
 
 ## Configuration
 

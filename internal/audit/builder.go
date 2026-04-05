@@ -162,13 +162,13 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 	select {
 	case res := <-resultCh:
 		if res.err != nil {
-			slog.Debug("audit submit error", "err", res.err)
+			slog.Error("audit submit error", "err", res.err)
 			_ = b.queue.Append(evt)
 			_ = b.queue.Save(b.queuePath)
 			return nil
 		}
 		if res.lastHash == "" {
-			slog.Debug("audit submit returned empty hash")
+			slog.Error("audit submit returned empty hash")
 			_ = b.queue.Append(evt)
 			_ = b.queue.Save(b.queuePath)
 			return nil
@@ -179,7 +179,7 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		_ = b.queue.Save(b.queuePath)
 		return nil
 	case <-ctx.Done():
-		slog.Debug("audit submit timed out", "timeout", timeout)
+		slog.Error("audit submit timed out", "timeout", timeout)
 		_ = b.queue.Append(evt)
 		_ = b.queue.Save(b.queuePath)
 		return nil

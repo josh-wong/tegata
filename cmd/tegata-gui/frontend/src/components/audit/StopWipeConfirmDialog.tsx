@@ -44,7 +44,6 @@ export function StopWipeConfirmDialog({
       onClose()
     } catch (err) {
       setError(formatError(err, "Failed to delete audit history"))
-    } finally {
       setLoading(false)
     }
   }

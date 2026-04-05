@@ -122,6 +122,14 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case msg.Type == tea.KeyEsc:
 			if m.auditSubFlow != "" {
+				// After the ledger start completes, go straight to main view
+				// (no menu to return to, and audit history would be empty).
+				if m.auditSubFlow == "start" && !m.auditLoading {
+					m = loadCredentials(m)
+					m.resetAuditOverlay()
+					m.state = stateMainView
+					return m, tickCmd()
+				}
 				m.auditSubFlow = ""
 				m.auditMsg = ""
 				m.auditRecords = nil
@@ -132,7 +140,7 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case m.auditSubFlow == "" && (msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j')):
-			if m.auditMenuIdx < 2 {
+			if m.auditMenuIdx < 1 {
 				m.auditMenuIdx++
 			}
 			return m, nil
@@ -153,11 +161,6 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.auditSubFlow = "verify"
 				m.auditLoading = true
 				return m, auditVerifyCmd(m.cfg.Audit)
-			case 2:
-				m.auditSubFlow = "start"
-				m.auditLoading = true
-				m.auditMsg = ""
-				return m, auditStartCmd(m.cfg, m.vaultPath, m.vaultID)
 			}
 		}
 	}
@@ -186,7 +189,7 @@ func (m model) viewOverlayAudit() string {
 func (m model) viewAuditMenu() string {
 	title := titleStyle.Render("Audit")
 
-	items := []string{"View history", "Verify integrity", "Start ledger server"}
+	items := []string{"View history", "Verify integrity"}
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
@@ -284,7 +287,7 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 			steps = append(steps, msg)
 		}
 
-		newCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress)
+		newCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress, nil)
 		if err != nil {
 			return auditStartMsg{steps: steps, err: err}
 		}
@@ -304,7 +307,7 @@ func (m model) viewAuditStart() string {
 
 	if m.auditLoading {
 		return title + "\n\n" + m.spinner.View() + " Starting ledger server...\n\n" +
-			helpBarStyle.Render("[Esc] Back")
+			helpBarStyle.Render("")
 	}
 
 	var body string
@@ -317,6 +320,6 @@ func (m model) viewAuditStart() string {
 		}
 	}
 
-	help := helpBarStyle.Render("[Esc] Back")
+	help := helpBarStyle.Render("[Esc] Continue")
 	return title + "\n\n" + body + "\n\n" + help
 }

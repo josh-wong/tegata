@@ -47,9 +47,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [labelMap, setLabelMap] = useState<Record<string, string>>({})
-  const [setupSteps, setSetupSteps] = useState<string[]>([])
-  const [setupStatus, setSetupStatus] = useState<"idle" | "in-progress" | "complete" | "error">("idle")
-  const [dockerComposePath, setDockerComposePath] = useState("")
+  const [dockerPath, setDockerPath] = useState("")
   const [wipeDialogOpen, setWipeDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -57,9 +55,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       setError("")
       setVerifyResult(null)
       buildLabelMap().then(setLabelMap)
-      // Check if Docker audit setup has been run by calling GetAuditDockerPath.
-      // Returns empty string when setup has not been run.
-      App.GetAuditDockerPath().then((path) => setDockerComposePath(path ?? "")).catch(() => setDockerComposePath(""))
+      App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
     }
   }, [open])
 
@@ -67,49 +63,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     (hash: string) => labelMap[hash] ?? "(deleted)",
     [labelMap],
   )
-
-  async function handleStartAuditServer() {
-    setSetupStatus("in-progress")
-    setSetupSteps([])
-    setError("")
-    try {
-      const result = await App.StartAuditServer()
-      setSetupSteps(result?.steps ?? [])
-      setSetupStatus("complete")
-      // Re-check docker path so Stop button appears.
-      const path = await App.GetAuditDockerPath()
-      setDockerComposePath(path ?? "")
-    } catch (err) {
-      setSetupStatus("error")
-      setError(formatError(err, "Failed to start ledger server"))
-    }
-  }
-
-  async function handleRestartAuditServer() {
-    setLoading(true)
-    setError("")
-    try {
-      await App.RestartAuditServer()
-    } catch (err) {
-      setError(formatError(err, "Failed to start ledger server"))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleStopAuditServer() {
-    setLoading(true)
-    setError("")
-    try {
-      await App.StopAuditServer(false)
-      // Do not clear dockerComposePath — the stack can be restarted from the
-      // Start button. Path is only cleared on wipe (handled by onWipeComplete).
-    } catch (err) {
-      setError(formatError(err, "Failed to stop ledger server"))
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function handleFetchHistory() {
     setLoading(true)
@@ -155,53 +108,16 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
           </div>
 
           <div className="p-4 space-y-4 overflow-y-auto flex-1">
-            {!dockerComposePath && setupStatus === "idle" && history.length === 0 && !verifyResult && (
+            {!dockerPath && history.length === 0 && !verifyResult && (
               <p className="text-sm text-muted-foreground">
-                Audit logging is not configured. Start the ledger server to enable tamper-evident logging.
+                Audit logging was not enabled during vault creation.
               </p>
             )}
 
             <div className="flex flex-wrap gap-2">
-              {dockerComposePath ? (
-                <>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleRestartAuditServer}
-                    disabled={loading || setupStatus === "in-progress"}
-                  >
-                    Start ledger server
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleStopAuditServer}
-                    disabled={loading || setupStatus === "in-progress"}
-                  >
-                    Stop ledger server
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setWipeDialogOpen(true)}
-                    disabled={loading || setupStatus === "in-progress"}
-                  >
-                    Delete history...
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleStartAuditServer}
-                  disabled={loading || setupStatus === "in-progress"}
-                >
-                  Start ledger server
-                </Button>
-              )}
               <Button
                 onClick={handleFetchHistory}
-                disabled={loading || setupStatus === "in-progress"}
+                disabled={loading}
                 variant="outline"
                 size="sm"
               >
@@ -209,34 +125,25 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               </Button>
               <Button
                 onClick={handleVerify}
-                disabled={loading || setupStatus === "in-progress"}
+                disabled={loading}
                 variant="outline"
                 size="sm"
               >
                 Verify integrity
               </Button>
+              {dockerPath && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWipeDialogOpen(true)}
+                  disabled={loading}
+                >
+                  Delete history
+                </Button>
+              )}
             </div>
 
-            {(setupSteps.length > 0 || setupStatus === "in-progress") && (
-              <div className="space-y-1 text-sm text-muted-foreground mt-4">
-                {setupSteps.map((step, i) => (
-                  <div key={i}>{step}</div>
-                ))}
-                {setupStatus === "complete" && (
-                  <div className="text-green-600 dark:text-green-400">
-                    Ledger server started. Audit logging is now active.
-                  </div>
-                )}
-                {setupStatus === "error" && error && (
-                  <div className="text-destructive">{error}</div>
-                )}
-                {setupStatus === "in-progress" && (
-                  <div>Starting ledger server...</div>
-                )}
-              </div>
-            )}
-
-            {error && setupStatus !== "error" && (
+            {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
 
@@ -313,8 +220,8 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         open={wipeDialogOpen}
         onClose={() => setWipeDialogOpen(false)}
         onWipeComplete={() => {
-          setDockerComposePath("")
-          setSetupStatus("idle")
+          setHistory([])
+          setVerifyResult(null)
         }}
       />
     </>

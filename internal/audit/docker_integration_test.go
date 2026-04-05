@@ -89,7 +89,7 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 	fsys := os.DirFS(srcDir)
 
 	// Run the full SetupStack sequence.
-	cfg, err := audit.SetupStack(fsys, composeWorkDir, "test-vault-id-e2e-9999", nil)
+	cfg, err := audit.SetupStack(fsys, composeWorkDir, "test-vault-id-e2e-9999", nil, nil)
 	if err != nil {
 		t.Fatalf("SetupStack: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestIntegration_SetupStack_DockerAbsent(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	// SetupStack should fail with a "docker binary not found" error.
-	_, err := audit.SetupStack(nil, t.TempDir(), "test-vault-id", nil)
+	_, err := audit.SetupStack(nil, t.TempDir(), "test-vault-id", nil, nil)
 	if err == nil {
 		t.Fatal("SetupStack: expected error when docker not in PATH, got nil")
 	}

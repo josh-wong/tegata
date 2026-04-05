@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
 import { StrengthMeter } from "@/components/shared/StrengthMeter"
-import { App } from "@/lib/wails"
+import { App, EventsOn, EventsOff } from "@/lib/wails"
 import type { VaultLocation } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -46,6 +46,9 @@ export function SetupWizard({
 
   const [existingVaults, setExistingVaults] = useState<VaultLocation[]>(vaultLocations ?? [])
   const [auditOptIn, setAuditOptIn] = useState(false)
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditError, setAuditError] = useState("")
+  const [auditProgress, setAuditProgress] = useState("")
 
   // Fetch removable drives when entering step 2 (vault creation).
   useEffect(() => {
@@ -357,11 +360,12 @@ export function SetupWizard({
             <p className="text-sm text-muted-foreground">
               Your vault has been created and encrypted. Save your recovery key somewhere safe.
             </p>
-            <label className="flex items-center justify-center gap-2 text-sm">
+            <label className={`flex items-center justify-center gap-2 text-sm ${auditLoading ? "opacity-50" : ""}`}>
               <input
                 type="checkbox"
                 checked={auditOptIn}
-                onChange={(e) => setAuditOptIn(e.target.checked)}
+                onChange={(e) => { setAuditOptIn(e.target.checked); setAuditError("") }}
+                disabled={auditLoading}
                 className="rounded border-input"
               />
               Enable audit logging
@@ -369,23 +373,47 @@ export function SetupWizard({
             <p className="text-xs text-muted-foreground">
               Log every authentication event to a tamper-evident ledger. Requires Docker.
             </p>
-            {auditOptIn && (
-              <p className="text-sm text-muted-foreground">
-                Go to Settings &gt; Audit to finish setup.
-              </p>
+            {auditError && (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">Audit setup failed: {auditError}</p>
+                <Button variant="outline" className="w-full" onClick={onComplete}>
+                  Continue without audit
+                </Button>
+              </div>
             )}
-            <Button className="w-full" onClick={async () => {
-              if (auditOptIn) {
-                try {
-                  await App.EnableAudit()
-                } catch (err) {
-                  console.error("Failed to save audit setting:", err)
+            {!auditError && (
+              <Button className="w-full" disabled={auditLoading} onClick={async () => {
+                if (auditOptIn) {
+                  setAuditLoading(true)
+                  setAuditError("")
+                  setAuditProgress("")
+                  EventsOn("audit:progress", (msg) => setAuditProgress(String(msg)))
+                  try {
+                    await App.StartAuditServer()
+                  } catch (err) {
+                    setAuditError(err instanceof Error ? err.message : String(err))
+                    setAuditLoading(false)
+                    EventsOff("audit:progress")
+                    return
+                  }
+                  setAuditLoading(false)
+                  EventsOff("audit:progress")
                 }
-              }
-              onComplete()
-            }}>
-              Open vault
-            </Button>
+                onComplete()
+              }}>
+                {auditLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    {auditProgress || "Setting up audit..."}
+                  </span>
+                ) : (
+                  "Open vault"
+                )}
+              </Button>
+            )}
           </div>
         )}
 

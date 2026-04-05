@@ -234,6 +234,8 @@ func promptSecret(prompt string) (string, error) {
 }
 
 // openAndUnlock opens a vault and unlocks it with the given passphrase.
+// It also fires MaybeAutoStart so the Docker audit stack starts in the
+// background on every CLI command, matching TUI and GUI behaviour.
 func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) {
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
@@ -242,6 +244,15 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 	if err := mgr.Unlock(passphrase); err != nil {
 		mgr.Close()
 		return nil, err
+	}
+	// Auto-start Docker audit stack if configured (D-09, D-10).
+	// Uses EnsureStack (synchronous) so the stack is ready before the
+	// command runs — MaybeAutoStart's goroutine would be killed on CLI exit.
+	// No-op when DockerComposePath is empty or AutoStart is false (D-11).
+	if cfg, err := config.Load(filepath.Dir(vaultPath)); err == nil {
+		if err := audit.EnsureStack(cfg.Audit); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
+		}
 	}
 	return mgr, nil
 }

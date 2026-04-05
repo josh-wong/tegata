@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -130,6 +128,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Store the unlocked vault manager and recovery key.
 		m.vaultMgr = msg.mgr
 		m.vaultPath = m.vaultCreatePath()
+		m.vaultID = msg.mgr.VaultID()
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
@@ -245,6 +244,7 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Store the unlocked vault manager and recovery key.
 		m.vaultMgr = msg.mgr
 		m.vaultPath = m.vaultCreatePath()
+		m.vaultID = msg.mgr.VaultID()
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
@@ -368,19 +368,12 @@ func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = stateMainView
 			return m, tickCmd()
 		case len(msg.Runes) == 1 && (msg.Runes[0] == 'y' || msg.Runes[0] == 'Y'):
-			auditCfg := config.AuditConfig{Enabled: true, AutoStart: true}
-			dir := filepath.Dir(m.vaultPath)
-			if err := config.WriteAuditSection(dir, auditCfg); err != nil {
-				fmt.Fprintf(os.Stderr, "tegata: could not save audit setting: %v\n", err)
-			} else {
-				// Reload config from disk so in-memory state reflects the write.
-				m = loadCredentials(m)
-				// D-02: display follow-up guidance in TUI after opt-in.
-				m.statusMsg = "Audit enabled. Run tegata ledger start to finish setup."
-			}
+			m.auditSubFlow = "start"
+			m.auditLoading = true
+			m.auditMsg = ""
 			m.lastActivity = time.Now()
-			m.state = stateMainView
-			return m, tickCmd()
+			m.state = stateOverlayAudit
+			return m, tea.Batch(tickCmd(), auditStartCmd(m.cfg, m.vaultPath, m.vaultID))
 		}
 	}
 	return m, nil

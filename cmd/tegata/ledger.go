@@ -204,7 +204,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, msg)
 	}
 
-	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn)
+	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, nil)
 	if err != nil {
 		return err
 	}

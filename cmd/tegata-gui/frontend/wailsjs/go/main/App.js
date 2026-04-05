@@ -106,6 +106,10 @@ export function RemoveCredential(arg1) {
   return window['go']['main']['App']['RemoveCredential'](arg1);
 }
 
+export function RestartAuditServer() {
+  return window['go']['main']['App']['RestartAuditServer']();
+}
+
 export function ScanForVaults() {
   return window['go']['main']['App']['ScanForVaults']();
 }
@@ -124,10 +128,6 @@ export function SetIdleTimeoutSeconds(arg1) {
 
 export function SignChallenge(arg1, arg2) {
   return window['go']['main']['App']['SignChallenge'](arg1, arg2);
-}
-
-export function RestartAuditServer() {
-  return window['go']['main']['App']['RestartAuditServer']();
 }
 
 export function StartAuditServer() {

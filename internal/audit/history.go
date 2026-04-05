@@ -3,6 +3,8 @@ package audit
 import (
 	"context"
 	"fmt"
+
+	tegerrors "github.com/josh-wong/tegata/internal/errors"
 )
 
 // HistoryRecord is the common shape for a single audit history entry,
@@ -24,10 +26,16 @@ type FetchHistoryResult struct {
 // FetchHistory retrieves all audit history records for the given entity from
 // the ledger. It fetches the entity's collection, then gets each event
 // individually. Events that fail to fetch are skipped and counted in Warning.
+// If the collection does not exist (e.g. after a wipe), returns empty results.
 func FetchHistory(ctx context.Context, client Client, entityID string) (*FetchHistoryResult, error) {
 	collectionID := CollectionID(entityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
+		// If the collection doesn't exist, that's not an error — just return empty results.
+		// This happens after a wipe when the collection is deleted along with its events.
+		if tegerrors.Is(err, errCollectionNotFound) {
+			return &FetchHistoryResult{Records: []HistoryRecord{}}, nil
+		}
 		return nil, err
 	}
 
@@ -69,10 +77,16 @@ type VerifyResult struct {
 
 // VerifyAll validates the integrity of all audit events for the given entity.
 // It fetches the entity's collection, then validates each event individually.
+// If the collection does not exist (e.g. after a wipe), returns valid with zero events.
 func VerifyAll(ctx context.Context, client Client, entityID string) (*VerifyResult, error) {
 	collectionID := CollectionID(entityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
+		// If the collection doesn't exist, that's not an error — just return valid with zero events.
+		// This happens after a wipe when the collection is deleted along with its events.
+		if tegerrors.Is(err, errCollectionNotFound) {
+			return &VerifyResult{Valid: true, EventCount: 0}, nil
+		}
 		return nil, err
 	}
 
