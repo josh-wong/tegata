@@ -187,11 +187,19 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 	a.config = cfg
 
-	// Auto-start Docker audit stack if configured (D-09, D-10).
-	// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
-	// Runs asynchronously — vault unlock is never blocked (D-10).
-	// On failure, MaybeAutoStart logs to stderr and queues events (D-13).
-	audit.MaybeAutoStart(a.config.Audit)
+	// Ensure the audit stack is running before building the EventBuilder so
+	// that the first credential operation after unlock records events
+	// immediately. EnsureStack is a no-op when DockerComposePath is empty or
+	// auto_start is false, and returns immediately when the ledger is already
+	// reachable. Failure is non-fatal — vault unlock succeeds regardless.
+	auditProgress := func(msg string) {
+		if a.ctx != nil {
+			wailsruntime.EventsEmit(a.ctx, "audit:unlock-progress", msg)
+		}
+	}
+	if ensureErr := audit.EnsureStack(a.config.Audit, auditProgress); ensureErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit auto-start: %v\n", ensureErr)
+	}
 
 	// Build EventBuilder while passphrase is available (AUDT-02).
 	builder, builderErr := a.buildEventBuilder(cfg, path, passBytes)
@@ -916,6 +924,15 @@ func (a *App) StopAuditServer(wipe bool) error {
 			return err
 		}
 
+		// Delete the offline queue file. WipeHistory clears the ledger but not
+		// the local queue cache. Stale queue entries would fail to decrypt on
+		// the next vault unlock, disabling audit (D-26). Deleting the queue file
+		// forces a clean slate — future entries queue normally if the ledger is
+		// not immediately ready.
+		dir := vaultDir(a.vaultPath)
+		queuePath := filepath.Join(dir, "queue.tegata")
+		_ = os.Remove(queuePath)
+
 		cfg := a.config.Audit
 
 		// WipeHistory truncates the ledger database — including stored entity
@@ -966,6 +983,30 @@ func (a *App) StopAuditServer(wipe bool) error {
 		if pingErr != nil {
 			_ = client.Close()
 			return fmt.Errorf("ledger did not become ready after wipe: %w", pingErr)
+		}
+
+		// Verify contract execution is available, not just the gRPC transport.
+		// The health check endpoint (Ping) responds before ScalarDL's execution
+		// engine finishes initialising. A Put probe confirms contracts are
+		// callable before the EventBuilder is created. Collection operations
+		// (CollectionCreate/Add) are handled by Submit's own retry path.
+		// 10 retries × 2 s = 20 s (contracts are already registered in the
+		// database — only JVM startup time is needed after a restart).
+		var contractErr error
+		for i := 0; i < 10; i++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			contractErr = client.Put(ctx, audit.SetupTestObjectID, strings.Repeat("0", 64))
+			cancel()
+			if contractErr == nil {
+				break
+			}
+			if i < 9 {
+				time.Sleep(2 * time.Second)
+			}
+		}
+		if contractErr != nil {
+			_ = client.Close()
+			return fmt.Errorf("ledger contracts not ready after wipe: %w", contractErr)
 		}
 
 		// Reset the EventBuilder so the hash chain restarts from a clean slate.

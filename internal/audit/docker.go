@@ -435,9 +435,17 @@ func WipeHistory(composePath string) error {
 		return nil
 	}
 
-	// Step 2: Truncate the asset table and, if present, coordinator.state.
-	sql := fmt.Sprintf(`TRUNCATE %s.asset;
+	// Step 2: Truncate asset tables and, if present, coordinator.state.
+	// ScalarDL stores tamper-evident hashes in asset_metadata alongside the
+	// asset data table. Both must be truncated together — leaving asset_metadata
+	// intact while clearing asset causes DL-LEDGER-305001 (inconsistent asset
+	// and metadata) on the first contract execution after a wipe.
+	sql := fmt.Sprintf(`TRUNCATE %[1]s.asset;
 DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema = '%[1]s' AND table_name = 'asset_metadata') THEN
+    EXECUTE 'TRUNCATE %[1]s.asset_metadata';
+  END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables
              WHERE table_schema = 'coordinator' AND table_name = 'state') THEN
     TRUNCATE coordinator.state;
@@ -474,10 +482,10 @@ func StopStack(composePath string, wipe bool) error {
 //  2. Runs docker compose up -d
 //  3. Waits for the ledger port to accept connections (up to 30s)
 //
-// Progress is written to stderr. Returns nil when the ledger is ready or
-// when auto-start is not configured. Non-zero errors are non-fatal for
-// callers — audit is optional.
-func EnsureStack(cfg config.AuditConfig) error {
+// progressFn receives one-line status strings at each step; it may be nil.
+// Returns nil when the ledger is ready or when auto-start is not configured.
+// Non-zero errors are non-fatal for callers — audit is optional.
+func EnsureStack(cfg config.AuditConfig, progressFn func(string)) error {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return nil
 	}
@@ -494,6 +502,7 @@ func EnsureStack(cfg config.AuditConfig) error {
 	}
 
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: audit ledger is not running; starting it...")
+	progress(progressFn, "Starting audit server...")
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("Docker daemon not ready: %w", err)
 	}
@@ -501,9 +510,11 @@ func EnsureStack(cfg config.AuditConfig) error {
 		return fmt.Errorf("starting audit stack: %w", err)
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: waiting for ledger to become ready...")
+	progress(progressFn, "Waiting for audit server to become ready...")
 	if err := waitForLedger(cfg); err != nil {
 		return fmt.Errorf("ledger did not become ready: %w", err)
 	}
+	progress(progressFn, "Audit server ready.")
 	return nil
 }
 

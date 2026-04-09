@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
+import { EventsOn, EventsOff } from "@/lib/wails"
 import type { VaultLocation } from "@/lib/types"
 
 interface UnlockViewProps {
@@ -25,7 +26,17 @@ export function UnlockView({
   onBack,
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
+  const [auditStatus, setAuditStatus] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    EventsOn("audit:unlock-progress", (msg) => setAuditStatus(String(msg)))
+    return () => EventsOff("audit:unlock-progress")
+  }, [])
+
+  useEffect(() => {
+    if (!loading) setAuditStatus("")
+  }, [loading])
 
   useEffect(() => {
     // The Wails WebView may not accept focus until its layout is fully
@@ -121,6 +132,12 @@ export function UnlockView({
               "Unlock"
             )}
           </Button>
+
+          {loading && auditStatus && (
+            <p className="text-center text-xs text-muted-foreground">
+              {auditStatus}
+            </p>
+          )}
         </form>
       </div>
     </div>

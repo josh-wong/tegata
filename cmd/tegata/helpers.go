@@ -250,7 +250,7 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 	// command runs — MaybeAutoStart's goroutine would be killed on CLI exit.
 	// No-op when DockerComposePath is empty or AutoStart is false (D-11).
 	if cfg, err := config.Load(filepath.Dir(vaultPath)); err == nil {
-		if err := audit.EnsureStack(cfg.Audit); err != nil {
+		if err := audit.EnsureStack(cfg.Audit, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
 		}
 	}
