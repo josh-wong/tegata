@@ -149,7 +149,7 @@ $RECYCLE.BIN/
 # Wails build artifacts
 # =============================================================================
 cmd/tegata-gui/build/bin/
-cmd/tegata-gui/build/darwin/Info.dev.plist
+cmd/tegata-gui/build/darwin/
 
 # =============================================================================
 # GSD planning (local-only)
