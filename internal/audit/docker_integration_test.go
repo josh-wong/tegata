@@ -20,14 +20,6 @@ import (
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
-	"github.com/josh-wong/tegata/internal/config"
-)
-
-// Package-level state shared across tests to avoid re-running expensive
-// SetupStack multiple times in the same test run.
-var (
-	sharedComposeDir string
-	sharedCfg        config.AuditConfig
 )
 
 // requireDocker skips the test if Docker Engine and Compose v2 are not available.
@@ -140,34 +132,36 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 	}
 
 	t.Log("SetupStack happy path succeeded: Docker stack is running and ledger is reachable")
-
-	// Store state for subsequent tests to reuse (avoids re-running SetupStack).
-	sharedComposeDir = composeWorkDir
-	sharedCfg = cfg
 }
 
-// TestIntegration_MaybeAutoStart stops a running stack, calls MaybeAutoStart,
-// and polls until the ledger becomes reachable again. Demonstrates the
-// auto-restart feature on vault unlock.
+// TestIntegration_MaybeAutoStart sets up its own Docker stack, stops it, then
+// calls MaybeAutoStart and polls until the ledger becomes reachable again.
+// Self-contained: does not rely on TestIntegration_SetupStack_HappyPath or
+// any package-level state.
 func TestIntegration_MaybeAutoStart(t *testing.T) {
 	requireDocker(t)
 
-	// Skip if SetupStack test did not run or failed. This happens when running
-	// this test in isolation (e.g. -run TestIntegration_MaybeAutoStart). Run
-	// the full suite to populate shared state: go test -tags integration ./internal/audit/... -v
-	if sharedComposeDir == "" {
-		t.Skip("skipping: SetupStack did not run in this test session; run the full integration suite to populate shared state")
+	srcDir, err := composeSourceDir()
+	if err != nil {
+		t.Fatalf("determining compose source directory: %v", err)
+	}
+	composeWorkDir := t.TempDir()
+	fsys := os.DirFS(srcDir)
+
+	cfg, err := audit.SetupStack(fsys, composeWorkDir, "test-vault-id-e2e-autostart", nil, nil)
+	if err != nil {
+		t.Fatalf("SetupStack: %v", err)
 	}
 
-	// Stop the stack without wiping (preserves named volume with ledger data).
-	composePath := filepath.Join(sharedComposeDir, "docker-compose.yml")
+	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
+	t.Cleanup(func() { _ = audit.StopStack(composePath, true) })
+
+	// Stop without wiping to simulate "stack exists but is stopped".
 	if err := audit.StopStack(composePath, false); err != nil {
 		t.Fatalf("stopping Docker stack: %v", err)
 	}
 	t.Log("Docker stack stopped")
 
-	// Build a config with AutoStart enabled to trigger MaybeAutoStart logic.
-	cfg := sharedCfg
 	cfg.DockerComposePath = composePath
 	cfg.AutoStart = true
 
@@ -179,45 +173,28 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 	pollCtx, pollCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer pollCancel()
 
-	successCh := make(chan bool, 1)
-	go func() {
-		for i := 0; i < 30; i++ {
-			select {
-			case <-pollCtx.Done():
-				return
-			default:
-			}
-
-			// Each iteration: create a fresh client and attempt Ping.
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
-			if err == nil {
-				err = client.Ping(ctx)
-				cancel()
-				_ = client.Close()
-				if err == nil {
-					successCh <- true
-					return
-				}
-			} else {
-				cancel()
-			}
-
-			// Ledger not ready yet; wait before retrying.
-			time.Sleep(2 * time.Second)
-		}
-		successCh <- false
-	}()
-
-	// Wait for poll result or timeout.
-	select {
-	case success := <-successCh:
-		if !success {
+	for {
+		select {
+		case <-pollCtx.Done():
 			t.Fatal("ledger did not become reachable within 60 seconds after MaybeAutoStart")
+		default:
 		}
-		t.Log("MaybeAutoStart succeeded: ledger became reachable within 60 seconds")
-	case <-pollCtx.Done():
-		t.Fatal("MaybeAutoStart polling timed out after 60 seconds")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		client, clientErr := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+		if clientErr == nil {
+			pingErr := client.Ping(ctx)
+			_ = client.Close()
+			cancel()
+			if pingErr == nil {
+				t.Log("MaybeAutoStart succeeded: ledger became reachable within 60 seconds")
+				return
+			}
+		} else {
+			cancel()
+		}
+
+		time.Sleep(2 * time.Second)
 	}
 }
 
