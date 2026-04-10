@@ -128,7 +128,9 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Store the unlocked vault manager and recovery key.
 		m.vaultMgr = msg.mgr
 		m.vaultPath = m.vaultCreatePath()
-		m.vaultID = msg.mgr.VaultID()
+		if msg.mgr != nil {
+			m.vaultID = msg.mgr.VaultID()
+		}
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
@@ -244,7 +246,9 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Store the unlocked vault manager and recovery key.
 		m.vaultMgr = msg.mgr
 		m.vaultPath = m.vaultCreatePath()
-		m.vaultID = msg.mgr.VaultID()
+		if msg.mgr != nil {
+			m.vaultID = msg.mgr.VaultID()
+		}
 		m.recoveryKey = msg.recoveryKey
 		m.errMsg = ""
 		return m, nil
