@@ -71,9 +71,9 @@ func TestConfigSetAutoStart_InvalidValue(t *testing.T) {
 	}
 
 	cmd := newConfigCmd()
-	cmd.SetArgs([]string{"set", "audit.auto_start", "yes"})
+	cmd.SetArgs([]string{"set", "audit.auto_start", "Yes"})
 	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error for invalid value 'yes', got nil")
+		t.Fatal("expected error for invalid value 'Yes', got nil")
 	}
 
 	cfg, err := config.Load(dir)

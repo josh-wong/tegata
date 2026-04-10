@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,21 +30,22 @@ export function StopWipeConfirmDialog({
   function handleClose() {
     setConfirmText("")
     setError("")
+    setLoading(false)
     onClose()
   }
 
   async function handleConfirm() {
-    if (confirmText !== "yes") return
+    if (confirmText !== "DELETE") return
     setLoading(true)
     setError("")
     try {
       await App.StopAuditServer(true)
       setConfirmText("")
+      setLoading(false)
       onWipeComplete()
       onClose()
     } catch (err) {
       setError(formatError(err, "Failed to delete audit history"))
-    } finally {
       setLoading(false)
     }
   }
@@ -61,16 +62,19 @@ export function StopWipeConfirmDialog({
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
             This permanently deletes all audit history and cannot be undone.
-            Type &lsquo;yes&rsquo; to confirm.
+            Type DELETE to confirm.
           </p>
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Deleting history and restarting the audit server. This may take up to 30 seconds...
+            </div>
+          )}
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              Type &lsquo;yes&rsquo; to confirm
-            </label>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="yes"
+              placeholder="DELETE"
               autoComplete="off"
               data-testid="wipe-confirm-input"
             />
@@ -84,9 +88,14 @@ export function StopWipeConfirmDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={confirmText !== "yes" || loading}
+            disabled={confirmText !== "DELETE" || loading}
           >
-            Delete permanently
+            {loading ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : "Delete permanently"}
           </Button>
         </DialogFooter>
       </DialogContent>

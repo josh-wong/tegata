@@ -115,7 +115,7 @@ func TestNewCopyCancelsPrevious(t *testing.T) {
 
 	got := mock.getContent()
 	if got != "secret2" {
-		t.Errorf("first auto-clear should have been cancelled, clipboard = %q, want %q", got, "secret2")
+		t.Errorf("first auto-clear should have been canceled, clipboard = %q, want %q", got, "secret2")
 	}
 
 	// After second timeout

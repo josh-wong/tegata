@@ -306,8 +306,15 @@ func (c *LedgerClient) CollectionCreate(ctx context.Context, collectionID string
 		Nonce:            nonce,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
-			return fmt.Errorf("%w: %s", errCollectionExists, err)
+		if s, ok := status.FromError(err); ok {
+			switch s.Code() {
+			case codes.AlreadyExists:
+				return fmt.Errorf("%w: %s", errCollectionExists, err)
+			case codes.Internal:
+				if s.Message() == "" {
+					return fmt.Errorf("%w: %s", errCollectionExists, err)
+				}
+			}
 		}
 		return fmt.Errorf("%w: CollectionCreate failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
@@ -341,8 +348,15 @@ func (c *LedgerClient) CollectionAdd(ctx context.Context, collectionID string, o
 		Nonce:            nonce,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok && (s.Code() == codes.NotFound || s.Code() == codes.InvalidArgument) {
-			return fmt.Errorf("%w: %s", errCollectionNotFound, err)
+		if s, ok := status.FromError(err); ok {
+			switch s.Code() {
+			case codes.NotFound, codes.InvalidArgument:
+				return fmt.Errorf("%w: %s", errCollectionNotFound, err)
+			case codes.Internal:
+				if s.Message() == "" {
+					return fmt.Errorf("%w: %s", errCollectionNotFound, err)
+				}
+			}
 		}
 		return fmt.Errorf("%w: CollectionAdd failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
@@ -378,6 +392,20 @@ func (c *LedgerClient) CollectionGet(ctx context.Context, collectionID string) (
 		Nonce:            nonce,
 	})
 	if err != nil {
+		// Detect when the collection doesn't exist (e.g. after a wipe).
+		// ScalarDL HashStore returns Internal with an empty description when the
+		// collection or its backing object does not exist; NotFound/InvalidArgument
+		// cover other ledger implementations.
+		if s, ok := status.FromError(err); ok {
+			switch s.Code() {
+			case codes.NotFound, codes.InvalidArgument:
+				return nil, fmt.Errorf("%w: %s", errCollectionNotFound, err)
+			case codes.Internal:
+				if s.Message() == "" {
+					return nil, fmt.Errorf("%w: %s", errCollectionNotFound, err)
+				}
+			}
+		}
 		return nil, fmt.Errorf("%w: CollectionGet failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 

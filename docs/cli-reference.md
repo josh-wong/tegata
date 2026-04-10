@@ -111,6 +111,28 @@ tegata code GitHub --clip=false
 
 For TOTP credentials, the output includes the remaining seconds until expiry. For HOTP credentials, the counter is incremented and saved before displaying the code.
 
+### tegata config set
+
+Set a configuration value in `tegata.toml`. The only supported key is `audit.auto_start`, which controls whether the Docker audit stack starts automatically when you unlock the vault.
+
+**Usage:** `tegata config set <key> <value>`
+
+**Supported keys:**
+
+| Key                | Values        | Description                                                              |
+|--------------------|---------------|--------------------------------------------------------------------------|
+| `audit.auto_start` | `true`/`false` | Auto-start the Docker audit stack on vault unlock (default `true` after ledger start) |
+
+**Examples:**
+
+```bash
+# Disable auto-start (Docker stack must be started manually)
+tegata config set audit.auto_start false
+
+# Re-enable auto-start
+tegata config set audit.auto_start true
+```
+
 ### tegata config show
 
 Display the effective configuration, including values from `tegata.toml` or defaults.
@@ -228,9 +250,50 @@ tegata init
 
 Tegata prompts for and confirms a passphrase (minimum 8 characters), creates the vault file, writes a default `tegata.toml` configuration, and displays a recovery key. Store the recovery key in a separate secure location.
 
+### tegata ledger start
+
+One-click setup that starts the ScalarDL Ledger Docker stack and configures audit logging. Run this once after initializing a vault to enable audit. After setup completes, every vault unlock automatically starts the Docker stack (including the Docker daemon if it is not running) in the background.
+
+**Usage:** `tegata ledger start`
+
+**Example:**
+
+```bash
+tegata ledger start
+tegata ledger start --vault /media/usb
+```
+
+Tegata prompts for the vault passphrase, then runs the full setup sequence: starts Docker if needed, extracts the bundled compose files to `~/.tegata/docker/`, generates a unique entity ID and secret key from the vault, starts the Docker stack, waits for the ledger to become ready, registers credentials, and writes the `[audit]` section to `tegata.toml`. The whole process takes 3–7 minutes on first run (the HashStore SDK download and JVM bootstrap are the slow parts).
+
+See [ScalarDL setup guide](scalardl-setup.md) for full details.
+
+### tegata ledger stop
+
+Stop the ScalarDL Ledger Docker containers. Audit history is preserved by default. Requires the vault passphrase.
+
+**Usage:** `tegata ledger stop [flags]`
+
+**Flags:**
+
+| Flag     | Type | Default | Description                                                         |
+|----------|------|---------|---------------------------------------------------------------------|
+| `--wipe` | bool | false   | Permanently delete all audit history (cannot be undone)             |
+
+**Examples:**
+
+```bash
+# Stop containers, preserve audit history
+tegata ledger stop
+
+# Delete all audit history (containers keep running)
+tegata ledger stop --wipe
+```
+
+The `--wipe` flag truncates the ledger database and restarts the ledger container — the Docker stack keeps running and audit logging resumes immediately. Typing `DELETE` at the confirmation prompt is required before proceeding.
+
 ### tegata ledger setup
 
-Register the client TLS certificate with ScalarDL and verify connectivity. This command must be run once before audit logging is active.
+Register the HMAC secret key with ScalarDL and verify connectivity. This is the manual alternative to `tegata ledger start` for users who are running their own ScalarDL instance rather than the bundled Docker stack.
 
 **Usage:** `tegata ledger setup`
 
@@ -240,7 +303,7 @@ Register the client TLS certificate with ScalarDL and verify connectivity. This 
 tegata ledger setup
 ```
 
-The command reads the `[audit]` section from `tegata.toml` and uses the configured certificate paths and server address. See [ScalarDL setup guide](scalardl-setup.md) for configuration steps.
+The command reads the `[audit]` section from `tegata.toml` and registers the configured secret key. See [ScalarDL setup guide](scalardl-setup.md) for configuration steps.
 
 ### tegata list
 

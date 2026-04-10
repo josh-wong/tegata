@@ -207,7 +207,7 @@ func (m *Manager) CopyWithAutoClear(text string, timeout time.Duration) error {
 				_ = m.cb.WriteAll("")
 			}
 		case <-ctx.Done():
-			// Cancelled by a new copy or Close.
+			// Canceled by a new copy or Close.
 		}
 	}()
 

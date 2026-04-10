@@ -39,7 +39,7 @@ func newRemoveCmd() *cobra.Command {
 
 			prompt := fmt.Sprintf("Remove %q (%s)? This cannot be undone. [y/N]: ", label, cred.Type)
 			if !promptConfirmation(prompt) {
-				fmt.Println("Cancelled.")
+				fmt.Println("Canceled.")
 				return nil
 			}
 
