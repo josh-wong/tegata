@@ -159,11 +159,10 @@ Integrity violation detected. <error details>
 
 The command exits with code 9. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
 
-After testing, wipe and restart the Docker stack to restore a clean state.
+After testing, wipe the audit history to restore a clean state.
 
 ```bash
-tegata ledger stop --wipe
-tegata ledger start --vault /path/to/vault
+tegata ledger stop --wipe --vault /path/to/vault
 ```
 
 ## Where tamper detection is surfaced
@@ -222,19 +221,19 @@ If this fails with `INVALID_SIGNATURE`, verify that the secret key in `certs/cli
 
 ### The request signature cannot be validated
 
-This error (`DL-COMMON-400003`) means the HMAC secret key used for signing does not match the secret registered with the ledger. Run `tegata config show` to check the configured `secret_key`, and confirm it matches `~/.tegata/docker/certs/client.properties`. If you changed the secret after the initial registration, wipe the database and re-run setup.
+This error (`DL-COMMON-400003`) means the HMAC secret key used for signing does not match the secret registered with the ledger. Run `tegata config show` to check the configured `secret_key`. If you changed the secret after the initial registration, tear down the stack completely and re-run setup.
 
 ```bash
-tegata ledger stop --wipe
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
 tegata ledger start --vault /path/to/vault
 ```
 
 ### coordinator.state table does not exist
 
-This error (`DB-CORE-10016`) means the coordinator schema was not created. Wipe and restart the stack.
+This error (`DB-CORE-10016`) means the coordinator schema was not created. Tear down the stack completely and re-run setup.
 
 ```bash
-tegata ledger stop --wipe
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
 tegata ledger start --vault /path/to/vault
 ```
 

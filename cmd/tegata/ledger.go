@@ -228,8 +228,9 @@ func newLedgerStopCmd() *cobra.Command {
 By default, containers are stopped but your audit history is preserved
 (docker compose stop, named volume retained).
 
-Use --wipe to permanently delete all audit history (docker compose down -v).
-This action cannot be undone.`,
+Use --wipe to permanently delete all audit history. The containers keep
+running after a wipe — audit logging resumes immediately. This action
+cannot be undone.`,
 		Example: `  tegata ledger stop
   tegata ledger stop --wipe`,
 		Args: cobra.NoArgs,
@@ -248,6 +249,24 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	}
 	dir := filepath.Dir(vaultPath)
 
+	// Require vault authentication before stopping or wiping the ledger.
+	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
+	if err != nil {
+		return fmt.Errorf("reading passphrase: %w", err)
+	}
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		zeroBytes(passphraseBytes)
+		return fmt.Errorf("opening vault: %w", err)
+	}
+	if err := mgr.Unlock(passphraseBytes); err != nil {
+		zeroBytes(passphraseBytes)
+		mgr.Close()
+		return fmt.Errorf("unlocking vault: %w", err)
+	}
+	zeroBytes(passphraseBytes)
+	mgr.Close()
+
 	cfg, err := config.Load(dir)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -258,25 +277,29 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	}
 
 	if wipe {
-		// Print prominent warning and require "Yes" confirmation (per D-15).
-		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type \"Yes\" to confirm:")
+		// Print prominent warning and require "DELETE" confirmation (per D-15).
+		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type \"DELETE\" to confirm:")
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		answer := strings.TrimSpace(scanner.Text())
-		if answer != "Yes" {
+		if answer != "DELETE" {
 			fmt.Fprintln(os.Stderr, "Canceled. Audit history was not deleted.")
 			return nil
 		}
 	}
 
-	if err := audit.StopStack(cfg.Audit.DockerComposePath, wipe); err != nil {
-		return err
+	if wipe {
+		fmt.Fprintln(os.Stderr, "Deleting audit history...")
+		if err := audit.WipeHistory(cfg.Audit.DockerComposePath); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "Audit history deleted. Ledger server is still running.")
+		return nil
 	}
 
-	if wipe {
-		fmt.Fprintln(os.Stderr, "Audit history deleted and containers removed.")
-	} else {
-		fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
+	if err := audit.StopStack(cfg.Audit.DockerComposePath, false); err != nil {
+		return err
 	}
+	fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
 	return nil
 }

@@ -30,6 +30,7 @@ export function StopWipeConfirmDialog({
   function handleClose() {
     setConfirmText("")
     setError("")
+    setLoading(false)
     onClose()
   }
 
@@ -40,6 +41,7 @@ export function StopWipeConfirmDialog({
     try {
       await App.StopAuditServer(true)
       setConfirmText("")
+      setLoading(false)
       onWipeComplete()
       onClose()
     } catch (err) {
@@ -90,7 +92,7 @@ export function StopWipeConfirmDialog({
           >
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 Deleting...
               </>
             ) : "Delete permanently"}

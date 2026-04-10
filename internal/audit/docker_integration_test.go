@@ -152,9 +152,11 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 func TestIntegration_MaybeAutoStart(t *testing.T) {
 	requireDocker(t)
 
-	// Skip if SetupStack test did not run or failed.
+	// Skip if SetupStack test did not run or failed. This happens when running
+	// this test in isolation (e.g. -run TestIntegration_MaybeAutoStart). Run
+	// the full suite to populate shared state: go test -tags integration ./internal/audit/... -v
 	if sharedComposeDir == "" {
-		t.Skip("SetupStack test did not run; shared compose directory is empty")
+		t.Skip("skipping: SetupStack did not run in this test session; run the full integration suite to populate shared state")
 	}
 
 	// Stop the stack without wiping (preserves named volume with ledger data).
