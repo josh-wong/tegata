@@ -347,7 +347,14 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		}
 	}
 
-	// Step 8: Return populated config.
+	// Step 8: Wait for generic contracts to become reachable (up to 5 minutes).
+	// The scalardl-contract-registration container downloads ~50 MB and runs the
+	// bootstrap tool; this is the slow part on first run.
+	progress(progressFn, "Waiting for generic contracts to become ready (up to 5 minutes on first run)...")
+	if err := waitForContracts(client, progressFn); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("waiting for contracts: %w", err)
+	}
+
 	return cfg, nil
 }
 
@@ -504,7 +511,7 @@ func EnsureStack(cfg config.AuditConfig, progressFn func(string)) error {
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: audit ledger is not running; starting it...")
 	progress(progressFn, "Starting audit server...")
 	if err := ensureDockerDaemon(); err != nil {
-		return fmt.Errorf("Docker daemon not ready: %w", err)
+		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
 	if err := StartStack(cfg.DockerComposePath); err != nil {
 		return fmt.Errorf("starting audit stack: %w", err)
