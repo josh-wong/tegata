@@ -679,48 +679,10 @@ func (a *App) resetIdle() {
 	}
 }
 
-// buildEventBuilder constructs an EventBuilder from config and the vault
-// passphrase. Returns a disabled builder (no-op) when cfg.Audit.Enabled is
-// false. Replicates the logic from cmd/tegata/helpers.go since this is a
-// separate package.
+// buildEventBuilder constructs an EventBuilder from config and the vault passphrase.
+// Returns a disabled builder (no-op) when cfg.Audit.Enabled is false.
 func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase []byte) (*audit.EventBuilder, error) {
-	if !cfg.Audit.Enabled {
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	dir := vaultDir(vaultPath)
-	queuePath := filepath.Join(dir, "queue.tegata")
-
-	// Read Argon2id salt from existing queue file header, or generate new.
-	var queueSalt []byte
-	if data, err := os.ReadFile(queuePath); err == nil && len(data) >= 32 {
-		queueSalt = make([]byte, 32)
-		copy(queueSalt, data[:32])
-	} else {
-		var genErr error
-		queueSalt, genErr = crypto.GenerateSalt()
-		if genErr != nil {
-			return nil, fmt.Errorf("generating queue salt: %w", genErr)
-		}
-	}
-
-	// Derive 32-byte queue encryption key using Argon2id.
-	keyBuf := crypto.DeriveKey(passphrase, queueSalt, crypto.DefaultParams)
-	defer keyBuf.Destroy()
-
-	queueKey := make([]byte, 32)
-	copy(queueKey, keyBuf.Bytes())
-	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
-	// lifetime of the session and will use it for queue Save operations.
-
-	client, err := audit.NewClientFromConfig(cfg.Audit)
-	if err != nil {
-		zeroBytes(queueKey)
-		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	return audit.NewEventBuilderFromConfig(cfg.Audit, filepath.Dir(vaultPath), passphrase)
 }
 
 // AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.

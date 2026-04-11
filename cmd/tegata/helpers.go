@@ -12,7 +12,6 @@ import (
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
-	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
@@ -278,57 +277,7 @@ func decodeBase32Secret(secret string) ([]byte, error) {
 
 // newEventBuilder constructs an EventBuilder from config and the vault passphrase.
 // Returns a disabled builder (no-op) when cfg.Audit.Enabled is false.
-//
-// Queue key derivation (AUDT-08): the queue is AES-256-GCM encrypted using a
-// 32-byte key derived from the vault passphrase via Argon2id with a distinct salt.
-// The salt is stored in the 32-byte queue file header. Deriving here — while
-// the passphrase is still in scope — avoids a second passphrase prompt and keeps
-// latency to one Argon2id call per command.
 func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*audit.EventBuilder, error) {
-	if !cfg.Audit.Enabled {
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	queuePath := filepath.Join(vaultDir, "queue.tegata")
-
-	// Read the Argon2id salt from the existing queue file header, or generate a
-	// new one when the file does not yet exist.
-	var queueSalt []byte
-	if data, err := os.ReadFile(queuePath); err == nil && len(data) >= 32 {
-		// Existing queue file: first 32 bytes are the Argon2id salt.
-		queueSalt = make([]byte, 32)
-		copy(queueSalt, data[:32])
-	} else {
-		// New queue: generate a fresh salt. LoadQueue / NewQueue will write it
-		// to the file header on the first Save call.
-		var genErr error
-		queueSalt, genErr = crypto.GenerateSalt()
-		if genErr != nil {
-			return nil, fmt.Errorf("generating queue salt: %w", genErr)
-		}
-	}
-
-	// Derive the 32-byte queue encryption key using Argon2id.
-	// The distinct salt ensures the queue key is independent from the vault DEK
-	// even though both use the same passphrase.
-	keyBuf := crypto.DeriveKey(passphrase, queueSalt, crypto.DefaultParams)
-	defer keyBuf.Destroy()
-
-	// Copy key bytes out of the SecretBuffer before it is destroyed.
-	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
-	// lifetime of the command and will use it for queue Save operations.
-	queueKey := make([]byte, 32)
-	copy(queueKey, keyBuf.Bytes())
-
-	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
-	if err != nil {
-		zeroBytes(queueKey)
-		// A failed ledger connection is not fatal — the queue will hold events.
-		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
-		// Return a disabled builder so auth commands are not blocked.
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	return audit.NewEventBuilderFromConfig(cfg.Audit, vaultDir, passphrase)
 }
 
