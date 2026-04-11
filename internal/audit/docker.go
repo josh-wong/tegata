@@ -321,7 +321,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 
 	// Step 7: Register entity secret and verify the ledger is reachable.
 	progress(progressFn, "Registering audit credentials...")
-	client, err := NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+	client, err := NewClientFromConfig(cfg)
 	if err != nil {
 		return config.AuditConfig{}, fmt.Errorf("connecting to ledger: %w", err)
 	}
@@ -388,7 +388,7 @@ func waitForContracts(c *LedgerClient, progressFn func(string)) error {
 func waitForLedger(cfg config.AuditConfig) error {
 	var lastErr error
 	for i := 0; i < autoStartRetries; i++ {
-		client, err := NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+		client, err := NewClientFromConfig(cfg)
 		if err != nil {
 			lastErr = err
 			time.Sleep(autoStartInterval)
@@ -498,7 +498,7 @@ func EnsureStack(cfg config.AuditConfig, progressFn func(string)) error {
 	}
 
 	// Quick probe: ledger already reachable — nothing to do.
-	if client, err := NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure); err == nil {
+	if client, err := NewClientFromConfig(cfg); err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		pingErr := client.Ping(ctx)
 		cancel()
@@ -546,7 +546,7 @@ func MaybeAutoStart(cfg config.AuditConfig) {
 		}
 		// Retry ping up to autoStartRetries times.
 		for i := 0; i < autoStartRetries; i++ {
-			client, err := NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+			client, err := NewClientFromConfig(cfg)
 			if err != nil {
 				time.Sleep(autoStartInterval)
 				continue
