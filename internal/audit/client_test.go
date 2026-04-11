@@ -2,13 +2,24 @@ package audit_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/audit/rpc"
+	"github.com/josh-wong/tegata/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -324,5 +335,160 @@ func TestClient_TLSEnforced_WithValidConfig(t *testing.T) {
 	// The important thing is that no error is returned for a non-nil TLS config.
 	if err != nil {
 		t.Errorf("NewLedgerClient with valid TLS config returned error: %v", err)
+	}
+}
+
+// generateSelfSignedCA creates a temporary self-signed CA certificate PEM file
+// for testing TLS configuration. Returns the path to the PEM file.
+func generateSelfSignedCA(t *testing.T) string {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generating CA key: %v", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{Organization: []string{"Test CA"}},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		IsCA:         true,
+		BasicConstraintsValid: true,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("creating CA certificate: %v", err)
+	}
+
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ca.pem")
+	if err := os.WriteFile(path, pemBytes, 0600); err != nil {
+		t.Fatalf("writing CA PEM: %v", err)
+	}
+	return path
+}
+
+// baseCfg returns a minimal AuditConfig for NewClientFromConfig tests.
+func baseCfg() config.AuditConfig {
+	return config.AuditConfig{
+		Server:           "localhost:50051",
+		PrivilegedServer: "localhost:50052",
+		EntityID:         "test",
+		KeyVersion:       1,
+		SecretKey:        "test-secret",
+	}
+}
+
+// TestNewClientFromConfig_TLS verifies that when Insecure=false and CACertPath
+// is empty, NewClientFromConfig dials with TLS using the system CA pool and
+// returns a non-nil client.
+func TestNewClientFromConfig_TLS(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Insecure = false
+	cfg.CACertPath = ""
+
+	client, err := audit.NewClientFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("NewClientFromConfig(TLS, system CA) returned error: %v", err)
+	}
+	if client == nil {
+		t.Fatal("NewClientFromConfig(TLS, system CA) returned nil client")
+	}
+	_ = client.Close()
+}
+
+// TestNewClientFromConfig_CustomCA verifies that when CACertPath points to a
+// valid PEM file, NewClientFromConfig returns a non-nil client without error.
+func TestNewClientFromConfig_CustomCA(t *testing.T) {
+	caPath := generateSelfSignedCA(t)
+
+	cfg := baseCfg()
+	cfg.Insecure = false
+	cfg.CACertPath = caPath
+
+	client, err := audit.NewClientFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("NewClientFromConfig(custom CA) returned error: %v", err)
+	}
+	if client == nil {
+		t.Fatal("NewClientFromConfig(custom CA) returned nil client")
+	}
+	_ = client.Close()
+}
+
+// TestNewClientFromConfig_CustomCA_InvalidFile verifies that when CACertPath
+// points to a nonexistent file, NewClientFromConfig returns an error containing
+// "reading CA cert".
+func TestNewClientFromConfig_CustomCA_InvalidFile(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Insecure = false
+	cfg.CACertPath = "/nonexistent/ca.pem"
+
+	_, err := audit.NewClientFromConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for nonexistent CA file, got nil")
+	}
+	if !strings.Contains(err.Error(), "reading CA cert") {
+		t.Errorf("error = %q, want to contain %q", err.Error(), "reading CA cert")
+	}
+}
+
+// TestNewClientFromConfig_CustomCA_InvalidPEM verifies that when CACertPath
+// points to a file with non-PEM content, NewClientFromConfig returns an error
+// containing "failed to parse CA certificate".
+func TestNewClientFromConfig_CustomCA_InvalidPEM(t *testing.T) {
+	dir := t.TempDir()
+	badFile := filepath.Join(dir, "bad.pem")
+	if err := os.WriteFile(badFile, []byte("not a certificate"), 0600); err != nil {
+		t.Fatalf("writing bad PEM: %v", err)
+	}
+
+	cfg := baseCfg()
+	cfg.Insecure = false
+	cfg.CACertPath = badFile
+
+	_, err := audit.NewClientFromConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for invalid PEM, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to parse CA certificate") {
+		t.Errorf("error = %q, want to contain %q", err.Error(), "failed to parse CA certificate")
+	}
+}
+
+// TestNewClientFromConfig_Insecure verifies that when Insecure=true,
+// NewClientFromConfig returns a non-nil client without error (preserving the
+// insecure development path per D-04).
+func TestNewClientFromConfig_Insecure(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Insecure = true
+
+	client, err := audit.NewClientFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("NewClientFromConfig(insecure) returned error: %v", err)
+	}
+	if client == nil {
+		t.Fatal("NewClientFromConfig(insecure) returned nil client")
+	}
+	_ = client.Close()
+}
+
+// TestNewClientFromConfig_EmptySecretKey verifies that when SecretKey is empty,
+// NewClientFromConfig returns an error containing "audit.secret_key is required".
+func TestNewClientFromConfig_EmptySecretKey(t *testing.T) {
+	cfg := baseCfg()
+	cfg.SecretKey = ""
+
+	_, err := audit.NewClientFromConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty secret key, got nil")
+	}
+	if !strings.Contains(err.Error(), "audit.secret_key is required") {
+		t.Errorf("error = %q, want to contain %q", err.Error(), "audit.secret_key is required")
 	}
 }
