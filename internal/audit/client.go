@@ -2,17 +2,19 @@ package audit
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
-	"crypto/sha256"
-
 	"github.com/google/uuid"
 	"github.com/josh-wong/tegata/internal/audit/rpc"
+	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -173,26 +175,52 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 	}
 }
 
-// NewClientFromConfig creates a LedgerClient using HMAC authentication.
-// Returns an error if secretKey is empty or if insecure is false (TLS mode is
-// not yet supported with HMAC auth).
-//
-// TODO(#22): Add TLS support for HMAC authentication. Currently only insecure
-// (plaintext) connections work with HMAC. The ECDSA path supports TLS via
-// NewLedgerClient, but HMAC+TLS requires building a tls.Config without client
-// certificates (server-side TLS only). Until this is implemented, production
-// deployments should use network-level encryption (e.g. VPN, SSH tunnel).
-func NewClientFromConfig(server, privilegedServer, entityID string, keyVersion uint32, secretKey string, insecure bool) (*LedgerClient, error) {
-	if secretKey == "" {
+// buildTLSConfig constructs a *tls.Config for server-only TLS. When
+// caCertPath is non-empty, the CA certificate is loaded from disk and used
+// as the root CA pool (for self-signed or private CA certificates). When
+// caCertPath is empty, the system CA pool is used.
+func buildTLSConfig(caCertPath string) (*tls.Config, error) {
+	tlsCfg := &tls.Config{}
+	if caCertPath != "" {
+		caCert, err := os.ReadFile(caCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading CA cert: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %s", caCertPath)
+		}
+		tlsCfg.RootCAs = pool
+	}
+	return tlsCfg, nil
+}
+
+// NewClientFromConfig creates a LedgerClient using HMAC authentication with
+// the settings from an AuditConfig struct. When cfg.Insecure is true, a
+// plaintext connection is used (local development only). When cfg.Insecure is
+// false, the connection uses TLS with the system CA pool by default, or a
+// custom CA from cfg.CACertPath for self-signed certificates.
+func NewClientFromConfig(cfg config.AuditConfig) (*LedgerClient, error) {
+	if cfg.SecretKey == "" {
 		return nil, fmt.Errorf("audit.secret_key is required")
 	}
-	signer := NewHMACSigner(secretKey)
+	signer := NewHMACSigner(cfg.SecretKey)
 
-	if insecure {
-		return NewLedgerClientInsecure(server, privilegedServer, entityID, keyVersion, signer)
+	if cfg.Insecure {
+		return NewLedgerClientInsecure(cfg.Server, cfg.PrivilegedServer,
+			cfg.EntityID, cfg.KeyVersion, signer)
 	}
 
-	return nil, fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true in tegata.toml (see #22)")
+	// Server-only TLS (SECR-06): system CA pool by default,
+	// custom CA from CACertPath for self-signed certificates.
+	// CertPath/KeyPath are mTLS fields for ECDSA auth -- not used here.
+	tlsCfg, err := buildTLSConfig(cfg.CACertPath)
+	if err != nil {
+		return nil, fmt.Errorf("building TLS config: %w", err)
+	}
+
+	return NewLedgerClient(cfg.Server, cfg.PrivilegedServer, tlsCfg,
+		cfg.EntityID, cfg.KeyVersion, signer)
 }
 
 // formatArgument wraps a contract argument in the ScalarDL V2 envelope that

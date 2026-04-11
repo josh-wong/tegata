@@ -42,7 +42,7 @@ type auditStartMsg struct {
 // auditHistoryCmd creates a tea.Cmd that fetches audit history asynchronously.
 func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 	return func() tea.Msg {
-		client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return auditHistoryMsg{err: err}
 		}
@@ -73,7 +73,7 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 // auditVerifyCmd creates a tea.Cmd that runs audit verification asynchronously.
 func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 	return func() tea.Msg {
-		client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return auditVerifyMsg{err: err}
 		}
