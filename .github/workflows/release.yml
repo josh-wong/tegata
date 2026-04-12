@@ -124,7 +124,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: gui-macos-unsigned
-          path: cmd/tegata-gui/build/bin/tegata-gui.app
+          path: cmd/tegata-gui/build/bin/tegata-gui.app/
 
   gui-linux:
     runs-on: ubuntu-latest
@@ -174,14 +174,15 @@ jobs:
         run: wails build --platform linux/amd64 -o tegata-gui
 
       - name: Build Linux packages
+        working-directory: cmd/tegata-gui
         run: |
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           VERSION="${GITHUB_REF_NAME#v}"
-          sed -i "s/\${VERSION}/$VERSION/g" cmd/tegata-gui/nfpm.yaml
-          nfpm package -p deb -f cmd/tegata-gui/nfpm.yaml
-          nfpm package -p rpm -f cmd/tegata-gui/nfpm.yaml
-          mv *.deb tegata-gui-linux-amd64.deb
-          mv *.rpm tegata-gui-linux-amd64.rpm
+          sed -i "s/\${VERSION}/$VERSION/g" nfpm.yaml
+          nfpm package -p deb -f nfpm.yaml
+          nfpm package -p rpm -f nfpm.yaml
+          mv *.deb ../../tegata-gui-linux-amd64.deb
+          mv *.rpm ../../tegata-gui-linux-amd64.rpm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -254,11 +255,18 @@ jobs:
           set -euo pipefail
 
           APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+
+          # Fallback: artifact may have been downloaded as a bare bundle root (Contents/ present)
+          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
+            APP_PATH="gui-app"
+          fi
+
           if [ -z "${APP_PATH:-}" ]; then
-            echo "Error: no .app found under gui-app" >&2
+            echo "Error: no .app found under gui-app (and no gui-app/Contents/MacOS fallback)" >&2
             find gui-app -maxdepth 5 -print
             exit 1
           fi
+
           echo "Using app: $APP_PATH"
 
           MAIN_BIN="$(find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -print -quit)"
@@ -293,6 +301,9 @@ jobs:
           codesign --verify --deep --strict cli-dist/tegata-darwin-arm64
           codesign --verify --deep --strict cli-dist/tegata-darwin-amd64
           APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
+            APP_PATH="gui-app"
+          fi
           codesign --verify --deep --strict "$APP_PATH"
 
       - name: Store notarization credentials
@@ -315,6 +326,15 @@ jobs:
       - name: Create and notarize DMG
         run: |
           APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
+            APP_PATH="gui-app"
+          fi
+
+          if [ -z "${APP_PATH:-}" ]; then
+            echo "Error: could not locate app bundle for DMG creation" >&2
+            exit 1
+          fi
+
           APP_NAME="$(basename "$APP_PATH")"
           brew install create-dmg
           create-dmg \
