@@ -89,23 +89,10 @@ jobs:
           go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
           working-directory: cmd/tegata-gui
 
-      - name: Create DMG
-        run: |
-          brew install create-dmg
-          create-dmg \
-            --volname "Tegata" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "tegata-gui.app" 175 190 \
-            --app-drop-link 425 190 \
-            "tegata-gui-darwin-universal.dmg" \
-            "cmd/tegata-gui/build/bin/tegata-gui.app"
-
       - uses: actions/upload-artifact@v4
         with:
-          name: gui-macos
-          path: tegata-gui-darwin-universal.dmg
+          name: gui-macos-unsigned
+          path: cmd/tegata-gui/build/bin/tegata-gui.app
 
   gui-linux:
     runs-on: ubuntu-latest
