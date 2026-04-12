@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 )
 
 // integrationEnv reads required environment variables. Returns false and skips
@@ -86,7 +87,14 @@ func newIntegrationClientHMAC(t *testing.T) *audit.LedgerClient {
 		return nil
 	}
 
-	client, err := audit.NewClientFromConfig(addr, privilegedAddr, entityID, 1, secretKey, true)
+	client, err := audit.NewClientFromConfig(config.AuditConfig{
+		Server:           addr,
+		PrivilegedServer: privilegedAddr,
+		EntityID:         entityID,
+		KeyVersion:       uint32(1),
+		SecretKey:        secretKey,
+		Insecure:         true,
+	})
 	if err != nil {
 		t.Fatalf("creating HMAC ledger client: %v", err)
 	}
