@@ -194,7 +194,7 @@ jobs:
   macos-signing:
     needs: [cli-binaries, gui-macos]
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -321,7 +321,7 @@ jobs:
         run: |
           zip tegata-cli-darwin.zip cli-dist/tegata-darwin-amd64 cli-dist/tegata-darwin-arm64
           xcrun notarytool submit tegata-cli-darwin.zip \
-            --keychain-profile "notary-profile" --wait --timeout 15m
+            --keychain-profile "notary-profile" --wait --timeout 45m
 
       - name: Create and notarize DMG
         run: |
@@ -348,7 +348,7 @@ jobs:
             "$APP_PATH"
 
           xcrun notarytool submit tegata-gui-darwin-universal.dmg \
-            --keychain-profile "notary-profile" --wait --timeout 15m
+            --keychain-profile "notary-profile" --wait --timeout 45m
 
           xcrun stapler staple tegata-gui-darwin-universal.dmg
 
