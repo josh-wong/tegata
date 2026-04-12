@@ -131,14 +131,160 @@ jobs:
             tegata-gui-linux-amd64.deb
             tegata-gui-linux-amd64.rpm
 
+  macos-signing:
+    needs: [cli-binaries, gui-macos]
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CLI binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-binaries
+          path: cli-dist
+
+      - name: Download unsigned GUI app
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-macos-unsigned
+          path: gui-app
+
+      - name: Setup signing keychain
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          rm -f certificate.p12
+
+      - name: Find signing identity
+        id: identity
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "name=$IDENTITY" >> "$GITHUB_OUTPUT"
+
+      - name: Sign CLI binaries
+        run: |
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements scripts/macos-entitlements.plist \
+            cli-dist/tegata-darwin-arm64
+
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements scripts/macos-entitlements.plist \
+            cli-dist/tegata-darwin-amd64
+
+      - name: Sign GUI app bundle
+        run: |
+          # Sign the main binary inside the .app first (bottom-up, NOT --deep)
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
+            "gui-app/tegata-gui.app/Contents/MacOS/tegata-gui"
+
+          # Sign any additional executables inside the bundle
+          find gui-app/tegata-gui.app -type f -perm +111 -not -name "tegata-gui" | while read -r bin; do
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --sign "${{ steps.identity.outputs.name }}" \
+              "$bin" 2>/dev/null || true
+          done
+
+          # Sign the .app bundle itself
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
+            "gui-app/tegata-gui.app"
+
+      - name: Verify signatures
+        run: |
+          codesign --verify --deep --strict cli-dist/tegata-darwin-arm64
+          codesign --verify --deep --strict cli-dist/tegata-darwin-amd64
+          codesign --verify --deep --strict gui-app/tegata-gui.app
+
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "notary-profile" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Notarize CLI binaries
+        run: |
+          zip tegata-cli-darwin.zip cli-dist/tegata-darwin-amd64 cli-dist/tegata-darwin-arm64
+          xcrun notarytool submit tegata-cli-darwin.zip \
+            --keychain-profile "notary-profile" --wait --timeout 15m
+
+      - name: Create and notarize DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "Tegata" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "tegata-gui.app" 175 190 \
+            --app-drop-link 425 190 \
+            "tegata-gui-darwin-universal.dmg" \
+            "gui-app/tegata-gui.app"
+
+          xcrun notarytool submit tegata-gui-darwin-universal.dmg \
+            --keychain-profile "notary-profile" --wait --timeout 15m
+
+          xcrun stapler staple tegata-gui-darwin-universal.dmg
+
+      - name: Verify notarization
+        run: |
+          spctl --assess --type open --context context:primary-signature tegata-gui-darwin-universal.dmg
+          codesign -d --verbose=4 cli-dist/tegata-darwin-arm64
+
+      - name: Upload signed CLI binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed-cli
+          path: |
+            cli-dist/tegata-darwin-arm64
+            cli-dist/tegata-darwin-amd64
+
+      - name: Upload signed DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed-gui
+          path: tegata-gui-darwin-universal.dmg
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain 2>/dev/null || true
+
   release:
-    needs: [cli-binaries, gui-windows, gui-macos, gui-linux]
+    needs: [cli-binaries, macos-signing, gui-windows, gui-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Replace unsigned macOS binaries with signed ones
+        run: |
+          rm -f artifacts/cli-binaries/tegata-darwin-arm64
+          rm -f artifacts/cli-binaries/tegata-darwin-amd64
+          rm -rf artifacts/gui-macos-unsigned
 
       - name: Collect artifacts and generate checksums
         run: |
