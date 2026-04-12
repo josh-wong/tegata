@@ -84,11 +84,163 @@ If code signing fails, check:
 - Your Team ID is exactly right.
 - The certificate is valid and not expired.
 
+## Local testing (manual notarization)
+
+If you need to test code signing and notarization on your machine before pushing a release tag, follow these steps.
+
+> [!WARNING]
+> 
+> You must build the binaries first; they cannot be notarized without existing files.
+
+### Prerequisites: Store notarization credentials
+
+Before you can submit for notarization, store your Apple notarization credentials in your local keychain:
+
+```bash
+xcrun notarytool store-credentials "notary-profile" \
+  --apple-id "your-apple-id@example.com" \
+  --team-id "YOUR_TEAM_ID" \
+  --password "your-app-specific-password"
+```
+
+Replace:
+
+- `your-apple-id@example.com` with your Apple ID (from [Step 4](#step-4-create-app-specific-password)).
+- `YOUR_TEAM_ID` with your Team ID (from [Step 5](#step-5-get-your-team-id)).
+- `your-app-specific-password` with the 16-character app-specific password (from [Step 4](#step-4-create-app-specific-password)).
+
+You only need to do this once; `notarytool` will reuse the stored credentials for future submissions.
+
+### Build and notarize the CLI binaries
+
+1. Build the macOS CLI binaries:
+
+```bash
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build \
+  -ldflags="-s -w -X main.version=v0.1.0" \
+  -o tegata-darwin-amd64 ./cmd/tegata/
+
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
+  -ldflags="-s -w -X main.version=v0.1.0" \
+  -o tegata-darwin-arm64 ./cmd/tegata/
+```
+
+2. Sign the binaries (requires certificate setup from the [Initial setup](#initial-setup) section):
+
+```bash
+codesign --force --timestamp --options runtime \
+  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
+  --entitlements scripts/macos-entitlements.plist \
+  tegata-darwin-amd64
+
+codesign --force --timestamp --options runtime \
+  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
+  --entitlements scripts/macos-entitlements.plist \
+  tegata-darwin-arm64
+```
+
+3. Verify the signatures:
+
+```bash
+codesign --verify --deep --strict tegata-darwin-amd64
+codesign --verify --deep --strict tegata-darwin-arm64
+```
+
+4. Create a .zip file and submit it for notarization:
+
+```bash
+zip tegata-cli-darwin.zip tegata-darwin-amd64 tegata-darwin-arm64
+xcrun notarytool submit tegata-cli-darwin.zip \
+  --keychain-profile "notary-profile" --wait
+```
+
+The submission will return a submission ID. If notarization succeeds, you can staple the files:
+
+```bash
+xcrun stapler staple tegata-darwin-amd64
+xcrun stapler staple tegata-darwin-arm64
+```
+
+### Build and notarize the GUI app
+
+1. Build the macOS GUI app by using Wails:
+
+```bash
+cd cmd/tegata-gui
+wails build --platform darwin/universal -o tegata-gui
+cd ../..
+```
+
+2. Sign the app bundle (the workflow does this in detail, but for local testing):
+
+```bash
+APP_PATH="cmd/tegata-gui/build/bin/tegata-gui.app"
+
+# Sign the main binary
+codesign --force --timestamp --options runtime \
+  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
+  --entitlements scripts/macos-entitlements.plist \
+  "$APP_PATH/Contents/MacOS/tegata-gui"
+
+# Sign the bundle
+codesign --force --timestamp --options runtime \
+  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
+  --entitlements scripts/macos-entitlements.plist \
+  "$APP_PATH"
+```
+
+3. Verify the signature:
+
+```bash
+codesign --verify --deep --strict "$APP_PATH"
+```
+
+4. Create a DMG and notarize:
+
+```bash
+brew install create-dmg
+create-dmg \
+  --volname "Tegata" \
+  --window-pos 200 120 \
+  --window-size 600 400 \
+  --icon-size 100 \
+  --icon "tegata-gui.app" 175 190 \
+  --app-drop-link 425 190 \
+  "tegata-gui-darwin-universal.dmg" \
+  "cmd/tegata-gui/build/bin/tegata-gui.app"
+
+xcrun notarytool submit tegata-gui-darwin-universal.dmg \
+  --keychain-profile "notary-profile" --wait
+```
+
+After successful notarization, staple the DMG:
+
+```bash
+xcrun stapler staple tegata-gui-darwin-universal.dmg
+```
+
+### Troubleshooting
+
+If notarization fails or times out:
+
+1. Check the notarization log (replace `<submission-id>` with the ID from the submit output):
+
+```bash
+xcrun notarytool log <submission-id> --keychain-profile "notary-profile"
+```
+
+2. Common issues:
+   - **Invalid signature**: Ensure codesign command used correct signing identity and entitlements file.
+   - **Invalid entitlements**: Check `scripts/macos-entitlements.plist` is valid.
+   - **Timeout**: Apple's service may be slow; the workflow uses `--timeout 45m`; local testing can wait longer.
+   - **Certificate expired**: Verify certificate is still valid in Keychain Access.
+
+
 ## Cleanup/removal
 
 If you need to start over or remove what you've added to your local environment, follow these steps:
 
-### Step 1: Delete temporary files
+### Step 1: Delete the temporary files
 
 Remove the `.p12` and `.cer` files from your Mac:
 
@@ -99,7 +251,7 @@ rm ~/Downloads/developer-id.cer
 rm ~/Downloads/*.certSigningRequest
 ```
 
-### Step 2: Remove certificate from Keychain
+### Step 2: Remove the certificate from Keychain
 
 1. Open **Keychain Access** on your Mac.
 2. Go to the **Certificates** category.
@@ -119,7 +271,7 @@ In your GitHub repo:
    - `APPLE_TEAM_ID`
    - `APPLE_APP_SPECIFIC_PASSWORD`
 
-### Step 4: (Optional) Revoke certificate from Apple
+### Step 4: (Optional) Revoke the certificate from Apple
 
 If you want to fully revoke the certificate from Apple's side:
 
@@ -131,4 +283,4 @@ If you want to fully revoke the certificate from Apple's side:
 
 ## Starting over
 
-Once you've completed the cleanup, you can start from **Step 1** of the Initial setup section again if needed.
+Once you've completed the cleanup, you can start from **Step 1** of the [Initial setup](#initial-setup) section again if needed.
