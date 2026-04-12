@@ -69,13 +69,31 @@ jobs:
       - name: Build Windows app
         working-directory: cmd/tegata-gui
         run: wails build --platform windows/amd64 -webview2 download -nsis -o tegata-gui
-        shell: bash
+        shell: pwsh
 
       - name: Rename installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path cmd/tegata-gui/build/bin -Filter "*.exe" -Recurse | Select-Object -First 1
-          Copy-Item $installer.FullName "tegata-gui-windows-amd64-setup.exe"
+          $buildDir = Join-Path $PWD 'cmd/tegata-gui/build'
+          if (-not (Test-Path $buildDir)) {
+            Write-Error "Build directory not found: $buildDir"
+            Get-ChildItem -Path (Join-Path $PWD 'cmd/tegata-gui') -Recurse | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+
+          Write-Host "Listing build directory contents:"
+          Get-ChildItem -Path $buildDir -Force -Recurse | ForEach-Object { Write-Host $_.FullName }
+
+          $installer = Get-ChildItem -Path $buildDir -Filter "*.exe" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if (-not $installer) {
+            Write-Error "No .exe installer found under $buildDir"
+            exit 1
+          }
+
+          Write-Host "Found installer: $($installer.FullName) -> copying to tegata-gui-windows-amd64-setup.exe"
+          Copy-Item -Path $installer.FullName -Destination (Join-Path $PWD "tegata-gui-windows-amd64-setup.exe")
+          Write-Host "Copy finished."
 
       - uses: actions/upload-artifact@v4
         with:
@@ -117,8 +135,17 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev || \
-            sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev || \
+            sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Provide webkit2gtk-4.0 pkg-config shim if needed
+        run: |
+          if ! pkg-config --exists webkit2gtk-4.0 && pkg-config --exists webkit2gtk-4.1; then
+            PC_DIR=$(pkg-config --variable pcfiledir webkit2gtk-4.1)
+            sudo cp "${PC_DIR}/webkit2gtk-4.1.pc" "${PC_DIR}/webkit2gtk-4.0.pc"
+            sudo sed -i 's/webkit2gtk-4.1/webkit2gtk-4.0/g' "${PC_DIR}/webkit2gtk-4.0.pc"
+            echo "Created shim for webkit2gtk-4.0 -> webkit2gtk-4.1 ($PC_DIR)"
+          fi
 
       - uses: actions/setup-go@v5
         with:
@@ -213,14 +240,32 @@ jobs:
 
       - name: Sign GUI app bundle
         run: |
-          # Sign the main binary inside the .app first (bottom-up, NOT --deep)
+          set -euo pipefail
+
+          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ]; then
+            echo "Error: no .app found under gui-app" >&2
+            find gui-app -maxdepth 5 -print
+            exit 1
+          fi
+          echo "Using app: $APP_PATH"
+
+          MAIN_BIN="$(find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -print -quit)"
+          if [ -z "${MAIN_BIN:-}" ]; then
+            echo "Error: no main executable found in $APP_PATH/Contents/MacOS" >&2
+            ls -la "$APP_PATH/Contents" || true
+            exit 1
+          fi
+          echo "Main binary: $MAIN_BIN"
+
+          # Sign the main binary first (bottom-up, NOT --deep)
           /usr/bin/codesign --force --timestamp --options runtime \
             --sign "${{ steps.identity.outputs.name }}" \
             --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
-            "gui-app/tegata-gui.app/Contents/MacOS/tegata-gui"
+            "$MAIN_BIN"
 
           # Sign any additional executables inside the bundle
-          find gui-app/tegata-gui.app -type f -perm +111 -not -name "tegata-gui" | while read -r bin; do
+          find "$APP_PATH" -type f -perm -111 ! -path "$MAIN_BIN" | while read -r bin; do
             /usr/bin/codesign --force --timestamp --options runtime \
               --sign "${{ steps.identity.outputs.name }}" \
               "$bin" || echo "Warning: codesign failed for $bin (non-fatal for non-Mach-O files)"
@@ -230,13 +275,14 @@ jobs:
           /usr/bin/codesign --force --timestamp --options runtime \
             --sign "${{ steps.identity.outputs.name }}" \
             --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
-            "gui-app/tegata-gui.app"
+            "$APP_PATH"
 
       - name: Verify signatures
         run: |
           codesign --verify --deep --strict cli-dist/tegata-darwin-arm64
           codesign --verify --deep --strict cli-dist/tegata-darwin-amd64
-          codesign --verify --deep --strict gui-app/tegata-gui.app
+          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          codesign --verify --deep --strict "$APP_PATH"
 
       - name: Store notarization credentials
         env:
@@ -257,16 +303,18 @@ jobs:
 
       - name: Create and notarize DMG
         run: |
+          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          APP_NAME="$(basename "$APP_PATH")"
           brew install create-dmg
           create-dmg \
             --volname "Tegata" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "tegata-gui.app" 175 190 \
+            --icon "$APP_NAME" 175 190 \
             --app-drop-link 425 190 \
             "tegata-gui-darwin-universal.dmg" \
-            "gui-app/tegata-gui.app"
+            "$APP_PATH"
 
           xcrun notarytool submit tegata-gui-darwin-universal.dmg \
             --keychain-profile "notary-profile" --wait --timeout 15m
