@@ -135,16 +135,27 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev || \
-            sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.0-dev
+          sudo apt-get install -y \
+            build-essential pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
-      - name: Provide webkit2gtk-4.0 pkg-config shim if needed
-        run: |
+          # Provide pkg-config shim so Wails can resolve webkit2gtk-4.0 via pkg-config
           if ! pkg-config --exists webkit2gtk-4.0 && pkg-config --exists webkit2gtk-4.1; then
             PC_DIR=$(pkg-config --variable pcfiledir webkit2gtk-4.1)
             sudo cp "${PC_DIR}/webkit2gtk-4.1.pc" "${PC_DIR}/webkit2gtk-4.0.pc"
             sudo sed -i 's/webkit2gtk-4.1/webkit2gtk-4.0/g' "${PC_DIR}/webkit2gtk-4.0.pc"
-            echo "Created shim for webkit2gtk-4.0 -> webkit2gtk-4.1 ($PC_DIR)"
+            echo "Created pkg-config shim for webkit2gtk-4.0 -> webkit2gtk-4.1"
+          fi
+
+          # Provide linker symlink so -lwebkit2gtk-4.0 resolves when only 4.1 is installed
+          if ldconfig -p | grep -q "libwebkit2gtk-4.1.so" && ! ldconfig -p | grep -q "libwebkit2gtk-4.0.so"; then
+            LIBDIR=$(ldconfig -p | grep "libwebkit2gtk-4.1.so" | head -1 | awk '{print $NF}' | xargs dirname)
+            sudo ln -s "$LIBDIR/libwebkit2gtk-4.1.so" "$LIBDIR/libwebkit2gtk-4.0.so"
+            sudo ldconfig
+            echo "Created linker symlink libwebkit2gtk-4.0.so -> libwebkit2gtk-4.1.so"
           fi
 
       - uses: actions/setup-go@v5
