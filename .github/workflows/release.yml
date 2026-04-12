@@ -219,7 +219,7 @@ jobs:
           find gui-app/tegata-gui.app -type f -perm +111 -not -name "tegata-gui" | while read -r bin; do
             /usr/bin/codesign --force --timestamp --options runtime \
               --sign "${{ steps.identity.outputs.name }}" \
-              "$bin" 2>/dev/null || true
+              "$bin" || echo "Warning: codesign failed for $bin (non-fatal for non-Mach-O files)"
           done
 
           # Sign the .app bundle itself
