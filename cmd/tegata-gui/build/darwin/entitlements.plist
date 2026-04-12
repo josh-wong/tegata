@@ -3,6 +3,9 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Required by the Wails WebKit runtime, which JIT-compiles JavaScript
+         inside the WebView. Without this, hardened runtime blocks execution
+         of JIT-generated code and the GUI fails to render. -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <key>com.apple.security.network.client</key>

@@ -193,6 +193,10 @@ jobs:
         id: identity
         run: |
           IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ -z "$IDENTITY" ]; then
+            echo "Error: no Developer ID Application certificate found in keychain" >&2
+            exit 1
+          fi
           echo "name=$IDENTITY" >> "$GITHUB_OUTPUT"
 
       - name: Sign CLI binaries
