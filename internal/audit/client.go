@@ -180,7 +180,7 @@ func NewLedgerClientFromConn(conn *grpc.ClientConn, privConn *grpc.ClientConn, s
 // as the root CA pool (for self-signed or private CA certificates). When
 // caCertPath is empty, the system CA pool is used.
 func buildTLSConfig(caCertPath string) (*tls.Config, error) {
-	tlsCfg := &tls.Config{}
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
 	if caCertPath != "" {
 		caCert, err := os.ReadFile(caCertPath)
 		if err != nil {

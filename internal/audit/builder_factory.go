@@ -52,7 +52,7 @@ func NewEventBuilderFromConfig(cfg config.AuditConfig, vaultDir string, passphra
 	if err != nil {
 		zeroSlice(queueKey)
 		// A failed ledger connection is not fatal — the queue will hold events.
-		fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger unavailable (%v); events will be queued\n", err)
 		return NewEventBuilder(nil, "", nil, 0)
 	}
 
