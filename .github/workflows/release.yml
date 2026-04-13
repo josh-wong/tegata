@@ -332,7 +332,13 @@ jobs:
         run: |
           zip tegata-cli-darwin.zip cli-dist/tegata-darwin-amd64 cli-dist/tegata-darwin-arm64
           xcrun notarytool submit tegata-cli-darwin.zip \
-            --keychain-profile "notary-profile" --wait --timeout 45m
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-cli-result.json
+
+          CLI_NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-cli-result.json"))["id"])' || true)"
+          if [ -n "${CLI_NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$CLI_NOTARY_ID" --keychain-profile "notary-profile"
+          fi
 
       - name: Notarize GUI app bundle
         run: |
