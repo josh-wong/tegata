@@ -342,6 +342,10 @@ jobs:
 
           APP_NAME="$(basename "$APP_PATH")"
 
+          # Validate the app bundle before packaging
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH" || true
+
           # Stage DMG contents in a directory (this is what create-dmg expects)
           STAGE_DIR="dmg-staging"
           rm -rf "$STAGE_DIR"
@@ -360,14 +364,34 @@ jobs:
             "tegata-gui-darwin-universal.dmg" \
             "$STAGE_DIR"
 
+          # Submit and wait; capture output for diagnostics if notarization fails
           xcrun notarytool submit tegata-gui-darwin-universal.dmg \
-            --keychain-profile "notary-profile" --wait --timeout 45m
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-result.json
+
+          NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-result.json"))["id"])' || true)"
+          if [ -n "${NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$NOTARY_ID" --keychain-profile "notary-profile" || true
+          fi
 
           xcrun stapler staple tegata-gui-darwin-universal.dmg
+          xcrun stapler validate tegata-gui-darwin-universal.dmg
 
       - name: Verify notarization
         run: |
-          spctl --assess --type open --context context:primary-signature tegata-gui-darwin-universal.dmg
+          set -euo pipefail
+
+          # Verify Gatekeeper acceptance of the DMG
+          spctl --assess --type open --verbose=4 tegata-gui-darwin-universal.dmg
+
+          # Mount DMG and verify the app bundle inside
+          MOUNT_DIR="$(mktemp -d)"
+          hdiutil attach tegata-gui-darwin-universal.dmg -nobrowse -mountpoint "$MOUNT_DIR"
+          APP_IN_DMG="$(find "$MOUNT_DIR" -maxdepth 2 -name '*.app' -print -quit)"
+          codesign --verify --deep --strict --verbose=2 "$APP_IN_DMG"
+          spctl --assess --type execute --verbose=4 "$APP_IN_DMG"
+          hdiutil detach "$MOUNT_DIR"
+
           codesign -d --verbose=4 cli-dist/tegata-darwin-arm64
 
       - name: Upload signed CLI binaries
