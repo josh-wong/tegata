@@ -127,7 +127,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: gui-macos-unsigned
-          path: cmd/tegata-gui/build/bin/Tegata.app
+          path: cmd/tegata-gui/build/bin
 
   gui-linux:
     runs-on: ubuntu-latest
