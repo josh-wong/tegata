@@ -170,52 +170,85 @@ Look for `"status": "Accepted"` and `"statusSummary": "Ready for distribution"`.
 make gui
 ```
 
-2. Sign the app bundle (the workflow does this in detail, but for local testing):
+This produces `cmd/tegata-gui/build/bin/Tegata.app`.
+
+2. Sign the app bundle bottom-up — nested frameworks and libraries first, then the main binary, then the bundle itself:
 
 ```bash
-APP_PATH="cmd/tegata-gui/build/bin/tegata-gui.app"
+APP_PATH="cmd/tegata-gui/build/bin/Tegata.app"
+IDENTITY="Developer ID Application: <YOUR_NAME> (<TEAM_ID>)"
+ENT="cmd/tegata-gui/build/darwin/entitlements.plist"
 
-# Sign the main binary
-codesign --force --timestamp --options runtime \
-  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
-  --entitlements scripts/macos-entitlements.plist \
-  "$APP_PATH/Contents/MacOS/tegata-gui"
+# Sign nested frameworks, dylibs, plugins, and XPC services first
+find "$APP_PATH/Contents" \( \
+  -path "*/Contents/Frameworks/*" -o \
+  -path "*/Contents/PlugIns/*" -o \
+  -path "*/Contents/XPCServices/*" -o \
+  -name "*.dylib" -o \
+  -name "*.so" \
+\) -print | while read -r item; do
+  codesign --force --timestamp --options runtime --sign "$IDENTITY" "$item"
+done
 
-# Sign the bundle
+# Sign main executable(s)
+find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f | while read -r bin; do
+  codesign --force --timestamp --options runtime \
+    --sign "$IDENTITY" --entitlements "$ENT" "$bin"
+done
+
+# Sign the bundle last
 codesign --force --timestamp --options runtime \
-  --sign "Developer ID Application: <YOUR_NAME> (<TEAM_ID>)" \
-  --entitlements scripts/macos-entitlements.plist \
-  "$APP_PATH"
+  --sign "$IDENTITY" --entitlements "$ENT" "$APP_PATH"
 ```
 
 3. Verify the signature:
 
 ```bash
-codesign --verify --deep --strict "$APP_PATH"
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 ```
 
-4. Create a DMG and notarize:
+4. Notarize the app bundle before packaging:
+
+```bash
+ditto -c -k --keepParent "$APP_PATH" tegata-gui.app.zip
+xcrun notarytool submit tegata-gui.app.zip \
+  --keychain-profile "notary-profile" --wait
+```
+
+After successful notarization, staple and validate the app:
+
+```bash
+xcrun stapler staple "$APP_PATH"
+xcrun stapler validate "$APP_PATH"
+spctl --assess --type execute --verbose=4 "$APP_PATH"
+```
+
+5. Create a DMG from the stapled app. `create-dmg` expects a staging directory containing the app, not the app path directly:
 
 ```bash
 brew install create-dmg
+
+mkdir -p dmg-staging
+cp -R "$APP_PATH" dmg-staging/Tegata.app
+
 create-dmg \
   --volname "Tegata" \
   --window-pos 200 120 \
   --window-size 600 400 \
   --icon-size 100 \
-  --icon "tegata-gui.app" 175 190 \
+  --icon "Tegata.app" 175 190 \
   --app-drop-link 425 190 \
   "tegata-gui-darwin-universal.dmg" \
-  "cmd/tegata-gui/build/bin/tegata-gui.app"
-
-xcrun notarytool submit tegata-gui-darwin-universal.dmg \
-  --keychain-profile "notary-profile" --wait
+  "dmg-staging"
 ```
 
-After successful notarization, staple the DMG:
+6. Notarize and staple the DMG:
 
 ```bash
+xcrun notarytool submit tegata-gui-darwin-universal.dmg \
+  --keychain-profile "notary-profile" --wait
 xcrun stapler staple tegata-gui-darwin-universal.dmg
+xcrun stapler validate tegata-gui-darwin-universal.dmg
 ```
 
 ### Troubleshooting
