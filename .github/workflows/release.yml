@@ -272,32 +272,33 @@ jobs:
 
           echo "Using app: $APP_PATH"
 
-          MAIN_BIN="$(find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -print -quit)"
-          if [ -z "${MAIN_BIN:-}" ]; then
-            echo "Error: no main executable found in $APP_PATH/Contents/MacOS" >&2
-            ls -la "$APP_PATH/Contents" || true
-            exit 1
-          fi
-          echo "Main binary: $MAIN_BIN"
+          IDENTITY="${{ steps.identity.outputs.name }}"
+          ENT="cmd/tegata-gui/build/darwin/entitlements.plist"
 
-          # Sign the main binary first (bottom-up, NOT --deep)
-          /usr/bin/codesign --force --timestamp --options runtime \
-            --sign "${{ steps.identity.outputs.name }}" \
-            --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
-            "$MAIN_BIN"
-
-          # Sign any additional executables inside the bundle
-          find "$APP_PATH" -type f -perm -111 ! -path "$MAIN_BIN" | while read -r bin; do
+          # Sign nested code first (bottom-up): frameworks, dylibs, plugins, XPC services
+          find "$APP_PATH/Contents" \( \
+            -path "*/Contents/Frameworks/*" -o \
+            -path "*/Contents/PlugIns/*" -o \
+            -path "*/Contents/XPCServices/*" -o \
+            -name "*.dylib" -o \
+            -name "*.so" \
+          \) -print | while read -r item; do
             /usr/bin/codesign --force --timestamp --options runtime \
-              --sign "${{ steps.identity.outputs.name }}" \
-              "$bin" || echo "Warning: codesign failed for $bin (non-fatal for non-Mach-O files)"
+              --sign "$IDENTITY" "$item"
           done
 
-          # Sign the .app bundle itself
+          # Sign main executable(s)
+          find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -print | while read -r bin; do
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --sign "$IDENTITY" --entitlements "$ENT" "$bin"
+          done
+
+          # Sign the .app bundle last
           /usr/bin/codesign --force --timestamp --options runtime \
-            --sign "${{ steps.identity.outputs.name }}" \
-            --entitlements cmd/tegata-gui/build/darwin/entitlements.plist \
-            "$APP_PATH"
+            --sign "$IDENTITY" --entitlements "$ENT" "$APP_PATH"
+
+          # Verify the full bundle is correctly signed
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
       - name: Verify signatures
         run: |
@@ -326,6 +327,31 @@ jobs:
           xcrun notarytool submit tegata-cli-darwin.zip \
             --keychain-profile "notary-profile" --wait --timeout 45m
 
+      - name: Notarize GUI app bundle
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
+            APP_PATH="gui-app"
+          fi
+
+          # Zip and notarize the .app before packaging into DMG
+          ditto -c -k --keepParent "$APP_PATH" tegata-gui.app.zip
+
+          xcrun notarytool submit tegata-gui.app.zip \
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-app-result.json
+
+          APP_NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-app-result.json"))["id"])' || true)"
+          if [ -n "${APP_NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$APP_NOTARY_ID" --keychain-profile "notary-profile"
+          fi
+
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
+
       - name: Create and notarize DMG
         run: |
           set -euo pipefail
@@ -341,10 +367,6 @@ jobs:
           fi
 
           APP_NAME="$(basename "$APP_PATH")"
-
-          # Validate the app bundle before packaging
-          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-          spctl --assess --type execute --verbose=4 "$APP_PATH" || true
 
           # Stage DMG contents in a directory (this is what create-dmg expects)
           STAGE_DIR="dmg-staging"
