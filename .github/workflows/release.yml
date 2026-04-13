@@ -121,10 +121,13 @@ jobs:
         working-directory: cmd/tegata-gui
         run: wails build --platform darwin/universal -o tegata-gui
 
+      - name: Rename app bundle
+        run: mv cmd/tegata-gui/build/bin/tegata-gui.app cmd/tegata-gui/build/bin/Tegata.app
+
       - uses: actions/upload-artifact@v4
         with:
           name: gui-macos-unsigned
-          path: cmd/tegata-gui/build/bin/tegata-gui.app/
+          path: cmd/tegata-gui/build/bin/Tegata.app/
 
   gui-linux:
     runs-on: ubuntu-latest
