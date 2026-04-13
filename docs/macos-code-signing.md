@@ -61,13 +61,13 @@ This copies the base64-encoded certificate to your clipboard.
 
 In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions** and create these secrets:
 
-| Secret Name                              | Value                                               |
-|------------------------------------------|-----------------------------------------------------|
-| `APPLE_DEVELOPER_CERTIFICATE_P12_BASE64` | The base64 string from Step 3                       |
-| `APPLE_DEVELOPER_CERTIFICATE_PASSWORD`   | The password you set in Step 2                      |
-| `APPLE_ID`                               | Your full Apple ID (for example, `you@example.com`) |
-| `APPLE_TEAM_ID`                          | Your Team ID from Step 5                            |
-| `APPLE_APP_SPECIFIC_PASSWORD`            | The 16-char password from Step 4                    |
+| Secret Name                              | Value                                                         |
+|------------------------------------------|---------------------------------------------------------------|
+| `APPLE_DEVELOPER_CERTIFICATE_P12_BASE64` | The base64 string from Step 3                                 |
+| `APPLE_DEVELOPER_CERTIFICATE_PASSWORD`   | The password you set in Step 2                                |
+| `APPLE_ID`                               | Your full Apple ID (for example, `your-apple-id@example.com`) |
+| `APPLE_TEAM_ID`                          | Your Team ID from Step 5                                      |
+| `APPLE_APP_SPECIFIC_PASSWORD`            | The 16-char password from Step 4                              |
 
 ### Verification
 
