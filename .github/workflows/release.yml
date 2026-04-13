@@ -211,14 +211,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gui-macos-unsigned
-          path: gui-app
+          path: downloaded-gui
 
-      - name: Debug downloaded GUI artifact layout
+      - name: Normalize GUI app location
         run: |
-          echo "== gui-app tree =="
-          find gui-app -maxdepth 4 -print
-          echo "== .app bundles found =="
-          find gui-app -maxdepth 4 -name '*.app' -print
+          set -euo pipefail
+          echo "== downloaded-gui tree =="
+          find downloaded-gui -maxdepth 6 -print
+
+          APP_PATH="$(find downloaded-gui -type d -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ]; then
+            echo "Error: could not find .app in downloaded-gui" >&2
+            exit 1
+          fi
+
+          rm -rf gui-app
+          mkdir -p gui-app
+          cp -R "$APP_PATH" gui-app/
+          echo "Normalized app to: gui-app/$(basename "$APP_PATH")"
 
       - name: Setup signing keychain
         env:
@@ -264,16 +274,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
-
-          # Fallback: artifact may have been downloaded as a bare bundle root (Contents/ present)
-          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
-            APP_PATH="gui-app"
-          fi
-
-          if [ -z "${APP_PATH:-}" ]; then
-            echo "Error: no .app found under gui-app (and no gui-app/Contents/MacOS fallback)" >&2
-            find gui-app -maxdepth 5 -print
+          APP_PATH="gui-app/Tegata.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: expected app bundle not found at $APP_PATH" >&2
+            find gui-app -maxdepth 6 -print
             exit 1
           fi
 
@@ -311,11 +315,7 @@ jobs:
         run: |
           codesign --verify --deep --strict cli-dist/tegata-darwin-arm64
           codesign --verify --deep --strict cli-dist/tegata-darwin-amd64
-          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
-          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
-            APP_PATH="gui-app"
-          fi
-          codesign --verify --deep --strict "$APP_PATH"
+          codesign --verify --deep --strict gui-app/Tegata.app
 
       - name: Store notarization credentials
         env:
@@ -338,10 +338,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
-          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
-            APP_PATH="gui-app"
-          fi
+          APP_PATH="gui-app/Tegata.app"
 
           # Zip and notarize the .app before packaging into DMG
           ditto -c -k --keepParent "$APP_PATH" tegata-gui.app.zip
@@ -363,13 +360,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
-          if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
-            APP_PATH="gui-app"
-          fi
-
-          if [ -z "${APP_PATH:-}" ]; then
-            echo "Error: could not locate app bundle for DMG creation" >&2
+          APP_PATH="gui-app/Tegata.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: expected app bundle not found at $APP_PATH" >&2
             exit 1
           fi
 
@@ -417,6 +410,12 @@ jobs:
           MOUNT_DIR="$(mktemp -d)"
           hdiutil attach tegata-gui-darwin-universal.dmg -nobrowse -mountpoint "$MOUNT_DIR"
           APP_IN_DMG="$(find "$MOUNT_DIR" -maxdepth 2 -name '*.app' -print -quit)"
+          if [ -z "${APP_IN_DMG:-}" ]; then
+            echo "Error: no .app found in mounted DMG at $MOUNT_DIR" >&2
+            find "$MOUNT_DIR" -maxdepth 3 -print
+            hdiutil detach "$MOUNT_DIR"
+            exit 1
+          fi
           codesign --verify --deep --strict --verbose=2 "$APP_IN_DMG"
           spctl --assess --type execute --verbose=4 "$APP_IN_DMG"
           hdiutil detach "$MOUNT_DIR"
