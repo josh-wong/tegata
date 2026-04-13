@@ -328,6 +328,8 @@ jobs:
 
       - name: Create and notarize DMG
         run: |
+          set -euo pipefail
+
           APP_PATH="$(find gui-app -maxdepth 3 -name '*.app' -print -quit)"
           if [ -z "${APP_PATH:-}" ] && [ -d "gui-app/Contents/MacOS" ]; then
             APP_PATH="gui-app"
@@ -339,7 +341,15 @@ jobs:
           fi
 
           APP_NAME="$(basename "$APP_PATH")"
+
+          # Stage DMG contents in a directory (this is what create-dmg expects)
+          STAGE_DIR="dmg-staging"
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR"
+          cp -R "$APP_PATH" "$STAGE_DIR/$APP_NAME"
+
           brew install create-dmg
+
           create-dmg \
             --volname "Tegata" \
             --window-pos 200 120 \
@@ -348,7 +358,7 @@ jobs:
             --icon "$APP_NAME" 175 190 \
             --app-drop-link 425 190 \
             "tegata-gui-darwin-universal.dmg" \
-            "$APP_PATH"
+            "$STAGE_DIR"
 
           xcrun notarytool submit tegata-gui-darwin-universal.dmg \
             --keychain-profile "notary-profile" --wait --timeout 45m
