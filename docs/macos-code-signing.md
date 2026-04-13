@@ -164,12 +164,10 @@ Look for `"status": "Accepted"` and `"statusSummary": "Ready for distribution"`.
 
 ### Build and notarize the GUI app
 
-1. Build the macOS GUI app by using Wails:
+1. Build the macOS GUI app by using the Makefile target, which also sets the correct display name in the app bundle:
 
 ```bash
-cd cmd/tegata-gui
-wails build --platform darwin/universal -o tegata-gui
-cd ../..
+make gui
 ```
 
 2. Sign the app bundle (the workflow does this in detail, but for local testing):
