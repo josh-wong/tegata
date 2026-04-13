@@ -105,7 +105,7 @@ xcrun notarytool store-credentials "notary-profile" \
 
 Replace:
 
-- `your-apple-id@example.com` with your Apple ID (from [Step 4](#step-4-create-app-specific-password)).
+- `your-apple-id@example.com` with your Apple ID email (the one you use to sign in to your Apple account).
 - `YOUR_TEAM_ID` with your Team ID (from [Step 5](#step-5-get-your-team-id)).
 - `your-app-specific-password` with the 16-character app-specific password (from [Step 4](#step-4-create-app-specific-password)).
 
