@@ -154,12 +154,13 @@ xcrun notarytool submit tegata-cli-darwin.zip \
   --keychain-profile "notary-profile" --wait
 ```
 
-The submission will return a submission ID. If notarization succeeds, you can staple the files:
+The submission will return a submission ID. If notarization succeeds, check the log to confirm:
 
 ```bash
-xcrun stapler staple tegata-darwin-amd64
-xcrun stapler staple tegata-darwin-arm64
+xcrun notarytool log <submission-id> --keychain-profile "notary-profile"
 ```
+
+Look for `"status": "Accepted"` and `"statusSummary": "Ready for distribution"`. For loose binaries (not DMGs), the notarization is embedded in the code signature, so **stapling is not needed or possible**. The binaries are ready to distribute after successful notarization.
 
 ### Build and notarize the GUI app
 
