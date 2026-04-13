@@ -47,7 +47,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
+	client, err := audit.NewClientFromConfig(cfg.Audit)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}

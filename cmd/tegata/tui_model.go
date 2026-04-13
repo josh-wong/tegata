@@ -338,11 +338,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Rebuild EventBuilder so auth events are logged in this session.
 			// The vault passphrase is unavailable at this point, so use an
 			// in-memory queue instead of the persistent on-disk queue.
-			client, clientErr := audit.NewClientFromConfig(
-				msg.newCfg.Server, msg.newCfg.PrivilegedServer,
-				msg.newCfg.EntityID, msg.newCfg.KeyVersion,
-				msg.newCfg.SecretKey, msg.newCfg.Insecure,
-			)
+			client, clientErr := audit.NewClientFromConfig(msg.newCfg)
 			if clientErr == nil {
 				if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
 					if m.builder != nil {

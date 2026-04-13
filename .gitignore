@@ -150,6 +150,7 @@ $RECYCLE.BIN/
 # =============================================================================
 cmd/tegata-gui/build/bin/
 cmd/tegata-gui/build/darwin/
+!cmd/tegata-gui/build/darwin/entitlements.plist
 
 # =============================================================================
 # GSD planning (local-only)

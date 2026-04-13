@@ -679,48 +679,10 @@ func (a *App) resetIdle() {
 	}
 }
 
-// buildEventBuilder constructs an EventBuilder from config and the vault
-// passphrase. Returns a disabled builder (no-op) when cfg.Audit.Enabled is
-// false. Replicates the logic from cmd/tegata/helpers.go since this is a
-// separate package.
+// buildEventBuilder constructs an EventBuilder from config and the vault passphrase.
+// Returns a disabled builder (no-op) when cfg.Audit.Enabled is false.
 func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase []byte) (*audit.EventBuilder, error) {
-	if !cfg.Audit.Enabled {
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	dir := vaultDir(vaultPath)
-	queuePath := filepath.Join(dir, "queue.tegata")
-
-	// Read Argon2id salt from existing queue file header, or generate new.
-	var queueSalt []byte
-	if data, err := os.ReadFile(queuePath); err == nil && len(data) >= 32 {
-		queueSalt = make([]byte, 32)
-		copy(queueSalt, data[:32])
-	} else {
-		var genErr error
-		queueSalt, genErr = crypto.GenerateSalt()
-		if genErr != nil {
-			return nil, fmt.Errorf("generating queue salt: %w", genErr)
-		}
-	}
-
-	// Derive 32-byte queue encryption key using Argon2id.
-	keyBuf := crypto.DeriveKey(passphrase, queueSalt, crypto.DefaultParams)
-	defer keyBuf.Destroy()
-
-	queueKey := make([]byte, 32)
-	copy(queueKey, keyBuf.Bytes())
-	// Note: queueKey is NOT zeroed here — EventBuilder owns it for the
-	// lifetime of the session and will use it for queue Save operations.
-
-	client, err := audit.NewClientFromConfig(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey, cfg.Audit.Insecure)
-	if err != nil {
-		zeroBytes(queueKey)
-		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit ledger unavailable (%v); events will be queued\n", err)
-		return audit.NewEventBuilder(nil, "", nil, 0)
-	}
-
-	return audit.NewEventBuilder(client, queuePath, queueKey, cfg.Audit.QueueMaxEvents)
+	return audit.NewEventBuilderFromConfig(cfg.Audit, filepath.Dir(vaultPath), passphrase)
 }
 
 // AuditHistoryRecord is the JSON-serializable shape returned by GetAuditHistory.
@@ -746,7 +708,7 @@ func (a *App) IsAuditEnabled() bool {
 
 // newAuditClient creates a new LedgerClient from the current config.
 func (a *App) newAuditClient() (*audit.LedgerClient, error) {
-	return audit.NewClientFromConfig(a.config.Audit.Server, a.config.Audit.PrivilegedServer, a.config.Audit.EntityID, a.config.Audit.KeyVersion, a.config.Audit.SecretKey, a.config.Audit.Insecure)
+	return audit.NewClientFromConfig(a.config.Audit)
 }
 
 // GetAuditHistory retrieves audit event records from the ScalarDL Ledger.
@@ -882,10 +844,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 		// Initialise the EventBuilder for this session. The vault passphrase is
 		// no longer available (zeroed after vault creation), so use an in-memory
 		// queue. Events queue until contracts are ready, then flush on submission.
-		client, clientErr := audit.NewClientFromConfig(
-			auditCfg.Server, auditCfg.PrivilegedServer,
-			auditCfg.EntityID, auditCfg.KeyVersion, auditCfg.SecretKey, auditCfg.Insecure,
-		)
+		client, clientErr := audit.NewClientFromConfig(auditCfg)
 		if clientErr == nil {
 			if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
 				if a.builder != nil {
@@ -939,10 +898,7 @@ func (a *App) StopAuditServer(wipe bool) error {
 		// credentials — and restarts the ScalarDL ledger container. Wait for
 		// the ledger to become ready (up to 30s), then re-register the entity
 		// secret so audit logging resumes immediately after the wipe.
-		client, err := audit.NewClientFromConfig(
-			cfg.Server, cfg.PrivilegedServer,
-			cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure,
-		)
+		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return nil // audit unavailable; not fatal
 		}

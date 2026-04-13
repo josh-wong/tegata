@@ -31,6 +31,7 @@ check-size: build
 
 gui:
 	cd cmd/tegata-gui && wails build -clean
+	mv cmd/tegata-gui/build/bin/tegata-gui.app cmd/tegata-gui/build/bin/Tegata.app
 
 gui-dev:
 	cd cmd/tegata-gui && wails dev

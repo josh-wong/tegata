@@ -54,21 +54,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dAppServer/wails-build-action@v3
+      - uses: actions/setup-go@v5
         with:
-          build-name: tegata-gui
-          build-platform: windows/amd64
-          nsis: true
           go-version: ${{ env.GO_VERSION }}
-          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
-          package: false
-          working-directory: cmd/tegata-gui
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+        shell: bash
+
+      - name: Build Windows app
+        working-directory: cmd/tegata-gui
+        run: wails build --platform windows/amd64 -webview2 download -nsis -o tegata-gui
+        shell: pwsh
 
       - name: Rename installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path cmd/tegata-gui/build/bin -Filter "*.exe" -Recurse | Select-Object -First 1
-          Copy-Item $installer.FullName "tegata-gui-windows-amd64-setup.exe"
+          $buildDir = Join-Path $PWD 'cmd/tegata-gui/build'
+          if (-not (Test-Path $buildDir)) {
+            Write-Error "Build directory not found: $buildDir"
+            Get-ChildItem -Path (Join-Path $PWD 'cmd/tegata-gui') -Recurse | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+
+          Write-Host "Listing build directory contents:"
+          Get-ChildItem -Path $buildDir -Force -Recurse | ForEach-Object { Write-Host $_.FullName }
+
+          $installer = Get-ChildItem -Path $buildDir -Filter "*.exe" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if (-not $installer) {
+            Write-Error "No .exe installer found under $buildDir"
+            exit 1
+          }
+
+          Write-Host "Found installer: $($installer.FullName) -> copying to tegata-gui-windows-amd64-setup.exe"
+          Copy-Item -Path $installer.FullName -Destination (Join-Path $PWD "tegata-gui-windows-amd64-setup.exe")
+          Write-Host "Copy finished."
 
       - uses: actions/upload-artifact@v4
         with:
@@ -81,31 +106,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dAppServer/wails-build-action@v3
+      - uses: actions/setup-go@v5
         with:
-          build-name: tegata-gui
-          build-platform: darwin/universal
           go-version: ${{ env.GO_VERSION }}
-          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
-          working-directory: cmd/tegata-gui
 
-      - name: Create DMG
-        run: |
-          brew install create-dmg
-          create-dmg \
-            --volname "Tegata" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "tegata-gui.app" 175 190 \
-            --app-drop-link 425 190 \
-            "tegata-gui-darwin-universal.dmg" \
-            "cmd/tegata-gui/build/bin/tegata-gui.app"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build macOS app
+        working-directory: cmd/tegata-gui
+        run: wails build --platform darwin/universal -o tegata-gui
+
+      - name: Rename app bundle
+        run: mv cmd/tegata-gui/build/bin/tegata-gui.app cmd/tegata-gui/build/bin/Tegata.app
 
       - uses: actions/upload-artifact@v4
         with:
-          name: gui-macos
-          path: tegata-gui-darwin-universal.dmg
+          name: gui-macos-unsigned
+          path: cmd/tegata-gui/build/bin
 
   gui-linux:
     runs-on: ubuntu-latest
@@ -116,26 +138,54 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev || \
-            sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y \
+            build-essential pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
-      - uses: dAppServer/wails-build-action@v3
+          # Provide pkg-config shim so Wails can resolve webkit2gtk-4.0 via pkg-config
+          if ! pkg-config --exists webkit2gtk-4.0 && pkg-config --exists webkit2gtk-4.1; then
+            PC_DIR=$(pkg-config --variable pcfiledir webkit2gtk-4.1)
+            sudo cp "${PC_DIR}/webkit2gtk-4.1.pc" "${PC_DIR}/webkit2gtk-4.0.pc"
+            sudo sed -i 's/webkit2gtk-4.1/webkit2gtk-4.0/g' "${PC_DIR}/webkit2gtk-4.0.pc"
+            echo "Created pkg-config shim for webkit2gtk-4.0 -> webkit2gtk-4.1"
+          fi
+
+          # Provide linker symlink so -lwebkit2gtk-4.0 resolves when only 4.1 is installed
+          if ldconfig -p | grep -q "libwebkit2gtk-4.1.so" && ! ldconfig -p | grep -q "libwebkit2gtk-4.0.so"; then
+            LIBDIR=$(ldconfig -p | grep "libwebkit2gtk-4.1.so" | head -1 | awk '{print $NF}' | xargs dirname)
+            sudo ln -s "$LIBDIR/libwebkit2gtk-4.1.so" "$LIBDIR/libwebkit2gtk-4.0.so"
+            sudo ldconfig
+            echo "Created linker symlink libwebkit2gtk-4.0.so -> libwebkit2gtk-4.1.so"
+          fi
+
+      - uses: actions/setup-go@v5
         with:
-          build-name: tegata-gui
-          build-platform: linux/amd64
           go-version: ${{ env.GO_VERSION }}
-          go-build-flags: -ldflags="-s -w -X main.version=${{ github.ref_name }}"
-          working-directory: cmd/tegata-gui
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build Linux app
+        working-directory: cmd/tegata-gui
+        run: wails build --platform linux/amd64 -o tegata-gui
 
       - name: Build Linux packages
+        working-directory: cmd/tegata-gui
         run: |
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           VERSION="${GITHUB_REF_NAME#v}"
-          sed -i "s/\${VERSION}/$VERSION/g" cmd/tegata-gui/nfpm.yaml
-          nfpm package -p deb -f cmd/tegata-gui/nfpm.yaml
-          nfpm package -p rpm -f cmd/tegata-gui/nfpm.yaml
-          mv *.deb tegata-gui-linux-amd64.deb
-          mv *.rpm tegata-gui-linux-amd64.rpm
+          sed -i "s/\${VERSION}/$VERSION/g" nfpm.yaml
+          nfpm package -p deb -f nfpm.yaml
+          nfpm package -p rpm -f nfpm.yaml
+          mv *.deb ../../tegata-gui-linux-amd64.deb
+          mv *.rpm ../../tegata-gui-linux-amd64.rpm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -144,14 +194,272 @@ jobs:
             tegata-gui-linux-amd64.deb
             tegata-gui-linux-amd64.rpm
 
+  macos-signing:
+    needs: [cli-binaries, gui-macos]
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CLI binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-binaries
+          path: cli-dist
+
+      - name: Download unsigned GUI app
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-macos-unsigned
+          path: downloaded-gui
+
+      - name: Normalize GUI app location
+        run: |
+          set -euo pipefail
+          echo "== downloaded-gui tree =="
+          find downloaded-gui -maxdepth 6 -print
+
+          APP_PATH="$(find downloaded-gui -type d -name '*.app' -print -quit)"
+          if [ -z "${APP_PATH:-}" ]; then
+            echo "Error: could not find .app in downloaded-gui" >&2
+            exit 1
+          fi
+
+          rm -rf gui-app
+          mkdir -p gui-app
+          cp -R "$APP_PATH" gui-app/
+          echo "Normalized app to: gui-app/$(basename "$APP_PATH")"
+
+      - name: Setup signing keychain
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          rm -f certificate.p12
+
+      - name: Find signing identity
+        id: identity
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ -z "$IDENTITY" ]; then
+            echo "Error: no Developer ID Application certificate found in keychain" >&2
+            exit 1
+          fi
+          echo "name=$IDENTITY" >> "$GITHUB_OUTPUT"
+
+      - name: Sign CLI binaries
+        run: |
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements scripts/macos-entitlements.plist \
+            cli-dist/tegata-darwin-arm64
+
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "${{ steps.identity.outputs.name }}" \
+            --entitlements scripts/macos-entitlements.plist \
+            cli-dist/tegata-darwin-amd64
+
+      - name: Sign GUI app bundle
+        run: |
+          set -euo pipefail
+
+          APP_PATH="gui-app/Tegata.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: expected app bundle not found at $APP_PATH" >&2
+            find gui-app -maxdepth 6 -print
+            exit 1
+          fi
+
+          echo "Using app: $APP_PATH"
+
+          IDENTITY="${{ steps.identity.outputs.name }}"
+          ENT="cmd/tegata-gui/build/darwin/entitlements.plist"
+
+          # Sign nested code first (bottom-up): frameworks, dylibs, plugins, XPC services
+          find "$APP_PATH/Contents" \( \
+            -path "*/Contents/Frameworks/*" -o \
+            -path "*/Contents/PlugIns/*" -o \
+            -path "*/Contents/XPCServices/*" -o \
+            -name "*.dylib" -o \
+            -name "*.so" \
+          \) -print | while read -r item; do
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --sign "$IDENTITY" "$item"
+          done
+
+          # Sign main executable(s)
+          find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -print | while read -r bin; do
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --sign "$IDENTITY" --entitlements "$ENT" "$bin"
+          done
+
+          # Sign the .app bundle last
+          /usr/bin/codesign --force --timestamp --options runtime \
+            --sign "$IDENTITY" --entitlements "$ENT" "$APP_PATH"
+
+          # Verify the full bundle is correctly signed
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+      - name: Verify signatures
+        run: |
+          codesign --verify --deep --strict cli-dist/tegata-darwin-arm64
+          codesign --verify --deep --strict cli-dist/tegata-darwin-amd64
+          codesign --verify --deep --strict gui-app/Tegata.app
+
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "notary-profile" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Notarize CLI binaries
+        run: |
+          zip tegata-cli-darwin.zip cli-dist/tegata-darwin-amd64 cli-dist/tegata-darwin-arm64
+          xcrun notarytool submit tegata-cli-darwin.zip \
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-cli-result.json
+
+          CLI_NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-cli-result.json"))["id"])' || true)"
+          if [ -n "${CLI_NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$CLI_NOTARY_ID" --keychain-profile "notary-profile"
+          fi
+
+      - name: Notarize GUI app bundle
+        run: |
+          set -euo pipefail
+
+          APP_PATH="gui-app/Tegata.app"
+
+          # Zip and notarize the .app before packaging into DMG
+          ditto -c -k --keepParent "$APP_PATH" tegata-gui.app.zip
+
+          xcrun notarytool submit tegata-gui.app.zip \
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-app-result.json
+
+          APP_NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-app-result.json"))["id"])' || true)"
+          if [ -n "${APP_NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$APP_NOTARY_ID" --keychain-profile "notary-profile"
+          fi
+
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
+
+      - name: Create and notarize DMG
+        run: |
+          set -euo pipefail
+
+          APP_PATH="gui-app/Tegata.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: expected app bundle not found at $APP_PATH" >&2
+            exit 1
+          fi
+
+          APP_NAME="$(basename "$APP_PATH")"
+
+          # Stage DMG contents in a directory (this is what create-dmg expects)
+          STAGE_DIR="dmg-staging"
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR"
+          cp -R "$APP_PATH" "$STAGE_DIR/$APP_NAME"
+
+          brew install create-dmg
+
+          create-dmg \
+            --volname "Tegata" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "$APP_NAME" 175 190 \
+            --app-drop-link 425 190 \
+            "tegata-gui-darwin-universal.dmg" \
+            "$STAGE_DIR"
+
+          # Submit and wait; capture output for diagnostics if notarization fails
+          xcrun notarytool submit tegata-gui-darwin-universal.dmg \
+            --keychain-profile "notary-profile" --wait --timeout 45m \
+            --output-format json | tee notary-result.json
+
+          NOTARY_ID="$(python3 -c 'import json; print(json.load(open("notary-result.json"))["id"])' || true)"
+          if [ -n "${NOTARY_ID:-}" ]; then
+            xcrun notarytool log "$NOTARY_ID" --keychain-profile "notary-profile" || true
+          fi
+
+          xcrun stapler staple tegata-gui-darwin-universal.dmg
+          xcrun stapler validate tegata-gui-darwin-universal.dmg
+
+      - name: Verify notarization
+        run: |
+          set -euo pipefail
+
+          # DMG assessment via spctl can be unreliable on CI; validate by mounting and assessing the .app inside instead.
+          spctl --assess --type open --verbose=4 tegata-gui-darwin-universal.dmg || true
+
+          # Mount DMG and verify the app bundle inside
+          MOUNT_DIR="$(mktemp -d)"
+          hdiutil attach tegata-gui-darwin-universal.dmg -nobrowse -mountpoint "$MOUNT_DIR"
+          APP_IN_DMG="$(find "$MOUNT_DIR" -maxdepth 2 -name '*.app' -print -quit)"
+          if [ -z "${APP_IN_DMG:-}" ]; then
+            echo "Error: no .app found in mounted DMG at $MOUNT_DIR" >&2
+            find "$MOUNT_DIR" -maxdepth 3 -print
+            hdiutil detach "$MOUNT_DIR"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$APP_IN_DMG"
+          spctl --assess --type execute --verbose=4 "$APP_IN_DMG"
+          hdiutil detach "$MOUNT_DIR"
+
+          codesign -d --verbose=4 cli-dist/tegata-darwin-arm64
+
+      - name: Upload signed CLI binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed-cli
+          path: |
+            cli-dist/tegata-darwin-arm64
+            cli-dist/tegata-darwin-amd64
+
+      - name: Upload signed DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed-gui
+          path: tegata-gui-darwin-universal.dmg
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain 2>/dev/null || true
+
   release:
-    needs: [cli-binaries, gui-windows, gui-macos, gui-linux]
+    needs: [cli-binaries, macos-signing, gui-windows, gui-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Replace unsigned macOS binaries with signed ones
+        run: |
+          rm -f artifacts/cli-binaries/tegata-darwin-arm64
+          rm -f artifacts/cli-binaries/tegata-darwin-amd64
+          rm -rf artifacts/gui-macos-unsigned
 
       - name: Collect artifacts and generate checksums
         run: |

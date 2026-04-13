@@ -121,7 +121,7 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+	client, err := audit.NewClientFromConfig(cfg)
 	if err != nil {
 		t.Fatalf("creating ledger client: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		client, clientErr := audit.NewClientFromConfig(cfg.Server, cfg.PrivilegedServer, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey, cfg.Insecure)
+		client, clientErr := audit.NewClientFromConfig(cfg)
 		if clientErr == nil {
 			pingErr := client.Ping(ctx)
 			_ = client.Close()
