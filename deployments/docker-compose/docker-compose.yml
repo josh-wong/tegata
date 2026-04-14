@@ -106,6 +106,7 @@ services:
         apk add --no-cache curl unzip netcat-openbsd
         echo "Downloading ScalarDL HashStore SDK..."
         curl -fsSL -O https://github.com/scalar-labs/scalardl/releases/download/v3.13.0/scalardl-hashstore-java-client-sdk-3.13.0.zip
+        echo "6ec6f354b99fb4910980a154bc4ca42690f2f24feef8367cee37843378bb0d84  scalardl-hashstore-java-client-sdk-3.13.0.zip" | sha256sum -c
         unzip -qo scalardl-hashstore-java-client-sdk-3.13.0.zip
         echo "Waiting for ledger to accept connections..."
         for i in $(seq 1 30); do
