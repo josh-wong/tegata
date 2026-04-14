@@ -5,7 +5,7 @@
 //	go test -tags integration ./internal/audit/... -v -timeout 120s
 //
 // Integration tests for the ScalarDL Ledger gRPC client. These tests require
-// a live ScalarDL Ledger 3.12 instance.
+// a live ScalarDL Ledger 3.13 instance.
 //
 // For HMAC authentication (recommended):
 //
@@ -197,7 +197,7 @@ func TestIntegration_Validate(t *testing.T) {
 }
 
 // TestIntegration_SignatureByteLayout verifies the ECDSA signature byte
-// serialization against a live ScalarDL 3.12 instance.
+// serialization against a live ScalarDL 3.13 instance.
 //
 // Expected byte layout (matches ContractExecutionRequest.serialize() in the
 // ScalarDL Java SDK):

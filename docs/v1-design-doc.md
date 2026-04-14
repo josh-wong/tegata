@@ -119,7 +119,7 @@ graph TB
     end
 
     subgraph Remote["ScalarDL Ledger (optional)"]
-        Ledger["ScalarDL 3.12 + PostgreSQL"]
+        Ledger["ScalarDL 3.13 + PostgreSQL"]
     end
 
     Cobra --> VM
@@ -851,7 +851,7 @@ The queue uses a key derived from the same passphrase but with a distinct salt (
 
 **`tegata history`:** Retrieves event IDs from the entity's collection, then fetches each event's metadata (operation type, label hash, timestamp) and hash value. Supports filtering by date range (`--from`, `--to`). Displays results in a four-column table (Operation, Label, Timestamp, Hash) or JSON (`--json`).
 
-**`tegata ledger setup`:** Calls `RegisterCert` on the `LedgerPrivileged` gRPC service to register the user's TLS certificate, then performs a test `ExecuteContract` call on the `Ledger` service using `object.Put` with a sentinel value to confirm connectivity. The `RegisterCertRequest` proto message uses `entity_id` and `key_version` fields (not `CertHolderId`/`CertVersion` as originally noted — corrected after verifying the ScalarDL 3.12 proto file). Note that `RegisterCert` and `ExecuteContract` use separate gRPC service clients: `rpc.NewLedgerPrivilegedClient` and `rpc.NewLedgerClient` respectively, both on the same connection.
+**`tegata ledger setup`:** Calls `RegisterCert` on the `LedgerPrivileged` gRPC service to register the user's TLS certificate, then performs a test `ExecuteContract` call on the `Ledger` service using `object.Put` with a sentinel value to confirm connectivity. The `RegisterCertRequest` proto message uses `entity_id` and `key_version` fields (not `CertHolderId`/`CertVersion` as originally noted — corrected after verifying the ScalarDL 3.13 proto file). Note that `RegisterCert` and `ExecuteContract` use separate gRPC service clients: `rpc.NewLedgerPrivilegedClient` and `rpc.NewLedgerClient` respectively, both on the same connection.
 
 ## 9. Security model
 
@@ -1225,7 +1225,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   scalardl-ledger:
-    image: ghcr.io/scalar-labs/scalardl-ledger:3.12
+    image: ghcr.io/scalar-labs/scalardl-ledger:3.13
     depends_on:
       - postgres
     ports:

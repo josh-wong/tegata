@@ -1,6 +1,6 @@
 # ScalarDL audit setup and testing
 
-This guide explains how to set up and test Tegata's optional tamper-evident audit layer backed by ScalarDL Ledger 3.12. The audit layer records every authentication event in a hash-chained ledger, enabling post-hoc integrity verification with `tegata verify`.
+This guide explains how to set up and test Tegata's optional tamper-evident audit layer backed by ScalarDL Ledger 3.13. The audit layer records every authentication event in a hash-chained ledger, enabling post-hoc integrity verification with `tegata verify`.
 
 Audit logging is disabled by default. All authentication operations remain fully functional without it.
 
@@ -40,6 +40,25 @@ Ledger server started. Audit logging is now active.
 ```
 
 Audit logging is now active. From this point forward, every vault unlock automatically starts the Docker stack — including starting the Docker daemon if it is not running — in the background, with no action needed from you.
+
+## Upgrading ScalarDL
+
+When upgrading to a new ScalarDL version, the bundled Docker Compose files and SHA256 hash for the HashStore SDK must be updated together. The process is straightforward.
+
+1. Identify the new ScalarDL version (from [Scalar Inc. releases](https://github.com/scalar-labs/scalardl/releases))
+2. In all three Docker Compose files (`cmd/tegata/docker-bundle/docker-compose.yml`, `cmd/tegata-gui/docker-bundle/docker-compose.yml`, `deployments/docker-compose/docker-compose.yml`), update:
+   - The `scalardl-ledger` image tag
+   - The `scalardl-schema-loader` image tag
+   - The HashStore SDK download URL and unzip path
+3. Download the new SDK zip and compute its SHA256 hash:
+   ```bash
+   curl -fsSL -O https://github.com/scalar-labs/scalardl/releases/download/vX.Y.Z/scalardl-hashstore-java-client-sdk-X.Y.Z.zip
+   shasum -a 256 scalardl-hashstore-java-client-sdk-X.Y.Z.zip
+   ```
+4. Update the SHA256 hash in all three Docker Compose files (in the verification line immediately after the curl download)
+5. Update source comment URLs in `internal/audit/rpc/scalar.proto`, `scalar.pb.go`, and `scalar_grpc.pb.go` to reference the new version
+
+The SHA256 hash is verified during Docker container startup and will fail fast if the downloaded artifact does not match, protecting against supply chain tampering or accidental corruption.
 
 ## Auto-start behavior
 

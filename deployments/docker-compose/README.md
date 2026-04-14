@@ -1,6 +1,6 @@
 # ScalarDL local development setup
 
-This Docker Compose template starts an instance of ScalarDL Ledger 3.12 and a PostgreSQL 15 database for local development and integration testing of the Tegata audit layer.
+This Docker Compose template starts an instance of ScalarDL Ledger 3.13 and a PostgreSQL 15 database for local development and integration testing of the Tegata audit layer.
 
 ## Prerequisites
 

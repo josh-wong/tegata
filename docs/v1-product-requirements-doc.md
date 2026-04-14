@@ -156,12 +156,12 @@ The following subsections detail each major component of the Tegata system.
 
 #### 5.2.5 ScalarDL Ledger integration (optional)
 
-- **Version:** ScalarDL 3.12 Community Edition (Apache 2.0).
+- **Version:** ScalarDL 3.13 Community Edition (Apache 2.0).
 - **Deployment:** User-managed. Can run on a local machine, a Raspberry Pi, a VPS, or a cloud instance. Not bundled with the USB drive.
 - **Backing database:** PostgreSQL (recommended for multi-device use), SQLite, or MySQL
 - **Communication:** The host application communicates with ScalarDL Ledger via gRPC. Since the host app is Go, a lightweight gRPC client will be implemented (not the Java Client SDK).
 - **What gets logged:** Timestamp, auth protocol used, target service identifier (hashed), success/failure, a hash of the challenge (never the key material itself).
-- **Contracts:** Will primarily use the HashStore contracts (`object.Put`, `object.Validate`) in ScalarDL 3.12 to store and verify event hashes, avoiding the need to write and deploy custom Java contracts.
+- **Contracts:** Will primarily use the HashStore contracts (`object.Put`, `object.Validate`) in ScalarDL 3.13 to store and verify event hashes, avoiding the need to write and deploy custom Java contracts.
 - **Validation:** Users can run `tegata verify` to traverse the hash chain and confirm no entries have been tampered with.
 
 ### 5.3 What Tegata does NOT include on the USB drive
@@ -322,7 +322,7 @@ Tegata must work across platforms and storage media without elevated permissions
 | NFR-11 | Host application runs on Windows 10+, macOS 12+, and Ubuntu 20.04+             |
 | NFR-12 | USB drive must be formatted as FAT32 or exFAT for cross-platform compatibility |
 | NFR-13 | No elevated permissions (admin/root) required for normal operation             |
-| NFR-14 | ScalarDL integration is compatible with ScalarDL 3.12 Community Edition        |
+| NFR-14 | ScalarDL integration is compatible with ScalarDL 3.13 Community Edition        |
 
 ### 7.4 Usability
 
@@ -417,7 +417,7 @@ ScalarDL Ledger is **not bundled** with Tegata. Users who want audit logging mus
 
 ### 9.4 Contract strategy
 
-Tegata will use **HashStore** (generic contracts) in ScalarDL 3.12 rather than custom contracts:
+Tegata will use **HashStore** (generic contracts) in ScalarDL 3.13 rather than custom contracts:
 
 - `object.Put`. Store a hash of each authentication event.
 - `object.Get`. Retrieve event records.
@@ -506,7 +506,7 @@ The following table identifies potential risks and their mitigation strategies.
 |--------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Keys decrypted in host memory can be extracted by malware or memory dumps                        | High     | Document this limitation clearly. Zero memory after use. Recommend full-disk encryption on host. Position Tegata as complementary to (not a replacement for) hardware keys. |
 | Corporate/locked-down machines may block execution of portable binaries from USB drives          | Medium   | Provide instructions for running from a local copy. Consider a signed binary option for Windows.                                                                            |
-| ScalarDL gRPC client implementation may diverge from Java SDK behavior                           | Medium   | Test against ScalarDL 3.12 integration tests. Document that ScalarDL integration is optional and can be disabled if necessary.                                              | 
+| ScalarDL gRPC client implementation may diverge from Java SDK behavior                           | Medium   | Test against ScalarDL 3.13 integration tests. Document that ScalarDL integration is optional and can be disabled if necessary.                                              | 
 | USB drive loss or theft exposes encrypted vault                                                  | Medium   | Vault is AES-256-GCM encrypted with Argon2id. Without the PIN/passphrase, the vault is computationally infeasible to crack. Document the importance of a strong passphrase. |
 | ScalarDL Ledger-only validation is insufficient against a fully compromised server               | Medium   | Document this limitation explicitly. Recommend Auditor for high-security use cases (with the understanding that it requires an enterprise license).                         |
 | Users may confuse Tegata with a hardware security key and overestimate its security properties   | Medium   | Prominent documentation and CLI warnings stating that Tegata is a software authenticator, not a hardware key.                                                               |
