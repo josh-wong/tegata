@@ -22,7 +22,7 @@ services:
       retries: 10
 
   scalardl-schema-loader:
-    image: ghcr.io/scalar-labs/scalardl-schema-loader:3.12.0
+    image: ghcr.io/scalar-labs/scalardl-schema-loader:3.13.0
     platform: linux/amd64
     depends_on:
       postgres:
@@ -68,7 +68,7 @@ services:
     restart: "no"
 
   scalardl-ledger:
-    image: ghcr.io/scalar-labs/scalardl-ledger:3.12.0
+    image: ghcr.io/scalar-labs/scalardl-ledger:3.13.0
     platform: linux/amd64
     depends_on:
       postgres:
@@ -108,8 +108,8 @@ services:
         set -e
         apk add --no-cache curl unzip netcat-openbsd
         echo "Downloading ScalarDL HashStore SDK..."
-        curl -fsSL -O https://github.com/scalar-labs/scalardl/releases/download/v3.12.0/scalardl-hashstore-java-client-sdk-3.12.0.zip
-        unzip -qo scalardl-hashstore-java-client-sdk-3.12.0.zip
+        curl -fsSL -O https://github.com/scalar-labs/scalardl/releases/download/v3.13.0/scalardl-hashstore-java-client-sdk-3.13.0.zip
+        unzip -qo scalardl-hashstore-java-client-sdk-3.13.0.zip
         echo "Waiting for ledger to accept connections..."
         for i in $(seq 1 30); do
           if nc -z scalardl-ledger 50051 2>/dev/null; then
@@ -119,7 +119,7 @@ services:
           echo "  attempt $$i/30 — ledger not ready, retrying in 2s..."
           sleep 2
         done
-        scalardl-hashstore-java-client-sdk-3.12.0/bin/scalardl-hashstore bootstrap \
+        scalardl-hashstore-java-client-sdk-3.13.0/bin/scalardl-hashstore bootstrap \
           --properties /certs/bootstrap.properties
         echo "Generic contracts registered."
     restart: on-failure:3
