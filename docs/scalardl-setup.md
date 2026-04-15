@@ -198,6 +198,13 @@ If you are running your own ScalarDL instance rather than the bundled Docker sta
 
 Add the `[audit]` section to `tegata.toml` in your vault directory.
 
+The `insecure` field controls whether TLS is used for the ScalarDL connection. Set it based on where your ScalarDL instance is running.
+
+- **Local or self-hosted without TLS:** Set `insecure = true`. Traffic stays on your machine or local network, and no certificate is required on the server side.
+- **Remote or production server with TLS:** Omit `insecure` (or set `insecure = false`). Tegata uses the system CA pool by default. If your server uses a self-signed certificate, set `ca_cert_path` to the path of your CA certificate file.
+
+For a local ScalarDL instance:
+
 ```toml
 [audit]
 enabled           = true
@@ -207,11 +214,23 @@ entity_id         = "tegata-client"
 key_version       = 1
 secret_key        = "your-32-byte-hex-secret-key-here"
 insecure          = true
+auto_start        = false
 ```
 
-The `insecure = true` flag disables TLS, which is appropriate for local testing. Do not use this in production.
+For a remote ScalarDL instance with TLS:
 
-> **Known limitation:** TLS transport with HMAC authentication is not yet supported (tracked in issue #22). For production deployments, protect the connection at the network level using a VPN or SSH tunnel until TLS support is available.
+```toml
+[audit]
+enabled           = true
+server            = "scalardl.example.com:50051"
+privileged_server = "scalardl.example.com:50052"
+entity_id         = "tegata-client"
+key_version       = 1
+secret_key        = "your-32-byte-hex-secret-key-here"
+auto_start        = false
+```
+
+Set `auto_start = false` when managing ScalarDL yourself (locally or remotely). Tegata connects to the audit server automatically when needed — `auto_start` only controls whether Tegata starts a local Docker stack on vault unlock, which applies to the bundled one-click setup only.
 
 Then run `tegata ledger setup` to register your credentials.
 
