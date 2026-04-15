@@ -78,20 +78,13 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("audit.secret_key is required in tegata.toml")
 	}
 
-	// Create HMAC signer from secret key.
-	signer := audit.NewHMACSigner(cfg.Audit.SecretKey)
-	defer signer.Zero()
-
 	// Dial the ScalarDL Ledger.
 	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",
 		cfg.Audit.Server, cfg.Audit.PrivilegedServer)
-	var client *audit.LedgerClient
 	if cfg.Audit.Insecure {
 		fmt.Fprintln(os.Stderr, "WARNING: Insecure mode enabled — TLS disabled. Do not use in production.")
-		client, err = audit.NewLedgerClientInsecure(cfg.Audit.Server, cfg.Audit.PrivilegedServer, cfg.Audit.EntityID, cfg.Audit.KeyVersion, signer)
-	} else {
-		return fmt.Errorf("TLS mode not yet supported with HMAC auth — set insecure = true for local development")
 	}
+	client, err := audit.NewClientFromConfig(cfg.Audit)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
 	}
