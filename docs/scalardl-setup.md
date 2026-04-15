@@ -227,6 +227,7 @@ privileged_server = "scalardl.example.com:50052"
 entity_id         = "tegata-client"
 key_version       = 1
 secret_key        = "your-32-byte-hex-secret-key-here"
+# insecure        = false  # Default; TLS is enabled. You can omit this field for remote or production servers.
 auto_start        = false
 ```
 
