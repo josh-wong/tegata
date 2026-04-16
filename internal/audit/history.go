@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
 )
@@ -59,6 +60,11 @@ func FetchHistory(ctx context.Context, client Client, entityID string) (*FetchHi
 			HashValue: r.HashValue,
 		})
 	}
+
+	// Sort records by timestamp in descending order (newest first).
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Timestamp > records[j].Timestamp
+	})
 
 	result := &FetchHistoryResult{Records: records}
 	if skipped > 0 {
