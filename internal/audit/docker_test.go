@@ -73,7 +73,13 @@ func TestExtractComposeFiles(t *testing.T) {
 
 // TestDetectDocker_NotFound verifies the error message when Docker is absent.
 // This test temporarily modifies PATH to simulate Docker being absent.
+// It skips when Docker is found at a known fallback location (e.g. during
+// local development on macOS where /usr/local/bin/docker exists) because
+// dockerBin() now checks known locations beyond PATH for GUI-app compatibility.
 func TestDetectDocker_NotFound(t *testing.T) {
+	if dockerBin() != "" {
+		t.Skip("docker found at a known location; skipping not-found simulation")
+	}
 	orig := os.Getenv("PATH")
 	t.Cleanup(func() { _ = os.Setenv("PATH", orig) })
 	_ = os.Setenv("PATH", "")
@@ -94,6 +100,6 @@ func TestMaybeAutoStart_NoPath(t *testing.T) {
 	// that panics when DockerComposePath is empty. This test confirms the
 	// function returns and the process does not crash.
 	cfg := config.AuditConfig{DockerComposePath: ""}
-	MaybeAutoStart(cfg)
+	MaybeAutoStart(cfg, nil)
 	// If we reach here without panic or hang, the no-op path works.
 }

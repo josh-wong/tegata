@@ -192,12 +192,15 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// immediately. EnsureStack is a no-op when DockerComposePath is empty or
 	// auto_start is false, and returns immediately when the ledger is already
 	// reachable. Failure is non-fatal — vault unlock succeeds regardless.
+	// Passes bundleFS so docker-compose.yml is synced on each unlock, keeping
+	// the live stack config current after binary upgrades.
 	auditProgress := func(msg string) {
 		if a.ctx != nil {
 			wailsruntime.EventsEmit(a.ctx, "audit:unlock-progress", msg)
 		}
 	}
-	if ensureErr := audit.EnsureStack(a.config.Audit, auditProgress); ensureErr != nil {
+	bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
+	if ensureErr := audit.EnsureStack(a.config.Audit, bundleFS, auditProgress); ensureErr != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit auto-start: %v\n", ensureErr)
 	}
 

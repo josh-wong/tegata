@@ -48,18 +48,53 @@ const (
 	contractRetryInterval = 10 * time.Second
 )
 
+// knownDockerPaths lists well-known Docker binary locations that may not be
+// in the PATH of a GUI app launched from Finder or Spotlight on macOS.
+var knownDockerPaths = []string{
+	"/usr/local/bin/docker",
+	"/usr/bin/docker",
+	"/Applications/Docker.app/Contents/Resources/bin/docker",
+	"/opt/homebrew/bin/docker",
+}
+
+// dockerBin returns the absolute path to the docker binary. It first checks
+// PATH (via LookPath), then falls back to known macOS and Linux locations.
+// Returns an empty string if docker cannot be found.
+func dockerBin() string {
+	if p, err := exec.LookPath("docker"); err == nil {
+		return p
+	}
+	for _, p := range knownDockerPaths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// dockerCmd returns an exec.Cmd for the docker binary with the given args.
+// Uses dockerBin() so the binary is found even when PATH is restricted (e.g.
+// GUI apps launched from Finder that don't inherit the shell PATH).
+func dockerCmd(args ...string) *exec.Cmd {
+	bin := dockerBin()
+	if bin == "" {
+		bin = "docker" // fallback: will fail with a clear "not found" error
+	}
+	return exec.Command(bin, args...)
+}
+
 // detectDocker checks that Docker is installed, the daemon is running (starting
 // it automatically if needed), and Compose v2 is available.
 func detectDocker() error {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker binary not found in PATH. Install Docker Desktop from https://docs.docker.com/get-docker/")
+	if dockerBin() == "" {
+		return fmt.Errorf("docker binary not found. Install Docker Desktop from https://docs.docker.com/get-docker/")
 	}
 
 	if err := ensureDockerDaemon(); err != nil {
 		return err
 	}
 
-	if err := exec.Command("docker", "compose", "version").Run(); err != nil {
+	if err := dockerCmd("compose", "version").Run(); err != nil {
 		return fmt.Errorf("docker compose v2 plugin not available. Upgrade to Docker Desktop 3.4+ or Docker Engine 20.10+ with the compose plugin")
 	}
 
@@ -69,7 +104,7 @@ func detectDocker() error {
 // ensureDockerDaemon verifies the Docker daemon is reachable. If not, it
 // attempts a platform-specific auto-start and polls until ready or timeout.
 func ensureDockerDaemon() error {
-	if exec.Command("docker", "info").Run() == nil {
+	if dockerCmd("info").Run() == nil {
 		return nil
 	}
 
@@ -78,7 +113,7 @@ func ensureDockerDaemon() error {
 
 	for i := 0; i < daemonPollRetries; i++ {
 		time.Sleep(daemonPollInterval)
-		if exec.Command("docker", "info").Run() == nil {
+		if dockerCmd("info").Run() == nil {
 			return nil
 		}
 	}
@@ -153,6 +188,19 @@ func generateSecretKey() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// syncDockerCompose reads docker-compose.yml from fsys and writes it to
+// composePath on disk, keeping the live file in sync with the embedded bundle.
+// Called by EnsureStack and MaybeAutoStart so that binary upgrades
+// automatically update the running compose configuration without requiring
+// the user to re-run `tegata ledger start`.
+func syncDockerCompose(fsys fs.FS, composePath string) error {
+	data, err := fs.ReadFile(fsys, "docker-compose.yml")
+	if err != nil {
+		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
+	}
+	return os.WriteFile(composePath, data, 0600)
+}
+
 // extractComposeFiles walks the provided fs.FS and writes each file to
 // targetDir, preserving the directory structure.
 func extractComposeFiles(fsys fs.FS, targetDir string) error {
@@ -218,7 +266,7 @@ scalar.dl.client.entity.identity.hmac.secret_key_version=1
 // file path and arguments. Returns an error with stdout+stderr on failure.
 func runDockerCompose(composePath string, args ...string) error {
 	cmdArgs := append([]string{"compose", "-f", composePath}, args...)
-	cmd := exec.Command("docker", cmdArgs...)
+	cmd := dockerCmd(cmdArgs...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -428,7 +476,7 @@ func WipeHistory(composePath string) error {
 		`WHERE table_name = 'asset' ` +
 		`AND table_schema NOT IN ('information_schema', 'pg_catalog') ` +
 		`ORDER BY table_schema LIMIT 1`
-	findCmd := exec.Command("docker", "compose", "-f", composePath,
+	findCmd := dockerCmd("compose", "-f", composePath,
 		"exec", "-T", "postgres",
 		"psql", "-U", "scalardl", "-d", "scalardl", "-tA", "-c", findSQL,
 	)
@@ -458,7 +506,7 @@ DO $$ BEGIN
     TRUNCATE coordinator.state;
   END IF;
 END $$;`, assetSchema)
-	wipeCmd := exec.Command("docker", "compose", "-f", composePath,
+	wipeCmd := dockerCmd("compose", "-f", composePath,
 		"exec", "-T", "postgres",
 		"psql", "-U", "scalardl", "-d", "scalardl", "-c", sql,
 	)
@@ -492,9 +540,20 @@ func StopStack(composePath string, wipe bool) error {
 // progressFn receives one-line status strings at each step; it may be nil.
 // Returns nil when the ledger is ready or when auto-start is not configured.
 // Non-zero errors are non-fatal for callers — audit is optional.
-func EnsureStack(cfg config.AuditConfig, progressFn func(string)) error {
+// fsys should be the embedded docker bundle FS (after fs.Sub to remove the
+// bundle prefix). When non-nil, docker-compose.yml is synced from the bundle
+// before starting so binary upgrades take effect without re-running setup.
+func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) error {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return nil
+	}
+
+	// Sync docker-compose.yml from the embedded bundle so binary upgrades
+	// (e.g. ScalarDL version bumps) take effect automatically.
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+		}
 	}
 
 	// Quick probe: ledger already reachable — nothing to do.
@@ -531,11 +590,18 @@ func EnsureStack(cfg config.AuditConfig, progressFn func(string)) error {
 // failure. Suitable for long-lived processes (TUI, GUI) where the goroutine
 // can complete after the unlock call returns. For short-lived CLI processes
 // use EnsureStack instead. Per D-10 and D-13.
-func MaybeAutoStart(cfg config.AuditConfig) {
+// fsys should be the embedded docker bundle FS (after fs.Sub). When non-nil,
+// docker-compose.yml is synced from the bundle before starting.
+func MaybeAutoStart(cfg config.AuditConfig, fsys fs.FS) {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return
 	}
 	go func() {
+		if fsys != nil {
+			if err := syncDockerCompose(fsys, cfg.DockerComposePath); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+			}
+		}
 		if err := ensureDockerDaemon(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: Docker daemon not ready: %v\n", err)
 			return

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -50,7 +51,10 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
 		// Runs asynchronously — vault unlock is never blocked (D-10).
 		// On failure, MaybeAutoStart logs to stderr and queues events (D-13).
-		audit.MaybeAutoStart(cfg.Audit)
+		// Passes bundleFS so docker-compose.yml is synced on each run, keeping
+		// the live stack config current after binary upgrades.
+		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
+		audit.MaybeAutoStart(cfg.Audit, bundleFS)
 
 		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
 		if builderErr != nil {
