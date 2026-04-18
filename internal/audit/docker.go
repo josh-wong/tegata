@@ -62,7 +62,9 @@ var knownDockerPaths = []string{
 // locations. Returns an empty string if docker cannot be found. Exported
 // for use in integration tests that need to detect whether Docker is present
 // at a known location before simulating absence.
-func DockerBinPath() string { return dockerBin() }
+func DockerBinPath() string {
+	return dockerBin()
+}
 
 // dockerBin returns the absolute path to the docker binary. It first checks
 // PATH (via LookPath), then falls back to known macOS and Linux locations.
