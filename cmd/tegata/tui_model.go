@@ -148,7 +148,7 @@ func initialModel(vaultPath string) model {
 	cfg := config.DefaultConfig()
 
 	vaultPathIn := textinput.New()
-	vaultPathIn.Placeholder = "Vault path (leave blank for current directory)"
+	vaultPathIn.Placeholder = "Path (blank for current dir)"
 	vaultPathIn.EchoMode = textinput.EchoNormal
 
 	crInput := textinput.New()
