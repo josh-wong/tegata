@@ -294,8 +294,8 @@ func humanizeError(err error) string {
 
 	msg := err.Error()
 
-	// File not found (check both os.IsNotExist and text pattern for wrapped errors)
-	if os.IsNotExist(err) || strings.Contains(msg, "no such file or directory") {
+	// File not found (check both os.IsNotExist and text patterns for wrapped errors)
+	if os.IsNotExist(err) || strings.Contains(msg, "no such file or directory") || strings.Contains(msg, "file does not exist") {
 		return "Vault file not found. Check the path and try again."
 	}
 
