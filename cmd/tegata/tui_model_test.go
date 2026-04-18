@@ -50,6 +50,43 @@ func TestModel_NoVault_StartsWizard(t *testing.T) {
 	}
 }
 
+// TestWizardVaultPathEmpty asserts that pressing Enter with an empty vault path
+// advances to passphrase creation using the default location.
+func TestWizardVaultPathEmpty(t *testing.T) {
+	m := initialModel("")
+	if m.state != stateWizardWelcome {
+		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
+	}
+	m = sendKey(m, "enter") // empty path → passphrase
+	if m.state != stateWizardPassphrase {
+		t.Errorf("expected stateWizardPassphrase after empty path, got %v", m.state)
+	}
+	if m.errMsg != "" {
+		t.Errorf("expected no error for empty path, got %q", m.errMsg)
+	}
+}
+
+// TestWizardVaultPathWithInput asserts that typing a path and pressing Enter
+// stores the path and advances to passphrase creation.
+func TestWizardVaultPathWithInput(t *testing.T) {
+	m := initialModel("")
+	if m.state != stateWizardWelcome {
+		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
+	}
+	// Type a vault path (non-existent)
+	m = typeInto(m, "/tmp/my-custom-vault")
+	m = sendKey(m, "enter") // advance from welcome → passphrase
+	if m.state != stateWizardPassphrase {
+		t.Errorf("expected stateWizardPassphrase after vault path input, got %v", m.state)
+	}
+	if m.vaultPath == "" {
+		t.Error("expected vaultPath to be set from input")
+	}
+	if m.errMsg != "" {
+		t.Errorf("expected no error for valid path input, got %q", m.errMsg)
+	}
+}
+
 // TestWizardStateMachine asserts the full wizard state transition:
 // welcome → passphrase → recovery_key → add_credential → overlay_add.
 func TestWizardStateMachine(t *testing.T) {
@@ -57,7 +94,7 @@ func TestWizardStateMachine(t *testing.T) {
 	if m.state != stateWizardWelcome {
 		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
 	}
-	m = sendKey(m, "enter") // advance from welcome → passphrase
+	m = sendKey(m, "enter") // advance from welcome → passphrase (empty path)
 	if m.state != stateWizardPassphrase {
 		t.Errorf("expected stateWizardPassphrase, got %v", m.state)
 	}

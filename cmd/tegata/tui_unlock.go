@@ -87,7 +87,7 @@ func loadCredentials(m model) model {
 func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	m.unlocking = false
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Unlock failed: %v", msg.err)
+		m.errMsg = "Unlock failed: " + humanizeError(msg.err)
 		m.passphraseInput.Reset()
 		m.passphraseInput.Focus()
 		m.state = stateUnlock
@@ -199,7 +199,7 @@ func (m model) viewUnlockScreen() string {
 		content = titleStyle.Render("Unlock Vault") + "\n\n" +
 			m.passphraseInput.View() + "\n"
 		if m.errMsg != "" {
-			content += "\n" + errorStyle.Render(m.errMsg) + "\n"
+			content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 		}
 		content += "\n" + helpBarStyle.Render("[Enter] Unlock  [Esc] Quit")
 	}

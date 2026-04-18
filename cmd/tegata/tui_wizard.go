@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -76,18 +78,54 @@ func (m model) updateWizard(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateWizardWelcome handles input on the welcome screen (step 1/4).
+// updateWizardWelcome handles input on the welcome screen (step 1/5).
+//
+// The screen has a single vault path input. Enter advances with the following
+// logic: if the typed path resolves to an existing vault file, the model
+// transitions directly to stateUnlock so the user can enter their passphrase.
+// If the path does not exist yet it is stored as the new vault location and the
+// model advances to stateWizardPassphrase for vault creation. An empty path
+// uses the default location (vault.tegata in the current working directory).
 func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
+			raw := strings.TrimSpace(m.vaultPathInput.Value())
+			m.vaultPathInput.Reset()
+			m.vaultPathInput.Blur()
+
+			if raw != "" {
+				resolved, err := resolvePathArg(raw)
+				if err != nil {
+					m.errMsg = "Invalid path: " + humanizeError(err)
+					m.vaultPathInput.Focus()
+					return m, nil
+				}
+				if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
+					// Existing vault file: switch to unlock flow.
+					m.vaultPath = resolved
+					m.state = stateUnlock
+					m.passphraseInput.Focus()
+					return m, nil
+				}
+				// Non-existing path: use it as the new vault location.
+				m.vaultPath = resolved
+			}
+
+			// Advance to passphrase creation.
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, m.spinner.Tick
+
 		case tea.KeyEsc:
 			return m.quit()
 		}
+
+		// Delegate typing to the vault path input.
+		var cmd tea.Cmd
+		m.vaultPathInput, cmd = m.vaultPathInput.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -119,7 +157,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.creating = false
 		if msg.err != nil {
 			// Creation failed: return to passphrase step with error.
-			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.confirmInput.Blur()
 			m.passphraseInput.Focus()
@@ -238,7 +276,7 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle vault creation result that arrives while on the recovery screen.
 		m.creating = false
 		if msg.err != nil {
-			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, nil
@@ -303,13 +341,19 @@ func (m model) viewWizard() string {
 	return ""
 }
 
-// viewWizardWelcome renders step 1/4.
+// viewWizardWelcome renders step 1/5.
 func (m model) viewWizardWelcome() string {
 	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
 		"Tegata is a portable authenticator that stores encrypted\n" +
 		"credentials on USB drives or microSD cards.\n\n" +
-		"This wizard will guide you through creating your vault.\n\n" +
-		helpBarStyle.Render("[Enter] Begin setup  [Esc] Quit")
+		"Enter the path to an existing vault to unlock it, or leave\n" +
+		"blank to create a new vault in the current directory.\n\n" +
+		m.vaultPathInput.View() + "\n"
+
+	if m.errMsg != "" {
+		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
+	}
+	content += "\n" + helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
@@ -324,7 +368,7 @@ func (m model) viewWizardPassphrase() string {
 		"Strength: " + strength + "\n"
 
 	if m.errMsg != "" {
-		content += "\n" + errorStyle.Render(m.errMsg) + "\n"
+		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 	}
 	if m.creating {
 		content += "\n" + m.spinner.View() + " Creating vault…\n"
