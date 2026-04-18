@@ -166,7 +166,8 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 	cfg.AutoStart = true
 
 	// Call MaybeAutoStart (non-blocking; runs in goroutine).
-	audit.MaybeAutoStart(cfg)
+	// Pass nil for fsys — the compose file already exists on disk from SetupStack.
+	audit.MaybeAutoStart(cfg, nil)
 	t.Log("MaybeAutoStart called (non-blocking)")
 
 	// Poll for ledger readiness (up to 60 seconds).
