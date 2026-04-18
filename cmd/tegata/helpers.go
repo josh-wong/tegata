@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -248,8 +249,11 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 	// Uses EnsureStack (synchronous) so the stack is ready before the
 	// command runs — MaybeAutoStart's goroutine would be killed on CLI exit.
 	// No-op when DockerComposePath is empty or AutoStart is false (D-11).
+	// Passes bundleFS so docker-compose.yml is synced on each run, keeping
+	// the live stack config current after binary upgrades.
 	if cfg, err := config.Load(filepath.Dir(vaultPath)); err == nil {
-		if err := audit.EnsureStack(cfg.Audit, nil); err != nil {
+		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
+		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
 		}
 	}

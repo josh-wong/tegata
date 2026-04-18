@@ -60,13 +60,16 @@ When upgrading to a new ScalarDL version, the bundled Docker Compose files and S
 
 The SHA256 hash is verified during Docker container startup and will fail fast if the downloaded artifact does not match, protecting against supply chain tampering or accidental corruption.
 
+After releasing a new Tegata binary with an updated ScalarDL version, users do not need to manually update `~/.tegata/docker/docker-compose.yml`. Tegata automatically syncs the embedded `docker-compose.yml` to that path on each vault unlock, so the live Docker stack configuration stays current after a binary upgrade.
+
 ## Auto-start behavior
 
-After setup, every vault unlock fires `MaybeAutoStart` in the background.
+After setup, every vault unlock starts the Docker audit stack automatically.
 
 - If Docker Desktop is closed, Tegata starts it and waits for it to become ready (up to 60 seconds)
 - Once the Docker daemon is running, Tegata starts the ScalarDL containers (`docker compose up -d`)
-- The vault unlocks immediately — auto-start runs asynchronously and never blocks the unlock
+- Tegata also syncs the embedded `docker-compose.yml` to `~/.tegata/docker/` on each unlock, keeping the stack configuration current after binary upgrades
+- In the CLI, auto-start completes before the command runs. In the TUI, it runs in the background
 
 If auto-start fails for any reason, Tegata logs the error to stderr and queues audit events locally. Queued events are submitted when the ledger becomes reachable.
 
@@ -278,7 +281,7 @@ tegata ledger start --vault /path/to/vault
 
 ### Docker image errors on macOS with Apple Silicon
 
-If you see errors like `no matching manifest for linux/arm64/v8` or `exec format error`, the ScalarDL and PostgreSQL images are x86-64 only. The bundled `docker-compose.yml` includes `platform: linux/amd64` directives to handle this automatically via Rosetta emulation, which is fully supported by Docker Desktop for Mac.
+Some ScalarDL images are x86-64 only. Docker Desktop for Mac automatically runs them under Rosetta 2 emulation on Apple Silicon — no manual configuration is needed. You may see an "AMD64" badge in Docker Desktop for these containers, which is expected and normal.
 
 ### Connection refused or timeout
 
