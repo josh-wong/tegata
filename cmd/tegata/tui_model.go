@@ -77,6 +77,9 @@ type model struct {
 	// Cursor position for credential list navigation
 	cursor int
 
+	// Wizard: vault path input on the welcome screen
+	vaultPathInput textinput.Model
+
 	// Challenge-response inline input
 	crChallengeInput  textinput.Model
 	crChallengeActive bool
@@ -144,6 +147,10 @@ func initialModel(vaultPath string) model {
 
 	cfg := config.DefaultConfig()
 
+	vaultPathIn := textinput.New()
+	vaultPathIn.Placeholder = "Vault path (leave blank for current directory)"
+	vaultPathIn.EchoMode = textinput.EchoNormal
+
 	crInput := textinput.New()
 	crInput.Placeholder = "hex or plain text"
 	crInput.EchoMode = textinput.EchoNormal
@@ -188,6 +195,7 @@ func initialModel(vaultPath string) model {
 		lastActivity:     time.Now(),
 		passphraseInput:  newPassphraseInput("Passphrase"),
 		confirmInput:     newPassphraseInput("Confirm passphrase"),
+		vaultPathInput:   vaultPathIn,
 		crChallengeInput: crInput,
 		addLabelInput:    addLabel,
 		addIssuerInput:   addIssuer,
@@ -204,6 +212,7 @@ func initialModel(vaultPath string) model {
 
 	if vaultPath == "" {
 		m.state = stateWizardWelcome
+		m.vaultPathInput.Focus()
 	} else {
 		m.state = stateUnlock
 		m.passphraseInput.Focus()
@@ -420,6 +429,7 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 // which suppresses the global 'q' quit binding.
 func (m model) isInputFocused() bool {
 	return m.passphraseInput.Focused() || m.confirmInput.Focused() ||
+		m.vaultPathInput.Focused() ||
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
 		m.addPeriodInput.Focused() || m.addTagsInput.Focused() ||

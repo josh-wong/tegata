@@ -31,3 +31,13 @@ var panelStyle = lipgloss.NewStyle().
 
 // spinnerStyle renders the spinner in cyan during async operations.
 var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
+
+// renderErrMsg renders msg with errorStyle, wrapping at termWidth-4 columns so
+// long error strings (e.g. file paths) do not overflow narrow terminals.
+func renderErrMsg(msg string, termWidth int) string {
+	w := termWidth - 4
+	if w < 40 {
+		w = 40
+	}
+	return errorStyle.Width(w).Render(msg)
+}

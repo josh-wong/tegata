@@ -285,3 +285,36 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	return audit.NewEventBuilderFromConfig(cfg.Audit, vaultDir, passphrase)
 }
 
+// humanizeError translates OS and filesystem errors into user-friendly messages.
+// Falls through to the original error for unknown types.
+func humanizeError(err error) string {
+	if err == nil {
+		return "Unknown error"
+	}
+
+	msg := err.Error()
+
+	// File not found
+	if os.IsNotExist(err) {
+		return "Vault file not found. Check the path and try again."
+	}
+
+	// Permission denied
+	if os.IsPermission(err) {
+		return "Permission denied. Check file permissions and try again."
+	}
+
+	// Read-only filesystem
+	if strings.Contains(msg, "read-only file system") {
+		return "Cannot write to this location—it appears to be read-only."
+	}
+
+	// Vault file is corrupt or invalid
+	if strings.Contains(msg, "invalid header") || strings.Contains(msg, "corrupted") {
+		return "The vault file appears to be corrupt. Restore from a backup if available."
+	}
+
+	// Fall back to original error if no pattern matches
+	return msg
+}
+

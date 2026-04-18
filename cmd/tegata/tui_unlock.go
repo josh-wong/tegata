@@ -199,7 +199,7 @@ func (m model) viewUnlockScreen() string {
 		content = titleStyle.Render("Unlock Vault") + "\n\n" +
 			m.passphraseInput.View() + "\n"
 		if m.errMsg != "" {
-			content += "\n" + errorStyle.Render(m.errMsg) + "\n"
+			content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 		}
 		content += "\n" + helpBarStyle.Render("[Enter] Unlock  [Esc] Quit")
 	}
