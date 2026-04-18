@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -201,12 +202,23 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 
 // TestIntegration_SetupStack_DockerAbsent verifies that SetupStack returns
 // a descriptive error when Docker is absent from PATH.
+// This test skips if Docker is found at a known fallback location (e.g.
+// /usr/local/bin/docker on macOS) because dockerBin() checks those paths
+// beyond PATH for GUI-app compatibility, making absence unsimulatable.
 func TestIntegration_SetupStack_DockerAbsent(t *testing.T) {
+	if audit.DockerBinPath() != "" {
+		t.Skip("docker found at a known location; cannot simulate absence — skipping")
+	}
 	// Temporarily remove Docker from PATH.
 	t.Setenv("PATH", "")
 
+	// Use a minimal stub FS — SetupStack should fail before extracting files.
+	fsys := fstest.MapFS{
+		"docker-compose.yml": &fstest.MapFile{Data: []byte("name: tegata-ledger\nservices: {}\n")},
+	}
+
 	// SetupStack should fail with a "docker binary not found" error.
-	_, err := audit.SetupStack(nil, t.TempDir(), "test-vault-id", nil, nil)
+	_, err := audit.SetupStack(fsys, t.TempDir(), "test-vault-id", nil, nil)
 	if err == nil {
 		t.Fatal("SetupStack: expected error when docker not in PATH, got nil")
 	}

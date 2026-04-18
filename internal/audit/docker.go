@@ -57,6 +57,13 @@ var knownDockerPaths = []string{
 	"/opt/homebrew/bin/docker",
 }
 
+// DockerBinPath returns the absolute path to the docker binary. It first
+// checks PATH (via LookPath), then falls back to known macOS and Linux
+// locations. Returns an empty string if docker cannot be found. Exported
+// for use in integration tests that need to detect whether Docker is present
+// at a known location before simulating absence.
+func DockerBinPath() string { return dockerBin() }
+
 // dockerBin returns the absolute path to the docker binary. It first checks
 // PATH (via LookPath), then falls back to known macOS and Linux locations.
 // Returns an empty string if docker cannot be found.
@@ -87,7 +94,7 @@ func dockerCmd(args ...string) *exec.Cmd {
 // it automatically if needed), and Compose v2 is available.
 func detectDocker() error {
 	if dockerBin() == "" {
-		return fmt.Errorf("docker binary not found. Install Docker Desktop from https://docs.docker.com/get-docker/")
+		return fmt.Errorf("docker binary not found in PATH. Install Docker Desktop from https://docs.docker.com/get-docker/")
 	}
 
 	if err := ensureDockerDaemon(); err != nil {
@@ -307,6 +314,10 @@ func progress(fn func(string), msg string) {
 // if contract registration is still in progress. If onRegistered returns an
 // error, SetupStack returns immediately with that error.
 func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string), onRegistered func(config.AuditConfig) error) (config.AuditConfig, error) {
+	if fsys == nil {
+		return config.AuditConfig{}, fmt.Errorf("compose bundle filesystem is nil")
+	}
+
 	// Step 1: Check Docker installation.
 	progress(progressFn, "Checking Docker installation...")
 	if err := detectDocker(); err != nil {
