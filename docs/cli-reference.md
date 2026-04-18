@@ -189,7 +189,7 @@ tegata get backup-key --show
 
 ### tegata history
 
-View authentication event history from the ScalarDL Ledger. Events are retrieved from the entity's audit collection and displayed with metadata columns. Requires audit to be enabled in `tegata.toml`.
+View authentication event history from the ScalarDL Ledger. Events are retrieved from the entity's audit collection, sorted newest first, and displayed with metadata columns. Requires audit to be enabled in `tegata.toml`.
 
 Tegata prompts for the vault passphrase to resolve label hashes to human-readable credential names. If a credential has been removed since the event was recorded, the label displays as `(deleted)`.
 
