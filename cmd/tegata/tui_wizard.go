@@ -97,14 +97,17 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if raw != "" {
 				resolved, err := resolvePathArg(raw)
-				if err == nil {
-					if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
-						// Existing vault file: switch to unlock flow.
-						m.vaultPath = resolved
-						m.state = stateUnlock
-						m.passphraseInput.Focus()
-						return m, nil
-					}
+				if err != nil {
+					m.errMsg = "Invalid path: " + humanizeError(err)
+					m.vaultPathInput.Focus()
+					return m, nil
+				}
+				if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
+					// Existing vault file: switch to unlock flow.
+					m.vaultPath = resolved
+					m.state = stateUnlock
+					m.passphraseInput.Focus()
+					return m, nil
 				}
 				// Non-existing path: use it as the new vault location.
 				m.vaultPath = resolved
@@ -345,8 +348,12 @@ func (m model) viewWizardWelcome() string {
 		"credentials on USB drives or microSD cards.\n\n" +
 		"Enter the path to an existing vault to unlock it, or leave\n" +
 		"blank to create a new vault in the current directory.\n\n" +
-		m.vaultPathInput.View() + "\n\n" +
-		helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
+		m.vaultPathInput.View() + "\n"
+
+	if m.errMsg != "" {
+		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
+	}
+	content += "\n" + helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
