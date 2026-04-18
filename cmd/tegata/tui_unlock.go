@@ -87,7 +87,7 @@ func loadCredentials(m model) model {
 func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	m.unlocking = false
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Unlock failed: %v", msg.err)
+		m.errMsg = "Unlock failed: " + humanizeError(msg.err)
 		m.passphraseInput.Reset()
 		m.passphraseInput.Focus()
 		m.state = stateUnlock

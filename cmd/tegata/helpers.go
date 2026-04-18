@@ -294,13 +294,13 @@ func humanizeError(err error) string {
 
 	msg := err.Error()
 
-	// File not found
-	if os.IsNotExist(err) {
+	// File not found (check both os.IsNotExist and text pattern for wrapped errors)
+	if os.IsNotExist(err) || strings.Contains(msg, "no such file or directory") {
 		return "Vault file not found. Check the path and try again."
 	}
 
-	// Permission denied
-	if os.IsPermission(err) {
+	// Permission denied (check both os.IsPermission and text pattern for wrapped errors)
+	if os.IsPermission(err) || strings.Contains(msg, "permission denied") {
 		return "Permission denied. Check file permissions and try again."
 	}
 

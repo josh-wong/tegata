@@ -154,7 +154,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.creating = false
 		if msg.err != nil {
 			// Creation failed: return to passphrase step with error.
-			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.confirmInput.Blur()
 			m.passphraseInput.Focus()
@@ -273,7 +273,7 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle vault creation result that arrives while on the recovery screen.
 		m.creating = false
 		if msg.err != nil {
-			m.errMsg = fmt.Sprintf("Error creating vault: %v", msg.err)
+			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, nil
