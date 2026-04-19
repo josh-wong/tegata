@@ -376,7 +376,8 @@ func (m model) viewWizardWelcome() string {
 		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path doesn't appear to be on a removable\n" +
 			"drive. For better security, store your vault on a USB or\n" +
 			"microSD card; physical separation helps keep your vault\n" +
-			"safe if your computer is compromised.")
+			"safe if your computer is compromised.\n" +
+			"Press Enter again to proceed with this location.")
 		content += "\n" + warn + "\n"
 	}
 	if m.errMsg != "" {

@@ -20,7 +20,10 @@ func TestIsSystemVolume_MacintoshHD(t *testing.T) {
 }
 
 func TestIsSystemVolume_NonSystem(t *testing.T) {
-	// A random name should not be considered a system volume.
+	// A random name should not be considered a system volume. This test runs on
+	// all non-Windows platforms: on Linux the Readlink call will fail (no
+	// /Volumes directory) and the name won't match "Macintosh HD", so the
+	// function correctly returns false without any OS-specific behavior.
 	if IsSystemVolume("MY_USB_DRIVE") {
 		t.Error("expected 'MY_USB_DRIVE' not to be identified as system volume")
 	}

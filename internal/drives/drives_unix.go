@@ -27,7 +27,9 @@ func IsSystemVolume(name string) bool {
 //   - macOS: checks /Volumes, excluding the system root volume.
 //   - Linux: checks /media and /run/media (used by udisks2 on Fedora and newer
 //     Ubuntu). /mnt is intentionally excluded because it is commonly used for
-//     network shares and non-removable mounts.
+//     network shares and non-removable mounts. This is a known false negative:
+//     users who manually mount USB drives under /mnt will always see the
+//     advisory warning even when using physical removable storage.
 func platformIsRemovable(abs string) bool {
 	switch runtime.GOOS {
 	case "darwin":

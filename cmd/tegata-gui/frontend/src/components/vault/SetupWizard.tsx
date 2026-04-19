@@ -197,7 +197,7 @@ export function SetupWizard({
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-green-600">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
+              <span className="font-semibold text-primary">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
             </p>
 
             <div className="space-y-2">

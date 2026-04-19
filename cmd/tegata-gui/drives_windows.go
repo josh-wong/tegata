@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	procGetDriveType     = kernel32.NewProc("GetDriveTypeW")
-	procGetVolumeInfo    = kernel32.NewProc("GetVolumeInformationW")
+	kernel32            = syscall.NewLazyDLL("kernel32.dll")
+	procGetDriveType    = kernel32.NewProc("GetDriveTypeW")
+	procGetVolumeInfo   = kernel32.NewProc("GetVolumeInformationW")
 	procGetLogicalDrives = kernel32.NewProc("GetLogicalDrives")
 )
 
