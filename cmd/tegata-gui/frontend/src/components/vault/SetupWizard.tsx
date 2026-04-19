@@ -217,9 +217,9 @@ export function SetupWizard({
               )}
             </div>
 
-            {removableDrives.length > 0 && (
-              <label className="text-sm font-medium">Or enter a custom path:</label>
-            )}
+            <label className="text-sm font-medium">
+              {removableDrives.length > 0 ? "Or enter a custom path:" : "Enter a vault path:"}
+            </label>
             <Input
               placeholder="C:\path\to\folder"
               value={customPath}
