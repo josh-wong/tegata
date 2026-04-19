@@ -2,7 +2,8 @@
 // clearing after a timeout. It wraps github.com/atotto/clipboard with
 // auto-clear logic and cancellation support. On WSL2, clip.exe and
 // powershell.exe are copied to a temp directory (to gain execute bits that
-// DrvFs mounts strip) and used to reach the Windows clipboard.
+// DrvFs mounts strip) and used to reach the Windows clipboard. On Wayland,
+// wl-copy and wl-paste are used directly when available.
 package clipboard
 
 import (
@@ -144,27 +145,103 @@ func isWSL() bool {
 	return strings.Contains(strings.ToLower(string(data)), "microsoft")
 }
 
-// Manager handles clipboard operations with automatic clearing.
-type Manager struct {
-	cb          ClipboardAccess
-	cancelClear context.CancelFunc
-	mu          sync.Mutex
-	tmpDir      string // set when WSL temp copies are used; cleaned up on Close
+// isWayland reports whether the process is running in a Wayland session.
+// It checks WAYLAND_DISPLAY first (set by the compositor) and falls back to
+// XDG_SESSION_TYPE for login managers that set one but not the other.
+func isWayland() bool {
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		return true
+	}
+	return strings.EqualFold(os.Getenv("XDG_SESSION_TYPE"), "wayland")
 }
 
-// NewManager creates a new clipboard manager. On WSL2 it copies Windows
-// clipboard binaries to a temp directory (to work around DrvFs execute-bit
-// restrictions) and uses them directly. Elsewhere it uses the system clipboard
-// via atotto/clipboard.
+// waylandClipboard implements ClipboardAccess using wl-copy and wl-paste
+// from the wl-clipboard package, which natively supports Wayland.
+type waylandClipboard struct {
+	wlCopyPath  string
+	wlPastePath string
+}
+
+// newWaylandClipboard returns a waylandClipboard if both wl-copy and wl-paste
+// are available in PATH. Both tools are required: wl-paste is needed by the
+// auto-clear goroutine to compare clipboard content before clearing.
+func newWaylandClipboard() (*waylandClipboard, error) {
+	copyPath, err := exec.LookPath("wl-copy")
+	if err != nil {
+		return nil, fmt.Errorf("wl-copy not found: install wl-clipboard")
+	}
+	pastePath, err := exec.LookPath("wl-paste")
+	if err != nil {
+		return nil, fmt.Errorf("wl-paste not found: install wl-clipboard")
+	}
+	return &waylandClipboard{wlCopyPath: copyPath, wlPastePath: pastePath}, nil
+}
+
+// WriteAll writes text to the Wayland clipboard via wl-copy.
+func (w *waylandClipboard) WriteAll(text string) error {
+	cmd := exec.Command(w.wlCopyPath)
+	cmd.Stdin = strings.NewReader(text)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("wl-copy: %w", err)
+	}
+	return nil
+}
+
+func (w *waylandClipboard) ReadAll() (string, error) {
+	// wl-paste exits non-zero when the clipboard is empty. The auto-clear
+	// goroutine treats a ReadAll error as "content unknown" and skips clearing,
+	// which is safe — credentials are never cleared incorrectly.
+	out, err := exec.Command(w.wlPastePath, "--no-newline").Output()
+	if err != nil {
+		return "", fmt.Errorf("wl-paste: %w", err)
+	}
+	return string(out), nil
+}
+
+// Manager handles clipboard operations with automatic clearing.
+type Manager struct {
+	cb             ClipboardAccess
+	cancelClear    context.CancelFunc
+	mu             sync.Mutex
+	tmpDir         string // set when WSL temp copies are used; cleaned up on Close
+	waylandSession bool   // true when running in a Wayland session on Linux
+}
+
+// NewManager creates a new clipboard manager. On Linux the selection order is:
+//  1. WSL2 — uses Windows clipboard binaries copied to a temp directory to
+//     work around DrvFs execute-bit restrictions.
+//  2. Wayland — uses wl-copy/wl-paste from wl-clipboard when detected.
+//  3. X11 / other — falls through to atotto/clipboard (xclip / xsel).
+//
+// On macOS and Windows the system clipboard is used directly.
 func NewManager() *Manager {
-	if runtime.GOOS == "linux" && isWSL() {
-		if wsl, err := newWSLClipboard(); err == nil {
-			return &Manager{
-				cb:     wsl,
-				tmpDir: filepath.Dir(wsl.clipPath),
+	if runtime.GOOS == "linux" {
+		if isWSL() {
+			if wsl, err := newWSLClipboard(); err == nil {
+				return &Manager{
+					cb:     wsl,
+					tmpDir: filepath.Dir(wsl.clipPath),
+				}
 			}
+			// Fall through to Wayland / X11 if WSL setup fails. On WSLg
+			// (WSL2 with GUI support), WAYLAND_DISPLAY may also be set, so
+			// the Wayland path below can succeed.
 		}
-		// Fall through to system clipboard if WSL setup fails.
+		if isWayland() {
+			// Always record the session type so clipboardError can surface the
+			// right install hint even when wl-clipboard is absent and we fall
+			// through to the system clipboard.
+			m := &Manager{waylandSession: true}
+			if wl, err := newWaylandClipboard(); err == nil {
+				m.cb = wl
+			} else {
+				// wl-clipboard is absent. Assign system clipboard so the Manager
+				// is valid; the first operation will fail and clipboardError will
+				// surface the Wayland-specific install hint to the user.
+				m.cb = systemClipboard{}
+			}
+			return m
+		}
 	}
 	return &Manager{cb: systemClipboard{}}
 }
@@ -189,7 +266,7 @@ func (m *Manager) CopyWithAutoClear(text string, timeout time.Duration) error {
 
 	if err := m.cb.WriteAll(text); err != nil {
 		m.mu.Unlock()
-		return clipboardError(err)
+		return m.clipboardError(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -229,12 +306,20 @@ func (m *Manager) Close() {
 }
 
 // clipboardError wraps a clipboard error with an actionable message.
-func clipboardError(err error) error {
+// It uses the backend recorded at construction time rather than re-detecting
+// the session type, so the message always matches the backend in use.
+func (m *Manager) clipboardError(err error) error {
 	switch runtime.GOOS {
 	case "linux":
+		if m.waylandSession {
+			return &ClipboardError{
+				Err:     err,
+				Message: "Clipboard not available on Wayland. Install wl-clipboard (wl-copy/wl-paste).",
+			}
+		}
 		return &ClipboardError{
 			Err:     err,
-			Message: "Clipboard not available. Install xclip, xsel, or wl-clipboard.",
+			Message: "Clipboard not available. Install xclip or xsel.",
 		}
 	default:
 		return &ClipboardError{

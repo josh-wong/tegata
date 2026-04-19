@@ -1,6 +1,11 @@
 package clipboard
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -143,5 +148,114 @@ func TestCloseStopsAutoClear(t *testing.T) {
 	got := mock.getContent()
 	if got != "secret" {
 		t.Errorf("clipboard should not be cleared after Close, got %q", got)
+	}
+}
+
+// errClipboard is a mock ClipboardAccess that always returns an error on write.
+type errClipboard struct{ err error }
+
+func (e *errClipboard) WriteAll(_ string) error  { return e.err }
+func (e *errClipboard) ReadAll() (string, error) { return "", e.err }
+
+func TestCopyWithAutoClearReturnsClipboardError(t *testing.T) {
+	underlying := errors.New("display not found")
+	mgr := NewManagerWith(&errClipboard{err: underlying})
+	defer mgr.Close()
+
+	err := mgr.CopyWithAutoClear("secret", time.Second)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var ce *ClipboardError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClipboardError, got %T: %v", err, err)
+	}
+	if ce.Unwrap() == nil {
+		t.Error("ClipboardError should wrap the underlying error")
+	}
+}
+
+func TestNewWaylandClipboardFailsWithoutWlCopy(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := newWaylandClipboard()
+	if err == nil {
+		t.Error("expected error when wl-copy is absent, got nil")
+	}
+}
+
+func TestNewWaylandClipboardFailsWithoutWlPaste(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Unix executable stubs only work on Linux")
+	}
+	// Create a temp dir that contains wl-copy but not wl-paste so that only
+	// the wl-paste look-up fails.
+	tmpDir := t.TempDir()
+	fakeCopy := filepath.Join(tmpDir, "wl-copy")
+	if err := os.WriteFile(fakeCopy, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tmpDir)
+
+	_, err := newWaylandClipboard()
+	if err == nil {
+		t.Error("expected error when wl-paste is absent, got nil")
+	}
+}
+
+func TestIsWaylandDetection(t *testing.T) {
+	tests := []struct {
+		name           string
+		waylandDisplay string
+		xdgSessionType string
+		want           bool
+	}{
+		{"no wayland env", "", "", false},
+		{"WAYLAND_DISPLAY set", "wayland-0", "", true},
+		{"XDG_SESSION_TYPE wayland", "", "wayland", true},
+		{"XDG_SESSION_TYPE WAYLAND uppercase", "", "WAYLAND", true},
+		{"XDG_SESSION_TYPE x11", "", "x11", false},
+		{"both set", "wayland-0", "wayland", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("WAYLAND_DISPLAY", tc.waylandDisplay)
+			t.Setenv("XDG_SESSION_TYPE", tc.xdgSessionType)
+
+			got := isWayland()
+			if got != tc.want {
+				t.Errorf("isWayland() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestClipboardErrorMessageWaylandSession(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("waylandSession error path is Linux-only")
+	}
+	underlying := errors.New("exit status 1")
+	mgr := &Manager{
+		waylandSession: true,
+		cb:             &errClipboard{err: underlying},
+	}
+	defer mgr.Close()
+
+	err := mgr.CopyWithAutoClear("secret", time.Second)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var ce *ClipboardError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClipboardError, got %T: %v", err, err)
+	}
+	if !strings.Contains(ce.Message, "wl-clipboard") {
+		t.Errorf("expected Wayland install hint in message, got %q", ce.Message)
+	}
+	if ce.Unwrap() != underlying {
+		t.Errorf("expected underlying error %v, got %v", underlying, ce.Unwrap())
 	}
 }
