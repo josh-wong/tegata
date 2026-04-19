@@ -360,17 +360,19 @@ func (m model) viewWizard() string {
 
 // viewWizardWelcome renders step 1/5.
 func (m model) viewWizardWelcome() string {
+	tip := tipStyle.Render("💡 Tip: Store your vault on a USB or microSD for security\n" +
+		"and portability. Install Tegata on any device to access it.")
 	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
 		"Tegata is a portable authenticator that stores your\n" +
 		"two-factor authentication codes in an encrypted vault.\n\n" +
-		tipStyle.Render("💡Tip:") + " Store your vault on a USB or microSD for security\n" +
-		"and portability. Install Tegata on any device to access it.\n\n" +
+		tip + "\n\n" +
 		m.vaultPathInput.View() + "\n"
 
 	if m.localVaultWarn {
-		content += "\n" + warnStyle.Render("Warning: this path is on a system drive, not a removable drive.") + "\n" +
+		warn := warnStyle.Render("Warning: this path is on a system drive, not a removable drive.\n" +
 			"For better security, use a USB drive or microSD card — physical\n" +
-			"separation keeps your vault safe if your computer is compromised.\n"
+			"separation keeps your vault safe if your computer is compromised.")
+		content += "\n" + warn + "\n"
 	}
 	if m.errMsg != "" {
 		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
