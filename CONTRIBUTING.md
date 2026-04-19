@@ -42,6 +42,10 @@ make test
 
 This runs `go test -race -count=1 ./...` to detect race conditions and ensure tests are not cached.
 
+### GUI development notes
+
+The Wails-generated TypeScript bindings under `cmd/tegata-gui/frontend/wailsjs/go/` are excluded from version control because Wails regenerates them on every build. If you clone the repository and open the frontend in an editor before running `wails build` or `wails dev`, TypeScript will report missing module errors for `../models` and `go/main/App`. Run `wails build` or `wails dev` once to generate the bindings before editing frontend code.
+
 ## Coding standards
 
 These guidelines apply to all contributions.
