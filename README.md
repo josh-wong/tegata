@@ -1,12 +1,12 @@
 # Tegata (手形)
 
-**Your credentials, encrypted and portable.**
+**Your two-factor authentication codes, encrypted and portable.**
 
 ![CI](https://github.com/josh-wong/tegata/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg)
 
-Tegata is an open-source portable authenticator that stores encrypted credentials on standard USB drives or microSD cards. It combines TOTP/HOTP code generation, challenge-response signing, and static password storage with AES-256-GCM encryption and Argon2id key derivation. Optional tamper-evident audit logging via ScalarDL Ledger provides verifiable authentication history.
+Tegata is an open-source portable authenticator that stores your two-factor authentication (2FA) codes and other credentials in an encrypted vault on standard USB drives or microSD cards. It combines TOTP/HOTP code generation, challenge-response signing, and static password storage with AES-256-GCM encryption and Argon2id key derivation. Optional tamper-evident audit logging via ScalarDL Ledger provides verifiable authentication history.
 
 ## Feature highlights
 

@@ -147,8 +147,10 @@ export function SetupWizard({
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Tegata stores your credentials in an encrypted vault on a USB drive
-              or folder of your choice.
+              Tegata is a portable authenticator that stores your two-factor
+              authentication codes in an encrypted vault. Store it on a USB or
+              microSD for security and portability, and install Tegata on any
+              device to access it.
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
               Create new vault
@@ -178,8 +180,8 @@ export function SetupWizard({
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
               {removableDrives.length > 0
-                ? "Select a folder for your encrypted vault."
-                : "Insert a USB drive for portable access, or choose any folder."}
+                ? "Select a removable drive (USB or microSD) for better security and portability."
+                : "For better security, use a USB drive or microSD card. Or enter a custom folder."}
             </p>
 
             <div className="space-y-2">
