@@ -46,8 +46,16 @@ export function useVault() {
         await App.UnlockVault(vaultPath, passphrase)
         setView("main")
       } catch (err) {
-        console.error("UnlockVault failed:", err)
-        setError("Incorrect passphrase. Please try again.")
+        const raw = formatError(err, "")
+        // Backend auth failures typically contain these patterns (e.g. Go's
+        // "cipher: message authentication failed"). Anything else is treated
+        // as a vault-access failure, not a wrong-passphrase error.
+        const isPassphraseError = !raw || /passphrase|cipher|decrypt|authenticat/i.test(raw)
+        setError(
+          isPassphraseError
+            ? "Incorrect passphrase. Please try again."
+            : "Failed to open vault. Please try again.",
+        )
       } finally {
         setLoading(false)
       }

@@ -72,6 +72,23 @@ describe("useVault", () => {
     expect(result.current.error).toBe("Incorrect passphrase. Please try again.")
   })
 
+  it("unlock non-passphrase failure shows generic error", async () => {
+    vi.mocked(App.ScanForVaults).mockResolvedValue([
+      { path: "/usb/vault.tegata", driveName: "USB" },
+    ])
+    vi.mocked(App.UnlockVault).mockRejectedValue(new Error("permission denied"))
+
+    const { result } = renderHook(() => useVault())
+    await waitFor(() => expect(result.current.view).toBe("unlock"))
+
+    await act(async () => {
+      await result.current.unlock("test-passphrase-dummy")
+    })
+
+    expect(result.current.view).toBe("unlock")
+    expect(result.current.error).toBe("Failed to open vault. Please try again.")
+  })
+
   it("lock calls App.LockVault and transitions to 'unlock'", async () => {
     vi.mocked(App.ScanForVaults).mockResolvedValue([
       { path: "/usb/vault.tegata", driveName: "USB" },

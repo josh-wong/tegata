@@ -27,7 +27,7 @@ export function UnlockView({
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
   const [auditStatus, setAuditStatus] = useState("")
-  const [errorDismissed, setErrorDismissed] = useState(false)
+  const [showError, setShowError] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -39,9 +39,9 @@ export function UnlockView({
     if (!loading) setAuditStatus("")
   }, [loading])
 
-  // Reset dismissal whenever a new error arrives so it becomes visible again.
+  // Show the error whenever a new one arrives (re-enables after user dismissed).
   useEffect(() => {
-    if (error) setErrorDismissed(false)
+    if (error) setShowError(true)
   }, [error])
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function UnlockView({
 
   function handlePassphraseChange(e: ChangeEvent<HTMLInputElement>) {
     setPassphrase(e.target.value)
-    setErrorDismissed(true)
+    setShowError(false)
   }
 
   function handleSubmit(e: FormEvent) {
@@ -127,7 +127,7 @@ export function UnlockView({
               autoFocus
               disabled={loading}
             />
-            {error && !errorDismissed && (
+            {error && showError && (
               <p className="text-sm text-destructive">{error}</p>
             )}
           </div>
