@@ -108,8 +108,8 @@ describe("useIdleTimer", () => {
 
     // Advance 1 minute and 5 seconds — past the 5-minute window from login.
     // The hook polls every 5 s, so the callback fires at least once in this
-    // window. (It may fire multiple times because lastActivity is not reset on
-    // each poll; the caller is responsible for disabling the timer on lock.)
+    // window. The baseline is reset before onIdle fires, so the callback fires
+    // at most once per idle window even if the lock transition is slow.
     act(() => {
       vi.advanceTimersByTime(65 * 1000)
     })
