@@ -49,6 +49,7 @@ export function SetupWizard({
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditError, setAuditError] = useState("")
   const [auditProgress, setAuditProgress] = useState("")
+  const [isCustomPathRemovable, setIsCustomPathRemovable] = useState(true)
 
   // Fetch removable drives when entering step 2 (vault creation).
   useEffect(() => {
@@ -73,6 +74,18 @@ export function SetupWizard({
         .catch((err) => console.error("Failed to scan for vaults:", err))
     }
   }, [step])
+
+  // Check if the custom path is on a removable drive when it changes.
+  useEffect(() => {
+    if (selectedPath === "__custom__" && customPath) {
+      App.IsRemovablePath(customPath)
+        .then((isRemovable) => setIsCustomPathRemovable(isRemovable))
+        .catch((err) => {
+          console.error("Failed to check if path is removable:", err)
+          setIsCustomPathRemovable(false) // Assume non-removable on error
+        })
+    }
+  }, [customPath, selectedPath])
 
   const folderPath = selectedPath === "__custom__" ? customPath : selectedPath
   const effectivePath = folderPath
@@ -143,14 +156,12 @@ export function SetupWizard({
             <div>
               <h1 className="text-2xl font-bold text-primary">Tegata</h1>
               <p className="mt-2 text-muted-foreground">
-                Your credentials, encrypted and portable
+                Your two-factor authentication codes, encrypted <span className="whitespace-nowrap">and portable</span>
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
               Tegata is a portable authenticator that stores your two-factor
-              authentication codes in an encrypted vault. Store it on a USB or
-              microSD for security and portability, and install Tegata on any
-              device to access it.
+              authentication codes in an encrypted vault.
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
               Create new vault
@@ -179,9 +190,7 @@ export function SetupWizard({
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
-              {removableDrives.length > 0
-                ? "Select a removable drive (USB or microSD) for better security and portability."
-                : "For better security, use a USB drive or microSD card. Or enter a custom folder."}
+              <span className="font-semibold text-green-600">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
             </p>
 
             <div className="space-y-2">
@@ -230,6 +239,15 @@ export function SetupWizard({
                 }}
                 autoFocus={removableDrives.length === 0}
               />
+            )}
+
+            {selectedPath === "__custom__" && customPath && !isCustomPathRemovable && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">⚠️ System drive detected</p>
+                <p className="mt-1 text-amber-800">
+                  This path is on your computer's main drive. For better security, store your vault on a removable drive like a USB or microSD card — the physical separation keeps your vault safe if your computer is compromised.
+                </p>
+              </div>
             )}
 
             <div className="space-y-1.5">

@@ -17,6 +17,17 @@ func scanRemovableDrives() []VaultLocation {
 	return platformScanRemovable()
 }
 
+// isRemovablePath reports whether path appears to reside on a removable drive
+// (USB, microSD, etc.). Detection is heuristic and platform-specific; it
+// returns false when the check cannot be performed.
+func isRemovablePath(path string) bool {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	return platformIsRemovable(abs)
+}
+
 // scanMountedDrives looks for *.tegata files on mounted drives. On Windows it
 // checks drive letters D-Z, on macOS it checks /Volumes/*, and on Linux it
 // walks /media/ and /mnt/ one level deep.
