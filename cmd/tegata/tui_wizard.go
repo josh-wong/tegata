@@ -361,16 +361,15 @@ func (m model) viewWizard() string {
 // viewWizardWelcome renders step 1/5.
 func (m model) viewWizardWelcome() string {
 	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
-		"Tegata is a portable authenticator that stores encrypted\n" +
-		"credentials on a removable drive (USB or microSD) for best\n" +
-		"security.\n\n" +
-		tipStyle.Render("💡Tip:") + " Use a removable drive (USB or microSD) for better\n" +
-		"security and portability.\n\n" +
+		"Tegata is a portable authenticator that stores your\n" +
+		"two-factor authentication codes in an encrypted vault.\n\n" +
+		tipStyle.Render("💡Tip:") + " Store your vault on a USB or microSD for security\n" +
+		"and portability. Install Tegata on any device to access it.\n\n" +
 		m.vaultPathInput.View() + "\n"
 
 	if m.localVaultWarn {
 		content += "\n" + warnStyle.Render("Warning: this path is on a system drive, not a removable drive.") + "\n" +
-			"For best security, use a USB drive or microSD card — physical\n" +
+			"For better security, use a USB drive or microSD card — physical\n" +
 			"separation keeps your vault safe if your computer is compromised.\n"
 	}
 	if m.errMsg != "" {

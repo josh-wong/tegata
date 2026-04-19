@@ -152,6 +152,9 @@ cmd/tegata-gui/build/bin/
 cmd/tegata-gui/build/darwin/
 !cmd/tegata-gui/build/darwin/entitlements.plist
 
+# Wails-generated TypeScript bindings (regenerated on each build)
+cmd/tegata-gui/frontend/wailsjs/go/
+
 # =============================================================================
 # GSD planning (local-only)
 # =============================================================================

@@ -1,6 +1,6 @@
 # Getting started with Tegata
 
-Tegata is a portable encrypted authenticator that runs from USB drives or microSD cards. This guide walks you through installation, vault creation, and generating your first authentication code.
+Tegata is a portable authenticator that stores your two-factor authentication (2FA) codes and other credentials in an encrypted vault on USB drives or microSD cards. This guide walks you through installation, vault creation, and generating your first 2FA code.
 
 ## Prerequisites
 

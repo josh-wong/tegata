@@ -40,7 +40,7 @@ vault directory; otherwise the current directory is used.`,
 			// Warn if the chosen path is not on a removable drive.
 			if !isRemovablePath(dir) {
 				fmt.Fprintln(os.Stderr, "Note: This path is on a system drive, not a removable drive.")
-				fmt.Fprintln(os.Stderr, "For best security, store your vault on a USB drive or microSD card.")
+				fmt.Fprintln(os.Stderr, "For better security, store your vault on a USB drive or microSD card.")
 				fmt.Fprintln(os.Stderr, "Physical separation keeps your vault safe if your computer is compromised.")
 				fmt.Fprintln(os.Stderr)
 			}
