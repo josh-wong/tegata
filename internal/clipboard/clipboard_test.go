@@ -2,6 +2,8 @@ package clipboard
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -169,6 +171,31 @@ func TestCopyWithAutoClearReturnsClipboardError(t *testing.T) {
 	}
 	if ce.Unwrap() == nil {
 		t.Error("ClipboardError should wrap the underlying error")
+	}
+}
+
+func TestNewWaylandClipboardFailsWithoutWlCopy(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := newWaylandClipboard()
+	if err == nil {
+		t.Error("expected error when wl-copy is absent, got nil")
+	}
+}
+
+func TestNewWaylandClipboardFailsWithoutWlPaste(t *testing.T) {
+	// Create a temp dir that contains wl-copy but not wl-paste so that only
+	// the wl-paste look-up fails.
+	tmpDir := t.TempDir()
+	fakeCopy := filepath.Join(tmpDir, "wl-copy")
+	if err := os.WriteFile(fakeCopy, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tmpDir)
+
+	_, err := newWaylandClipboard()
+	if err == nil {
+		t.Error("expected error when wl-paste is absent, got nil")
 	}
 }
 

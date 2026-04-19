@@ -162,18 +162,19 @@ type waylandClipboard struct {
 	wlPastePath string
 }
 
-// newWaylandClipboard returns a waylandClipboard if wl-copy is available in
-// PATH. wl-paste is optional: ReadAll returns an error if it is absent.
+// newWaylandClipboard returns a waylandClipboard if both wl-copy and wl-paste
+// are available in PATH. Both tools are required: wl-paste is needed by the
+// auto-clear goroutine to compare clipboard content before clearing.
 func newWaylandClipboard() (*waylandClipboard, error) {
 	copyPath, err := exec.LookPath("wl-copy")
 	if err != nil {
 		return nil, fmt.Errorf("wl-copy not found: install wl-clipboard")
 	}
-	w := &waylandClipboard{wlCopyPath: copyPath}
-	if pastePath, err := exec.LookPath("wl-paste"); err == nil {
-		w.wlPastePath = pastePath
+	pastePath, err := exec.LookPath("wl-paste")
+	if err != nil {
+		return nil, fmt.Errorf("wl-paste not found: install wl-clipboard")
 	}
-	return w, nil
+	return &waylandClipboard{wlCopyPath: copyPath, wlPastePath: pastePath}, nil
 }
 
 func (w *waylandClipboard) WriteAll(text string) error {
@@ -186,9 +187,9 @@ func (w *waylandClipboard) WriteAll(text string) error {
 }
 
 func (w *waylandClipboard) ReadAll() (string, error) {
-	if w.wlPastePath == "" {
-		return "", fmt.Errorf("wl-paste not found: install wl-clipboard")
-	}
+	// wl-paste exits non-zero when the clipboard is empty. The auto-clear
+	// goroutine treats a ReadAll error as "content unknown" and skips clearing,
+	// which is safe — credentials are never cleared incorrectly.
 	out, err := exec.Command(w.wlPastePath, "--no-newline").Output()
 	if err != nil {
 		return "", fmt.Errorf("wl-paste: %w", err)
@@ -198,10 +199,11 @@ func (w *waylandClipboard) ReadAll() (string, error) {
 
 // Manager handles clipboard operations with automatic clearing.
 type Manager struct {
-	cb          ClipboardAccess
-	cancelClear context.CancelFunc
-	mu          sync.Mutex
-	tmpDir      string // set when WSL temp copies are used; cleaned up on Close
+	cb             ClipboardAccess
+	cancelClear    context.CancelFunc
+	mu             sync.Mutex
+	tmpDir         string // set when WSL temp copies are used; cleaned up on Close
+	waylandSession bool   // true when running in a Wayland session on Linux
 }
 
 // NewManager creates a new clipboard manager. On Linux the selection order is:
@@ -220,14 +222,23 @@ func NewManager() *Manager {
 					tmpDir: filepath.Dir(wsl.clipPath),
 				}
 			}
-			// Fall through to Wayland / X11 if WSL setup fails.
+			// Fall through to Wayland / X11 if WSL setup fails. On WSLg
+			// (WSL2 with GUI support), WAYLAND_DISPLAY may also be set, so
+			// the Wayland path below can succeed.
 		}
 		if isWayland() {
+			// Always record the session type so clipboardError can surface the
+			// right install hint even when wl-clipboard is absent and we fall
+			// through to the system clipboard.
+			m := &Manager{waylandSession: true}
 			if wl, err := newWaylandClipboard(); err == nil {
-				return &Manager{cb: wl}
+				m.cb = wl
+			} else {
+				// wl-clipboard absent; system clipboard will likely fail and
+				// clipboardError will surface an actionable install prompt.
+				m.cb = systemClipboard{}
 			}
-			// Fall through to system clipboard; the write will likely fail and
-			// clipboardError will surface an actionable message to the user.
+			return m
 		}
 	}
 	return &Manager{cb: systemClipboard{}}
@@ -253,7 +264,7 @@ func (m *Manager) CopyWithAutoClear(text string, timeout time.Duration) error {
 
 	if err := m.cb.WriteAll(text); err != nil {
 		m.mu.Unlock()
-		return clipboardError(err)
+		return m.clipboardError(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -293,10 +304,12 @@ func (m *Manager) Close() {
 }
 
 // clipboardError wraps a clipboard error with an actionable message.
-func clipboardError(err error) error {
+// It uses the backend recorded at construction time rather than re-detecting
+// the session type, so the message always matches the backend in use.
+func (m *Manager) clipboardError(err error) error {
 	switch runtime.GOOS {
 	case "linux":
-		if isWayland() {
+		if m.waylandSession {
 			return &ClipboardError{
 				Err:     err,
 				Message: "Clipboard not available on Wayland. Install wl-clipboard (wl-copy/wl-paste).",
