@@ -181,6 +181,13 @@ Integrity violation detected. <error details>
 
 The command exits with code 9. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
 
+The tampered record and all events generated during this test remain in the audit log permanently. The audit log is append-only by design — there is no way to delete entries through Tegata. If you want a clean ledger after testing, tear down the Docker stack entirely and re-run setup.
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
 ## Where tamper detection is surfaced
 
 Tamper detection is available in all three interfaces.
