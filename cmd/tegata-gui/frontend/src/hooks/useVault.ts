@@ -87,6 +87,7 @@ export function useVault() {
   return {
     view,
     setView,
+    isUnlocked: view === "main",
     vaultPath,
     setVaultPath,
     vaultLocations,

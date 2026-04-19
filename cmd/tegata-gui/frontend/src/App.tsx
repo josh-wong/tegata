@@ -35,24 +35,27 @@ function App() {
   }, [settingsOpen])
 
   useEffect(() => {
-    if (vault.view === "main") {
+    if (vault.isUnlocked) {
       WailsApp.IsAuditEnabled()
         .then(setAuditEnabled)
         .catch(() => setAuditEnabled(false))
     }
-  }, [vault.view])
+  }, [vault.isUnlocked])
 
   const handleLock = useCallback(() => {
     vault.lock()
   }, [vault])
 
-  useIdleTimer(idleTimeoutMs, handleLock)
+  // Only run the idle timer while the vault is unlocked. Passing 0 when the
+  // user is on the setup or unlock screen disables the timer so pre-login
+  // inactivity cannot trigger a lock transition (issue #34).
+  useIdleTimer(vault.isUnlocked ? idleTimeoutMs : 0, handleLock)
 
   useEffect(() => {
-    if (vault.view === "main") {
+    if (vault.isUnlocked) {
       creds.refresh()
     }
-  }, [vault.view]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vault.isUnlocked, creds.refresh])
 
   const handleRemove = useCallback(
     async (id: string) => {
