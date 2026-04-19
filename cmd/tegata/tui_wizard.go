@@ -97,6 +97,8 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 				resolved, err := resolvePathArg(raw)
 				if err != nil {
 					m.errMsg = "Invalid path: " + humanizeError(err)
+					// No explicit Focus() call needed: the input retains focus
+					// because we never called Blur() on this path.
 					return m, nil
 				}
 				if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
@@ -363,16 +365,16 @@ func (m model) viewWizardWelcome() string {
 	tip := tipStyle.Render("💡 Tip: Store your vault on a USB or microSD for security\n" +
 		"and portability. Install Tegata on any device to access it.")
 	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
-		"Tegata is a portable authenticator that stores your\n" +
-		"two-factor authentication codes in an encrypted vault.\n\n" +
+		"Tegata is a portable authenticator that stores your 2FA\n" +
+		"codes and other credentials in an encrypted vault.\n\n" +
 		tip + "\n\n" +
 		m.vaultPathInput.View() + "\n"
 
 	if m.localVaultWarn {
-		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path is on a system drive, not a removable\n" +
-			"drive. For better security, store your vault on a removable\n" +
-			"drive like a USB or microSD card; physical separation helps\n" +
-			"keep your vault safe if your computer is compromised.")
+		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path doesn't appear to be on a removable\n" +
+			"drive. For better security, store your vault on a USB or\n" +
+			"microSD card; physical separation helps keep your vault\n" +
+			"safe if your computer is compromised.")
 		content += "\n" + warn + "\n"
 	}
 	if m.errMsg != "" {

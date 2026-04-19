@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -76,14 +76,21 @@ export function SetupWizard({
   }, [step])
 
   // Check if the custom path is on a removable drive when it changes.
+  // Debounced so the IPC call isn't fired on every keystroke.
+  const removableCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (selectedPath === "__custom__" && customPath) {
+    if (selectedPath !== "__custom__" || !customPath) return
+    if (removableCheckTimer.current) clearTimeout(removableCheckTimer.current)
+    removableCheckTimer.current = setTimeout(() => {
       App.IsRemovablePath(customPath)
         .then((isRemovable) => setIsCustomPathRemovable(isRemovable))
         .catch((err) => {
           console.error("Failed to check if path is removable:", err)
           setIsCustomPathRemovable(false) // Assume non-removable on error
         })
+    }, 300)
+    return () => {
+      if (removableCheckTimer.current) clearTimeout(removableCheckTimer.current)
     }
   }, [customPath, selectedPath])
 
@@ -156,12 +163,12 @@ export function SetupWizard({
             <div>
               <h1 className="text-2xl font-bold text-primary">Tegata</h1>
               <p className="mt-2 text-muted-foreground">
-                Your two-factor authentication codes, encrypted <span className="whitespace-nowrap">and portable</span>
+                Your 2FA codes and credentials, encrypted <span className="whitespace-nowrap">and portable</span>
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Tegata is a portable authenticator that stores your two-factor
-              authentication codes in an encrypted vault.
+              Tegata is a portable authenticator that stores your 2FA codes
+              and other credentials in an encrypted vault.
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
               Create new vault
@@ -197,7 +204,7 @@ export function SetupWizard({
               {removableDrives.map((folder) => (
                 <button
                   key={folder.path}
-                  onClick={() => setSelectedPath(folder.path)}
+                  onClick={() => { setSelectedPath(folder.path); setCustomPath("") }}
                   className={cn(
                     "w-full rounded-lg border p-3 text-left transition-colors",
                     selectedPath === folder.path
@@ -232,9 +239,9 @@ export function SetupWizard({
 
             {selectedPath === "__custom__" && customPath && !isCustomPathRemovable && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">⚠️ System drive detected</p>
+                <p className="font-medium text-amber-900">⚠️ Warning</p>
                 <p className="mt-1 text-amber-800">
-                  This path is on your computer's main drive. For better security, store your vault on a removable drive like a USB or microSD card — the physical separation keeps your vault safe if your computer is compromised.
+                  This path doesn't appear to be on a removable drive. For better security, store your vault on a USB or microSD card; physical separation helps keep your vault safe if your computer is compromised.
                 </p>
               </div>
             )}
