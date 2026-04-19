@@ -113,6 +113,6 @@ describe("useIdleTimer", () => {
     act(() => {
       vi.advanceTimersByTime(65 * 1000)
     })
-    expect(onIdle).toHaveBeenCalled()
+    expect(onIdle).toHaveBeenCalledTimes(1)
   })
 })
