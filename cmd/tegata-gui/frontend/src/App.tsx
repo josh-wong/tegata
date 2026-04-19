@@ -15,6 +15,9 @@ import { useIdleTimer } from "@/hooks/useIdleTimer"
 import { App as WailsApp } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 
+const SETUP_STEP_WELCOME = 1 as const
+const SETUP_STEP_OPEN_EXISTING = 6 as const
+
 function App() {
   const vault = useVault()
   const creds = useCredentials()
@@ -23,7 +26,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [auditOpen, setAuditOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
-  const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
+  const [setupStep, setSetupStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(SETUP_STEP_WELCOME)
   const [isSwitching, setIsSwitching] = useState(false)
   const [idleTimeoutMs, setIdleTimeoutMs] = useState(5 * 60 * 1000)
   const [auditEnabled, setAuditEnabled] = useState(false)
@@ -113,7 +116,7 @@ function App() {
           if (isSwitching) {
             try { await WailsApp.LockVault() } catch { /* non-critical */ }
           }
-          setSetupStep(6)
+          setSetupStep(SETUP_STEP_OPEN_EXISTING)
           setIsSwitching(false)
           vault.setVaultPath(path)
           vault.setView("unlock")
@@ -136,7 +139,8 @@ function App() {
         onUnlock={vault.unlock}
         onSelectVault={vault.setVaultPath}
         onBack={() => {
-          setSetupStep(1)
+          vault.clearError()
+          setSetupStep(SETUP_STEP_OPEN_EXISTING)
           vault.setView("setup")
         }}
       />
@@ -149,7 +153,7 @@ function App() {
         onSettingsClick={() => setSettingsOpen(true)}
         onAuditClick={auditEnabled ? () => setAuditOpen(true) : undefined}
         onSwitchVault={() => {
-          setSetupStep(1)
+          setSetupStep(SETUP_STEP_WELCOME)
           setIsSwitching(true)
           vault.setView("setup")
         }}

@@ -41,12 +41,30 @@ export function useVault() {
     async (passphrase: string) => {
       if (!vaultPath) return
       setLoading(true)
+      // Must remain here: cycling error through null before each attempt ensures
+      // UnlockView's showError state re-triggers even when consecutive failures
+      // produce the same error string.
       setError(null)
       try {
         await App.UnlockVault(vaultPath, passphrase)
         setView("main")
       } catch (err) {
-        setError(formatError(err, "Failed to unlock vault"))
+        const raw = formatError(err, "")
+        // Default to the passphrase error for all failures — most unlock errors
+        // are wrong passphrases. Only show the generic vault-access message when
+        // we can positively identify a system-level cause (file permissions,
+        // missing file, etc.) where a wrong passphrase clearly isn't the issue.
+        // TODO: Replace this heuristic with structured error codes from the Go
+        // backend so the distinction is reliable and not coupled to error message
+        // wording (#63).
+        const isSystemError = raw
+          ? /permission denied|no such file|access denied|read-only file/i.test(raw)
+          : false
+        setError(
+          isSystemError
+            ? "Failed to open vault. Please try again."
+            : "Incorrect passphrase. Please try again.",
+        )
       } finally {
         setLoading(false)
       }
@@ -84,6 +102,8 @@ export function useVault() {
     [],
   )
 
+  const clearError = useCallback(() => setError(null), [])
+
   return {
     view,
     setView,
@@ -92,6 +112,7 @@ export function useVault() {
     setVaultPath,
     vaultLocations,
     error,
+    clearError,
     loading,
     unlock,
     lock,

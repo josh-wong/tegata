@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from "react"
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,7 @@ export function UnlockView({
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
   const [auditStatus, setAuditStatus] = useState("")
+  const [showError, setShowError] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -37,6 +38,11 @@ export function UnlockView({
   useEffect(() => {
     if (!loading) setAuditStatus("")
   }, [loading])
+
+  // Show the error whenever a new one arrives (re-enables after user dismissed).
+  useEffect(() => {
+    if (error) setShowError(true)
+  }, [error])
 
   useEffect(() => {
     // The Wails WebView may not accept focus until its layout is fully
@@ -53,6 +59,11 @@ export function UnlockView({
     }, 100)
     return () => clearInterval(interval)
   }, [])
+
+  function handlePassphraseChange(e: ChangeEvent<HTMLInputElement>) {
+    setPassphrase(e.target.value)
+    setShowError(false)
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -111,12 +122,12 @@ export function UnlockView({
               type="password"
               placeholder="Passphrase"
               value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
+              onChange={handlePassphraseChange}
               maxLength={256}
               autoFocus
               disabled={loading}
             />
-            {error && (
+            {error && showError && (
               <p className="text-sm text-destructive">{error}</p>
             )}
           </div>
