@@ -884,7 +884,7 @@ func (a *App) StopAuditServer() error {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
 
-	return audit.StopStack(a.config.Audit.DockerComposePath, false)
+	return audit.StopStack(a.config.Audit.DockerComposePath)
 }
 
 // IsAuditConfigured returns whether audit logging has been enabled by the user.

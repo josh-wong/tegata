@@ -271,12 +271,13 @@ See [ScalarDL setup guide](scalardl-setup.md) for full details.
 
 Stop the ScalarDL Ledger Docker containers. Audit history is preserved. Requires the vault passphrase.
 
-**Usage:** `tegata ledger stop`
+**Usage:** `tegata ledger stop [--vault path]`
 
-**Example:**
+**Examples:**
 
 ```bash
 tegata ledger stop
+tegata ledger stop --vault /media/usb
 ```
 
 ### tegata ledger setup

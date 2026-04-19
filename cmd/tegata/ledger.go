@@ -259,7 +259,7 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("audit Docker setup not found. Run 'tegata ledger start' first")
 	}
 
-	if err := audit.StopStack(cfg.Audit.DockerComposePath, false); err != nil {
+	if err := audit.StopStack(cfg.Audit.DockerComposePath); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
