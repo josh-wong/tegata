@@ -118,7 +118,9 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.vaultPath = resolved
 			} else if !m.localVaultWarn && !isRemovablePath(".") {
-				// Blank input uses cwd; warn if cwd is not removable.
+				// Blank input defaults to the working directory at the time
+				// tegata was launched. "." resolves to that directory, which
+				// is stable for the lifetime of the process.
 				m.localVaultWarn = true
 				return m, nil
 			}

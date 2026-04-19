@@ -36,6 +36,17 @@ func TestPlatformIsRemovable_Linux_MediaPrefix(t *testing.T) {
 	}
 }
 
+func TestPlatformIsRemovable_Linux_RunMediaPrefix(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific heuristic test")
+	}
+	// /run/media paths should be considered removable on Linux (udisks2 mount
+	// point used by Fedora and newer Ubuntu).
+	if !platformIsRemovable("/run/media/user/MYUSB") {
+		t.Error("expected /run/media/user/MYUSB to be removable")
+	}
+}
+
 func TestPlatformIsRemovable_Linux_MntExcluded(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux-specific heuristic test")

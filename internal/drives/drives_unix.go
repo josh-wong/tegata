@@ -25,8 +25,9 @@ func IsSystemVolume(name string) bool {
 // platformIsRemovable reports whether abs (an absolute path) resides on a
 // removable drive. Uses mount-point heuristics:
 //   - macOS: checks /Volumes, excluding the system root volume.
-//   - Linux: checks /media only. /mnt is intentionally excluded because it is
-//     commonly used for network shares and non-removable mounts.
+//   - Linux: checks /media and /run/media (used by udisks2 on Fedora and newer
+//     Ubuntu). /mnt is intentionally excluded because it is commonly used for
+//     network shares and non-removable mounts.
 func platformIsRemovable(abs string) bool {
 	switch runtime.GOOS {
 	case "darwin":
@@ -38,7 +39,8 @@ func platformIsRemovable(abs string) bool {
 		volName := strings.SplitN(rest, "/", 2)[0]
 		return !IsSystemVolume(volName)
 	case "linux":
-		return strings.HasPrefix(abs, "/media/")
+		return strings.HasPrefix(abs, "/media/") ||
+			strings.HasPrefix(abs, "/run/media/")
 	}
 	return false
 }
