@@ -177,6 +177,7 @@ func newWaylandClipboard() (*waylandClipboard, error) {
 	return &waylandClipboard{wlCopyPath: copyPath, wlPastePath: pastePath}, nil
 }
 
+// WriteAll writes text to the Wayland clipboard via wl-copy.
 func (w *waylandClipboard) WriteAll(text string) error {
 	cmd := exec.Command(w.wlCopyPath)
 	cmd.Stdin = strings.NewReader(text)
@@ -234,8 +235,9 @@ func NewManager() *Manager {
 			if wl, err := newWaylandClipboard(); err == nil {
 				m.cb = wl
 			} else {
-				// wl-clipboard absent; system clipboard will likely fail and
-				// clipboardError will surface an actionable install prompt.
+				// wl-clipboard is absent. Assign system clipboard so the Manager
+				// is valid; the first operation will fail and clipboardError will
+				// surface the Wayland-specific install hint to the user.
 				m.cb = systemClipboard{}
 			}
 			return m

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -184,6 +186,9 @@ func TestNewWaylandClipboardFailsWithoutWlCopy(t *testing.T) {
 }
 
 func TestNewWaylandClipboardFailsWithoutWlPaste(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Unix executable stubs only work on Linux")
+	}
 	// Create a temp dir that contains wl-copy but not wl-paste so that only
 	// the wl-paste look-up fails.
 	tmpDir := t.TempDir()
@@ -224,5 +229,33 @@ func TestIsWaylandDetection(t *testing.T) {
 				t.Errorf("isWayland() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestClipboardErrorMessageWaylandSession(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("waylandSession error path is Linux-only")
+	}
+	underlying := errors.New("exit status 1")
+	mgr := &Manager{
+		waylandSession: true,
+		cb:             &errClipboard{err: underlying},
+	}
+	defer mgr.Close()
+
+	err := mgr.CopyWithAutoClear("secret", time.Second)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var ce *ClipboardError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClipboardError, got %T: %v", err, err)
+	}
+	if !strings.Contains(ce.Message, "wl-clipboard") {
+		t.Errorf("expected Wayland install hint in message, got %q", ce.Message)
+	}
+	if ce.Unwrap() != underlying {
+		t.Errorf("expected underlying error %v, got %v", underlying, ce.Unwrap())
 	}
 }
