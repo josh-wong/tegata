@@ -106,7 +106,6 @@ describe("useVault", () => {
     expect(result.current.error).toBe("Incorrect passphrase. Please try again.")
   })
 
-
   it("lock calls App.LockVault and transitions to 'unlock'", async () => {
     vi.mocked(App.ScanForVaults).mockResolvedValue([
       { path: "/usb/vault.tegata", driveName: "USB" },
