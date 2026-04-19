@@ -35,8 +35,35 @@ describe("UnlockView", () => {
   })
 
   it("shows error message when error prop is set", () => {
-    render(<UnlockView {...defaultProps} error="Wrong passphrase" />)
-    expect(screen.getByText("Wrong passphrase")).toBeInTheDocument()
+    render(<UnlockView {...defaultProps} error="Incorrect passphrase. Please try again." />)
+    expect(screen.getByText("Incorrect passphrase. Please try again.")).toBeInTheDocument()
+  })
+
+  it("clears error message when user starts typing a new passphrase", async () => {
+    const user = userEvent.setup()
+    render(<UnlockView {...defaultProps} error="Incorrect passphrase. Please try again." />)
+
+    expect(screen.getByText("Incorrect passphrase. Please try again.")).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText("Passphrase"), "a")
+
+    expect(screen.queryByText("Incorrect passphrase. Please try again.")).not.toBeInTheDocument()
+  })
+
+  it("re-shows error when a new error arrives after dismissal", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <UnlockView {...defaultProps} error="Incorrect passphrase. Please try again." />,
+    )
+
+    await user.type(screen.getByPlaceholderText("Passphrase"), "a")
+    expect(screen.queryByText("Incorrect passphrase. Please try again.")).not.toBeInTheDocument()
+
+    // Simulate a second failed attempt: prop flips null → message to trigger the effect.
+    rerender(<UnlockView {...defaultProps} error={null} />)
+    rerender(<UnlockView {...defaultProps} error="Incorrect passphrase. Please try again." />)
+
+    expect(screen.getByText("Incorrect passphrase. Please try again.")).toBeInTheDocument()
   })
 
   it("Unlock button is disabled when passphrase is empty", () => {

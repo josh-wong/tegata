@@ -136,7 +136,8 @@ function App() {
         onUnlock={vault.unlock}
         onSelectVault={vault.setVaultPath}
         onBack={() => {
-          setSetupStep(1)
+          vault.clearError()
+          setSetupStep(6)
           vault.setView("setup")
         }}
       />

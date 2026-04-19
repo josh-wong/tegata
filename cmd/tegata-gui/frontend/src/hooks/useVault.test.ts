@@ -69,7 +69,7 @@ describe("useVault", () => {
     })
 
     expect(result.current.view).toBe("unlock")
-    expect(result.current.error).toBe("wrong passphrase")
+    expect(result.current.error).toBe("Incorrect passphrase. Please try again.")
   })
 
   it("lock calls App.LockVault and transitions to 'unlock'", async () => {

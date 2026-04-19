@@ -27,6 +27,7 @@ export function UnlockView({
 }: UnlockViewProps) {
   const [passphrase, setPassphrase] = useState("")
   const [auditStatus, setAuditStatus] = useState("")
+  const [errorDismissed, setErrorDismissed] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -37,6 +38,11 @@ export function UnlockView({
   useEffect(() => {
     if (!loading) setAuditStatus("")
   }, [loading])
+
+  // Reset dismissal whenever a new error arrives so it becomes visible again.
+  useEffect(() => {
+    if (error) setErrorDismissed(false)
+  }, [error])
 
   useEffect(() => {
     // The Wails WebView may not accept focus until its layout is fully
@@ -111,12 +117,12 @@ export function UnlockView({
               type="password"
               placeholder="Passphrase"
               value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
+              onChange={(e) => { setPassphrase(e.target.value); setErrorDismissed(true) }}
               maxLength={256}
               autoFocus
               disabled={loading}
             />
-            {error && (
+            {error && !errorDismissed && (
               <p className="text-sm text-destructive">{error}</p>
             )}
           </div>

@@ -45,8 +45,8 @@ export function useVault() {
       try {
         await App.UnlockVault(vaultPath, passphrase)
         setView("main")
-      } catch (err) {
-        setError(formatError(err, "Failed to unlock vault"))
+      } catch {
+        setError("Incorrect passphrase. Please try again.")
       } finally {
         setLoading(false)
       }
@@ -84,6 +84,8 @@ export function useVault() {
     [],
   )
 
+  const clearError = useCallback(() => setError(null), [])
+
   return {
     view,
     setView,
@@ -92,6 +94,7 @@ export function useVault() {
     setVaultPath,
     vaultLocations,
     error,
+    clearError,
     loading,
     unlock,
     lock,
