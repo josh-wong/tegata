@@ -474,71 +474,17 @@ func StartStack(composePath string) error {
 	return runDockerCompose(composePath, "up", "-d")
 }
 
-// WipeHistory permanently deletes all audit records by truncating the
-// ScalarDL ledger tables in the PostgreSQL container. The Docker stack
-// continues running — entity registration, contracts, and config are
-// all preserved, so logging resumes immediately after the wipe.
-//
-// The asset table schema is discovered at runtime via information_schema,
-// because the ScalarDL schema loader may create the namespace under a name
-// other than 'scalardl' depending on its configuration. After truncating,
-// the ScalarDL ledger container is restarted to clear any in-memory state.
-func WipeHistory(composePath string) error {
-	// Step 1: Discover the schema that owns the 'asset' table.
-	findSQL := `SELECT table_schema FROM information_schema.tables ` +
-		`WHERE table_name = 'asset' ` +
-		`AND table_schema NOT IN ('information_schema', 'pg_catalog') ` +
-		`ORDER BY table_schema LIMIT 1`
-	findCmd := dockerCmd("compose", "-f", composePath,
-		"exec", "-T", "postgres",
-		"psql", "-U", "scalardl", "-d", "scalardl", "-tA", "-c", findSQL,
-	)
-	out, err := findCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("discovering ledger asset schema: %w\n%s", err, out)
-	}
-	assetSchema := strings.TrimSpace(string(out))
-	if assetSchema == "" {
-		// No asset table found — nothing to wipe.
-		return nil
-	}
-
-	// Step 2: Truncate asset tables and, if present, coordinator.state.
-	// ScalarDL stores tamper-evident hashes in asset_metadata alongside the
-	// asset data table. Both must be truncated together — leaving asset_metadata
-	// intact while clearing asset causes DL-LEDGER-305001 (inconsistent asset
-	// and metadata) on the first contract execution after a wipe.
-	sql := fmt.Sprintf(`TRUNCATE %[1]s.asset;
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables
-             WHERE table_schema = '%[1]s' AND table_name = 'asset_metadata') THEN
-    EXECUTE 'TRUNCATE %[1]s.asset_metadata';
-  END IF;
-  IF EXISTS (SELECT 1 FROM information_schema.tables
-             WHERE table_schema = 'coordinator' AND table_name = 'state') THEN
-    TRUNCATE coordinator.state;
-  END IF;
-END $$;`, assetSchema)
-	wipeCmd := dockerCmd("compose", "-f", composePath,
-		"exec", "-T", "postgres",
-		"psql", "-U", "scalardl", "-d", "scalardl", "-c", sql,
-	)
-	if output, err := wipeCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("clearing ledger history: %w\n%s", err, output)
-	}
-
-	// Step 3: Restart the ScalarDL ledger to flush any in-memory state so
-	// subsequent GetHistory and Verify calls see the empty database.
-	return runDockerCompose(composePath, "restart", "scalardl-ledger")
+// StopStack runs `docker compose -f composePath stop`, preserving the named
+// volume so audit history is retained.
+func StopStack(composePath string) error {
+	return runDockerCompose(composePath, "stop")
 }
 
-// StopStack runs `docker compose -f composePath stop` (preserves named volume)
-// or `docker compose -f composePath down -v` when wipe is true.
-func StopStack(composePath string, wipe bool) error {
-	if wipe {
-		return runDockerCompose(composePath, "down", "-v")
-	}
-	return runDockerCompose(composePath, "stop")
+// TeardownStack runs `docker compose -f composePath down -v`, removing
+// containers and the named volume. Use this only in integration tests for
+// post-test cleanup — it permanently deletes all audit history.
+func TeardownStack(composePath string) error {
+	return runDockerCompose(composePath, "down", "-v")
 }
 
 // EnsureStack starts the Docker audit stack synchronously, suitable for

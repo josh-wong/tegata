@@ -875,118 +875,16 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	return map[string]interface{}{"steps": steps}, nil
 }
 
-// StopAuditServer handles audit server operations.
-// When wipe is true, truncates the ScalarDL ledger database (including stored
-// entity credentials), restarts the ledger container, re-registers the entity
-// secret, and resets the EventBuilder so audit logging resumes immediately.
-// When wipe is false, runs docker compose stop (preserves named volume).
-func (a *App) StopAuditServer(wipe bool) error {
+// StopAuditServer stops the ScalarDL Ledger Docker containers.
+// Audit history is preserved (docker compose stop, named volume retained).
+func (a *App) StopAuditServer() error {
 	a.resetIdle()
 
 	if a.config.Audit.DockerComposePath == "" {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
 
-	if wipe {
-		if err := audit.WipeHistory(a.config.Audit.DockerComposePath); err != nil {
-			return err
-		}
-
-		// Delete the offline queue file. WipeHistory clears the ledger but not
-		// the local queue cache. Stale queue entries would fail to decrypt on
-		// the next vault unlock, disabling audit (D-26). Deleting the queue file
-		// forces a clean slate — future entries queue normally if the ledger is
-		// not immediately ready.
-		dir := vaultDir(a.vaultPath)
-		queuePath := filepath.Join(dir, "queue.tegata")
-		_ = os.Remove(queuePath)
-
-		cfg := a.config.Audit
-
-		// WipeHistory truncates the ledger database — including stored entity
-		// credentials — and restarts the ScalarDL ledger container. Wait for
-		// the ledger to become ready (up to 30s), then re-register the entity
-		// secret so audit logging resumes immediately after the wipe.
-		client, err := audit.NewClientFromConfig(cfg)
-		if err != nil {
-			return nil // audit unavailable; not fatal
-		}
-
-		// Wait for the privileged service to be ready, then re-register the
-		// entity secret. RegisterSecret may return AlreadyExists immediately
-		// (entity credentials are outside the truncated asset table), so this
-		// loop mostly guards against the privileged port not yet accepting calls.
-		var regErr error
-		for i := 0; i < 15; i++ {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			regErr = client.RegisterSecret(ctx, cfg.EntityID, cfg.KeyVersion, cfg.SecretKey)
-			cancel()
-			if regErr == nil {
-				break
-			}
-			time.Sleep(2 * time.Second)
-		}
-		if regErr != nil {
-			_ = client.Close()
-			return fmt.Errorf("re-registering entity after wipe: %w", regErr)
-		}
-
-		// RegisterSecret only confirms the privileged port is ready. The regular
-		// ledger service (used for contract execution) may still be starting.
-		// Retry Ping until it succeeds so that the first Submit after a wipe
-		// does not silently time out and queue the event in the memory-only queue.
-		var pingErr error
-		for i := 0; i < 15; i++ {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			pingErr = client.Ping(ctx)
-			cancel()
-			if pingErr == nil {
-				break
-			}
-			time.Sleep(2 * time.Second)
-		}
-		if pingErr != nil {
-			_ = client.Close()
-			return fmt.Errorf("ledger did not become ready after wipe: %w", pingErr)
-		}
-
-		// Verify contract execution is available, not just the gRPC transport.
-		// The health check endpoint (Ping) responds before ScalarDL's execution
-		// engine finishes initialising. A Put probe confirms contracts are
-		// callable before the EventBuilder is created. Collection operations
-		// (CollectionCreate/Add) are handled by Submit's own retry path.
-		// 10 retries × 2 s = 20 s (contracts are already registered in the
-		// database — only JVM startup time is needed after a restart).
-		var contractErr error
-		for i := 0; i < 10; i++ {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			contractErr = client.Put(ctx, audit.SetupTestObjectID, strings.Repeat("0", 64))
-			cancel()
-			if contractErr == nil {
-				break
-			}
-			if i < 9 {
-				time.Sleep(2 * time.Second)
-			}
-		}
-		if contractErr != nil {
-			_ = client.Close()
-			return fmt.Errorf("ledger contracts not ready after wipe: %w", contractErr)
-		}
-
-		// Reset the EventBuilder so the hash chain restarts from a clean slate.
-		if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
-			if a.builder != nil {
-				_ = a.builder.Close()
-			}
-			a.builder = newBuilder
-		} else {
-			_ = client.Close()
-		}
-		return nil
-	}
-
-	return audit.StopStack(a.config.Audit.DockerComposePath, false)
+	return audit.StopStack(a.config.Audit.DockerComposePath)
 }
 
 // IsAuditConfigured returns whether audit logging has been enabled by the user.

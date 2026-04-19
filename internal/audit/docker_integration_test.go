@@ -87,10 +87,10 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 		t.Fatalf("SetupStack: %v", err)
 	}
 
-	// Register cleanup: stop and wipe the stack when the test completes.
+	// Register cleanup: tear down the stack (removes containers and volume).
 	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
 	t.Cleanup(func() {
-		_ = audit.StopStack(composePath, true)
+		_ = audit.TeardownStack(composePath)
 	})
 
 	// Verify returned AuditConfig has expected values.
@@ -155,10 +155,10 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 	}
 
 	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
-	t.Cleanup(func() { _ = audit.StopStack(composePath, true) })
+	t.Cleanup(func() { _ = audit.TeardownStack(composePath) })
 
-	// Stop without wiping to simulate "stack exists but is stopped".
-	if err := audit.StopStack(composePath, false); err != nil {
+	// Stop without removing the volume to simulate "stack exists but is stopped".
+	if err := audit.StopStack(composePath); err != nil {
 		t.Fatalf("stopping Docker stack: %v", err)
 	}
 	t.Log("Docker stack stopped")
@@ -236,7 +236,7 @@ func TestIntegration_StopStack_NonExistentCompose(t *testing.T) {
 	requireDocker(t)
 
 	// Attempt to stop a compose stack at a non-existent path.
-	err := audit.StopStack("/nonexistent/path/docker-compose.yml", false)
+	err := audit.StopStack("/nonexistent/path/docker-compose.yml")
 	if err == nil {
 		t.Fatal("StopStack: expected error for non-existent path, got nil")
 	}

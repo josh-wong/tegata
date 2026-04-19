@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -213,36 +211,28 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 
 // newLedgerStopCmd returns the 'tegata ledger stop' command.
 func newLedgerStopCmd() *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the ledger server Docker containers",
 		Long: `Stop the ScalarDL Ledger Docker containers.
 
-By default, containers are stopped but your audit history is preserved
-(docker compose stop, named volume retained).
-
-Use --wipe to permanently delete all audit history. The containers keep
-running after a wipe — audit logging resumes immediately. This action
-cannot be undone.`,
+Containers are stopped and your audit history is preserved
+(docker compose stop, named volume retained).`,
 		Example: `  tegata ledger stop
-  tegata ledger stop --wipe`,
+  tegata ledger stop --vault /media/usb`,
 		Args: cobra.NoArgs,
 		RunE: runLedgerStop,
 	}
-	cmd.Flags().Bool("wipe", false, "Permanently delete all audit history (cannot be undone)")
-	return cmd
 }
 
 func runLedgerStop(cmd *cobra.Command, _ []string) error {
-	wipe, _ := cmd.Flags().GetBool("wipe")
-
 	vaultPath, err := resolveVaultPath(cmd)
 	if err != nil {
 		return err
 	}
 	dir := filepath.Dir(vaultPath)
 
-	// Require vault authentication before stopping or wiping the ledger.
+	// Require vault authentication before stopping the ledger.
 	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
 	if err != nil {
 		return fmt.Errorf("reading passphrase: %w", err)
@@ -269,28 +259,7 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("audit Docker setup not found. Run 'tegata ledger start' first")
 	}
 
-	if wipe {
-		// Print prominent warning and require "DELETE" confirmation (per D-15).
-		fmt.Fprintln(os.Stderr, "WARNING: This will permanently delete all audit history. Type \"DELETE\" to confirm:")
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		answer := strings.TrimSpace(scanner.Text())
-		if answer != "DELETE" {
-			fmt.Fprintln(os.Stderr, "Canceled. Audit history was not deleted.")
-			return nil
-		}
-	}
-
-	if wipe {
-		fmt.Fprintln(os.Stderr, "Deleting audit history...")
-		if err := audit.WipeHistory(cfg.Audit.DockerComposePath); err != nil {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, "Audit history deleted. Ledger server is still running.")
-		return nil
-	}
-
-	if err := audit.StopStack(cfg.Audit.DockerComposePath, false); err != nil {
+	if err := audit.StopStack(cfg.Audit.DockerComposePath); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
