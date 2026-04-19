@@ -45,7 +45,8 @@ export function useVault() {
       try {
         await App.UnlockVault(vaultPath, passphrase)
         setView("main")
-      } catch {
+      } catch (err) {
+        console.error("UnlockVault failed:", err)
         setError("Incorrect passphrase. Please try again.")
       } finally {
         setLoading(false)

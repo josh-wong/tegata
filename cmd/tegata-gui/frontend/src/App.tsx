@@ -137,7 +137,7 @@ function App() {
         onSelectVault={vault.setVaultPath}
         onBack={() => {
           vault.clearError()
-          setSetupStep(6)
+          setSetupStep(6) // step 6 = "Open existing vault" screen
           vault.setView("setup")
         }}
       />

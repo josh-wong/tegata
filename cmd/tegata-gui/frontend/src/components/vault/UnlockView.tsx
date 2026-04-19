@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from "react"
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,6 +60,11 @@ export function UnlockView({
     return () => clearInterval(interval)
   }, [])
 
+  function handlePassphraseChange(e: ChangeEvent<HTMLInputElement>) {
+    setPassphrase(e.target.value)
+    setErrorDismissed(true)
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!passphrase || loading) return
@@ -117,7 +122,7 @@ export function UnlockView({
               type="password"
               placeholder="Passphrase"
               value={passphrase}
-              onChange={(e) => { setPassphrase(e.target.value); setErrorDismissed(true) }}
+              onChange={handlePassphraseChange}
               maxLength={256}
               autoFocus
               disabled={loading}
