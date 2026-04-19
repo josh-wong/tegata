@@ -14,6 +14,12 @@ var successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FFF5F"))
 // helpBarStyle renders the bottom help bar in dim/faint text.
 var helpBarStyle = lipgloss.NewStyle().Faint(true)
 
+// warnStyle renders advisory warnings in amber/yellow.
+var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFB347"))
+
+// tipStyle renders informational tips in green, bold.
+var tipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6BA55E")).Bold(true)
+
 // overlayBoxStyle is a centered bordered box used for overlay modals.
 var overlayBoxStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder()).
