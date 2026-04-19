@@ -10,7 +10,7 @@ Tegata is an open-source portable authenticator that stores your two-factor auth
 
 ## Feature highlights
 
-Tegata provides a low-cost alternative to hardware security keys with portable encrypted credential storage.
+Tegata provides a low-cost alternative to hardware security keys with portable encrypted credential storage. While optimized for two-factor authentication (2FA) codes, it also supports other credential types:
 
 - **TOTP and HOTP code generation** per RFC 6238 and RFC 4226
 - **Static password storage** with clipboard auto-clear
