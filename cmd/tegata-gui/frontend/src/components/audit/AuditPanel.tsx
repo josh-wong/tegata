@@ -203,7 +203,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
           </div>
         </div>
       </div>
-
     </>
   )
 }
