@@ -215,31 +215,20 @@ export function SetupWizard({
                   Only removable drives (USB, SD, and microSD) are shown.
                 </p>
               )}
-
-              <button
-                onClick={() => setSelectedPath("__custom__")}
-                className={cn(
-                  "w-full rounded-lg border border-dashed p-3 text-left transition-colors",
-                  selectedPath === "__custom__"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50",
-                )}
-              >
-                <div className="font-medium">Enter a custom folder</div>
-              </button>
             </div>
 
-            {(selectedPath === "__custom__" || removableDrives.length === 0) && (
-              <Input
-                placeholder="C:\path\to\folder"
-                value={customPath}
-                onChange={(e) => {
-                  setCustomPath(e.target.value)
-                  if (selectedPath !== "__custom__") setSelectedPath("__custom__")
-                }}
-                autoFocus={removableDrives.length === 0}
-              />
+            {removableDrives.length > 0 && (
+              <label className="text-sm font-medium">Or enter a custom path:</label>
             )}
+            <Input
+              placeholder="C:\path\to\folder"
+              value={customPath}
+              onChange={(e) => {
+                setCustomPath(e.target.value)
+                if (selectedPath !== "__custom__") setSelectedPath("__custom__")
+              }}
+              autoFocus={removableDrives.length === 0}
+            />
 
             {selectedPath === "__custom__" && customPath && !isCustomPathRemovable && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
