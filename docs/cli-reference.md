@@ -269,27 +269,15 @@ See [ScalarDL setup guide](scalardl-setup.md) for full details.
 
 ### tegata ledger stop
 
-Stop the ScalarDL Ledger Docker containers. Audit history is preserved by default. Requires the vault passphrase.
+Stop the ScalarDL Ledger Docker containers. Audit history is preserved. Requires the vault passphrase.
 
-**Usage:** `tegata ledger stop [flags]`
+**Usage:** `tegata ledger stop`
 
-**Flags:**
-
-| Flag     | Type | Default | Description                                                         |
-|----------|------|---------|---------------------------------------------------------------------|
-| `--wipe` | bool | false   | Permanently delete all audit history (cannot be undone)             |
-
-**Examples:**
+**Example:**
 
 ```bash
-# Stop containers, preserve audit history
 tegata ledger stop
-
-# Delete all audit history (containers keep running)
-tegata ledger stop --wipe
 ```
-
-The `--wipe` flag truncates the ledger database and restarts the ledger container — the Docker stack keeps running and audit logging resumes immediately. Typing `DELETE` at the confirmation prompt is required before proceeding.
 
 ### tegata ledger setup
 

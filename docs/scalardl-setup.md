@@ -181,12 +181,6 @@ Integrity violation detected. <error details>
 
 The command exits with code 9. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
 
-After testing, wipe the audit history to restore a clean state.
-
-```bash
-tegata ledger stop --wipe --vault /path/to/vault
-```
-
 ## Where tamper detection is surfaced
 
 Tamper detection is available in all three interfaces.

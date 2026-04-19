@@ -5,7 +5,6 @@ import { Separator } from "@/components/ui/separator"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
-import { StopWipeConfirmDialog } from "./StopWipeConfirmDialog"
 
 async function hashString(s: string): Promise<string> {
   const data = new TextEncoder().encode(s)
@@ -48,7 +47,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [error, setError] = useState("")
   const [labelMap, setLabelMap] = useState<Record<string, string>>({})
   const [dockerPath, setDockerPath] = useState("")
-  const [wipeDialogOpen, setWipeDialogOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -131,16 +129,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               >
                 Verify integrity
               </Button>
-              {dockerPath && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setWipeDialogOpen(true)}
-                  disabled={loading}
-                >
-                  Delete history
-                </Button>
-              )}
             </div>
 
             {error && (
@@ -216,14 +204,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         </div>
       </div>
 
-      <StopWipeConfirmDialog
-        open={wipeDialogOpen}
-        onClose={() => setWipeDialogOpen(false)}
-        onWipeComplete={() => {
-          setHistory([])
-          setVerifyResult(null)
-        }}
-      />
     </>
   )
 }

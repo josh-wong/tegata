@@ -22,7 +22,7 @@ func TestLedgerStopCmd(t *testing.T) {
 	cmd := newLedgerCmd()
 	var found bool
 	for _, sub := range cmd.Commands() {
-		if sub.Use == "stop" || sub.Use == "stop [--wipe]" {
+		if sub.Use == "stop" {
 			found = true
 			break
 		}
@@ -30,18 +30,4 @@ func TestLedgerStopCmd(t *testing.T) {
 	if !found {
 		t.Skip("'tegata ledger stop' subcommand not yet registered — expected before Plan 03")
 	}
-}
-
-// TestLedgerStopCmd_WipeFlag verifies --wipe flag is declared on ledger stop.
-func TestLedgerStopCmd_WipeFlag(t *testing.T) {
-	cmd := newLedgerCmd()
-	for _, sub := range cmd.Commands() {
-		if sub.Use == "stop" || sub.Use == "stop [--wipe]" {
-			if sub.Flags().Lookup("wipe") == nil {
-				t.Error("--wipe flag not declared on 'tegata ledger stop'")
-			}
-			return
-		}
-	}
-	t.Skip("ledger stop not yet registered — expected before Plan 03")
 }
