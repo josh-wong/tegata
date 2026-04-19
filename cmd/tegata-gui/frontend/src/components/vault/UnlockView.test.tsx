@@ -59,7 +59,9 @@ describe("UnlockView", () => {
     await user.type(screen.getByPlaceholderText("Passphrase"), "a")
     expect(screen.queryByText("Incorrect passphrase. Please try again.")).not.toBeInTheDocument()
 
-    // Simulate a second failed attempt: prop flips null → message to trigger the effect.
+    // Mirrors real useVault behavior: error cycles through null before each
+    // attempt (setError(null) then setError(message)), so the useEffect fires
+    // even when consecutive failures produce the same string.
     rerender(<UnlockView {...defaultProps} error={null} />)
     rerender(<UnlockView {...defaultProps} error="Incorrect passphrase. Please try again." />)
 
