@@ -46,7 +46,10 @@ function App() {
     vault.lock()
   }, [vault])
 
-  useIdleTimer(idleTimeoutMs, handleLock)
+  // Only run the idle timer while the vault is unlocked. Passing 0 when the
+  // user is on the setup or unlock screen disables the timer so pre-login
+  // inactivity cannot trigger a lock transition (issue #34).
+  useIdleTimer(vault.view === "main" ? idleTimeoutMs : 0, handleLock)
 
   useEffect(() => {
     if (vault.view === "main") {
