@@ -104,6 +104,12 @@ func (a *App) ScanRemovableDrives() ([]VaultLocation, error) {
 	return scanRemovableDrives(), nil
 }
 
+// IsRemovablePath reports whether the given path resides on a removable drive
+// (USB, microSD, etc.). Used by the GUI to warn users about local vault storage.
+func (a *App) IsRemovablePath(path string) bool {
+	return isRemovablePath(path)
+}
+
 // resolveEnvVaultPath resolves a TEGATA_VAULT environment variable value to a
 // vault file path. If the path is a directory, it appends "vault.tegata".
 func resolveEnvVaultPath(path string) string {

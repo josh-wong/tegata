@@ -6,17 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-)
 
-// isSystemVolume checks whether a macOS /Volumes entry is the system root.
-func isSystemVolume(name string) bool {
-	target, err := os.Readlink(filepath.Join("/Volumes", name))
-	if err == nil && target == "/" {
-		return true
-	}
-	// Fall back to well-known name for older macOS versions.
-	return name == "Macintosh HD"
-}
+	"github.com/josh-wong/tegata/internal/drives"
+)
 
 // platformScanRemovable returns removable drives on macOS and Linux.
 func platformScanRemovable() []VaultLocation {
@@ -29,7 +21,7 @@ func platformScanRemovable() []VaultLocation {
 			return results
 		}
 		for _, e := range entries {
-			if !e.IsDir() || isSystemVolume(e.Name()) {
+			if !e.IsDir() || drives.IsSystemVolume(e.Name()) {
 				continue
 			}
 			results = append(results, VaultLocation{

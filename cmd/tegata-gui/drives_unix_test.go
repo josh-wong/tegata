@@ -35,22 +35,3 @@ func TestPlatformScanRemovable_Unix(t *testing.T) {
 		}
 	}
 }
-
-func TestIsSystemVolume_MacintoshHD(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("isSystemVolume Macintosh HD check only meaningful on macOS")
-	}
-	// On most macOS hosts /Volumes/Macintosh HD is a symlink to "/", so the
-	// Readlink path fires first. The hard-coded name fallback only activates
-	// when Readlink fails (older macOS or unusual disk names).
-	if !isSystemVolume("Macintosh HD") {
-		t.Error("expected 'Macintosh HD' to be identified as system volume")
-	}
-}
-
-func TestIsSystemVolume_NonSystem(t *testing.T) {
-	// A random name should not be considered a system volume.
-	if isSystemVolume("MY_USB_DRIVE") {
-		t.Error("expected 'MY_USB_DRIVE' not to be identified as system volume")
-	}
-}

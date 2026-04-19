@@ -41,6 +41,18 @@ func typeInto(m model, s string) model {
 	return m
 }
 
+// advancePastWelcome presses Enter on the welcome screen and, if the
+// local-drive advisory fires (because the path is not removable), presses
+// Enter a second time to confirm. Returns the model after advancing to
+// stateWizardPassphrase.
+func advancePastWelcome(m model) model {
+	m = sendKey(m, "enter")
+	if m.state == stateWizardWelcome && m.localVaultWarn {
+		m = sendKey(m, "enter")
+	}
+	return m
+}
+
 // TestModel_NoVault_StartsWizard asserts that when no vault path is configured,
 // the model's initial state is stateWizardWelcome.
 func TestModel_NoVault_StartsWizard(t *testing.T) {
@@ -51,13 +63,19 @@ func TestModel_NoVault_StartsWizard(t *testing.T) {
 }
 
 // TestWizardVaultPathEmpty asserts that pressing Enter with an empty vault path
-// advances to passphrase creation using the default location.
+// advances to passphrase creation using the default location. When the cwd is
+// not a removable drive (the common case in tests), the first Enter shows the
+// local-drive advisory and the second Enter confirms and advances.
 func TestWizardVaultPathEmpty(t *testing.T) {
 	m := initialModel("")
 	if m.state != stateWizardWelcome {
 		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
 	}
-	m = sendKey(m, "enter") // empty path → passphrase
+	m = sendKey(m, "enter") // first Enter: may show local-drive advisory
+	// Accept the advisory if it was shown (cwd is not removable in CI / dev).
+	if m.state == stateWizardWelcome && m.localVaultWarn {
+		m = sendKey(m, "enter") // second Enter: confirms and advances
+	}
 	if m.state != stateWizardPassphrase {
 		t.Errorf("expected stateWizardPassphrase after empty path, got %v", m.state)
 	}
@@ -67,7 +85,8 @@ func TestWizardVaultPathEmpty(t *testing.T) {
 }
 
 // TestWizardVaultPathWithInput asserts that typing a path and pressing Enter
-// stores the path and advances to passphrase creation.
+// stores the path and advances to passphrase creation. A second Enter is
+// required when the path is on a non-removable drive (expected in tests).
 func TestWizardVaultPathWithInput(t *testing.T) {
 	m := initialModel("")
 	if m.state != stateWizardWelcome {
@@ -75,7 +94,11 @@ func TestWizardVaultPathWithInput(t *testing.T) {
 	}
 	// Type a vault path (non-existent)
 	m = typeInto(m, "/tmp/my-custom-vault")
-	m = sendKey(m, "enter") // advance from welcome → passphrase
+	m = sendKey(m, "enter") // first Enter: may show local-drive advisory
+	// Accept the advisory if it was shown (/tmp is not removable).
+	if m.state == stateWizardWelcome && m.localVaultWarn {
+		m = sendKey(m, "enter") // second Enter: confirms and advances
+	}
 	if m.state != stateWizardPassphrase {
 		t.Errorf("expected stateWizardPassphrase after vault path input, got %v", m.state)
 	}
@@ -94,7 +117,7 @@ func TestWizardStateMachine(t *testing.T) {
 	if m.state != stateWizardWelcome {
 		t.Fatalf("expected stateWizardWelcome, got %v", m.state)
 	}
-	m = sendKey(m, "enter") // advance from welcome → passphrase (empty path)
+	m = advancePastWelcome(m) // advance from welcome → passphrase (empty path)
 	if m.state != stateWizardPassphrase {
 		t.Errorf("expected stateWizardPassphrase, got %v", m.state)
 	}
@@ -129,7 +152,7 @@ func TestWizardStateMachine(t *testing.T) {
 func TestWizardSkipCredential(t *testing.T) {
 	m := initialModel("")
 	// Navigate to stateWizardAddCredential via the full passphrase confirm flow.
-	m = sendKey(m, "enter")                    // welcome → passphrase
+	m = advancePastWelcome(m)                  // welcome → passphrase
 	m = typeInto(m, "correct-horse-battery")   // type in passphrase field
 	m = sendKey(m, "enter")                    // move focus to confirm field
 	m = typeInto(m, "correct-horse-battery")   // type matching passphrase
@@ -151,7 +174,7 @@ func TestWizardSkipCredential(t *testing.T) {
 // is rejected with an error message.
 func TestWizardPassphraseTooShort(t *testing.T) {
 	m := initialModel("")
-	m = sendKey(m, "enter")          // welcome → passphrase
+	m = advancePastWelcome(m)        // welcome → passphrase
 	m = typeInto(m, "short")         // 5 chars — below minimum
 	m = sendKey(m, "enter")          // focus to confirm
 	m = typeInto(m, "short")         // matching but too short
@@ -168,7 +191,7 @@ func TestWizardPassphraseTooShort(t *testing.T) {
 // and keep the model in stateWizardPassphrase with focus back on the first field.
 func TestWizardPassphraseMismatch(t *testing.T) {
 	m := initialModel("")
-	m = sendKey(m, "enter")                  // welcome → passphrase
+	m = advancePastWelcome(m)                // welcome → passphrase
 	m = typeInto(m, "correct-horse-battery") // type passphrase
 	m = sendKey(m, "enter")                  // focus to confirm
 	m = typeInto(m, "wrong-passphrase")      // mismatched confirm
@@ -188,7 +211,7 @@ func TestWizardPassphraseMismatch(t *testing.T) {
 // key screen is ignored while vault creation is still in progress.
 func TestWizardRecoveryKeyBlocksDuringCreation(t *testing.T) {
 	m := initialModel("")
-	m = sendKey(m, "enter")                  // welcome → passphrase
+	m = advancePastWelcome(m)                // welcome → passphrase
 	m = typeInto(m, "correct-horse-battery") // type passphrase
 	m = sendKey(m, "enter")                  // focus to confirm
 	m = typeInto(m, "correct-horse-battery") // matching confirm
@@ -203,6 +226,54 @@ func TestWizardRecoveryKeyBlocksDuringCreation(t *testing.T) {
 	m = sendKey(m, "enter")
 	if m.state != stateWizardRecoveryKey {
 		t.Errorf("expected stateWizardRecoveryKey (blocked), got %v", m.state)
+	}
+}
+
+// TestWizardLocalVaultWarning asserts that choosing a non-removable path shows
+// the local-drive advisory on the first Enter and advances on the second Enter.
+func TestWizardLocalVaultWarning(t *testing.T) {
+	m := initialModel("")
+	// Type a path that is definitely not on a removable drive.
+	m = typeInto(m, "/tmp/test-vault")
+	// First Enter: advisory should be shown; state stays at welcome.
+	m = sendKey(m, "enter")
+	if !isRemovablePath("/tmp/test-vault") {
+		// Non-removable: expect the warning state.
+		if m.state != stateWizardWelcome {
+			t.Errorf("expected stateWizardWelcome after first Enter on non-removable path, got %v", m.state)
+		}
+		if !m.localVaultWarn {
+			t.Error("expected localVaultWarn=true after first Enter on non-removable path")
+		}
+		// Second Enter: should confirm and advance.
+		m = sendKey(m, "enter")
+		if m.state != stateWizardPassphrase {
+			t.Errorf("expected stateWizardPassphrase after confirming local-drive advisory, got %v", m.state)
+		}
+		if m.localVaultWarn {
+			t.Error("expected localVaultWarn=false after confirming")
+		}
+	} else {
+		// Running from a removable drive: single Enter advances directly.
+		if m.state != stateWizardPassphrase {
+			t.Errorf("expected stateWizardPassphrase (removable path), got %v", m.state)
+		}
+	}
+}
+
+// TestWizardLocalVaultWarningClearsOnEdit asserts that editing the path after
+// the advisory clears the warning so a fresh check runs on the next Enter.
+func TestWizardLocalVaultWarningClearsOnEdit(t *testing.T) {
+	m := initialModel("")
+	m = typeInto(m, "/tmp/test-vault")
+	m = sendKey(m, "enter") // trigger advisory (if non-removable)
+	if !m.localVaultWarn {
+		t.Skip("skipping: /tmp is removable on this system")
+	}
+	// Typing clears the advisory.
+	m = typeInto(m, "x")
+	if m.localVaultWarn {
+		t.Error("expected localVaultWarn=false after editing the path")
 	}
 }
 

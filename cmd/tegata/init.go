@@ -37,6 +37,14 @@ vault directory; otherwise the current directory is used.`,
 
 			vaultPath := filepath.Join(dir, vaultFilename)
 
+			// Warn if the chosen path is not on a removable drive.
+			if !isRemovablePath(dir) {
+				fmt.Fprintln(os.Stderr, "Note: This path doesn't appear to be on a removable drive.")
+				fmt.Fprintln(os.Stderr, "For better security, store your vault on a USB or microSD card.")
+				fmt.Fprintln(os.Stderr, "Physical separation helps keep your vault safe if your computer is compromised.")
+				fmt.Fprintln(os.Stderr)
+			}
+
 			// Check that vault doesn't already exist.
 			if _, err := os.Stat(vaultPath); err == nil {
 				return fmt.Errorf("vault already exists at %s", vaultPath)

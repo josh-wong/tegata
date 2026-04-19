@@ -92,28 +92,44 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			raw := strings.TrimSpace(m.vaultPathInput.Value())
-			m.vaultPathInput.Reset()
-			m.vaultPathInput.Blur()
 
 			if raw != "" {
 				resolved, err := resolvePathArg(raw)
 				if err != nil {
 					m.errMsg = "Invalid path: " + humanizeError(err)
-					m.vaultPathInput.Focus()
+					// No explicit Focus() call needed: the input retains focus
+					// because we never called Blur() on this path.
 					return m, nil
 				}
 				if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
 					// Existing vault file: switch to unlock flow.
+					m.vaultPathInput.Reset()
+					m.vaultPathInput.Blur()
+					m.localVaultWarn = false
 					m.vaultPath = resolved
 					m.state = stateUnlock
 					m.passphraseInput.Focus()
 					return m, nil
 				}
-				// Non-existing path: use it as the new vault location.
+				// Non-existing path: warn if not on a removable drive.
+				if !m.localVaultWarn && !isRemovablePath(resolved) {
+					m.localVaultWarn = true
+					return m, nil
+				}
 				m.vaultPath = resolved
+			} else if !m.localVaultWarn && !isRemovablePath(".") {
+				// Blank input defaults to the working directory at the time
+				// tegata was launched. "." resolves to that directory, which
+				// is stable for the lifetime of the process.
+				m.localVaultWarn = true
+				return m, nil
 			}
 
-			// Advance to passphrase creation.
+			// Advance to passphrase creation (first Enter when removable, or
+			// second Enter after the user has acknowledged the warning).
+			m.vaultPathInput.Reset()
+			m.vaultPathInput.Blur()
+			m.localVaultWarn = false
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, m.spinner.Tick
@@ -121,6 +137,11 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEsc:
 			return m.quit()
 		}
+
+		// Any typing clears the pending local-drive warning so it re-evaluates
+		// against the new path when the user presses Enter again.
+		m.localVaultWarn = false
+		m.errMsg = ""
 
 		// Delegate typing to the vault path input.
 		var cmd tea.Cmd
@@ -343,17 +364,30 @@ func (m model) viewWizard() string {
 
 // viewWizardWelcome renders step 1/5.
 func (m model) viewWizardWelcome() string {
+	tip := tipStyle.Render("💡 Tip: Store your vault on a USB or microSD for security\n" +
+		"and portability. Install Tegata on any device to access it.")
 	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
-		"Tegata is a portable authenticator that stores encrypted\n" +
-		"credentials on USB drives or microSD cards.\n\n" +
-		"Enter the path to an existing vault to unlock it, or leave\n" +
-		"blank to create a new vault in the current directory.\n\n" +
+		"Tegata is a portable authenticator that stores your 2FA\n" +
+		"codes and other credentials in an encrypted vault.\n\n" +
+		tip + "\n\n" +
 		m.vaultPathInput.View() + "\n"
 
+	if m.localVaultWarn {
+		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path doesn't appear to be on a removable\n" +
+			"drive. For better security, store your vault on a USB or\n" +
+			"microSD card; physical separation helps keep your vault\n" +
+			"safe if your computer is compromised.\n" +
+			"Press Enter again to proceed with this location.")
+		content += "\n" + warn + "\n"
+	}
 	if m.errMsg != "" {
 		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 	}
-	content += "\n" + helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
+	if m.localVaultWarn {
+		content += "\n" + helpBarStyle.Render("[Enter] Proceed anyway  [Esc] Quit")
+	} else {
+		content += "\n" + helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
+	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 

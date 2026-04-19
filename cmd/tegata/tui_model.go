@@ -80,6 +80,10 @@ type model struct {
 	// Wizard: vault path input on the welcome screen
 	vaultPathInput textinput.Model
 
+	// Wizard: true after the user selects a non-removable path; requires a
+	// second Enter to confirm before advancing past the welcome screen.
+	localVaultWarn bool
+
 	// Challenge-response inline input
 	crChallengeInput  textinput.Model
 	crChallengeActive bool
@@ -148,7 +152,7 @@ func initialModel(vaultPath string) model {
 	cfg := config.DefaultConfig()
 
 	vaultPathIn := textinput.New()
-	vaultPathIn.Placeholder = "Path (blank for current dir)"
+	vaultPathIn.Placeholder = "Enter a path (or leave this blank to use the current directory)"
 	vaultPathIn.EchoMode = textinput.EchoNormal
 
 	crInput := textinput.New()

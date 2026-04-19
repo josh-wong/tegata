@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,6 +49,7 @@ export function SetupWizard({
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditError, setAuditError] = useState("")
   const [auditProgress, setAuditProgress] = useState("")
+  const [isCustomPathRemovable, setIsCustomPathRemovable] = useState(true)
 
   // Fetch removable drives when entering step 2 (vault creation).
   useEffect(() => {
@@ -73,6 +74,25 @@ export function SetupWizard({
         .catch((err) => console.error("Failed to scan for vaults:", err))
     }
   }, [step])
+
+  // Check if the custom path is on a removable drive when it changes.
+  // Debounced so the IPC call isn't fired on every keystroke.
+  const removableCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (selectedPath !== "__custom__" || !customPath) return
+    if (removableCheckTimer.current) clearTimeout(removableCheckTimer.current)
+    removableCheckTimer.current = setTimeout(() => {
+      App.IsRemovablePath(customPath)
+        .then((isRemovable) => setIsCustomPathRemovable(isRemovable))
+        .catch((err) => {
+          console.error("Failed to check if path is removable:", err)
+          setIsCustomPathRemovable(false) // Assume non-removable on error
+        })
+    }, 300)
+    return () => {
+      if (removableCheckTimer.current) clearTimeout(removableCheckTimer.current)
+    }
+  }, [customPath, selectedPath])
 
   const folderPath = selectedPath === "__custom__" ? customPath : selectedPath
   const effectivePath = folderPath
@@ -143,12 +163,12 @@ export function SetupWizard({
             <div>
               <h1 className="text-2xl font-bold text-primary">Tegata</h1>
               <p className="mt-2 text-muted-foreground">
-                Your credentials, encrypted and portable
+                Your 2FA codes and credentials, encrypted <span className="whitespace-nowrap">and portable</span>
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Tegata stores your credentials in an encrypted vault on a USB drive
-              or folder of your choice.
+              Tegata is a portable authenticator that stores your 2FA codes
+              and other credentials in an encrypted vault.
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
               Create new vault
@@ -177,16 +197,14 @@ export function SetupWizard({
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
-              {removableDrives.length > 0
-                ? "Select a folder for your encrypted vault."
-                : "Insert a USB drive for portable access, or choose any folder."}
+              <span className="font-semibold text-primary">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
             </p>
 
             <div className="space-y-2">
               {removableDrives.map((folder) => (
                 <button
                   key={folder.path}
-                  onClick={() => setSelectedPath(folder.path)}
+                  onClick={() => { setSelectedPath(folder.path); setCustomPath("") }}
                   className={cn(
                     "w-full rounded-lg border p-3 text-left transition-colors",
                     selectedPath === folder.path
@@ -204,30 +222,28 @@ export function SetupWizard({
                   Only removable drives (USB, SD, and microSD) are shown.
                 </p>
               )}
-
-              <button
-                onClick={() => setSelectedPath("__custom__")}
-                className={cn(
-                  "w-full rounded-lg border border-dashed p-3 text-left transition-colors",
-                  selectedPath === "__custom__"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50",
-                )}
-              >
-                <div className="font-medium">Enter a custom folder</div>
-              </button>
             </div>
 
-            {(selectedPath === "__custom__" || removableDrives.length === 0) && (
-              <Input
-                placeholder="C:\path\to\folder"
-                value={customPath}
-                onChange={(e) => {
-                  setCustomPath(e.target.value)
-                  if (selectedPath !== "__custom__") setSelectedPath("__custom__")
-                }}
-                autoFocus={removableDrives.length === 0}
-              />
+            <label className="text-sm font-medium">
+              {removableDrives.length > 0 ? "Or enter a custom path:" : "Enter a vault path:"}
+            </label>
+            <Input
+              placeholder="C:\path\to\folder"
+              value={customPath}
+              onChange={(e) => {
+                setCustomPath(e.target.value)
+                if (selectedPath !== "__custom__") setSelectedPath("__custom__")
+              }}
+              autoFocus={removableDrives.length === 0}
+            />
+
+            {selectedPath === "__custom__" && customPath && !isCustomPathRemovable && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">⚠️ Warning</p>
+                <p className="mt-1 text-amber-800">
+                  This path doesn't appear to be on a removable drive. For better security, store your vault on a USB or microSD card; physical separation helps keep your vault safe if your computer is compromised.
+                </p>
+              </div>
             )}
 
             <div className="space-y-1.5">

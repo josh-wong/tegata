@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/josh-wong/tegata/internal/drives"
 )
 
 const vaultExtension = ".tegata"
@@ -15,6 +17,13 @@ const vaultExtension = ".tegata"
 // and drives_unix.go.
 func scanRemovableDrives() []VaultLocation {
 	return platformScanRemovable()
+}
+
+// isRemovablePath reports whether path appears to reside on a removable drive
+// (USB, microSD, etc.). Detection is heuristic and platform-specific; it
+// returns false when the check cannot be performed.
+func isRemovablePath(path string) bool {
+	return drives.IsRemovablePath(path)
 }
 
 // scanMountedDrives looks for *.tegata files on mounted drives. On Windows it
