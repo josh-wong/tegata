@@ -369,9 +369,10 @@ func (m model) viewWizardWelcome() string {
 		m.vaultPathInput.View() + "\n"
 
 	if m.localVaultWarn {
-		warn := warnStyle.Render("Warning: this path is on a system drive, not a removable drive.\n" +
-			"For better security, use a USB drive or microSD card — physical\n" +
-			"separation keeps your vault safe if your computer is compromised.")
+		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path is on a system drive, not a removable\n" +
+			"drive. For better security, store your vault on a removable\n" +
+			"drive like a USB or microSD card; physical separation helps\n" +
+			"keep your vault safe if your computer is compromised.")
 		content += "\n" + warn + "\n"
 	}
 	if m.errMsg != "" {
