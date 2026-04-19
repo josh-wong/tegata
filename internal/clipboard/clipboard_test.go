@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -143,5 +144,58 @@ func TestCloseStopsAutoClear(t *testing.T) {
 	got := mock.getContent()
 	if got != "secret" {
 		t.Errorf("clipboard should not be cleared after Close, got %q", got)
+	}
+}
+
+// errClipboard is a mock ClipboardAccess that always returns an error on write.
+type errClipboard struct{ err error }
+
+func (e *errClipboard) WriteAll(_ string) error  { return e.err }
+func (e *errClipboard) ReadAll() (string, error) { return "", e.err }
+
+func TestCopyWithAutoClearReturnsClipboardError(t *testing.T) {
+	underlying := errors.New("display not found")
+	mgr := NewManagerWith(&errClipboard{err: underlying})
+	defer mgr.Close()
+
+	err := mgr.CopyWithAutoClear("secret", time.Second)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var ce *ClipboardError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClipboardError, got %T: %v", err, err)
+	}
+	if ce.Unwrap() == nil {
+		t.Error("ClipboardError should wrap the underlying error")
+	}
+}
+
+func TestIsWaylandDetection(t *testing.T) {
+	tests := []struct {
+		name           string
+		waylandDisplay string
+		xdgSessionType string
+		want           bool
+	}{
+		{"no wayland env", "", "", false},
+		{"WAYLAND_DISPLAY set", "wayland-0", "", true},
+		{"XDG_SESSION_TYPE wayland", "", "wayland", true},
+		{"XDG_SESSION_TYPE WAYLAND uppercase", "", "WAYLAND", true},
+		{"XDG_SESSION_TYPE x11", "", "x11", false},
+		{"both set", "wayland-0", "wayland", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("WAYLAND_DISPLAY", tc.waylandDisplay)
+			t.Setenv("XDG_SESSION_TYPE", tc.xdgSessionType)
+
+			got := isWayland()
+			if got != tc.want {
+				t.Errorf("isWayland() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
