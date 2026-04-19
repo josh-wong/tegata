@@ -14,8 +14,8 @@ var successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FFF5F"))
 // helpBarStyle renders the bottom help bar in dim/faint text.
 var helpBarStyle = lipgloss.NewStyle().Faint(true)
 
-// warnStyle renders advisory warnings in amber/yellow.
-var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFB347"))
+// warnStyle renders advisory warnings in dark orange.
+var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D4660A"))
 
 // tipStyle renders informational tips in green, bold.
 var tipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6BA55E")).Bold(true)
