@@ -25,9 +25,9 @@
 ## Testing performed
 
 <!-- Mark completed testing with [x]. Add PR-specific items as needed. -->
+- [ ] Builds successfully on macOS (arm64)
+- [ ] Builds successfully on Windows (amd64)
 - [ ] Builds successfully on Linux (amd64)
-- [ ] Builds successfully on macOS (if applicable)
-- [ ] Builds successfully on Windows (if applicable)
 - [ ] Unit tests pass
 - [ ] Integration tests pass (if applicable)
 - [ ] CLI commands tested manually with expected inputs
