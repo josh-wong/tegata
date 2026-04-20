@@ -252,6 +252,12 @@ export function SetupWizard({
                 <Input
                   value={vaultName}
                   onChange={(e) => setVaultName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && folderPath && vaultName) {
+                      e.preventDefault()
+                      setStep(3)
+                    }
+                  }}
                   className="rounded-r-none"
                   placeholder="vault"
                 />
@@ -477,6 +483,12 @@ export function SetupWizard({
               placeholder="C:\path\to\vault.tegata"
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && customPath) {
+                  e.preventDefault()
+                  onOpenExisting(customPath)
+                }
+              }}
               autoFocus={existingVaults.length === 0}
             />
 
