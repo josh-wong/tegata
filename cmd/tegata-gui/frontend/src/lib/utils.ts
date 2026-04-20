@@ -10,3 +10,11 @@ export function formatError(err: unknown, fallback: string): string {
   if (err instanceof Error) return err.message
   return fallback
 }
+
+export async function hashString(s: string): Promise<string> {
+  const data = new TextEncoder().encode(s)
+  const digest = await crypto.subtle.digest("SHA-256", data)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}

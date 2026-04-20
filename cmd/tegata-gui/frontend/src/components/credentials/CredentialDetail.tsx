@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { TOTPCountdown } from "@/components/shared/TOTPCountdown"
 import { App } from "@/lib/wails"
-import { formatError } from "@/lib/utils"
+import { formatError, hashString } from "@/lib/utils"
 import type { Credential, TOTPResult } from "@/lib/types"
 
 interface CredentialDetailProps {
@@ -14,7 +14,55 @@ interface CredentialDetailProps {
   onRemove: (id: string) => void
 }
 
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export function CredentialDetail({ credential, onRemove }: CredentialDetailProps) {
+  const [lastUsed, setLastUsed] = useState<string | null>(null)
+  const [loadingLastUsed, setLoadingLastUsed] = useState(false)
+
+  useEffect(() => {
+    if (!credential) return
+
+    setLoadingLastUsed(true)
+    Promise.all([
+      hashString(credential.label),
+      App.GetAuditHistory(),
+    ])
+      .then(([labelHash, history]) => {
+        if (!history) {
+          setLastUsed(null)
+          return
+        }
+        const relevantRecords = history.filter((r) => r.label_hash === labelHash)
+        if (relevantRecords.length > 0) {
+          const mostRecent = relevantRecords[0]
+          const date = new Date(mostRecent.timestamp * 1000)
+          setLastUsed(
+            date.toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          )
+        } else {
+          setLastUsed(null)
+        }
+      })
+      .catch(() => setLastUsed(null))
+      .finally(() => setLoadingLastUsed(false))
+  }, [credential])
+
   if (!credential) {
     return (
       <main className="flex flex-1 items-center justify-center bg-background">
@@ -24,16 +72,18 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
   }
 
   return (
-    <main className="flex flex-1 flex-col bg-background p-6">
+    <main className="flex flex-1 flex-col bg-background p-6 overflow-y-auto">
       <div className="mb-4">
         <h2 className="text-xl font-semibold">{credential.label}</h2>
         {credential.issuer && (
-          <p className="text-sm text-muted-foreground">{credential.issuer}</p>
+          <p className="text-lg text-primary font-medium mt-1">{credential.issuer}</p>
         )}
         {(credential.tags ?? []).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {(credential.tags ?? []).map((tag) => (
-              <Badge key={tag} variant="secondary">{tag}</Badge>
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
             ))}
           </div>
         )}
@@ -41,7 +91,98 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
 
       <Separator />
 
-      <div className="mt-4 flex-1">
+      <div className="mt-4">
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Type</span>
+            <span className="font-medium capitalize">{credential.type.replace("-", " ")}</span>
+          </div>
+
+          {credential.type === "totp" && (
+            <>
+              {credential.algorithm && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Algorithm</span>
+                  <span className="font-medium font-mono">{credential.algorithm}</span>
+                </div>
+              )}
+              {credential.digits > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Digits</span>
+                  <span className="font-medium">{credential.digits}</span>
+                </div>
+              )}
+              {credential.period > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Period</span>
+                  <span className="font-medium">{credential.period}s</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {credential.type === "hotp" && (
+            <>
+              {credential.algorithm && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Algorithm</span>
+                  <span className="font-medium font-mono">{credential.algorithm}</span>
+                </div>
+              )}
+              {credential.digits > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Digits</span>
+                  <span className="font-medium">{credential.digits}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {credential.type === "challenge-response" && credential.algorithm && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Algorithm</span>
+              <span className="font-medium font-mono">{credential.algorithm}</span>
+            </div>
+          )}
+
+          {credential.created_at && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Created</span>
+              <span className="font-medium text-xs">{formatDate(credential.created_at)}</span>
+            </div>
+          )}
+
+          {credential.modified_at && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Modified</span>
+              <span className="font-medium text-xs">{formatDate(credential.modified_at)}</span>
+            </div>
+          )}
+
+          {lastUsed && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Last used</span>
+              <span className="font-medium text-xs">{lastUsed}</span>
+            </div>
+          )}
+          {!loadingLastUsed && !lastUsed && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Last used</span>
+              <span className="text-xs text-muted-foreground italic">Never</span>
+            </div>
+          )}
+          {loadingLastUsed && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Last used</span>
+              <Loader2 className="h-3 w-3 animate-spin" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Separator className="my-4" />
+
+      <div className="flex-1">
         {credential.type === "totp" && <TOTPView key={credential.label} credential={credential} />}
         {credential.type === "hotp" && <HOTPView credential={credential} />}
         {credential.type === "static" && <StaticView credential={credential} />}

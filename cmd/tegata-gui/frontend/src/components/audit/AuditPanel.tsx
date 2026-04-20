@@ -4,15 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
-import { cn, formatError } from "@/lib/utils"
-
-async function hashString(s: string): Promise<string> {
-  const data = new TextEncoder().encode(s)
-  const digest = await crypto.subtle.digest("SHA-256", data)
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-}
+import { cn, formatError, hashString } from "@/lib/utils"
 
 const operationLabels: Record<string, string> = {
   totp: "TOTP",

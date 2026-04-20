@@ -11,6 +11,8 @@ export interface Credential {
   counter: number
   tags: string[]
   notes: string
+  created_at: string
+  modified_at: string
 }
 
 export type AppView = "loading" | "setup" | "unlock" | "main"
