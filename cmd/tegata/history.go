@@ -45,8 +45,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			}
 
 			if !cfg.Audit.Enabled {
-				fmt.Fprintln(os.Stderr, "Audit is not enabled. Add [audit] enabled = true to tegata.toml.")
-				fmt.Fprintln(os.Stderr, "See docs/scalardl-setup.md for configuration instructions.")
+				printAuditNotEnabledHint(os.Stderr)
 				return nil
 			}
 

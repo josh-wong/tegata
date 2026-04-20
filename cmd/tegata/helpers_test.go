@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -74,6 +75,27 @@ func TestHumanizeError(t *testing.T) {
 				t.Errorf("humanizeError() = %q, want substring %q", got, tt.contains)
 			}
 		})
+	}
+}
+
+// TestPrintAuditNotEnabledHint verifies that the hint text written to the
+// io.Writer contains the expected actionable substrings.
+func TestPrintAuditNotEnabledHint(t *testing.T) {
+	expectedSubstrings := []string{
+		"Audit logging is not enabled",
+		"tegata ledger start",
+		"tegata ledger setup",
+		"tegata.toml",
+	}
+
+	var buf bytes.Buffer
+	printAuditNotEnabledHint(&buf)
+	got := buf.String()
+
+	for _, want := range expectedSubstrings {
+		if !strings.Contains(got, want) {
+			t.Errorf("printAuditNotEnabledHint output missing %q\ngot:\n%s", want, got)
+		}
 	}
 }
 

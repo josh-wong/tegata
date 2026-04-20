@@ -260,6 +260,15 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 	return mgr, nil
 }
 
+// printAuditNotEnabledHint writes the standard audit-not-enabled guidance to w.
+// Called by any command that requires audit to be enabled.
+func printAuditNotEnabledHint(w io.Writer) {
+	_, _ = fmt.Fprintln(w, "Audit logging is not enabled. To enable, choose one of:")
+	_, _ = fmt.Fprintln(w, "  Quick setup (Docker): tegata ledger start --vault <path>")
+	_, _ = fmt.Fprintln(w, "  Manual setup: add [audit] to tegata.toml and run: tegata ledger setup --vault <path>")
+	_, _ = fmt.Fprintln(w, "Run 'tegata ledger setup --help' for the required tegata.toml fields.")
+}
+
 // zeroBytes overwrites a byte slice with zeros for memory hygiene.
 func zeroBytes(b []byte) {
 	for i := range b {
