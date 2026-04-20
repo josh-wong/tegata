@@ -128,7 +128,7 @@ export function SetupWizard({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="relative z-0 flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Step indicator (only for create flow) */}
         {step !== 6 && (

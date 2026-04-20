@@ -73,9 +73,12 @@ export function UnlockView({
   }
 
   const currentLocation = vaultLocations.find((v) => v.path === vaultPath)
+  // Only show vault selector if current vault is from a detected location (not custom path)
+  const isCustomPath = vaultPath && !currentLocation
+  const showVaultSelector = vaultLocations.length > 1 && !isCustomPath
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="relative z-10 flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         <Button
           variant="ghost"
@@ -93,7 +96,7 @@ export function UnlockView({
           </p>
         </div>
 
-        {vaultLocations.length > 1 && (
+        {showVaultSelector && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Vault</label>
             <VaultSelector
