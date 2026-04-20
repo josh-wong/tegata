@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
+import { VaultSelector } from "./VaultSelector"
 import { EventsOn, EventsOff } from "@/lib/wails"
 import type { VaultLocation } from "@/lib/types"
 
@@ -95,17 +96,12 @@ export function UnlockView({
         {vaultLocations.length > 1 && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Vault</label>
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={vaultPath ?? ""}
-              onChange={(e) => onSelectVault(e.target.value)}
-            >
-              {vaultLocations.map((loc) => (
-                <option key={loc.path} value={loc.path}>
-                  {loc.driveName} — {loc.path}
-                </option>
-              ))}
-            </select>
+            <VaultSelector
+              vaultPath={vaultPath}
+              vaultLocations={vaultLocations}
+              onSelectVault={onSelectVault}
+              disabled={loading}
+            />
           </div>
         )}
 
