@@ -128,7 +128,7 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'v':
 			if !m.cfg.Audit.Enabled {
-				m.errMsg = "Audit not enabled"
+				m.errMsg = "Audit logging is not enabled"
 				return m, nil
 			}
 			m.state = stateOverlayAudit

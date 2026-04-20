@@ -526,7 +526,7 @@ func TestTUI_AuditDisabled(t *testing.T) {
 		t.Errorf("expected stateMainView when audit disabled, got %v", result.state)
 	}
 	if !strings.Contains(result.errMsg, "not enabled") {
-		t.Errorf("expected error about audit not enabled, got %q", result.errMsg)
+		t.Errorf("expected error about audit logging not enabled, got %q", result.errMsg)
 	}
 }
 

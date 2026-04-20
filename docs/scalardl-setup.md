@@ -294,6 +294,6 @@ cd ~/.tegata/docker && docker compose ps
 
 On WSL, use `127.0.0.1` instead of `localhost` in `tegata.toml`. WSL resolves `localhost` to IPv6 `::1`, but the ScalarDL containers only listen on IPv4.
 
-### Audit not enabled
+### Audit logging is not enabled
 
 Confirm `tegata.toml` has `enabled = true` in the `[audit]` section and that the file is in the same directory as `vault.tegata`. Run `tegata config show` to see the effective configuration.

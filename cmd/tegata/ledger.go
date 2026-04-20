@@ -79,7 +79,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cfg.Audit.Enabled {
-		fmt.Fprintln(os.Stderr, "Audit not enabled. Add the [audit] section to tegata.toml in your vault directory:")
+		fmt.Fprintln(os.Stderr, "Audit logging is not enabled. Add the [audit] section to tegata.toml in your vault directory:")
 		fmt.Fprintln(os.Stderr, "  [audit]")
 		fmt.Fprintln(os.Stderr, "  enabled           = true")
 		fmt.Fprintln(os.Stderr, "  server            = \"127.0.0.1:50051\"")
