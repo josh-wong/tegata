@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Copy, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { TOTPCountdown } from "@/components/shared/TOTPCountdown"
 import { App } from "@/lib/wails"
-import { formatError, hashString } from "@/lib/utils"
+import { formatError } from "@/lib/utils"
 import type { Credential, TOTPResult } from "@/lib/types"
 
 interface CredentialDetailProps {
@@ -25,43 +33,94 @@ function formatDate(dateString: string): string {
   })
 }
 
+function formatCredentialType(type: string): string {
+  switch (type) {
+    case "totp":
+      return "TOTP"
+    case "hotp":
+      return "HOTP"
+    case "static":
+      return "Static password"
+    case "challenge-response":
+      return "Challenge-response"
+    default:
+      return type
+  }
+}
+
 export function CredentialDetail({ credential, onRemove }: CredentialDetailProps) {
-  const [lastUsed, setLastUsed] = useState<string | null>(null)
-  const [loadingLastUsed, setLoadingLastUsed] = useState(false)
+  const [lastUsed, setLastUsed] = useState<string | null>(() => {
+    if (!credential) return null
+    const stored = localStorage.getItem(`last-used-${credential.id}`)
+    return stored || null
+  })
 
+  // Confirmation dialog for credential deletion
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
+
+  // Right sidebar panel width — persisted to localStorage
+  const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
+    const savedSize = localStorage.getItem("credential-meta-panel-size")
+    return savedSize ? parseInt(savedSize, 10) : 280
+  })
+
+  const dragHandleRef = useRef<HTMLDivElement>(null)
+  const isResizingRef = useRef(false)
+  const startPosRef = useRef(0)
+  const startSizeRef = useRef(0)
+
+  // Update displayed "Last used" when credential changes
   useEffect(() => {
-    if (!credential) return
+    if (!credential) {
+      setLastUsed(null)
+      return
+    }
+    const stored = localStorage.getItem(`last-used-${credential.id}`)
+    setLastUsed(stored || null)
+  }, [credential?.id])
 
-    setLoadingLastUsed(true)
-    Promise.all([
-      hashString(credential.label),
-      App.GetAuditHistory(),
-    ])
-      .then(([labelHash, history]) => {
-        if (!history) {
-          setLastUsed(null)
-          return
-        }
-        const relevantRecords = history.filter((r) => r.label_hash === labelHash)
-        if (relevantRecords.length > 0) {
-          const mostRecent = relevantRecords[0]
-          const date = new Date(mostRecent.timestamp * 1000)
-          setLastUsed(
-            date.toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          )
-        } else {
-          setLastUsed(null)
-        }
-      })
-      .catch(() => setLastUsed(null))
-      .finally(() => setLoadingLastUsed(false))
+  // Track "Last used" based on explicit user actions (Copy button, Generate button, etc.)
+  const recordLastUsed = useCallback(() => {
+    if (!credential) return
+    const now = new Date()
+    const formatted = now.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    setLastUsed(formatted)
+    localStorage.setItem(`last-used-${credential.id}`, formatted)
   }, [credential])
+
+  // Drag-to-resize handlers for right sidebar panel width
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isResizingRef.current = true
+    startPosRef.current = e.clientX
+    startSizeRef.current = metaPanelSize
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
+  }
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizingRef.current) return
+
+    const delta = e.clientX - startPosRef.current
+    const newSize = startSizeRef.current - delta
+
+    // Clamp size between 160px and 480px
+    const clampedSize = Math.max(160, Math.min(480, newSize))
+    setMetaPanelSize(clampedSize)
+  }
+
+  const handleMouseUp = () => {
+    isResizingRef.current = false
+    document.removeEventListener("mousemove", handleMouseMove)
+    document.removeEventListener("mouseup", handleMouseUp)
+    localStorage.setItem("credential-meta-panel-size", String(metaPanelSize))
+  }
 
   if (!credential) {
     return (
@@ -72,139 +131,190 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
   }
 
   return (
-    <main className="flex flex-1 flex-col bg-background p-6 overflow-y-auto">
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">{credential.label}</h2>
-        {credential.issuer && (
-          <p className="text-lg text-primary font-medium mt-1">{credential.issuer}</p>
-        )}
-        {(credential.tags ?? []).length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {(credential.tags ?? []).map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <Separator />
-
-      <div className="mt-4">
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Type</span>
-            <span className="font-medium capitalize">{credential.type.replace("-", " ")}</span>
-          </div>
-
-          {credential.type === "totp" && (
-            <>
-              {credential.algorithm && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Algorithm</span>
-                  <span className="font-medium font-mono">{credential.algorithm}</span>
-                </div>
-              )}
-              {credential.digits > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Digits</span>
-                  <span className="font-medium">{credential.digits}</span>
-                </div>
-              )}
-              {credential.period > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Period</span>
-                  <span className="font-medium">{credential.period}s</span>
-                </div>
-              )}
-            </>
+    <main className="flex flex-1 flex-row overflow-hidden bg-background">
+      {/* Main action area */}
+      <div className="flex flex-1 flex-col overflow-y-auto p-6">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold">{credential.label}</h2>
+          {credential.issuer && (
+            <p className="text-lg text-primary font-medium mt-1">{credential.issuer}</p>
           )}
-
-          {credential.type === "hotp" && (
-            <>
-              {credential.algorithm && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Algorithm</span>
-                  <span className="font-medium font-mono">{credential.algorithm}</span>
-                </div>
-              )}
-              {credential.digits > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Digits</span>
-                  <span className="font-medium">{credential.digits}</span>
-                </div>
-              )}
-            </>
-          )}
-
-          {credential.type === "challenge-response" && credential.algorithm && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Algorithm</span>
-              <span className="font-medium font-mono">{credential.algorithm}</span>
-            </div>
-          )}
-
-          {credential.created_at && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Created</span>
-              <span className="font-medium text-xs">{formatDate(credential.created_at)}</span>
-            </div>
-          )}
-
-          {credential.modified_at && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Modified</span>
-              <span className="font-medium text-xs">{formatDate(credential.modified_at)}</span>
-            </div>
-          )}
-
-          {lastUsed && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Last used</span>
-              <span className="font-medium text-xs">{lastUsed}</span>
-            </div>
-          )}
-          {!loadingLastUsed && !lastUsed && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Last used</span>
-              <span className="text-xs text-muted-foreground italic">Never</span>
-            </div>
-          )}
-          {loadingLastUsed && (
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Last used</span>
-              <Loader2 className="h-3 w-3 animate-spin" />
+          {(credential.tags ?? []).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {(credential.tags ?? []).map((tag) => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
             </div>
           )}
         </div>
+
+        <Separator />
+
+        <div className="flex-1 mt-4">
+          {credential.type === "totp" && <TOTPView key={credential.label} credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "hotp" && <HOTPView credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "static" && <StaticView credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "challenge-response" && <ChallengeResponseView credential={credential} onUsed={recordLastUsed} />}
+        </div>
       </div>
 
-      <Separator className="my-4" />
+      {/* Drag handle */}
+      <div
+        ref={dragHandleRef}
+        className="w-1 cursor-col-resize bg-border hover:bg-primary/20 transition-colors"
+        onMouseDown={handleMouseDown}
+      />
 
-      <div className="flex-1">
-        {credential.type === "totp" && <TOTPView key={credential.label} credential={credential} />}
-        {credential.type === "hotp" && <HOTPView credential={credential} />}
-        {credential.type === "static" && <StaticView credential={credential} />}
-        {credential.type === "challenge-response" && <ChallengeResponseView credential={credential} />}
+      {/* Meta panel */}
+      <div
+        className="border-l border-border overflow-y-auto flex flex-col"
+        style={{ width: `${metaPanelSize}px` }}
+      >
+        <div className="flex flex-1 flex-col p-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Details</h3>
+
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Type</span>
+              <span className="font-medium">{formatCredentialType(credential.type)}</span>
+            </div>
+
+            {credential.type === "totp" && (
+              <>
+                {credential.algorithm && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Algorithm</span>
+                    <span className="font-medium font-mono">{credential.algorithm}</span>
+                  </div>
+                )}
+                {credential.digits > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Digits</span>
+                    <span className="font-medium">{credential.digits}</span>
+                  </div>
+                )}
+                {credential.period > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Period</span>
+                    <span className="font-medium">{credential.period}s</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {credential.type === "hotp" && (
+              <>
+                {credential.algorithm && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Algorithm</span>
+                    <span className="font-medium font-mono">{credential.algorithm}</span>
+                  </div>
+                )}
+                {credential.digits > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Digits</span>
+                    <span className="font-medium">{credential.digits}</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {credential.type === "challenge-response" && credential.algorithm && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Algorithm</span>
+                <span className="font-medium font-mono">{credential.algorithm}</span>
+              </div>
+            )}
+
+            {credential.created_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Created</span>
+                <span className="font-medium text-xs">{formatDate(credential.created_at)}</span>
+              </div>
+            )}
+
+            {lastUsed && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last used</span>
+                <span className="font-medium text-xs">{lastUsed}</span>
+              </div>
+            )}
+            {!lastUsed && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last used</span>
+                <span className="text-xs text-muted-foreground italic">Never</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end px-4 pt-2 pb-4">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Remove credential
+          </Button>
+        </div>
       </div>
 
-      <Separator className="my-4" />
-
-      <div className="flex justify-end">
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => onRemove(credential.id)}
-        >
-          Remove credential
-        </Button>
-      </div>
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove credential?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to confirm removal of "{credential?.label}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder='Type "DELETE" to confirm'
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && deleteConfirmInput === "DELETE" && credential) {
+                  onRemove(credential.id)
+                  setShowDeleteConfirm(false)
+                  setDeleteConfirmInput("")
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteConfirm(false)
+                setDeleteConfirmInput("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (credential) {
+                  onRemove(credential.id)
+                  setShowDeleteConfirm(false)
+                  setDeleteConfirmInput("")
+                }
+              }}
+              disabled={deleteConfirmInput !== "DELETE"}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
 
-function TOTPView({ credential }: { credential: Credential }) {
+function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [totp, setTotp] = useState<TOTPResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -213,7 +323,9 @@ function TOTPView({ credential }: { credential: Credential }) {
     App.GenerateTOTP(credential.label)
       .then((result) => {
         setError(null)
-        if (result) setTotp(result)
+        if (result) {
+          setTotp(result)
+        }
       })
       .catch((err) => {
         setError(formatError(err, "Failed to generate code"))
@@ -238,13 +350,18 @@ function TOTPView({ credential }: { credential: Credential }) {
         code={totp.code}
         remaining={totp.remaining}
         period={credential.period || 30}
-        onExpired={fetchCode}
+        onExpired={() => {
+          // Don't refresh the code on countdown expiration
+          // The code is time-based and will still be valid
+          // This prevents unnecessary audit events from being recorded
+        }}
       />
       <CopyButton
         copied={copied}
         onCopy={() => {
           navigator.clipboard.writeText(totp.code)
           setCopied(true)
+          onUsed()
           setTimeout(() => setCopied(false), 2000)
         }}
       />
@@ -252,7 +369,7 @@ function TOTPView({ credential }: { credential: Credential }) {
   )
 }
 
-function HOTPView({ credential }: { credential: Credential }) {
+function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [code, setCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -262,7 +379,10 @@ function HOTPView({ credential }: { credential: Credential }) {
     setLoading(true)
     setError(null)
     App.GenerateHOTP(credential.label)
-      .then(setCode)
+      .then((result) => {
+        setCode(result)
+        onUsed()
+      })
       .catch((err) => setError(formatError(err, "Failed to generate code")))
       .finally(() => setLoading(false))
   }
@@ -293,7 +413,7 @@ function HOTPView({ credential }: { credential: Credential }) {
   )
 }
 
-function StaticView({ credential }: { credential: Credential }) {
+function StaticView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -305,6 +425,7 @@ function StaticView({ credential }: { credential: Credential }) {
     App.GetStaticPassword(credential.label)
       .then(() => {
         setCopied(true)
+        onUsed()
         setTimeout(() => setCopied(false), 3000)
       })
       .catch((err) => {
@@ -333,7 +454,7 @@ function StaticView({ credential }: { credential: Credential }) {
   )
 }
 
-function ChallengeResponseView({ credential }: { credential: Credential }) {
+function ChallengeResponseView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [challenge, setChallenge] = useState("")
   const [response, setResponse] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -345,7 +466,10 @@ function ChallengeResponseView({ credential }: { credential: Credential }) {
     setLoading(true)
     setError(null)
     App.SignChallenge(credential.label, challenge)
-      .then(setResponse)
+      .then((result) => {
+        setResponse(result)
+        onUsed()
+      })
       .catch((err) => setError(formatError(err, "Signing failed")))
       .finally(() => setLoading(false))
   }

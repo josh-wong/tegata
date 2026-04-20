@@ -69,12 +69,21 @@ describe("CredentialDetail", () => {
     })
   })
 
-  it("shows Remove button that calls onRemove with credential id", async () => {
+  it("shows Remove button that calls onRemove with credential id after confirmation", async () => {
     const onRemove = vi.fn()
     const user = userEvent.setup()
     render(<CredentialDetail credential={totpCredential} onRemove={onRemove} />)
 
+    // Click the remove button to open the confirmation dialog
     await user.click(screen.getByText("Remove credential"))
+
+    // Type "DELETE" in the confirmation input
+    const confirmInput = screen.getByPlaceholderText('Type "DELETE" to confirm')
+    await user.type(confirmInput, "DELETE")
+
+    // Click the Remove button in the dialog
+    const removeButtons = screen.getAllByText("Remove")
+    await user.click(removeButtons[removeButtons.length - 1])
 
     expect(onRemove).toHaveBeenCalledWith("cred-1")
   })
