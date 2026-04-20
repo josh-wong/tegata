@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Copy, Check, Loader2 } from "lucide-react"
+import { Copy, Check, Loader2, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { TOTPCountdown } from "@/components/shared/TOTPCountdown"
 import { App } from "@/lib/wails"
-import { formatError } from "@/lib/utils"
-import type { Credential, TOTPResult } from "@/lib/types"
+import { formatError, hashString } from "@/lib/utils"
+import type { Credential, TOTPResult, AuditVerifyResult } from "@/lib/types"
 
 interface CredentialDetailProps {
   credential: Credential | null
   onRemove: (id: string) => void
+  auditEnabled: boolean
 }
 
 function formatDate(dateString: string): string {
@@ -48,7 +49,7 @@ function formatCredentialType(type: string): string {
   }
 }
 
-export function CredentialDetail({ credential, onRemove }: CredentialDetailProps) {
+export function CredentialDetail({ credential, onRemove, auditEnabled }: CredentialDetailProps) {
   const [lastUsed, setLastUsed] = useState<string | null>(() => {
     if (!credential) return null
     const stored = localStorage.getItem(`last-used-${credential.id}`)
@@ -58,6 +59,11 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
   // Confirmation dialog for credential deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
+
+  // Audit state
+  const [auditEventCount, setAuditEventCount] = useState<number | null>(null)
+  const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   // Right sidebar panel width — persisted to localStorage
   const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
@@ -70,15 +76,59 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
   const startPosRef = useRef(0)
   const startSizeRef = useRef(0)
 
-  // Update displayed "Last used" when credential changes
+  // Update displayed "Last used" and audit event count when credential changes
   useEffect(() => {
     if (!credential) {
       setLastUsed(null)
+      setAuditEventCount(null)
+      setVerifyResult(null)
       return
     }
     const stored = localStorage.getItem(`last-used-${credential.id}`)
     setLastUsed(stored || null)
-  }, [credential?.id])
+    setVerifyResult(null)
+
+    if (auditEnabled) {
+      // Fetch event count for this credential
+      hashString(credential.label)
+        .then((labelHash) =>
+          App.GetAuditHistory().then((records) => {
+            const count = (records ?? []).filter((r) => r.label_hash === labelHash).length
+            setAuditEventCount(count)
+          }),
+        )
+        .catch(() => setAuditEventCount(null))
+
+      // Auto-verify integrity on credential selection
+      setVerifying(true)
+      App.VerifyCredentialAuditLog(credential.label)
+        .then((result) => setVerifyResult(result ?? null))
+        .catch(() =>
+          setVerifyResult({
+            valid: false,
+            event_count: 0,
+            error_detail: "Verification failed. Check your connection to the audit server.",
+          }),
+        )
+        .finally(() => setVerifying(false))
+    } else {
+      setAuditEventCount(null)
+    }
+  }, [credential?.id, auditEnabled])
+
+  const handleVerify = useCallback(async () => {
+    if (!credential) return
+    setVerifying(true)
+    setVerifyResult(null)
+    try {
+      const result = await App.VerifyCredentialAuditLog(credential.label)
+      setVerifyResult(result ?? null)
+    } catch {
+      setVerifyResult({ valid: false, event_count: 0, error_detail: "Verification failed. Check your connection to the audit server." })
+    } finally {
+      setVerifying(false)
+    }
+  }, [credential])
 
   // Track "Last used" based on explicit user actions (Copy button, Generate button, etc.)
   const recordLastUsed = useCallback(() => {
@@ -249,6 +299,60 @@ export function CredentialDetail({ credential, onRemove }: CredentialDetailProps
             )}
           </div>
         </div>
+
+        {auditEnabled && (
+          <>
+            <Separator />
+            <div className="p-4 space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase">Audit</h3>
+
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Recorded actions</span>
+                <span className="font-medium">
+                  {auditEventCount === null ? "—" : auditEventCount}
+                </span>
+              </div>
+
+              {verifying && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Verifying…
+                </div>
+              )}
+
+              {!verifying && verifyResult && (
+                verifyResult.valid ? (
+                  <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
+                    <p className="text-xs text-green-700 dark:text-green-300">
+                      {verifyResult.event_count === 0
+                        ? "No audit events to verify."
+                        : "Integrity verified."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                    <p className="text-xs font-semibold text-red-700 dark:text-red-300">
+                      Tamper detected — {verifyResult.error_detail}
+                    </p>
+                  </div>
+                )
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={handleVerify}
+                disabled={verifying}
+              >
+                <ShieldCheck className="mr-2 h-3 w-3" />
+                Re-verify integrity
+              </Button>
+            </div>
+          </>
+        )}
 
         <div className="flex justify-end px-4 pt-2 pb-4">
           <Button

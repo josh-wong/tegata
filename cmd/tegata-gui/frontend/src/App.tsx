@@ -174,6 +174,7 @@ function App() {
         <CredentialDetail
           credential={creds.selectedCredential}
           onRemove={handleRemove}
+          auditEnabled={auditEnabled}
         />
       </div>
 
