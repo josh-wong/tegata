@@ -99,12 +99,6 @@ export function UnlockView({
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={vaultPath ?? ""}
               onChange={(e) => onSelectVault(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && passphrase && !loading) {
-                  e.preventDefault()
-                  onUnlock(passphrase)
-                }
-              }}
             >
               {vaultLocations.map((loc) => (
                 <option key={loc.path} value={loc.path}>
