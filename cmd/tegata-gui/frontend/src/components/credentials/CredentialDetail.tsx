@@ -116,6 +116,18 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
     }
   }, [credential?.id, auditEnabled])
 
+  const refreshAuditEventCount = useCallback(() => {
+    if (!credential || !auditEnabled) return
+    hashString(credential.label)
+      .then((labelHash) =>
+        App.GetAuditHistory().then((records) => {
+          const count = (records ?? []).filter((r) => r.label_hash === labelHash).length
+          setAuditEventCount(count)
+        }),
+      )
+      .catch(() => {})
+  }, [credential, auditEnabled])
+
   const handleVerify = useCallback(async () => {
     if (!credential) return
     setVerifying(true)
@@ -143,7 +155,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
     })
     setLastUsed(formatted)
     localStorage.setItem(`last-used-${credential.id}`, formatted)
-  }, [credential])
+    refreshAuditEventCount()
+  }, [credential, refreshAuditEventCount])
 
   // Drag-to-resize handlers for right sidebar panel width
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -322,8 +335,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
 
               {!verifying && verifyResult && (
                 verifyResult.valid ? (
-                  <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950">
-                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
+                  <div className="flex items-center justify-center gap-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950">
+                    <CheckCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
                     <p className="text-xs text-green-700 dark:text-green-300">
                       {verifyResult.event_count === 0
                         ? "No audit events to verify."
