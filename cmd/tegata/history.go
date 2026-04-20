@@ -45,8 +45,10 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			}
 
 			if !cfg.Audit.Enabled {
-				fmt.Fprintln(os.Stderr, "Audit is not enabled. Add [audit] enabled = true to tegata.toml.")
-				fmt.Fprintln(os.Stderr, "See docs/scalardl-setup.md for configuration instructions.")
+				fmt.Fprintln(os.Stderr, "Audit is not enabled. To enable, choose one of:")
+				fmt.Fprintln(os.Stderr, "  Quick setup (Docker): tegata ledger start --vault <path>")
+				fmt.Fprintln(os.Stderr, "  Manual setup: add [audit] to tegata.toml and run: tegata ledger setup --vault <path>")
+				fmt.Fprintln(os.Stderr, "Run 'tegata ledger setup --help' for the required tegata.toml fields.")
 				return nil
 			}
 
