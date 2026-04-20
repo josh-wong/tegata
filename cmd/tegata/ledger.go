@@ -16,6 +16,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// auditTOMLExample is the canonical inline TOML block shown in help text and
+// error output. Defined once so both surfaces stay in sync.
+const auditTOMLExample = `  [audit]
+  enabled           = true
+  server            = "127.0.0.1:50051"
+  privileged_server = "127.0.0.1:50052"
+  entity_id         = "tegata-client"
+  key_version       = 1
+  secret_key        = "your-secret-key"
+  insecure          = true  # set to false for remote or production servers`
+
 // newLedgerCmd returns the 'tegata ledger' command with its subcommands.
 func newLedgerCmd() *cobra.Command {
 	ledgerCmd := &cobra.Command{
@@ -46,14 +57,7 @@ the configured secret key and server address.
 
 To configure tegata.toml for a local ScalarDL instance:
 
-  [audit]
-  enabled           = true
-  server            = "127.0.0.1:50051"
-  privileged_server = "127.0.0.1:50052"
-  entity_id         = "tegata-client"
-  key_version       = 1
-  secret_key        = "your-secret-key"
-  insecure          = true
+` + auditTOMLExample + `
 
 For a remote instance with TLS, omit insecure (or set it to false). Run
 'tegata ledger start' for automatic Docker-based setup instead.`,
@@ -80,14 +84,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 
 	if !cfg.Audit.Enabled {
 		fmt.Fprintln(os.Stderr, "Audit logging is not enabled. Add the [audit] section to tegata.toml in your vault directory:")
-		fmt.Fprintln(os.Stderr, "  [audit]")
-		fmt.Fprintln(os.Stderr, "  enabled           = true")
-		fmt.Fprintln(os.Stderr, "  server            = \"127.0.0.1:50051\"")
-		fmt.Fprintln(os.Stderr, "  privileged_server = \"127.0.0.1:50052\"")
-		fmt.Fprintln(os.Stderr, "  entity_id         = \"tegata-client\"")
-		fmt.Fprintln(os.Stderr, "  key_version       = 1")
-		fmt.Fprintln(os.Stderr, "  secret_key        = \"your-secret-key\"")
-		fmt.Fprintln(os.Stderr, "  insecure          = true  # set to false for remote or production servers")
+		fmt.Fprintln(os.Stderr, auditTOMLExample)
 		fmt.Fprintln(os.Stderr, "Or run 'tegata ledger start' for automatic Docker-based setup.")
 		return nil
 	}
@@ -129,8 +126,12 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	// Verify that the generic contracts are registered by attempting a test Put.
 	fmt.Fprintln(os.Stderr, "Verifying generic contracts are registered...")
 	if err := verifyContracts(ctx, client); err != nil {
+		composeDir := "~/.tegata/docker"
+		if u, err := user.Current(); err == nil {
+			composeDir = filepath.Join(u.HomeDir, ".tegata", "docker")
+		}
 		fmt.Fprintln(os.Stderr, "Generic contracts are NOT registered on this ScalarDL instance.")
-		fmt.Fprintln(os.Stderr, "Run from ~/.tegata/docker/: docker compose run --rm scalardl-contract-registration")
+		fmt.Fprintf(os.Stderr, "Run from %s: docker compose run --rm scalardl-contract-registration\n", composeDir)
 		fmt.Fprintln(os.Stderr, "If registration fails with INVALID_SIGNATURE, confirm that the secret key in")
 		fmt.Fprintln(os.Stderr, "certs/client.properties is on a single unbroken line with no line breaks in the value.")
 		return fmt.Errorf("contract verification failed: %w", err)
