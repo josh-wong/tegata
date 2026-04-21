@@ -58,6 +58,8 @@ interface WailsAppBindings {
   IsAuditEnabled(): Promise<boolean>
   GetAuditHistory(): Promise<AuditHistoryRecord[]>
   VerifyAuditLog(): Promise<AuditVerifyResult>
+  // Prepared for per-credential integrity verification UI (issue #67).
+  // Backend plumbing is complete but the UI does not yet call this method.
   VerifyCredentialAuditLog(label: string): Promise<AuditVerifyResult>
   GetAuditDockerPath(): Promise<string>
   StartAuditServer(): Promise<{ steps: string[] }>
@@ -105,6 +107,7 @@ export const App = {
   IsAuditEnabled: () => getApp().IsAuditEnabled(),
   GetAuditHistory: () => getApp().GetAuditHistory(),
   VerifyAuditLog: () => getApp().VerifyAuditLog(),
+  // Prepared for per-credential integrity verification UI (issue #67).
   VerifyCredentialAuditLog: (label: string) => getApp().VerifyCredentialAuditLog(label),
   GetAuditDockerPath: () => getApp().GetAuditDockerPath(),
   StartAuditServer: () => getApp().StartAuditServer(),
