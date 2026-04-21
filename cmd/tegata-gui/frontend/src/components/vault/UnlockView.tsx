@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
+import { VaultSelector } from "./VaultSelector"
 import { EventsOn, EventsOff } from "@/lib/wails"
 import type { VaultLocation } from "@/lib/types"
 
@@ -72,9 +73,12 @@ export function UnlockView({
   }
 
   const currentLocation = vaultLocations.find((v) => v.path === vaultPath)
+  // Only show vault selector if current vault is from a detected location (not custom path)
+  const isCustomPath = vaultPath && !currentLocation
+  const showVaultSelector = vaultLocations.length > 1 && !isCustomPath
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="relative z-10 flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         <Button
           variant="ghost"
@@ -92,20 +96,15 @@ export function UnlockView({
           </p>
         </div>
 
-        {vaultLocations.length > 1 && (
+        {showVaultSelector && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Vault</label>
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={vaultPath ?? ""}
-              onChange={(e) => onSelectVault(e.target.value)}
-            >
-              {vaultLocations.map((loc) => (
-                <option key={loc.path} value={loc.path}>
-                  {loc.driveName} — {loc.path}
-                </option>
-              ))}
-            </select>
+            <VaultSelector
+              vaultPath={vaultPath}
+              vaultLocations={vaultLocations}
+              onSelectVault={onSelectVault}
+              disabled={loading}
+            />
           </div>
         )}
 

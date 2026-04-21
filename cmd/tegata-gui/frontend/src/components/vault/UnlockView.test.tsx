@@ -97,6 +97,7 @@ describe("UnlockView", () => {
     render(
       <UnlockView
         {...defaultProps}
+        vaultPath="/usb/a.tegata"
         vaultLocations={[
           { path: "/usb/a.tegata", driveName: "USB A" },
           { path: "/usb/b.tegata", driveName: "USB B" },
@@ -104,12 +105,12 @@ describe("UnlockView", () => {
       />,
     )
     expect(screen.getByText("Vault")).toBeInTheDocument()
-    expect(screen.getByRole("combobox")).toBeInTheDocument()
+    expect(screen.getByText(/USB A/)).toBeInTheDocument()
   })
 
   it("does not show vault selector for single location", () => {
     render(<UnlockView {...defaultProps} />)
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+    expect(screen.queryByText("Vault")).not.toBeInTheDocument()
   })
 
   it("Back button calls onBack", async () => {

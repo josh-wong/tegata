@@ -58,6 +58,7 @@ function App() {
     if (vault.isUnlocked) {
       creds.refresh()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault.isUnlocked, creds.refresh])
 
   const handleRemove = useCallback(
@@ -174,6 +175,7 @@ function App() {
         <CredentialDetail
           credential={creds.selectedCredential}
           onRemove={handleRemove}
+          auditEnabled={auditEnabled}
         />
       </div>
 

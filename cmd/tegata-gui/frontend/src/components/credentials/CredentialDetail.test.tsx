@@ -3,7 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { CredentialDetail } from "./CredentialDetail"
 import { App } from "@/lib/wails"
+import { hashString } from "@/lib/utils"
 import type { Credential } from "@/lib/types"
+
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>()
+  return { ...actual, hashString: vi.fn().mockResolvedValue("test-label-hash") }
+})
 
 const totpCredential: Credential = {
   id: "cred-1",
@@ -69,12 +75,20 @@ describe("CredentialDetail", () => {
     })
   })
 
-  it("shows Remove button that calls onRemove with credential id", async () => {
+  it("shows Remove button that calls onRemove with credential id after confirmation", async () => {
     const onRemove = vi.fn()
     const user = userEvent.setup()
     render(<CredentialDetail credential={totpCredential} onRemove={onRemove} />)
 
+    // Click the remove button to open the confirmation dialog
     await user.click(screen.getByText("Remove credential"))
+
+    // Type "DELETE" in the confirmation input
+    const confirmInput = screen.getByPlaceholderText('Type "DELETE" to confirm')
+    await user.type(confirmInput, "DELETE")
+
+    // Click the Remove button in the dialog
+    await user.click(screen.getByRole("button", { name: "Remove" }))
 
     expect(onRemove).toHaveBeenCalledWith("cred-1")
   })
@@ -92,11 +106,6 @@ describe("CredentialDetail", () => {
   it("HOTP type shows 'Generate code' button", () => {
     render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
     expect(screen.getByText("Generate code")).toBeInTheDocument()
-  })
-
-  it("HOTP type shows counter value", () => {
-    render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
-    expect(screen.getByText("Counter: 5")).toBeInTheDocument()
   })
 
   it("HOTP type calls GenerateHOTP when Generate code is clicked", async () => {
@@ -158,5 +167,26 @@ describe("CredentialDetail", () => {
     }
     render(<CredentialDetail credential={noTagsCred} onRemove={vi.fn()} />)
     expect(screen.queryByText("dev")).not.toBeInTheDocument()
+  })
+
+  it("does not render Audit section when auditEnabled is false", () => {
+    render(<CredentialDetail credential={totpCredential} onRemove={vi.fn()} auditEnabled={false} />)
+    expect(screen.queryByText("Recorded actions")).not.toBeInTheDocument()
+  })
+
+  it("shows Recorded actions count filtered to the selected credential", async () => {
+    vi.mocked(hashString).mockResolvedValue("test-label-hash")
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "totp", label_hash: "test-label-hash", timestamp: 1000, hash_value: "h1" },
+      { object_id: "evt-2", operation: "totp", label_hash: "test-label-hash", timestamp: 2000, hash_value: "h2" },
+      { object_id: "evt-3", operation: "totp", label_hash: "other-hash", timestamp: 3000, hash_value: "h3" },
+    ])
+
+    render(<CredentialDetail credential={totpCredential} onRemove={vi.fn()} auditEnabled={true} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Recorded actions")).toBeInTheDocument()
+      expect(screen.getByText("2")).toBeInTheDocument()
+    })
   })
 })

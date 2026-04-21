@@ -128,7 +128,7 @@ export function SetupWizard({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="relative z-0 flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Step indicator (only for create flow) */}
         {step !== 6 && (
@@ -197,7 +197,7 @@ export function SetupWizard({
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Choose a location</h2>
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-primary">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
+              <span className="font-semibold text-green-600 dark:text-green-400">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
             </p>
 
             <div className="space-y-2">
@@ -248,14 +248,20 @@ export function SetupWizard({
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Vault name</label>
-              <div className="flex items-center gap-0">
+              <div className="flex items-stretch gap-0">
                 <Input
                   value={vaultName}
                   onChange={(e) => setVaultName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && folderPath && vaultName) {
+                      e.preventDefault()
+                      setStep(3)
+                    }
+                  }}
                   className="rounded-r-none"
                   placeholder="vault"
                 />
-                <span className="flex h-9 items-center rounded-r-md border border-l-0 border-input bg-muted px-3 text-sm text-muted-foreground">
+                <span className="flex items-center rounded-r-md border border-l-0 border-input bg-muted px-3 text-sm text-muted-foreground">
                   .tegata
                 </span>
               </div>
@@ -477,6 +483,12 @@ export function SetupWizard({
               placeholder="C:\path\to\vault.tegata"
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && customPath) {
+                  e.preventDefault()
+                  onOpenExisting(customPath)
+                }
+              }}
               autoFocus={existingVaults.length === 0}
             />
 
