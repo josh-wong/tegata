@@ -756,6 +756,37 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	return records, nil
 }
 
+// VerifyCredentialAuditLog verifies the integrity of audit events for a single
+// credential identified by label. Only events whose label_hash matches the
+// SHA-256 hash of label are validated, so a tamper in another credential's
+// events will not affect the result for this credential.
+func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error) {
+	if a.vault == nil {
+		return nil, fmt.Errorf("vault is locked")
+	}
+
+	client, err := a.newAuditClient()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	labelHash := audit.HashString(label)
+	result, err := audit.VerifyByLabelHash(ctx, client, a.config.Audit.EntityID, labelHash)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuditVerifyResult{
+		Valid:       result.Valid,
+		EventCount:  result.EventCount,
+		ErrorDetail: result.ErrorDetail,
+	}, nil
+}
+
 // VerifyAuditLog verifies the integrity of the audit log by validating each
 // event individually via the per-entity collection.
 func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
