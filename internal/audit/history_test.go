@@ -236,3 +236,54 @@ func TestVerifyByLabelHash_NoMatchingEvents(t *testing.T) {
 		t.Errorf("expected EventCount=0, got %d", result.EventCount)
 	}
 }
+
+func TestVerifyByLabelHash_MultipleCredentialsIndependent(t *testing.T) {
+	// Scenario: Two credentials (hash-a and hash-b). hash-a has tampering, hash-b is clean.
+	// Verify that tampering in hash-a does NOT affect hash-b's verification.
+	client := &mockClient{
+		collectionGet: map[string][]string{
+			audit.CollectionID("entity"): {"evt-a1", "evt-a2", "evt-b1", "evt-b2"},
+		},
+		get: map[string][]*audit.EventRecord{
+			"evt-a1": {{ObjectID: "evt-a1", HashValue: "ha1", Metadata: map[string]interface{}{"label_hash": "hash-a", "timestamp": float64(1)}}},
+			"evt-a2": {{ObjectID: "evt-a2", HashValue: "ha2", Metadata: map[string]interface{}{"label_hash": "hash-a", "timestamp": float64(2)}}},
+			"evt-b1": {{ObjectID: "evt-b1", HashValue: "hb1", Metadata: map[string]interface{}{"label_hash": "hash-b", "timestamp": float64(3)}}},
+			"evt-b2": {{ObjectID: "evt-b2", HashValue: "hb2", Metadata: map[string]interface{}{"label_hash": "hash-b", "timestamp": float64(4)}}},
+		},
+		validate: map[string]*audit.ValidationResult{
+			"evt-a1": {Valid: false, ErrorDetail: "hash mismatch"},    // hash-a is tampered
+			"evt-a2": {Valid: true},
+			"evt-b1": {Valid: true},                                    // hash-b is clean
+			"evt-b2": {Valid: true},
+		},
+	}
+
+	// Verify hash-a (should show tampered)
+	resultA, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a")
+	if err != nil {
+		t.Fatalf("VerifyByLabelHash for hash-a failed: %v", err)
+	}
+	if resultA.Valid {
+		t.Error("hash-a: expected Valid=false (tampered), got true")
+	}
+	if resultA.EventCount != 2 {
+		t.Errorf("hash-a: expected EventCount=2, got %d", resultA.EventCount)
+	}
+
+	// Verify hash-b (should show clean, independent of hash-a's tampering)
+	resultB, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-b")
+	if err != nil {
+		t.Fatalf("VerifyByLabelHash for hash-b failed: %v", err)
+	}
+	if !resultB.Valid {
+		t.Error("hash-b: expected Valid=true (clean), got false")
+	}
+	if resultB.EventCount != 2 {
+		t.Errorf("hash-b: expected EventCount=2, got %d", resultB.EventCount)
+	}
+
+	// Key assertion: tampering in hash-a does NOT affect hash-b
+	if resultA.Valid == resultB.Valid {
+		t.Error("per-credential verification broken: hash-a and hash-b should have different results")
+	}
+}
