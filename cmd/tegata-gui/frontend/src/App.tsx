@@ -58,7 +58,7 @@ function App() {
     if (vault.isUnlocked) {
       creds.refresh()
     }
-  }, [vault.isUnlocked, creds.refresh])
+  }, [vault.isUnlocked, creds])
 
   const handleRemove = useCallback(
     async (id: string) => {

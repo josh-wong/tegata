@@ -17,17 +17,21 @@ export function VaultSelector({
 }: VaultSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [prevIsOpen, setPrevIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   // When the dropdown opens, snap highlight to the currently selected vault
   // so the first ArrowDown/Up moves relative to the active selection.
-  useEffect(() => {
-    if (isOpen) {
-      const selectedIndex = vaultLocations.findIndex((v) => v.path === vaultPath)
-      setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
-    }
-  }, [isOpen, vaultLocations, vaultPath])
+  // Using setState during render (not in an effect) to avoid react-hooks/set-state-in-effect
+  // See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true)
+    const selectedIndex = vaultLocations.findIndex((v) => v.path === vaultPath)
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false)
+  }
 
   const currentVault = vaultLocations.find((v) => v.path === vaultPath)
   const displayText = currentVault
