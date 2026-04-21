@@ -84,8 +84,8 @@ func scanMountedDrives() []VaultLocation {
 	return results
 }
 
-// findVaultsInDir returns VaultLocation entries for all *.tegata files in dir.
-// Filters out macOS metadata files (starting with "._").
+// findVaultsInDir returns VaultLocation entries for all *.tegata files in dir,
+// skipping macOS resource fork files (names starting with "._").
 func findVaultsInDir(dir, driveName string) []VaultLocation {
 	var results []VaultLocation
 	entries, err := os.ReadDir(dir)
@@ -97,7 +97,6 @@ func findVaultsInDir(dir, driveName string) []VaultLocation {
 			continue
 		}
 		name := e.Name()
-		// Skip macOS metadata files (resource forks).
 		if strings.HasPrefix(name, "._") {
 			continue
 		}

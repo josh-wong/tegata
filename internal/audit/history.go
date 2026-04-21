@@ -102,6 +102,7 @@ func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash s
 		return &VerifyResult{Valid: true, EventCount: 0}, nil
 	}
 
+	// TODO: parallelize Validate calls if per-credential event counts grow large.
 	var faults []string
 	for _, id := range matchingIDs {
 		result, err := client.Validate(ctx, id)

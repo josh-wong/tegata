@@ -11,6 +11,16 @@ export function formatError(err: unknown, fallback: string): string {
   return fallback
 }
 
+export function formatTimestamp(date: Date | string): string {
+  return new Date(date).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export async function hashString(s: string): Promise<string> {
   const data = new TextEncoder().encode(s)
   const digest = await crypto.subtle.digest("SHA-256", data)

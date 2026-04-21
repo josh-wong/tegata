@@ -14,24 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { TOTPCountdown } from "@/components/shared/TOTPCountdown"
 import { App } from "@/lib/wails"
-import { formatError, hashString } from "@/lib/utils"
+import { formatError, formatTimestamp, hashString } from "@/lib/utils"
 import type { Credential, TOTPResult } from "@/lib/types"
 
 interface CredentialDetailProps {
   credential: Credential | null
   onRemove: (id: string) => void
   auditEnabled?: boolean
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }
 
 function formatCredentialType(type: string): string {
@@ -105,14 +94,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
   // Writes to localStorage and updates state immediately.
   const recordLastUsed = useCallback(() => {
     if (!credential) return
-    const now = new Date()
-    const formatted = now.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    const formatted = formatTimestamp(new Date())
     localStorage.setItem(`last-used-${credential.id}`, formatted)
     setLastUsed(formatted)
     fetchAuditEventCount()
@@ -253,14 +235,14 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
             {credential.created_at && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
-                <span className="font-medium text-xs">{formatDate(credential.created_at)}</span>
+                <span className="font-medium text-xs">{formatTimestamp(credential.created_at)}</span>
               </div>
             )}
 
             {credential.modified_at && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Modified</span>
-                <span className="font-medium text-xs">{formatDate(credential.modified_at)}</span>
+                <span className="font-medium text-xs">{formatTimestamp(credential.modified_at)}</span>
               </div>
             )}
 
@@ -321,6 +303,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               onChange={(e) => setDeleteConfirmInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && deleteConfirmInput === "DELETE" && credential) {
+                  localStorage.removeItem(`last-used-${credential.id}`)
                   onRemove(credential.id)
                   setShowDeleteConfirm(false)
                   setDeleteConfirmInput("")
@@ -342,6 +325,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               variant="destructive"
               onClick={() => {
                 if (credential) {
+                  localStorage.removeItem(`last-used-${credential.id}`)
                   onRemove(credential.id)
                   setShowDeleteConfirm(false)
                   setDeleteConfirmInput("")
