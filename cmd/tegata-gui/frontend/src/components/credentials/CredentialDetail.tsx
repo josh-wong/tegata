@@ -56,7 +56,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
   // See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   const [lastUsed, setLastUsed] = useState<string | null>(null)
   const [lastUsedCredId, setLastUsedCredId] = useState<string | null>(credential?.id ?? null)
-  if (credential?.id !== lastUsedCredId) {
+  if ((credential?.id ?? null) !== lastUsedCredId) {
     setLastUsedCredId(credential?.id ?? null)
     setLastUsed(credential ? localStorage.getItem(`last-used-${credential.id}`) || null : null)
   }
@@ -68,7 +68,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
   // Audit event count — reset when credential changes, populated by the effect below.
   const [auditEventCount, setAuditEventCount] = useState<number | null>(null)
   const [auditCountCredId, setAuditCountCredId] = useState<string | null>(null)
-  if (credential?.id !== auditCountCredId) {
+  if ((credential?.id ?? null) !== auditCountCredId) {
     setAuditCountCredId(credential?.id ?? null)
     setAuditEventCount(null)
   }
