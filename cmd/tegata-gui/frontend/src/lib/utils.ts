@@ -12,7 +12,7 @@ export function formatError(err: unknown, fallback: string): string {
 }
 
 export function formatTimestamp(date: Date | string): string {
-  return new Date(date).toLocaleDateString(undefined, {
+  return new Date(date).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -119,16 +119,14 @@ export function VaultSelector({
               const isSelected = loc.path === vaultPath
 
               return (
-                <button
+                <div
                   key={loc.path}
                   id={`vault-option-${index}`}
-                  type="button"
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => handleSelect(loc.path)}
                   onMouseEnter={() => setHighlightedIndex(index)}
-                  onKeyDown={handleKeyDown}
-                  className={`w-full text-left px-3 py-2 flex items-start justify-between transition-colors ${
+                  className={`cursor-pointer px-3 py-2 flex items-start justify-between transition-colors ${
                     isHighlighted
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent/50"
@@ -143,7 +141,7 @@ export function VaultSelector({
                   {isSelected && (
                     <span className="ml-2 text-accent-foreground">✓</span>
                   )}
-                </button>
+                </div>
               )
             })}
           </div>

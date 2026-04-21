@@ -39,28 +39,21 @@ function formatCredentialType(type: string): string {
 }
 
 export function CredentialDetail({ credential, onRemove, auditEnabled = false }: CredentialDetailProps) {
-  // "Last used" state — updated directly by recordLastUsed on user action.
-  // When the selected credential changes, synced from localStorage using React's
+  // Reset derived state when the selected credential changes, using React's
   // "setState during render" pattern to avoid the react-hooks/set-state-in-effect rule.
   // See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   const [lastUsed, setLastUsed] = useState<string | null>(null)
-  const [lastUsedCredId, setLastUsedCredId] = useState<string | null>(credential?.id ?? null)
-  if ((credential?.id ?? null) !== lastUsedCredId) {
-    setLastUsedCredId(credential?.id ?? null)
+  const [auditEventCount, setAuditEventCount] = useState<number | null>(null)
+  const [prevCredId, setPrevCredId] = useState<string | null>(credential?.id ?? null)
+  if ((credential?.id ?? null) !== prevCredId) {
+    setPrevCredId(credential?.id ?? null)
     setLastUsed(credential ? localStorage.getItem(`last-used-${credential.id}`) || null : null)
+    setAuditEventCount(null)
   }
 
   // Confirmation dialog for credential deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
-
-  // Audit event count — reset when credential changes, populated by the effect below.
-  const [auditEventCount, setAuditEventCount] = useState<number | null>(null)
-  const [auditCountCredId, setAuditCountCredId] = useState<string | null>(null)
-  if ((credential?.id ?? null) !== auditCountCredId) {
-    setAuditCountCredId(credential?.id ?? null)
-    setAuditEventCount(null)
-  }
 
   // Right sidebar panel width — persisted to localStorage
   const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
@@ -99,6 +92,14 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
     setLastUsed(formatted)
     fetchAuditEventCount()
   }, [credential, fetchAuditEventCount])
+
+  // Shared handler for the delete confirmation dialog's confirm action.
+  const confirmDelete = useCallback(() => {
+    localStorage.removeItem(`last-used-${credential?.id}`)
+    onRemove(credential!.id)
+    setShowDeleteConfirm(false)
+    setDeleteConfirmInput("")
+  }, [credential, onRemove])
 
   // Drag-to-resize handler for right sidebar panel width.
   // onMouseMove and onMouseUp are defined inside handleMouseDown so that
@@ -302,11 +303,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               value={deleteConfirmInput}
               onChange={(e) => setDeleteConfirmInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && deleteConfirmInput === "DELETE" && credential) {
-                  localStorage.removeItem(`last-used-${credential.id}`)
-                  onRemove(credential.id)
-                  setShowDeleteConfirm(false)
-                  setDeleteConfirmInput("")
+                if (e.key === "Enter" && deleteConfirmInput === "DELETE") {
+                  confirmDelete()
                 }
               }}
             />
@@ -323,14 +321,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (credential) {
-                  localStorage.removeItem(`last-used-${credential.id}`)
-                  onRemove(credential.id)
-                  setShowDeleteConfirm(false)
-                  setDeleteConfirmInput("")
-                }
-              }}
+              onClick={confirmDelete}
               disabled={deleteConfirmInput !== "DELETE"}
             >
               Remove
