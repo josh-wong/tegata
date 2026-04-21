@@ -50,18 +50,28 @@ function formatCredentialType(type: string): string {
 }
 
 export function CredentialDetail({ credential, onRemove, auditEnabled }: CredentialDetailProps) {
-  const [lastUsed, setLastUsed] = useState<string | null>(() => {
-    if (!credential) return null
-    const stored = localStorage.getItem(`last-used-${credential.id}`)
-    return stored || null
-  })
+  // "Last used" state — updated directly by recordLastUsed on user action.
+  // When the selected credential changes, synced from localStorage using React's
+  // "setState during render" pattern to avoid the react-hooks/set-state-in-effect rule.
+  // See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [lastUsed, setLastUsed] = useState<string | null>(null)
+  const [lastUsedCredId, setLastUsedCredId] = useState<string | null>(credential?.id ?? null)
+  if (credential?.id !== lastUsedCredId) {
+    setLastUsedCredId(credential?.id ?? null)
+    setLastUsed(credential ? localStorage.getItem(`last-used-${credential.id}`) || null : null)
+  }
 
   // Confirmation dialog for credential deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
 
-  // Audit state
+  // Audit event count — reset when credential changes, populated by the effect below.
   const [auditEventCount, setAuditEventCount] = useState<number | null>(null)
+  const [auditCountCredId, setAuditCountCredId] = useState<string | null>(null)
+  if (credential?.id !== auditCountCredId) {
+    setAuditCountCredId(credential?.id ?? null)
+    setAuditEventCount(null)
+  }
 
   // Right sidebar panel width — persisted to localStorage
   const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
@@ -77,28 +87,17 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
   // not the stale closure value captured when the drag started.
   const currentSizeRef = useRef(metaPanelSize)
 
-  // Update displayed "Last used" and audit event count when credential changes
+  // Fetch audit event count when the selected credential or audit state changes.
   useEffect(() => {
-    if (!credential) {
-      setLastUsed(null)
-      setAuditEventCount(null)
-      return
-    }
-    const stored = localStorage.getItem(`last-used-${credential.id}`)
-    setLastUsed(stored || null)
-
-    if (auditEnabled) {
-      hashString(credential.label)
-        .then((labelHash) =>
-          App.GetAuditHistory().then((records) => {
-            const count = (records ?? []).filter((r) => r.label_hash === labelHash).length
-            setAuditEventCount(count)
-          }),
-        )
-        .catch(() => setAuditEventCount(null))
-    } else {
-      setAuditEventCount(null)
-    }
+    if (!credential || !auditEnabled) return
+    hashString(credential.label)
+      .then((labelHash) =>
+        App.GetAuditHistory().then((records) => {
+          const count = (records ?? []).filter((r) => r.label_hash === labelHash).length
+          setAuditEventCount(count)
+        }),
+      )
+      .catch(() => setAuditEventCount(null))
   }, [credential?.id, auditEnabled])
 
   const refreshAuditEventCount = useCallback(() => {
@@ -113,7 +112,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
       .catch(() => {})
   }, [credential, auditEnabled])
 
-  // Track "Last used" based on explicit user actions (Copy button, Generate button, etc.)
+  // Track "Last used" based on explicit user actions (Copy button, Generate button, etc.).
+  // Writes to localStorage and increments lastUsedVersion to trigger a useMemo re-read.
   const recordLastUsed = useCallback(() => {
     if (!credential) return
     const now = new Date()
@@ -124,8 +124,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
       hour: "2-digit",
       minute: "2-digit",
     })
-    setLastUsed(formatted)
     localStorage.setItem(`last-used-${credential.id}`, formatted)
+    setLastUsed(formatted)
     refreshAuditEventCount()
   }, [credential, refreshAuditEventCount])
 
