@@ -22,7 +22,7 @@ export function VaultSelector({
 
   const currentVault = vaultLocations.find((v) => v.path === vaultPath)
   const displayText = currentVault
-    ? `${currentVault.driveName} — ${currentVault.path.split("/").pop() || "vault"}`
+    ? `${currentVault.driveName} — ${currentVault.path.split(/[/\\]/).pop() || "vault"}`
     : "Select a vault"
 
   // Close dropdown when clicking outside
@@ -99,7 +99,7 @@ export function VaultSelector({
         <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-input bg-popover shadow-lg">
           <div className="max-h-60 overflow-y-auto">
             {vaultLocations.map((loc, index) => {
-              const filename = loc.path.split("/").pop() || "vault"
+              const filename = loc.path.split(/[/\\]/).pop() || "vault"
               const isHighlighted = index === highlightedIndex
               const isSelected = loc.path === vaultPath
 

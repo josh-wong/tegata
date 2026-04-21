@@ -20,7 +20,7 @@ import type { Credential, TOTPResult } from "@/lib/types"
 interface CredentialDetailProps {
   credential: Credential | null
   onRemove: (id: string) => void
-  auditEnabled: boolean
+  auditEnabled?: boolean
 }
 
 function formatDate(dateString: string): string {
@@ -49,7 +49,7 @@ function formatCredentialType(type: string): string {
   }
 }
 
-export function CredentialDetail({ credential, onRemove, auditEnabled }: CredentialDetailProps) {
+export function CredentialDetail({ credential, onRemove, auditEnabled = false }: CredentialDetailProps) {
   // "Last used" state — updated directly by recordLastUsed on user action.
   // When the selected credential changes, synced from localStorage using React's
   // "setState during render" pattern to avoid the react-hooks/set-state-in-effect rule.
@@ -75,8 +75,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
 
   // Right sidebar panel width — persisted to localStorage
   const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
-    const savedSize = localStorage.getItem("credential-meta-panel-size")
-    return savedSize ? parseInt(savedSize, 10) : 280
+    const parsed = parseInt(localStorage.getItem("credential-meta-panel-size") ?? "", 10)
+    return Number.isFinite(parsed) ? parsed : 280
   })
 
   // Tracks the live size during a drag so onMouseUp reads the final value,
@@ -311,7 +311,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
           <DialogHeader>
             <DialogTitle>Remove credential?</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to confirm removal of "{credential?.label}".
+              This action cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to confirm removal of "{credential.label}".
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
