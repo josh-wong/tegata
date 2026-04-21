@@ -20,6 +20,15 @@ export function VaultSelector({
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  // When the dropdown opens, snap highlight to the currently selected vault
+  // so the first ArrowDown/Up moves relative to the active selection.
+  useEffect(() => {
+    if (isOpen) {
+      const selectedIndex = vaultLocations.findIndex((v) => v.path === vaultPath)
+      setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
+    }
+  }, [isOpen, vaultLocations, vaultPath])
+
   const currentVault = vaultLocations.find((v) => v.path === vaultPath)
   const displayText = currentVault
     ? `${currentVault.driveName} — ${currentVault.path.split(/[/\\]/).pop() || "vault"}`
@@ -81,6 +90,12 @@ export function VaultSelector({
     <div ref={containerRef} className="relative">
       <button
         ref={buttonRef}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls="vault-selector-listbox"
+        aria-activedescendant={isOpen ? `vault-option-${highlightedIndex}` : undefined}
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
@@ -97,7 +112,7 @@ export function VaultSelector({
 
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-input bg-popover shadow-lg">
-          <div className="max-h-60 overflow-y-auto">
+          <div role="listbox" id="vault-selector-listbox" className="max-h-60 overflow-y-auto">
             {vaultLocations.map((loc, index) => {
               const filename = loc.path.split(/[/\\]/).pop() || "vault"
               const isHighlighted = index === highlightedIndex
@@ -106,6 +121,10 @@ export function VaultSelector({
               return (
                 <button
                   key={loc.path}
+                  id={`vault-option-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => handleSelect(loc.path)}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onKeyDown={handleKeyDown}
