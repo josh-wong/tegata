@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Copy, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -123,10 +123,10 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
         <Separator />
 
         <div className="flex-1 mt-4">
-          {credential.type === "totp" && <TOTPView key={credential.label} credential={credential} onUsed={recordLastUsed} />}
-          {credential.type === "hotp" && <HOTPView credential={credential} onUsed={recordLastUsed} />}
-          {credential.type === "static" && <StaticView credential={credential} onUsed={recordLastUsed} />}
-          {credential.type === "challenge-response" && <ChallengeResponseView credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "totp" && <TOTPView key={credential.id} credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "hotp" && <HOTPView key={credential.id} credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "static" && <StaticView key={credential.id} credential={credential} onUsed={recordLastUsed} />}
+          {credential.type === "challenge-response" && <ChallengeResponseView key={credential.id} credential={credential} onUsed={recordLastUsed} />}
         </div>
       </div>
 
@@ -225,7 +225,11 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Recorded actions</span>
                 <span className="font-medium">
-                  {auditEventCount === null ? "—" : auditEventCount}
+                  {auditEventCount === null ? (
+                    <Loader2 className="h-4 w-4 animate-spin inline" />
+                  ) : (
+                    auditEventCount
+                  )}
                 </span>
               </div>
             </div>
@@ -342,11 +346,12 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
 function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [code, setCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const inFlight = useRef(false)
 
   function generate() {
-    setLoading(true)
+    if (inFlight.current) return
+    inFlight.current = true
     setError(null)
     App.GenerateHOTP(credential.label)
       .then((result) => {
@@ -354,7 +359,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         onUsed()
       })
       .catch((err) => setError(formatError(err, "Failed to generate code")))
-      .finally(() => setLoading(false))
+      .finally(() => { inFlight.current = false })
   }
 
   return (
@@ -364,9 +369,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         <span className="font-mono text-3xl font-bold tracking-wider">{code}</span>
       )}
       <div className="flex gap-2">
-        <Button onClick={generate} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate code"}
-        </Button>
+        <Button onClick={generate}>Generate code</Button>
         {code && (
           <CopyButton
             copied={copied}
@@ -383,13 +386,13 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
 }
 
 function StaticView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
-  const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
-
   const [error, setError] = useState<string | null>(null)
+  const inFlight = useRef(false)
 
   function copyPassword() {
-    setLoading(true)
+    if (inFlight.current) return
+    inFlight.current = true
     setError(null)
     App.GetStaticPassword(credential.label)
       .then(() => {
@@ -400,7 +403,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
       .catch((err) => {
         setError(formatError(err, "Failed to copy password"))
       })
-      .finally(() => setLoading(false))
+      .finally(() => { inFlight.current = false })
   }
 
   return (
@@ -409,10 +412,8 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
         The password will be copied to your clipboard and auto-cleared after 45 seconds.
       </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button onClick={copyPassword} disabled={loading}>
-        {loading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : copied ? (
+      <Button onClick={copyPassword}>
+        {copied ? (
           <Check className="mr-2 h-4 w-4 text-green-500" />
         ) : (
           <Copy className="mr-2 h-4 w-4" />
@@ -426,13 +427,13 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
 function ChallengeResponseView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
   const [challenge, setChallenge] = useState("")
   const [response, setResponse] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const inFlight = useRef(false)
 
   function sign() {
-    if (!challenge) return
-    setLoading(true)
+    if (!challenge || inFlight.current) return
+    inFlight.current = true
     setError(null)
     App.SignChallenge(credential.label, challenge)
       .then((result) => {
@@ -440,7 +441,7 @@ function ChallengeResponseView({ credential, onUsed }: { credential: Credential;
         onUsed()
       })
       .catch((err) => setError(formatError(err, "Signing failed")))
-      .finally(() => setLoading(false))
+      .finally(() => { inFlight.current = false })
   }
 
   return (
@@ -455,9 +456,7 @@ function ChallengeResponseView({ credential, onUsed }: { credential: Credential;
           onChange={(e) => setChallenge(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sign()}
         />
-        <Button onClick={sign} disabled={!challenge || loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign"}
-        </Button>
+        <Button onClick={sign} disabled={!challenge}>Sign</Button>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {response && (
@@ -488,11 +487,11 @@ function CopyButton({
   onCopy: () => void
 }) {
   return (
-    <Button variant="outline" size="sm" onClick={onCopy}>
+    <Button variant="outline" onClick={onCopy}>
       {copied ? (
-        <Check className="mr-1 h-3 w-3 text-green-500" />
+        <Check className="mr-2 h-4 w-4 text-green-500" />
       ) : (
-        <Copy className="mr-1 h-3 w-3" />
+        <Copy className="mr-2 h-4 w-4" />
       )}
       {copied ? "Copied" : "Copy"}
     </Button>
