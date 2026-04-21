@@ -58,7 +58,8 @@ function App() {
     if (vault.isUnlocked) {
       creds.refresh()
     }
-  }, [vault.isUnlocked, creds])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.isUnlocked, creds.refresh])
 
   const handleRemove = useCallback(
     async (id: string) => {

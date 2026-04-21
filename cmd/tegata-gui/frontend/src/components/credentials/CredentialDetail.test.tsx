@@ -108,11 +108,6 @@ describe("CredentialDetail", () => {
     expect(screen.getByText("Generate code")).toBeInTheDocument()
   })
 
-  it("HOTP type shows counter value", () => {
-    render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
-    expect(screen.getByText("Counter: 5")).toBeInTheDocument()
-  })
-
   it("HOTP type calls GenerateHOTP when Generate code is clicked", async () => {
     vi.mocked(App.GenerateHOTP).mockResolvedValue("987654")
     const user = userEvent.setup()

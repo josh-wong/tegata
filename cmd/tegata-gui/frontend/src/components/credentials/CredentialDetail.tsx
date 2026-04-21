@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Copy, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,16 +55,6 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
 
-  // Right sidebar panel width — persisted to localStorage
-  const [metaPanelSize, setMetaPanelSize] = useState<number>(() => {
-    const parsed = parseInt(localStorage.getItem("credential-meta-panel-size") ?? "", 10)
-    return Number.isFinite(parsed) ? parsed : 280
-  })
-
-  // Tracks the live size during a drag so onMouseUp reads the final value,
-  // not the stale closure value captured when the drag started.
-  const currentSizeRef = useRef(metaPanelSize)
-
   // Shared fetch for audit event count — used on initial load and after user actions.
   const fetchAuditEventCount = useCallback(() => {
     if (!credential || !auditEnabled) return
@@ -101,32 +91,6 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
     setDeleteConfirmInput("")
   }, [credential, onRemove])
 
-  // Drag-to-resize handler for right sidebar panel width.
-  // onMouseMove and onMouseUp are defined inside handleMouseDown so that
-  // removeEventListener always receives the exact same function references
-  // that were registered, regardless of re-renders during the drag.
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const startPos = e.clientX
-    const startSize = metaPanelSize
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const delta = moveEvent.clientX - startPos
-      const newSize = startSize - delta
-      // Clamp size between 160px and 480px
-      const clampedSize = Math.max(160, Math.min(480, newSize))
-      currentSizeRef.current = clampedSize
-      setMetaPanelSize(clampedSize)
-    }
-
-    const onMouseUp = () => {
-      document.removeEventListener("mousemove", onMouseMove)
-      document.removeEventListener("mouseup", onMouseUp)
-      localStorage.setItem("credential-meta-panel-size", String(currentSizeRef.current))
-    }
-
-    document.addEventListener("mousemove", onMouseMove)
-    document.addEventListener("mouseup", onMouseUp)
-  }
 
   if (!credential) {
     return (
@@ -166,17 +130,8 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
         </div>
       </div>
 
-      {/* Drag handle */}
-      <div
-        className="w-1 cursor-col-resize bg-border hover:bg-primary/20 transition-colors"
-        onMouseDown={handleMouseDown}
-      />
-
       {/* Meta panel */}
-      <div
-        className="border-l border-border overflow-y-auto flex flex-col"
-        style={{ width: `${metaPanelSize}px` }}
-      >
+      <div className="w-72 border-l border-border overflow-y-auto flex flex-col">
         <div className="flex flex-1 flex-col p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Details</h3>
 
@@ -423,7 +378,6 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
           />
         )}
       </div>
-      <p className="text-xs text-muted-foreground">Counter: {credential.counter}</p>
     </div>
   )
 }
