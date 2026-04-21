@@ -79,7 +79,6 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
     return savedSize ? parseInt(savedSize, 10) : 280
   })
 
-  const dragHandleRef = useRef<HTMLDivElement>(null)
   // Tracks the live size during a drag so onMouseUp reads the final value,
   // not the stale closure value captured when the drag started.
   const currentSizeRef = useRef(metaPanelSize)
@@ -186,7 +185,6 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
 
       {/* Drag handle */}
       <div
-        ref={dragHandleRef}
         className="w-1 cursor-col-resize bg-border hover:bg-primary/20 transition-colors"
         onMouseDown={handleMouseDown}
       />
@@ -308,7 +306,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
       </div>
 
       {/* Delete confirmation dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <Dialog open={showDeleteConfirm} onOpenChange={(open) => { setShowDeleteConfirm(open); if (!open) setDeleteConfirmInput("") }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove credential?</DialogTitle>
