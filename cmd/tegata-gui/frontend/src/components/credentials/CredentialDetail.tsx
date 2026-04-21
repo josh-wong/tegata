@@ -73,6 +73,9 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
   const isResizingRef = useRef(false)
   const startPosRef = useRef(0)
   const startSizeRef = useRef(0)
+  // Tracks the live size during a drag so handleMouseUp reads the final value,
+  // not the stale closure value captured when the drag started.
+  const currentSizeRef = useRef(metaPanelSize)
 
   // Update displayed "Last used" and audit event count when credential changes
   useEffect(() => {
@@ -143,6 +146,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
 
     // Clamp size between 160px and 480px
     const clampedSize = Math.max(160, Math.min(480, newSize))
+    currentSizeRef.current = clampedSize
     setMetaPanelSize(clampedSize)
   }
 
@@ -150,7 +154,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
     isResizingRef.current = false
     document.removeEventListener("mousemove", handleMouseMove)
     document.removeEventListener("mouseup", handleMouseUp)
-    localStorage.setItem("credential-meta-panel-size", String(metaPanelSize))
+    localStorage.setItem("credential-meta-panel-size", String(currentSizeRef.current))
   }
 
   if (!credential) {
@@ -263,6 +267,13 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
                 <span className="font-medium text-xs">{formatDate(credential.created_at)}</span>
+              </div>
+            )}
+
+            {credential.modified_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Modified</span>
+                <span className="font-medium text-xs">{formatDate(credential.modified_at)}</span>
               </div>
             )}
 
@@ -396,11 +407,7 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         code={totp.code}
         remaining={totp.remaining}
         period={credential.period || 30}
-        onExpired={() => {
-          // Don't refresh the code on countdown expiration
-          // The code is time-based and will still be valid
-          // This prevents unnecessary audit events from being recorded
-        }}
+        onExpired={fetchCode}
       />
       <CopyButton
         copied={copied}
