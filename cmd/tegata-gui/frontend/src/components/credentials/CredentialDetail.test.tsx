@@ -82,8 +82,7 @@ describe("CredentialDetail", () => {
     await user.type(confirmInput, "DELETE")
 
     // Click the Remove button in the dialog
-    const removeButtons = screen.getAllByText("Remove")
-    await user.click(removeButtons[removeButtons.length - 1])
+    await user.click(screen.getByRole("button", { name: "Remove" }))
 
     expect(onRemove).toHaveBeenCalledWith("cred-1")
   })

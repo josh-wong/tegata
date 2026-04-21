@@ -80,15 +80,12 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
   })
 
   const dragHandleRef = useRef<HTMLDivElement>(null)
-  const isResizingRef = useRef(false)
-  const startPosRef = useRef(0)
-  const startSizeRef = useRef(0)
-  // Tracks the live size during a drag so handleMouseUp reads the final value,
+  // Tracks the live size during a drag so onMouseUp reads the final value,
   // not the stale closure value captured when the drag started.
   const currentSizeRef = useRef(metaPanelSize)
 
-  // Fetch audit event count when the selected credential or audit state changes.
-  useEffect(() => {
+  // Shared fetch for audit event count — used on initial load and after user actions.
+  const fetchAuditEventCount = useCallback(() => {
     if (!credential || !auditEnabled) return
     hashString(credential.label)
       .then((labelHash) =>
@@ -98,22 +95,15 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
         }),
       )
       .catch(() => setAuditEventCount(null))
-  }, [credential?.id, auditEnabled])
-
-  const refreshAuditEventCount = useCallback(() => {
-    if (!credential || !auditEnabled) return
-    hashString(credential.label)
-      .then((labelHash) =>
-        App.GetAuditHistory().then((records) => {
-          const count = (records ?? []).filter((r) => r.label_hash === labelHash).length
-          setAuditEventCount(count)
-        }),
-      )
-      .catch(() => {})
   }, [credential, auditEnabled])
 
+  // Fetch audit event count when the selected credential or audit state changes.
+  useEffect(() => {
+    fetchAuditEventCount()
+  }, [fetchAuditEventCount])
+
   // Track "Last used" based on explicit user actions (Copy button, Generate button, etc.).
-  // Writes to localStorage and increments lastUsedVersion to trigger a useMemo re-read.
+  // Writes to localStorage and updates state immediately.
   const recordLastUsed = useCallback(() => {
     if (!credential) return
     const now = new Date()
@@ -126,35 +116,34 @@ export function CredentialDetail({ credential, onRemove, auditEnabled }: Credent
     })
     localStorage.setItem(`last-used-${credential.id}`, formatted)
     setLastUsed(formatted)
-    refreshAuditEventCount()
-  }, [credential, refreshAuditEventCount])
+    fetchAuditEventCount()
+  }, [credential, fetchAuditEventCount])
 
-  // Drag-to-resize handlers for right sidebar panel width
+  // Drag-to-resize handler for right sidebar panel width.
+  // onMouseMove and onMouseUp are defined inside handleMouseDown so that
+  // removeEventListener always receives the exact same function references
+  // that were registered, regardless of re-renders during the drag.
   const handleMouseDown = (e: React.MouseEvent) => {
-    isResizingRef.current = true
-    startPosRef.current = e.clientX
-    startSizeRef.current = metaPanelSize
-    document.addEventListener("mousemove", handleMouseMove)
-    document.addEventListener("mouseup", handleMouseUp)
-  }
+    const startPos = e.clientX
+    const startSize = metaPanelSize
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isResizingRef.current) return
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startPos
+      const newSize = startSize - delta
+      // Clamp size between 160px and 480px
+      const clampedSize = Math.max(160, Math.min(480, newSize))
+      currentSizeRef.current = clampedSize
+      setMetaPanelSize(clampedSize)
+    }
 
-    const delta = e.clientX - startPosRef.current
-    const newSize = startSizeRef.current - delta
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+      localStorage.setItem("credential-meta-panel-size", String(currentSizeRef.current))
+    }
 
-    // Clamp size between 160px and 480px
-    const clampedSize = Math.max(160, Math.min(480, newSize))
-    currentSizeRef.current = clampedSize
-    setMetaPanelSize(clampedSize)
-  }
-
-  const handleMouseUp = () => {
-    isResizingRef.current = false
-    document.removeEventListener("mousemove", handleMouseMove)
-    document.removeEventListener("mouseup", handleMouseUp)
-    localStorage.setItem("credential-meta-panel-size", String(currentSizeRef.current))
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
   }
 
   if (!credential) {
