@@ -235,19 +235,17 @@ func newBufconnServerMulti(t *testing.T, ledger *mockLedgerServerMulti, privileg
 	return conn
 }
 
-// TestClient_ValidateArgSchema verifies that Validate calls object.v1_0_0.Get first,
-// then object.v1_0_0.Validate with a versions array containing version_id and
-// hash_value pairs from the Get result.
+// TestClient_ValidateArgSchema verifies that Validate calls object.v1_0_0.Validate
+// with a versions array containing the caller-supplied expectedHash. No Get call
+// is made — the hash comes from the vault, not ScalarDL.
 func TestClient_ValidateArgSchema(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 
-	// The Get response returns two records.
-	getResult := `[{"object_id":"evt-001","hash_value":"aaa","age":100},{"object_id":"evt-002","hash_value":"bbb","age":200}]`
 	// The Validate response returns correct status.
 	validateResult := `{"status":"correct","details":"","faulty_versions":[]}`
 
 	ledgerSrv := &mockLedgerServerMulti{
-		results: []string{getResult, validateResult},
+		results: []string{validateResult},
 	}
 	privSrv := &mockPrivilegedServer{}
 	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
@@ -255,52 +253,52 @@ func TestClient_ValidateArgSchema(t *testing.T) {
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer func() { _ = client.Close() }()
 
-	result, err := client.Validate(context.Background(), "tegata-")
+	result, err := client.Validate(context.Background(), "tegata-", "abc123")
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
 
-	// Verify two ExecuteContract calls were made (Get + Validate).
-	if len(ledgerSrv.calls) != 2 {
-		t.Fatalf("expected 2 ExecuteContract calls, got %d", len(ledgerSrv.calls))
+	// Verify exactly one ExecuteContract call was made (Validate only, no Get).
+	if len(ledgerSrv.calls) != 1 {
+		t.Fatalf("expected 1 ExecuteContract call, got %d", len(ledgerSrv.calls))
 	}
 
-	// First call should be object.v1_0_0.Get.
-	if ledgerSrv.calls[0].ContractId != "object.v1_0_0.Get" {
-		t.Errorf("first call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.v1_0_0.Get")
+	// The call should be object.v1_0_0.Validate with versions array.
+	if ledgerSrv.calls[0].ContractId != "object.v1_0_0.Validate" {
+		t.Errorf("call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.v1_0_0.Validate")
 	}
 
-	// Second call should be object.v1_0_0.Validate with versions array.
-	if ledgerSrv.calls[1].ContractId != "object.v1_0_0.Validate" {
-		t.Errorf("second call contract ID = %q, want %q", ledgerSrv.calls[1].ContractId, "object.v1_0_0.Validate")
-	}
-
-	// The second call's argument must contain "versions" and "object_id" keys.
-	arg := ledgerSrv.calls[1].ContractArgument
+	// The argument must contain the caller-supplied hash in the versions array.
+	arg := ledgerSrv.calls[0].ContractArgument
 	if !strings.Contains(arg, `"versions"`) {
 		t.Errorf("Validate argument missing 'versions' key: %s", arg)
 	}
 	if !strings.Contains(arg, `"object_id"`) {
 		t.Errorf("Validate argument missing 'object_id' key: %s", arg)
 	}
+	if !strings.Contains(arg, `"abc123"`) {
+		t.Errorf("Validate argument missing expected hash 'abc123': %s", arg)
+	}
 
-	// Result should be valid with 2 events.
+	// Result should be valid with 1 event.
 	if !result.Valid {
 		t.Error("expected Valid=true, got false")
 	}
-	if result.EventCount != 2 {
-		t.Errorf("EventCount = %d, want 2", result.EventCount)
+	if result.EventCount != 1 {
+		t.Errorf("EventCount = %d, want 1", result.EventCount)
 	}
 }
 
-// TestClient_ValidateEmptyRecords verifies that when Get returns no records,
-// Validate returns Valid=true with EventCount=0 without making a second RPC call.
-func TestClient_ValidateEmptyRecords(t *testing.T) {
+// TestClient_ValidateTampered verifies that when the ScalarDL Validate contract
+// returns a "tampered" status, the result reflects Invalid with error detail.
+func TestClient_ValidateTampered(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 
-	// The Get response returns an empty array.
+	// The Validate response returns tampered status.
+	validateResult := `{"status":"tampered","details":"hash mismatch at version tegata-","faulty_versions":["tegata-"]}`
+
 	ledgerSrv := &mockLedgerServerMulti{
-		results: []string{"[]"},
+		results: []string{validateResult},
 	}
 	privSrv := &mockPrivilegedServer{}
 	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
@@ -308,21 +306,19 @@ func TestClient_ValidateEmptyRecords(t *testing.T) {
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer func() { _ = client.Close() }()
 
-	result, err := client.Validate(context.Background(), "tegata-")
+	result, err := client.Validate(context.Background(), "tegata-", "wronghash")
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
 
-	// Only one call should have been made (Get only, no Validate).
-	if len(ledgerSrv.calls) != 1 {
-		t.Fatalf("expected 1 ExecuteContract call (Get only), got %d", len(ledgerSrv.calls))
+	if result.Valid {
+		t.Error("expected Valid=false for tampered record, got true")
 	}
-
-	if !result.Valid {
-		t.Error("expected Valid=true for empty records, got false")
+	if result.EventCount != 1 {
+		t.Errorf("EventCount = %d, want 1", result.EventCount)
 	}
-	if result.EventCount != 0 {
-		t.Errorf("EventCount = %d, want 0", result.EventCount)
+	if result.ErrorDetail == "" {
+		t.Error("expected non-empty ErrorDetail for tampered record")
 	}
 }
 

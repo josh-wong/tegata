@@ -19,17 +19,17 @@ type mockSubmitter struct {
 	delay   time.Duration // if non-zero, Sleep before returning
 }
 
-func (m *mockSubmitter) Submit(_ context.Context, entry QueueEntry) error {
+func (m *mockSubmitter) Submit(_ context.Context, entry QueueEntry) (string, error) {
 	if m.delay > 0 {
 		time.Sleep(m.delay)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failErr != nil {
-		return m.failErr
+		return "", m.failErr
 	}
 	m.calls = append(m.calls, entry)
-	return nil
+	return "fakehash", nil
 }
 
 func (m *mockSubmitter) CallCount() int {

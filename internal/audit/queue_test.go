@@ -33,12 +33,12 @@ type mockSubmitter struct {
 	retErr error
 }
 
-func (m *mockSubmitter) Submit(_ context.Context, entry audit.QueueEntry) error {
+func (m *mockSubmitter) Submit(_ context.Context, entry audit.QueueEntry) (string, error) {
 	m.calls = append(m.calls, entry)
 	if m.errOn > 0 && len(m.calls) == m.errOn {
-		return m.retErr
+		return "", m.retErr
 	}
-	return nil
+	return "fakehash", nil
 }
 
 func TestQueue_NewQueueEmpty(t *testing.T) {

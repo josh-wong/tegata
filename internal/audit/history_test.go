@@ -29,7 +29,7 @@ func (m *mockClient) Get(ctx context.Context, objectID string) ([]*audit.EventRe
 	return nil, nil
 }
 
-func (m *mockClient) Validate(ctx context.Context, objectID string) (*audit.ValidationResult, error) {
+func (m *mockClient) Validate(ctx context.Context, objectID, expectedHash string) (*audit.ValidationResult, error) {
 	if result, ok := m.validate[objectID]; ok {
 		return result, nil
 	}
@@ -64,7 +64,7 @@ func (m *mockClient) Close() error {
 	return nil
 }
 
-func (m *mockClient) Submit(ctx context.Context, entry audit.QueueEntry) error {
+func (m *mockClient) Submit(ctx context.Context, entry audit.QueueEntry) (string, error) {
 	panic("unimplemented")
 }
 
@@ -167,8 +167,13 @@ func TestVerifyByLabelHash_AllValid(t *testing.T) {
 			"evt-2": {Valid: true},
 		},
 	}
+	vaultHashes := map[string]string{
+		"evt-1": "h1",
+		"evt-2": "h2",
+		"evt-3": "h3",
+	}
 
-	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a")
+	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a", vaultHashes)
 	if err != nil {
 		t.Fatalf("VerifyByLabelHash failed: %v", err)
 	}
@@ -198,8 +203,12 @@ func TestVerifyByLabelHash_TamperedEvent(t *testing.T) {
 			"evt-2": {Valid: false, ErrorDetail: "hash mismatch"},
 		},
 	}
+	vaultHashes := map[string]string{
+		"evt-1": "h1",
+		"evt-2": "h2",
+	}
 
-	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a")
+	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a", vaultHashes)
 	if err != nil {
 		t.Fatalf("VerifyByLabelHash failed: %v", err)
 	}
@@ -224,8 +233,11 @@ func TestVerifyByLabelHash_NoMatchingEvents(t *testing.T) {
 			"evt-1": {{ObjectID: "evt-1", HashValue: "h1", Metadata: map[string]interface{}{"label_hash": "hash-b", "timestamp": float64(1)}}},
 		},
 	}
+	vaultHashes := map[string]string{
+		"evt-1": "h1",
+	}
 
-	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a")
+	result, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a", vaultHashes)
 	if err != nil {
 		t.Fatalf("VerifyByLabelHash failed: %v", err)
 	}
@@ -257,9 +269,15 @@ func TestVerifyByLabelHash_MultipleCredentialsIndependent(t *testing.T) {
 			"evt-b2": {Valid: true},
 		},
 	}
+	vaultHashes := map[string]string{
+		"evt-a1": "ha1",
+		"evt-a2": "ha2",
+		"evt-b1": "hb1",
+		"evt-b2": "hb2",
+	}
 
 	// Verify hash-a (should show tampered)
-	resultA, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a")
+	resultA, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-a", vaultHashes)
 	if err != nil {
 		t.Fatalf("VerifyByLabelHash for hash-a failed: %v", err)
 	}
@@ -271,7 +289,7 @@ func TestVerifyByLabelHash_MultipleCredentialsIndependent(t *testing.T) {
 	}
 
 	// Verify hash-b (should show clean, independent of hash-a's tampering)
-	resultB, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-b")
+	resultB, err := audit.VerifyByLabelHash(context.Background(), client, "entity", "hash-b", vaultHashes)
 	if err != nil {
 		t.Fatalf("VerifyByLabelHash for hash-b failed: %v", err)
 	}
@@ -285,5 +303,36 @@ func TestVerifyByLabelHash_MultipleCredentialsIndependent(t *testing.T) {
 	// Key assertion: tampering in hash-a does NOT affect hash-b
 	if resultA.Valid == resultB.Valid {
 		t.Error("per-credential verification broken: hash-a and hash-b should have different results")
+	}
+}
+
+func TestVerifyAll_SkipsPreExistingEvents(t *testing.T) {
+	// 3 events in collection, only 2 in vaultHashes — 1 should be skipped.
+	client := &mockClient{
+		collectionGet: map[string][]string{
+			audit.CollectionID("entity"): {"evt-1", "evt-2", "evt-3"},
+		},
+		validate: map[string]*audit.ValidationResult{
+			"evt-1": {Valid: true},
+			"evt-2": {Valid: true},
+		},
+	}
+	vaultHashes := map[string]string{
+		"evt-1": "hash1",
+		"evt-2": "hash2",
+		// evt-3 missing — pre-existing event
+	}
+	result, err := audit.VerifyAll(context.Background(), client, "entity", vaultHashes)
+	if err != nil {
+		t.Fatalf("VerifyAll failed: %v", err)
+	}
+	if result.EventCount != 2 {
+		t.Errorf("expected EventCount=2, got %d", result.EventCount)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("expected Skipped=1, got %d", result.Skipped)
+	}
+	if !result.Valid {
+		t.Error("expected Valid=true")
 	}
 }

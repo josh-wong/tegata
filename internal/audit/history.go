@@ -77,6 +77,7 @@ func FetchHistory(ctx context.Context, client Client, entityID string) (*FetchHi
 type VerifyResult struct {
 	Valid       bool
 	EventCount  int
+	Skipped     int      // events without vault hash (pre-existing, per D-09)
 	Faults      []string // per-event error descriptions
 	ErrorDetail string   // summary when !Valid
 }
@@ -84,8 +85,9 @@ type VerifyResult struct {
 // VerifyByLabelHash validates the integrity of audit events for the given
 // entity that match labelHash. Only events whose label_hash metadata field
 // equals labelHash are validated; all others are ignored. If no matching
-// events exist, returns valid with zero events.
-func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash string) (*VerifyResult, error) {
+// events exist, returns valid with zero events. Events without a vault hash
+// entry are skipped (pre-existing events, per D-09).
+func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash string, vaultHashes map[string]string) (*VerifyResult, error) {
 	history, err := FetchHistory(ctx, client, entityID)
 	if err != nil {
 		return nil, err
@@ -102,10 +104,17 @@ func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash s
 		return &VerifyResult{Valid: true, EventCount: 0}, nil
 	}
 
-	// TODO: parallelize Validate calls if per-credential event counts grow large.
 	var faults []string
+	var verified int
+	var skipped int
 	for _, id := range matchingIDs {
-		result, err := client.Validate(ctx, id)
+		expectedHash, ok := vaultHashes[id]
+		if !ok {
+			skipped++
+			continue
+		}
+		verified++
+		result, err := client.Validate(ctx, id, expectedHash)
 		if err != nil {
 			faults = append(faults, fmt.Sprintf("%s: error: %v", id, err))
 			continue
@@ -117,19 +126,22 @@ func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash s
 
 	vr := &VerifyResult{
 		Valid:      len(faults) == 0,
-		EventCount: len(matchingIDs),
+		EventCount: verified,
+		Skipped:    skipped,
 		Faults:     faults,
 	}
 	if !vr.Valid {
-		vr.ErrorDetail = fmt.Sprintf("%d of %d events failed", len(faults), len(matchingIDs))
+		vr.ErrorDetail = fmt.Sprintf("%d of %d events failed", len(faults), verified)
 	}
 	return vr, nil
 }
 
 // VerifyAll validates the integrity of all audit events for the given entity.
-// It fetches the entity's collection, then validates each event individually.
-// If the collection does not exist (e.g. after a wipe), returns valid with zero events.
-func VerifyAll(ctx context.Context, client Client, entityID string) (*VerifyResult, error) {
+// It fetches the entity's collection, then validates each event individually
+// using the caller-supplied vaultHashes map. Events without a vault hash entry
+// are skipped (pre-existing events, per D-09). If the collection does not exist
+// (e.g. after a wipe), returns valid with zero events.
+func VerifyAll(ctx context.Context, client Client, entityID string, vaultHashes map[string]string) (*VerifyResult, error) {
 	collectionID := CollectionID(entityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
 	if err != nil {
@@ -146,8 +158,16 @@ func VerifyAll(ctx context.Context, client Client, entityID string) (*VerifyResu
 	}
 
 	var faults []string
+	var verified int
+	var skipped int
 	for _, id := range eventIDs {
-		result, err := client.Validate(ctx, id)
+		expectedHash, ok := vaultHashes[id]
+		if !ok {
+			skipped++
+			continue
+		}
+		verified++
+		result, err := client.Validate(ctx, id, expectedHash)
 		if err != nil {
 			faults = append(faults, fmt.Sprintf("%s: error: %v", id, err))
 			continue
@@ -159,11 +179,12 @@ func VerifyAll(ctx context.Context, client Client, entityID string) (*VerifyResu
 
 	vr := &VerifyResult{
 		Valid:      len(faults) == 0,
-		EventCount: len(eventIDs),
+		EventCount: verified,
+		Skipped:    skipped,
 		Faults:     faults,
 	}
 	if !vr.Valid {
-		vr.ErrorDetail = fmt.Sprintf("%d of %d events failed", len(faults), len(eventIDs))
+		vr.ErrorDetail = fmt.Sprintf("%d of %d events failed", len(faults), verified)
 	}
 	return vr, nil
 }
