@@ -40,8 +40,9 @@ type Client interface {
 	PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error
 	// Get retrieves all event records for objectID from the ledger.
 	Get(ctx context.Context, objectID string) ([]*EventRecord, error)
-	// Validate verifies the integrity of all records for objectID on the ledger.
-	Validate(ctx context.Context, objectID string) (*ValidationResult, error)
+	// Validate verifies the integrity of objectID against the caller-supplied
+	// expectedHash. The hash comes from the vault, not from ScalarDL.
+	Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error)
 	// CollectionCreate creates a new collection with the given object IDs.
 	CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error
 	// CollectionAdd adds object IDs to an existing collection.
@@ -57,8 +58,9 @@ type Client interface {
 	// Close releases the underlying gRPC connection.
 	Close() error
 	// Submit stores each event as its own ScalarDL object with metadata and
-	// adds it to a per-entity collection.
-	Submit(ctx context.Context, entry QueueEntry) error
+	// adds it to a per-entity collection. Returns the computed hash value
+	// (hex-encoded SHA-256 of the event JSON) for vault storage.
+	Submit(ctx context.Context, entry QueueEntry) (string, error)
 }
 
 // EventRecord is a single record returned by a Get call.
@@ -519,37 +521,20 @@ type validateResult struct {
 	FaultyVersions []string `json:"faulty_versions"`
 }
 
-// Validate verifies the integrity of all records for objectID on the ledger.
-// It uses a two-step flow: first calls object.Get to retrieve stored records,
-// then calls object.Validate with a versions array built from those records.
-// If Get returns no records, it returns Valid=true with EventCount=0 without
-// calling object.Validate (nothing to validate).
-func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*ValidationResult, error) {
-	// Step 1: Retrieve all stored records via object.Get.
-	records, err := c.Get(ctx, objectID)
-	if err != nil {
-		return nil, fmt.Errorf("retrieving records for validation: %w", err)
+// Validate verifies the integrity of objectID against the caller-supplied
+// expectedHash. The hash comes from the vault (stored at submission time),
+// not from ScalarDL — breaking the circular trust where the system being
+// validated was also the source of expected values.
+func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error) {
+	// Build versions array from caller-supplied expected hash (D-06).
+	// No Get() call — the hash comes from the vault, not ScalarDL.
+	versions := []map[string]string{
+		{
+			"version_id": objectID,
+			"hash_value": expectedHash,
+		},
 	}
 
-	// If no records exist, there is nothing to validate.
-	if len(records) == 0 {
-		return &ValidationResult{Valid: true, EventCount: 0}, nil
-	}
-
-	// Step 2: Build versions array from retrieved records.
-	// The HashStore object.Validate contract expects each version entry to
-	// contain "version_id" (the object ID string, not a numeric version) and
-	// "hash_value". This matches the HashStore SDK's ValidateRequest schema
-	// where version_id identifies the object, not a sequential version number.
-	versions := make([]map[string]string, len(records))
-	for i, r := range records {
-		versions[i] = map[string]string{
-			"version_id": r.ObjectID,
-			"hash_value": r.HashValue,
-		}
-	}
-
-	// Step 3: Marshal the validate argument with object_id and versions.
 	contractID := "object.v1_0_0.Validate"
 	arg, err := json.Marshal(map[string]interface{}{
 		"object_id": objectID,
@@ -559,7 +544,6 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 		return nil, fmt.Errorf("marshalling Validate argument: %w", err)
 	}
 
-	// Step 4: Sign and execute object.Validate.
 	nonce := uuid.New().String()
 	formatted := formatArgument(string(arg), nonce)
 	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
@@ -579,7 +563,6 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 		return nil, fmt.Errorf("%w: Validate contract failed: %s", tegerrors.ErrNetworkFailed, err)
 	}
 
-	// Step 5: Parse and map the response.
 	var vr validateResult
 	if resp.GetContractResult() != "" {
 		if err := json.Unmarshal([]byte(resp.GetContractResult()), &vr); err != nil {
@@ -589,7 +572,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*Validati
 
 	return &ValidationResult{
 		Valid:       vr.Status == "correct",
-		EventCount:  len(records),
+		EventCount:  1,
 		ErrorDetail: vr.Details,
 	}, nil
 }
@@ -674,11 +657,12 @@ func (c *LedgerClient) Close() error {
 
 // Submit implements the Submitter interface. Each event is stored as its own
 // ScalarDL object with metadata (operation, label hash, timestamp) and added
-// to a per-entity collection for listing.
-func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
+// to a per-entity collection for listing. Returns the computed hash value
+// (hex-encoded SHA-256 of the event JSON) so callers can store it in the vault.
+func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) (string, error) {
 	entryJSON, err := json.Marshal(entry.Event)
 	if err != nil {
-		return fmt.Errorf("serialising queue entry for submission: %w", err)
+		return "", fmt.Errorf("serialising queue entry for submission: %w", err)
 	}
 	sum := sha256.Sum256(entryJSON)
 	for i := range entryJSON {
@@ -694,7 +678,7 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 
 	objectID := entry.Event.EventID
 	if err := c.PutWithMetadata(ctx, objectID, hashValue, metadata); err != nil {
-		return err
+		return "", err
 	}
 
 	// Add the event to the entity's audit collection. If the collection
@@ -706,7 +690,7 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 		// Only fall through to CollectionCreate when the collection does
 		// not exist. Transient or other errors should propagate immediately.
 		if !tegerrors.Is(err, errCollectionNotFound) {
-			return fmt.Errorf("adding event to collection: %w", err)
+			return "", fmt.Errorf("adding event to collection: %w", err)
 		}
 		createErr := c.CollectionCreate(ctx, collectionID, []string{objectID})
 		if createErr != nil {
@@ -714,14 +698,14 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 				// Another caller created the collection between our Add
 				// and Create — retry Add now that the collection exists.
 				if retryErr := c.CollectionAdd(ctx, collectionID, []string{objectID}); retryErr != nil {
-					return fmt.Errorf("adding event to collection after retry: %w", retryErr)
+					return "", fmt.Errorf("adding event to collection after retry: %w", retryErr)
 				}
 			} else {
-				return fmt.Errorf("creating audit collection: %w", createErr)
+				return "", fmt.Errorf("creating audit collection: %w", createErr)
 			}
 		}
 	}
 
-	return nil
+	return hashValue, nil
 }
 

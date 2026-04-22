@@ -24,7 +24,7 @@ var ErrFlushFailed = errors.New("flush submission failed")
 // EventBuilder in Plan 03 (the gRPC client), allowing Queue to remain decoupled
 // from the network layer.
 type Submitter interface {
-	Submit(ctx context.Context, entry QueueEntry) error
+	Submit(ctx context.Context, entry QueueEntry) (string, error)
 }
 
 // QueueEntry is the unit of storage in the offline queue. On disk, only
@@ -272,7 +272,7 @@ func (q *Queue) Save(path string) error {
 // unchanged. On full success, the entries slice is cleared (Len returns 0).
 func (q *Queue) Flush(ctx context.Context, client Submitter) error {
 	for _, entry := range q.entries {
-		if err := client.Submit(ctx, entry); err != nil {
+		if _, err := client.Submit(ctx, entry); err != nil {
 			return fmt.Errorf("submitting queue entry: %w", err)
 		}
 	}

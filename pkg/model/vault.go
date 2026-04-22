@@ -55,7 +55,8 @@ type VaultPayload struct {
 	ModifiedAt      time.Time    `json:"modified_at"`
 	Credentials     []Credential `json:"credentials"`
 	RecoveryKeyHash string       `json:"recovery_key_hash"`
-	VaultID         string       `json:"vault_id,omitempty"`
+	VaultID         string            `json:"vault_id,omitempty"`
+	AuditHashes     map[string]string `json:"audit_hashes,omitempty"`
 }
 
 // VaultHeader represents the plaintext header of a vault file as specified in
