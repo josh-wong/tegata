@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import type { Credential } from "@/lib/types"
 
@@ -63,6 +64,8 @@ export function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  const [deleteConfirmCred, setDeleteConfirmCred] = useState<Credential | null>(null)
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu on outside click or Escape.
@@ -207,12 +210,63 @@ export function Sidebar({
           )}
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
-            onClick={() => { onRemove(ctxMenu.credential.id); setCtxMenu(null) }}
+            onClick={() => { setDeleteConfirmCred(ctxMenu.credential); setCtxMenu(null) }}
           >
             <Trash2 className="h-3.5 w-3.5" /> Remove
           </button>
         </div>
       )}
+
+      {/* Delete confirmation dialog for context menu */}
+      <Dialog open={!!deleteConfirmCred} onOpenChange={(open) => { if (!open) { setDeleteConfirmCred(null); setDeleteConfirmInput("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove credential?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to confirm removal of "{deleteConfirmCred?.label}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder='Type "DELETE" to confirm'
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && deleteConfirmInput === "DELETE" && deleteConfirmCred) {
+                  onRemove(deleteConfirmCred.id)
+                  setDeleteConfirmCred(null)
+                  setDeleteConfirmInput("")
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (deleteConfirmCred) {
+                    onRemove(deleteConfirmCred.id)
+                    setDeleteConfirmCred(null)
+                    setDeleteConfirmInput("")
+                  }
+                }}
+                disabled={deleteConfirmInput !== "DELETE"}
+              >
+                Remove
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteConfirmCred(null)
+                  setDeleteConfirmInput("")
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }
