@@ -807,6 +807,52 @@ func (m *Manager) VerifyRecoveryKey(recoveryRaw []byte) (bool, error) {
 	return hashHex == m.payload.RecoveryKeyHash, nil
 }
 
+// SetAuditHash stores an audit event hash in the vault for independent
+// verification. The vault is saved immediately after the update. If the
+// vault is locked, the hash is silently dropped (per D-14: vault write
+// failure is non-fatal).
+func (m *Manager) SetAuditHash(eventID, hashValue string) error {
+	if m.payload == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+	if m.payload.AuditHashes == nil {
+		m.payload.AuditHashes = make(map[string]string)
+	}
+	m.payload.AuditHashes[eventID] = hashValue
+	err := m.Save()
+	// TODO(debug): remove before merge
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "[debug] audit hash stored: eventID=%s hash=%.16s... total=%d\n",
+			eventID, hashValue, len(m.payload.AuditHashes))
+	} else {
+		fmt.Fprintf(os.Stderr, "[debug] audit hash store FAILED: eventID=%s err=%v\n", eventID, err)
+	}
+	return err
+}
+
+// AuditHashes returns a copy of the vault's audit hash map. The caller
+// is responsible for zeroing the returned map after use (D-16).
+// Returns nil if the vault is locked or no hashes exist.
+func (m *Manager) AuditHashes() map[string]string {
+	if m.payload == nil || m.payload.AuditHashes == nil {
+		return nil
+	}
+	cp := make(map[string]string, len(m.payload.AuditHashes))
+	for k, v := range m.payload.AuditHashes {
+		cp[k] = v
+	}
+	return cp
+}
+
+// ZeroAuditHashes overwrites all keys and values in a hash map with empty
+// strings to limit sensitive data lifetime in memory (D-16).
+func ZeroAuditHashes(m map[string]string) {
+	for k := range m {
+		m[k] = ""
+		delete(m, k)
+	}
+}
+
 // atomicWrite writes data to path using temp-file-rename for crash safety.
 func atomicWrite(path string, data []byte) error {
 	tmpPath := path + ".tmp"

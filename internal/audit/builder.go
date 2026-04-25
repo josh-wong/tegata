@@ -132,13 +132,24 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 	resultCh := make(chan submitResult, 1)
 
 	go func() {
-		// Submit any previously queued events from the snapshot.
-		// For queued events, capture (string, error) but only use the error;
-		// their hashes were either already stored or missed.
+		// Submit any previously queued events from the snapshot and store
+		// their hashes via OnHashStored — queued events failed to submit
+		// originally so their hashes were never persisted (D-15).
 		for _, e := range snapshot {
-			if _, err := b.client.Submit(ctx, e); err != nil {
+			hashValue, err := b.client.Submit(ctx, e)
+			if err != nil {
 				resultCh <- submitResult{err: err}
 				return
+			}
+			if b.OnHashStored != nil && hashValue != "" {
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("audit OnHashStored panic (queued event)", "err", r)
+						}
+					}()
+					b.OnHashStored(e.Event.EventID, hashValue)
+				}()
 			}
 		}
 

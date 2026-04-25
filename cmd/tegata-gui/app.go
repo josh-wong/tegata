@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -216,6 +217,16 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit unavailable: %v\n", builderErr)
 	}
 	a.builder = builder
+
+	// Wire OnHashStored so each submitted audit event's hash is persisted to
+	// the vault for independent verification (D-15).
+	if a.builder != nil {
+		a.builder.OnHashStored = func(eventID, hashValue string) {
+			if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+				slog.Error("failed to store audit hash in vault", "err", err)
+			}
+		}
+	}
 
 	// Zero passphrase AFTER builder construction.
 	zeroBytes(passBytes)
@@ -707,6 +718,7 @@ type AuditHistoryRecord struct {
 type AuditVerifyResult struct {
 	Valid       bool   `json:"valid"`
 	EventCount  int    `json:"event_count"`
+	Skipped     int    `json:"skipped,omitempty"`
 	ErrorDetail string `json:"error_detail,omitempty"`
 }
 
@@ -774,8 +786,11 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	hashes := a.vault.AuditHashes()
+	defer vault.ZeroAuditHashes(hashes)
+
 	labelHash := audit.HashString(label)
-	result, err := audit.VerifyByLabelHash(ctx, client, a.config.Audit.EntityID, labelHash)
+	result, err := audit.VerifyByLabelHash(ctx, client, a.config.Audit.EntityID, labelHash, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -783,6 +798,7 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	return &AuditVerifyResult{
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
+		Skipped:     result.Skipped,
 		ErrorDetail: result.ErrorDetail,
 	}, nil
 }
@@ -803,7 +819,10 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := audit.VerifyAll(ctx, client, a.config.Audit.EntityID)
+	hashes := a.vault.AuditHashes()
+	defer vault.ZeroAuditHashes(hashes)
+
+	result, err := audit.VerifyAll(ctx, client, a.config.Audit.EntityID, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -811,6 +830,7 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	return &AuditVerifyResult{
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
+		Skipped:     result.Skipped,
 		ErrorDetail: result.ErrorDetail,
 	}, nil
 }

@@ -25,7 +25,7 @@ func (m *mockAuditClient) Get(_ context.Context, _ string) ([]*audit.EventRecord
 	return nil, nil
 }
 
-func (m *mockAuditClient) Validate(_ context.Context, _ string) (*audit.ValidationResult, error) {
+func (m *mockAuditClient) Validate(_ context.Context, _, _ string) (*audit.ValidationResult, error) {
 	return nil, nil
 }
 
@@ -41,8 +41,8 @@ func (m *mockAuditClient) Close() error {
 	return nil
 }
 
-func (m *mockAuditClient) Submit(_ context.Context, _ audit.QueueEntry) error {
-	return nil
+func (m *mockAuditClient) Submit(_ context.Context, _ audit.QueueEntry) (string, error) {
+	return "", nil
 }
 
 func (m *mockAuditClient) PutWithMetadata(_ context.Context, _, _ string, _ map[string]interface{}) error {
