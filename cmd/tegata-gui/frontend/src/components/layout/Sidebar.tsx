@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check } from "lucide-react"
+import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -277,7 +277,7 @@ export function Sidebar({
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
             onClick={() => { setSelectionMode(true); setSelectedCreds(new Set([ctxMenu.credential.id])); setCtxMenu(null) }}
           >
-            <Trash2 className="h-3.5 w-3.5" /> Remove multiple
+            <CheckCheck className="h-3.5 w-3.5" /> Remove multiple
           </button>
         </div>
       )}
