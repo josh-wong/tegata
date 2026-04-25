@@ -240,7 +240,7 @@ export function Sidebar({
             onClick={() => setBulkDeleteConfirm(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete {selectedCreds.size} selected
+            Remove {selectedCreds.size} selected
           </Button>
         </div>
       )}
