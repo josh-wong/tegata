@@ -204,7 +204,7 @@ func (m model) viewAuditMenu() string {
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
-			menu.WriteString(successStyle.Render("▸ " + item))
+			menu.WriteString(tipStyle.Render("▸ " + item))
 		} else {
 			menu.WriteString("  " + item)
 		}
@@ -265,7 +265,7 @@ func (m model) viewAuditVerify() string {
 	if strings.Contains(m.auditMsg, "TAMPER DETECTED") {
 		body = errorStyle.Render(m.auditMsg)
 	} else if strings.Contains(m.auditMsg, "verified") {
-		body = successStyle.Render(m.auditMsg)
+		body = tipStyle.Render(m.auditMsg)
 	} else {
 		body = m.auditMsg
 	}
@@ -327,7 +327,7 @@ func (m model) viewAuditStart() string {
 			strings.Contains(m.auditMsg, "error") || strings.Contains(m.auditMsg, "Error") {
 			body = errorStyle.Render(m.auditMsg)
 		} else {
-			body = successStyle.Render(m.auditMsg)
+			body = tipStyle.Render(m.auditMsg)
 		}
 	}
 

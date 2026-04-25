@@ -403,9 +403,9 @@ func renderAddSelector(label string, slot, focusIdx, selectedIdx int, options []
 	for i, opt := range options {
 		if i == selectedIdx {
 			if focused {
-				parts = append(parts, successStyle.Render("\u2190 "+opt+" \u2192"))
+				parts = append(parts, tipStyle.Render("\u2190 "+opt+" \u2192"))
 			} else {
-				parts = append(parts, successStyle.Render(opt))
+				parts = append(parts, tipStyle.Render(opt))
 			}
 		} else {
 			parts = append(parts, opt)

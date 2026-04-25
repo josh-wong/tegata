@@ -651,14 +651,14 @@ func (m model) viewSettingsMenu() string {
 	lines = append(lines, "")
 	for i, item := range settingsMenuItems {
 		if i == m.settingsMenuIdx {
-			lines = append(lines, successStyle.Render("> "+item))
+			lines = append(lines, tipStyle.Render("> "+item))
 		} else {
 			lines = append(lines, "  "+item)
 		}
 	}
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		lines = append(lines, successStyle.Render(m.settingsMsg))
+		lines = append(lines, tipStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close"))
@@ -683,7 +683,7 @@ func (m model) viewSettingsTags() string {
 	} else {
 		for i, tag := range tags {
 			if i == m.settingsTagIdx {
-				lines = append(lines, successStyle.Render("> "+tag))
+				lines = append(lines, tipStyle.Render("> "+tag))
 			} else {
 				lines = append(lines, "  "+tag)
 			}
@@ -697,7 +697,7 @@ func (m model) viewSettingsTags() string {
 
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		lines = append(lines, successStyle.Render(m.settingsMsg))
+		lines = append(lines, tipStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render("[a] Add  [d] Remove  [Esc] Done"))
@@ -765,7 +765,7 @@ func (m model) viewSettingsExportImport(title, label1, label2, help string) stri
 	lines = append(lines, label2+": "+m.settingsInput2.View())
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		lines = append(lines, successStyle.Render(m.settingsMsg))
+		lines = append(lines, tipStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render(help))
@@ -831,7 +831,7 @@ func (m model) viewSettingsRecovery() string {
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
 		if strings.Contains(m.settingsMsg, "valid") && !strings.Contains(m.settingsMsg, "invalid") {
-			lines = append(lines, successStyle.Render(m.settingsMsg))
+			lines = append(lines, tipStyle.Render(m.settingsMsg))
 		} else {
 			lines = append(lines, errorStyle.Render(m.settingsMsg))
 		}
@@ -863,7 +863,7 @@ func (m model) viewSettingsConfig() string {
 	}
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		lines = append(lines, successStyle.Render(m.settingsMsg))
+		lines = append(lines, tipStyle.Render(m.settingsMsg))
 	}
 	lines = append(lines, "")
 	helpText := "[c] Edit clipboard  [i] Edit idle  [Esc] Back"

@@ -362,7 +362,7 @@ func (m model) renderDetailPanel(width int) string {
 	}
 
 	if m.statusMsg != "" {
-		content += "\n\n" + successStyle.Render(m.statusMsg)
+		content += "\n\n" + tipStyle.Render(m.statusMsg)
 	}
 	if m.errMsg != "" {
 		content += "\n\n" + errorStyle.Render(m.errMsg)
