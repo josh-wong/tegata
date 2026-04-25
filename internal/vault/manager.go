@@ -444,6 +444,7 @@ func (m *Manager) RemoveCredential(id string) error {
 }
 
 // GetCredential returns the credential matching the given label (case-insensitive).
+// Must not be called concurrently with any mutating operation.
 func (m *Manager) GetCredential(label string) (*model.Credential, error) {
 	if m.payload == nil {
 		return nil, fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
@@ -457,6 +458,7 @@ func (m *Manager) GetCredential(label string) (*model.Credential, error) {
 }
 
 // ListCredentials returns a copy of all credentials in the vault.
+// Must not be called concurrently with any mutating operation.
 func (m *Manager) ListCredentials() []model.Credential {
 	if m.payload == nil {
 		return nil
@@ -511,6 +513,27 @@ func (m *Manager) saveLocked() error {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
 
+	// Read the existing file first to validate it before mutating any state.
+	// This preserves the passphrase-wrapped DEK, which only changes on
+	// passphrase change (we don't hold the derived key).
+	oldData, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault for save: %w", err)
+	}
+
+	// Extract and validate the passphrase-wrapped DEK from the existing file
+	// before incrementing WriteCounter so that in-memory state stays consistent
+	// with what is on disk if we bail out here.
+	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
+	oldAfterPayload := headerSize + 4 + int(oldPayloadLen)
+	oldWrappedDEKLen := binary.BigEndian.Uint32(oldData[oldAfterPayload : oldAfterPayload+4])
+	if oldWrappedDEKLen == 0 {
+		// The passphrase-wrapped DEK is missing from the on-disk file — this
+		// indicates prior corruption. Refuse to write and propagate the state.
+		return fmt.Errorf("vault file corrupt: passphrase-wrapped DEK is missing: %w", errors.ErrVaultCorrupt)
+	}
+	passphraseWrappedDEK := oldData[oldAfterPayload+4 : oldAfterPayload+4+int(oldWrappedDEKLen)]
+
 	dekBuf, err := m.dek.Open()
 	if err != nil {
 		return fmt.Errorf("opening DEK: %w", err)
@@ -531,24 +554,6 @@ func (m *Manager) saveLocked() error {
 	if err != nil {
 		return fmt.Errorf("encrypting payload: %w", err)
 	}
-
-	// Read the existing file to preserve the passphrase-wrapped DEK, which
-	// only changes on passphrase change (we don't hold the derived key).
-	oldData, err := os.ReadFile(m.path)
-	if err != nil {
-		return fmt.Errorf("reading vault for save: %w", err)
-	}
-
-	// Extract the passphrase-wrapped DEK from the existing file.
-	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
-	oldAfterPayload := headerSize + 4 + int(oldPayloadLen)
-	oldWrappedDEKLen := binary.BigEndian.Uint32(oldData[oldAfterPayload : oldAfterPayload+4])
-	if oldWrappedDEKLen == 0 {
-		// The passphrase-wrapped DEK is missing from the on-disk file — this
-		// indicates prior corruption. Refuse to write and propagate the state.
-		return fmt.Errorf("vault file corrupt: passphrase-wrapped DEK is missing: %w", errors.ErrVaultCorrupt)
-	}
-	passphraseWrappedDEK := oldData[oldAfterPayload+4 : oldAfterPayload+4+int(oldWrappedDEKLen)]
 
 	headerBytes, err := Marshal(m.header)
 	if err != nil {
