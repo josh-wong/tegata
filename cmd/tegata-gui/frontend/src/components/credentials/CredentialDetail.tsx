@@ -253,16 +253,16 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
           <DialogHeader>
             <DialogTitle>Remove credential?</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to confirm removal of "{credential.label}".
+              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of "{credential.label}".
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder='Type "DELETE" to confirm'
+              placeholder='Type "REMOVE" to confirm'
               value={deleteConfirmInput}
               onChange={(e) => setDeleteConfirmInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && deleteConfirmInput === "DELETE") {
+                if (e.key === "Enter" && deleteConfirmInput === "REMOVE") {
                   confirmDelete()
                 }
               }}
@@ -281,7 +281,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
             <Button
               variant="destructive"
               onClick={confirmDelete}
-              disabled={deleteConfirmInput !== "DELETE"}
+              disabled={deleteConfirmInput !== "REMOVE"}
             >
               Remove
             </Button>

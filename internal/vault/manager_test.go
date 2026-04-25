@@ -1159,3 +1159,122 @@ func TestOpenWithTamperedArgonParameters(t *testing.T) {
 		})
 	}
 }
+
+// TestImportAllSkipped_VaultStillUnlockable reproduces the reported bug:
+// importing a .enc file when all credentials already exist (all skipped)
+// must not corrupt the vault. The vault must remain unlockable after
+// Close() and re-Open().
+func TestImportAllSkipped_VaultStillUnlockable(t *testing.T) {
+	passphrase := []byte("test-passphrase")
+	exportPass := []byte("export-passphrase-1234")
+
+	// 1. Create vault and add a credential.
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock(passphrase); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := m.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	// 2. Export credentials.
+	enc, err := m.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	// 3. Import the same .enc (all credentials already exist → all skipped).
+	imported, skipped, err := m.ImportCredentials(enc, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 0 || skipped != 1 {
+		t.Fatalf("expected 0 imported, 1 skipped; got imported=%d skipped=%d", imported, skipped)
+	}
+
+	// 4. Close (simulates app shutdown).
+	m.Close()
+
+	// 5. Re-open and unlock (simulates app restart).
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Re-Open: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock(passphrase); err != nil {
+		t.Fatalf("Unlock after import-all-skipped: %v (vault corrupted)", err)
+	}
+}
+
+// TestImportSomeSkipped_VaultStillUnlockable is the same as above but with
+// a mix of new and duplicate credentials (partial import).
+func TestImportSomeSkipped_VaultStillUnlockable(t *testing.T) {
+	passphrase := []byte("test-passphrase")
+	exportPass := []byte("export-passphrase-1234")
+
+	// 1. Create vault with one credential.
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := m.Unlock(passphrase); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	if _, err := m.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+
+	// 2. Build export with github (duplicate) + gitlab (new).
+	srcPath, _ := createTestVault(t)
+	src, err := Open(srcPath)
+	if err != nil {
+		t.Fatalf("Open src: %v", err)
+	}
+	if err := src.Unlock(passphrase); err != nil {
+		t.Fatalf("Unlock src: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "github", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential github src: %v", err)
+	}
+	if _, err := src.AddCredential(model.Credential{
+		Label: "gitlab", Type: model.CredentialTOTP, Secret: "JBSWY3DPEHPK3PXP",
+	}); err != nil {
+		t.Fatalf("AddCredential gitlab src: %v", err)
+	}
+	enc, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+	src.Close()
+
+	// 3. Import (github skipped, gitlab added → Save() called once).
+	imported, skipped, err := m.ImportCredentials(enc, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 1 || skipped != 1 {
+		t.Fatalf("expected 1 imported, 1 skipped; got imported=%d skipped=%d", imported, skipped)
+	}
+
+	// 4. Close and re-open.
+	m.Close()
+	m2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Re-Open: %v", err)
+	}
+	defer m2.Close()
+	if err := m2.Unlock(passphrase); err != nil {
+		t.Fatalf("Unlock after partial import: %v (vault corrupted)", err)
+	}
+}

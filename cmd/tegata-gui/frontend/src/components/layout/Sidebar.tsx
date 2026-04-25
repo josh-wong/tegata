@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { ChevronRight, Copy, Key, Plus, Search, Trash2 } from "lucide-react"
+import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import type { Credential } from "@/lib/types"
 
@@ -63,6 +64,12 @@ export function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  const [deleteConfirmCred, setDeleteConfirmCred] = useState<Credential | null>(null)
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedCreds, setSelectedCreds] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu on outside click or Escape.
@@ -116,6 +123,19 @@ export function Sidebar({
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={onAddClick}>
             <Plus className="h-4 w-4" />
           </Button>
+          {selectionMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs shrink-0"
+              onClick={() => {
+                setSelectionMode(false)
+                setSelectedCreds(new Set())
+              }}
+            >
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
 
@@ -140,34 +160,62 @@ export function Sidebar({
                 creds.map((cred) => (
                   <button
                     key={cred.id}
-                    onClick={() => onSelect(cred.id)}
+                    onClick={() => {
+                      if (selectionMode) {
+                        setSelectedCreds((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(cred.id)) {
+                            next.delete(cred.id)
+                          } else {
+                            next.add(cred.id)
+                          }
+                          return next
+                        })
+                      } else {
+                        onSelect(cred.id)
+                      }
+                    }}
                     onContextMenu={(e) => {
+                      if (selectionMode) return
                       e.preventDefault()
                       e.stopPropagation()
                       setCtxMenu({ x: e.clientX, y: e.clientY, credential: cred })
                     }}
                     className={cn(
                       "flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-sm hover:bg-accent",
-                      selectedId === cred.id && "bg-accent",
+                      selectedId === cred.id && !selectionMode && "bg-accent",
+                      selectedCreds.has(cred.id) && selectionMode && "bg-accent",
                     )}
                   >
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{cred.label}</div>
-                      {cred.issuer && (
-                        <div className="truncate text-xs text-muted-foreground">
-                          {cred.issuer}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {selectionMode && (
+                        <div className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border border-input",
+                          selectedCreds.has(cred.id) && "bg-primary border-primary"
+                        )}>
+                          {selectedCreds.has(cred.id) && <Check className="h-3 w-3 text-primary-foreground" />}
                         </div>
                       )}
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{cred.label}</div>
+                        {cred.issuer && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {cred.issuer}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "ml-2 shrink-0 text-[10px] uppercase",
-                        typeBadgeColor[cred.type],
-                      )}
-                    >
-                      {typeBadgeLabel[cred.type] ?? cred.type}
-                    </Badge>
+                    {!selectionMode && (
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "ml-2 shrink-0 text-[10px] uppercase",
+                          typeBadgeColor[cred.type],
+                        )}
+                      >
+                        {typeBadgeLabel[cred.type] ?? cred.type}
+                      </Badge>
+                    )}
                   </button>
                 ))}
             </div>
@@ -182,6 +230,20 @@ export function Sidebar({
           )}
         </div>
       </ScrollArea>
+
+      {selectionMode && selectedCreds.size > 0 && (
+        <div className="border-t border-border p-3">
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full"
+            onClick={() => setBulkDeleteConfirm(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Remove {selectedCreds.size} selected
+          </Button>
+        </div>
+      )}
 
       {ctxMenu && (
         <div
@@ -207,12 +269,132 @@ export function Sidebar({
           )}
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
-            onClick={() => { onRemove(ctxMenu.credential.id); setCtxMenu(null) }}
+            onClick={() => { setDeleteConfirmCred(ctxMenu.credential); setCtxMenu(null) }}
           >
             <Trash2 className="h-3.5 w-3.5" /> Remove
           </button>
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
+            onClick={() => { setSelectionMode(true); setSelectedCreds(new Set([ctxMenu.credential.id])); setCtxMenu(null) }}
+          >
+            <CheckCheck className="h-3.5 w-3.5" /> Remove multiple
+          </button>
         </div>
       )}
+
+      {/* Delete confirmation dialog for context menu */}
+      <Dialog open={!!deleteConfirmCred} onOpenChange={(open) => { if (!open) { setDeleteConfirmCred(null); setDeleteConfirmInput("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove credential?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of "{deleteConfirmCred?.label}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder='Type "REMOVE" to confirm'
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && deleteConfirmInput === "REMOVE" && deleteConfirmCred) {
+                  onRemove(deleteConfirmCred.id)
+                  setDeleteConfirmCred(null)
+                  setDeleteConfirmInput("")
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (deleteConfirmCred) {
+                    onRemove(deleteConfirmCred.id)
+                    setDeleteConfirmCred(null)
+                    setDeleteConfirmInput("")
+                  }
+                }}
+                disabled={deleteConfirmInput !== "REMOVE"}
+              >
+                Remove
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteConfirmCred(null)
+                  setDeleteConfirmInput("")
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation dialog */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => { if (!open) { setBulkDeleteConfirm(false); setBulkDeleteInput("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove {selectedCreds.size} credentials?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of these {selectedCreds.size} credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="max-h-48 overflow-y-auto rounded border border-border bg-muted/50 p-3">
+              <ul className="space-y-2 text-sm">
+                {filtered.map((cred) => selectedCreds.has(cred.id) && (
+                  <li key={cred.id} className="text-muted-foreground">
+                    <span className="font-medium">{cred.label}</span>
+                    {cred.issuer && <span className="text-xs"> — {cred.issuer}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Input
+              placeholder='Type "REMOVE" to confirm'
+              value={bulkDeleteInput}
+              onChange={(e) => setBulkDeleteInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && bulkDeleteInput === "REMOVE") {
+                  selectedCreds.forEach(id => onRemove(id))
+                  setBulkDeleteConfirm(false)
+                  setBulkDeleteInput("")
+                  setSelectedCreds(new Set())
+                  setSelectionMode(false)
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  selectedCreds.forEach(id => onRemove(id))
+                  setBulkDeleteConfirm(false)
+                  setBulkDeleteInput("")
+                  setSelectedCreds(new Set())
+                  setSelectionMode(false)
+                }}
+                disabled={bulkDeleteInput !== "REMOVE"}
+              >
+                Remove all
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBulkDeleteConfirm(false)
+                  setBulkDeleteInput("")
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }

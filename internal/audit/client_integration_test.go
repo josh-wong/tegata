@@ -184,7 +184,7 @@ func TestIntegration_Validate(t *testing.T) {
 	}
 	t.Logf("Put succeeded: objectID=%s", objectID)
 
-	result, err := client.Validate(ctx, objectID)
+	result, err := client.Validate(ctx, objectID, hashValue)
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestIntegration_RegisterContracts(t *testing.T) {
 	t.Logf("object.Get contract verified: %d records", len(records))
 
 	// Verify Validate also works (object.Validate contract registered).
-	result, err := client.Validate(ctx, testObjID)
+	result, err := client.Validate(ctx, testObjID, testHash)
 	if err != nil {
 		t.Fatalf("Validate failed — object.Validate contract may not be registered: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestIntegration_E2E_PutGetValidate(t *testing.T) {
 	t.Logf("Get event 1: %d records", len(records1))
 
 	// Step 3: Validate event 1 integrity.
-	result, err := client.Validate(ctx, objectID1)
+	result, err := client.Validate(ctx, objectID1, hash1)
 	if err != nil {
 		t.Fatalf("Validate event 1: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestIntegration_HMAC_SubmitAndCollectionGet(t *testing.T) {
 		"",
 	)
 	entry := audit.QueueEntry{Event: evt}
-	if err := client.Submit(ctx, entry); err != nil {
+	if _, err := client.Submit(ctx, entry); err != nil {
 		t.Fatalf("Submit (HMAC): %v", err)
 	}
 	t.Logf("Submit succeeded: %s", evt.EventID)
