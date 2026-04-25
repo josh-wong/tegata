@@ -133,7 +133,7 @@ export function Sidebar({
                 setSelectedCreds(new Set())
               }}
             >
-              Done
+              Cancel
             </Button>
           )}
         </div>

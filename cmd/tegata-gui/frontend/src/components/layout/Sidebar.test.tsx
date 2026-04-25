@@ -60,7 +60,7 @@ describe("Sidebar bulk deletion", () => {
     await user.click(screen.getByText("Remove multiple"))
 
     // Done button appears and type badges are hidden in selection mode
-    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
   })
 
   it("right-clicked credential is pre-selected when entering selection mode", async () => {
@@ -80,9 +80,9 @@ describe("Sidebar bulk deletion", () => {
 
     rightClickCred("GitHub")
     await user.click(screen.getByText("Remove multiple"))
-    await user.click(screen.getByRole("button", { name: "Done" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
 
-    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
     expect(screen.queryByText(/Remove \d+ selected/)).not.toBeInTheDocument()
   })
 
