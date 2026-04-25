@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,10 +41,12 @@ func zeroBytes(b []byte) {
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
 //
-// Concurrency: Manager assumes single-process access per vault file. Each CLI
-// invocation opens, operates, and closes the vault independently. No file
-// locking is performed; concurrent writers will corrupt the vault.
+// Concurrency: All mutating operations are serialized by mu. Read-only methods
+// (GetCredential, ListCredentials) are not protected and must not be called
+// concurrently with writes. External file locking is not performed; concurrent
+// writers from separate processes will corrupt the vault.
 type Manager struct {
+	mu              sync.Mutex
 	path            string
 	header          *model.VaultHeader
 	payload         *model.VaultPayload
@@ -386,6 +389,8 @@ func (m *Manager) UnlockWithRecoveryKey(recoveryRaw []byte) error {
 
 // Close zeroes all sensitive memory held by the manager.
 func (m *Manager) Close() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.dek != nil {
 		m.dek.Destroy()
 		m.dek = nil
@@ -396,6 +401,8 @@ func (m *Manager) Close() {
 // AddCredential adds a credential to the vault and saves. Returns the assigned
 // credential ID.
 func (m *Manager) AddCredential(cred model.Credential) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.payload == nil {
 		return "", fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -413,7 +420,7 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 	}
 	m.payload.Credentials = append(m.payload.Credentials, cred)
 	m.payload.ModifiedAt = now
-	if err := m.Save(); err != nil {
+	if err := m.saveLocked(); err != nil {
 		return "", err
 	}
 	return cred.ID, nil
@@ -421,6 +428,8 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 
 // RemoveCredential removes a credential by ID and saves.
 func (m *Manager) RemoveCredential(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.payload == nil {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -428,13 +437,14 @@ func (m *Manager) RemoveCredential(id string) error {
 		if c.ID == id {
 			m.payload.Credentials = append(m.payload.Credentials[:i], m.payload.Credentials[i+1:]...)
 			m.payload.ModifiedAt = time.Now().UTC()
-			return m.Save()
+			return m.saveLocked()
 		}
 	}
 	return fmt.Errorf("credential %q: %w", id, errors.ErrNotFound)
 }
 
 // GetCredential returns the credential matching the given label (case-insensitive).
+// Must not be called concurrently with any mutating operation.
 func (m *Manager) GetCredential(label string) (*model.Credential, error) {
 	if m.payload == nil {
 		return nil, fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
@@ -448,6 +458,7 @@ func (m *Manager) GetCredential(label string) (*model.Credential, error) {
 }
 
 // ListCredentials returns a copy of all credentials in the vault.
+// Must not be called concurrently with any mutating operation.
 func (m *Manager) ListCredentials() []model.Credential {
 	if m.payload == nil {
 		return nil
@@ -459,6 +470,8 @@ func (m *Manager) ListCredentials() []model.Credential {
 
 // UpdateCredential replaces the credential with the matching ID and saves.
 func (m *Manager) UpdateCredential(cred *model.Credential) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.payload == nil {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -467,7 +480,7 @@ func (m *Manager) UpdateCredential(cred *model.Credential) error {
 			cred.ModifiedAt = time.Now().UTC()
 			m.payload.Credentials[i] = *cred
 			m.payload.ModifiedAt = cred.ModifiedAt
-			return m.Save()
+			return m.saveLocked()
 		}
 	}
 	return fmt.Errorf("credential %q: %w", cred.ID, errors.ErrNotFound)
@@ -489,9 +502,37 @@ func (m *Manager) Header() *model.VaultHeader {
 
 // Save re-encrypts and writes the vault to disk using temp-file-rename.
 func (m *Manager) Save() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.saveLocked()
+}
+
+// saveLocked is the internal Save implementation. Callers must hold m.mu.
+func (m *Manager) saveLocked() error {
 	if m.dek == nil || m.payload == nil {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
+
+	// Read the existing file first to validate it before mutating any state.
+	// This preserves the passphrase-wrapped DEK, which only changes on
+	// passphrase change (we don't hold the derived key).
+	oldData, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault for save: %w", err)
+	}
+
+	// Extract and validate the passphrase-wrapped DEK from the existing file
+	// before incrementing WriteCounter so that in-memory state stays consistent
+	// with what is on disk if we bail out here.
+	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
+	oldAfterPayload := headerSize + 4 + int(oldPayloadLen)
+	oldWrappedDEKLen := binary.BigEndian.Uint32(oldData[oldAfterPayload : oldAfterPayload+4])
+	if oldWrappedDEKLen == 0 {
+		// The passphrase-wrapped DEK is missing from the on-disk file — this
+		// indicates prior corruption. Refuse to write and propagate the state.
+		return fmt.Errorf("vault file corrupt: passphrase-wrapped DEK is missing: %w", errors.ErrVaultCorrupt)
+	}
+	passphraseWrappedDEK := oldData[oldAfterPayload+4 : oldAfterPayload+4+int(oldWrappedDEKLen)]
 
 	dekBuf, err := m.dek.Open()
 	if err != nil {
@@ -513,19 +554,6 @@ func (m *Manager) Save() error {
 	if err != nil {
 		return fmt.Errorf("encrypting payload: %w", err)
 	}
-
-	// Read the existing file to preserve the passphrase-wrapped DEK, which
-	// only changes on passphrase change (we don't hold the derived key).
-	oldData, err := os.ReadFile(m.path)
-	if err != nil {
-		return fmt.Errorf("reading vault for save: %w", err)
-	}
-
-	// Extract the passphrase-wrapped DEK from the existing file.
-	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
-	oldAfterPayload := headerSize + 4 + int(oldPayloadLen)
-	oldWrappedDEKLen := binary.BigEndian.Uint32(oldData[oldAfterPayload : oldAfterPayload+4])
-	passphraseWrappedDEK := oldData[oldAfterPayload+4 : oldAfterPayload+4+int(oldWrappedDEKLen)]
 
 	headerBytes, err := Marshal(m.header)
 	if err != nil {
@@ -713,6 +741,8 @@ func (m *Manager) ImportCredentials(data, importPassphrase []byte) (imported, sk
 // corrupt the payload, because the old file is preserved as a .bak until the
 // rename succeeds.
 func (m *Manager) ChangePassphrase(newPassphrase []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.dek == nil || m.payload == nil {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -812,6 +842,8 @@ func (m *Manager) VerifyRecoveryKey(recoveryRaw []byte) (bool, error) {
 // vault is locked, the hash is silently dropped (per D-14: vault write
 // failure is non-fatal).
 func (m *Manager) SetAuditHash(eventID, hashValue string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.payload == nil {
 		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -819,15 +851,7 @@ func (m *Manager) SetAuditHash(eventID, hashValue string) error {
 		m.payload.AuditHashes = make(map[string]string)
 	}
 	m.payload.AuditHashes[eventID] = hashValue
-	err := m.Save()
-	// TODO(debug): remove before merge
-	if err == nil {
-		fmt.Fprintf(os.Stderr, "[debug] audit hash stored: eventID=%s hash=%.16s... total=%d\n",
-			eventID, hashValue, len(m.payload.AuditHashes))
-	} else {
-		fmt.Fprintf(os.Stderr, "[debug] audit hash store FAILED: eventID=%s err=%v\n", eventID, err)
-	}
-	return err
+	return m.saveLocked()
 }
 
 // AuditHashes returns a copy of the vault's audit hash map. The caller
