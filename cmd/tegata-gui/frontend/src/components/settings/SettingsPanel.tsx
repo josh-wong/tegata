@@ -411,35 +411,44 @@ function ExportImport({ onImported }: { onImported: () => void }) {
 
       {showExport && (
         <div className="space-y-2 rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">
-            Enter a passphrase to encrypt the export file.
-          </p>
-          <Input
-            type="password"
-            placeholder="Export passphrase"
-            value={exportPass}
-            onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
-          />
-          {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
-          <Input
-            type="password"
-            placeholder="Confirm passphrase"
-            value={exportConfirm}
-            onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
-          />
-          {message && (
-            <p className={`text-sm ${message.error ? "text-destructive" : "text-green-500"}`}>
-              {message.text}
-            </p>
+          {message && !message.error ? (
+            <>
+              <p className="text-sm text-green-500">{message.text}</p>
+              <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
+                Done
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Enter a passphrase to encrypt the export file.
+              </p>
+              <Input
+                type="password"
+                placeholder="Export passphrase"
+                value={exportPass}
+                onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
+              />
+              {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
+              <Input
+                type="password"
+                placeholder="Confirm passphrase"
+                value={exportConfirm}
+                onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
+              />
+              {message && (
+                <p className="text-sm text-destructive">{message.text}</p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
+                  {loading ? "Exporting..." : "Export to file"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }} disabled={loading}>
+                  Cancel
+                </Button>
+              </div>
+            </>
           )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
-              {loading ? "Exporting..." : "Export to file"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
-              Cancel
-            </Button>
-          </div>
         </div>
       )}
 
