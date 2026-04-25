@@ -41,9 +41,10 @@ func zeroBytes(b []byte) {
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
 //
-// Concurrency: Manager is safe for concurrent use within a single process.
-// All mutating operations are serialized by mu. External file locking is not
-// performed; concurrent writers from separate processes will corrupt the vault.
+// Concurrency: All mutating operations are serialized by mu. Read-only methods
+// (GetCredential, ListCredentials) are not protected and must not be called
+// concurrently with writes. External file locking is not performed; concurrent
+// writers from separate processes will corrupt the vault.
 type Manager struct {
 	mu              sync.Mutex
 	path            string
