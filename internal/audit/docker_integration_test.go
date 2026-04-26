@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -243,4 +244,187 @@ func TestIntegration_StopStack_NonExistentCompose(t *testing.T) {
 
 	// Docker compose should fail with a file-not-found or similar error.
 	t.Logf("StopStack_NonExistentCompose verified: returned expected error: %v", err)
+}
+
+// TestIntegration_TamperingDetection spins up a full Docker stack, submits
+// real audit events via the production Submit path, then directly manipulates
+// the ScalarDL PostgreSQL database to simulate an attacker bypassing the gRPC
+// contracts. It asserts that client.Validate detects each of the four
+// supported tampering scenarios:
+//
+//   - Check 1: hash_value replaced — "record hash has been altered"
+//   - Check 2: content replaced — "event content has been altered"
+//   - Check 3a: metadata.operation changed — "event type field has been altered"
+//   - Check 3b: metadata.label_hash changed — "credential field has been altered"
+//
+// Each subtest submits its own fresh event so subtests are fully independent.
+// ScalarDL stores object IDs in scalar.asset with an "o_" prefix, so each
+// subtest constructs dbID = "o_" + objectID when targeting the database row.
+// The replay-attack guard (len(records) > 1) is not covered here because the
+// object.v1_0_0.Get contract always returns a single record regardless of how
+// many rows exist in scalar.asset — see the comment in client.go Validate and
+// commit 849b42f for the full reasoning.
+func TestIntegration_TamperingDetection(t *testing.T) {
+	requireDocker(t)
+
+	srcDir, err := composeSourceDir()
+	if err != nil {
+		t.Fatalf("determining compose source directory: %v", err)
+	}
+	composeWorkDir := t.TempDir()
+	fsys := os.DirFS(srcDir)
+
+	cfg, err := audit.SetupStack(fsys, composeWorkDir, "test-vault-tampering", nil, nil)
+	if err != nil {
+		t.Fatalf("SetupStack: %v", err)
+	}
+	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
+	t.Cleanup(func() { _ = audit.TeardownStack(composePath) })
+
+	client, err := audit.NewClientFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("creating ledger client: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	// runSQL executes a SQL statement directly in the ScalarDL PostgreSQL
+	// container via docker exec. The container name is always
+	// tegata-ledger-postgres-1 because the compose project name is fixed to
+	// "tegata-ledger" in docker-compose.yml (see the `name:` field at the top
+	// of that file). If the compose project name changes, update this string.
+	//
+	// All callers issue UPDATE statements targeting a single row. runSQL asserts
+	// that psql reports "UPDATE 1" so that a silent zero-row update (e.g. due to
+	// a wrong object ID prefix) fails immediately with a clear message rather
+	// than letting assertTampering fail with a confusing Valid=true. The id value
+	// interpolated into each SQL string is always a UUID from evt.EventID (hex
+	// digits and hyphens only), so fmt.Sprintf is safe here.
+	runSQL := func(t *testing.T, sql string) {
+		t.Helper()
+		out, err := exec.Command(
+			"docker", "exec", "tegata-ledger-postgres-1",
+			"psql", "-U", "scalardl", "-d", "scalardl", "-c", sql,
+		).CombinedOutput()
+		if err != nil {
+			t.Fatalf("psql: %v\n%s", err, out)
+		}
+		found := false
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.TrimSpace(line) == "UPDATE 1" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("psql UPDATE affected != 1 row; verify the \"o_\" object ID prefix convention\n%s", out)
+		}
+	}
+
+	// submitEvent submits a fresh signed event via the production Submit path
+	// and returns its objectID and the vault hash value.
+	submitEvent := func(t *testing.T, opType string) (objectID, hashValue string) {
+		t.Helper()
+		evt := audit.NewAuthEvent(opType, "test-label", "test-service", "test-host", true, "")
+		entry := audit.QueueEntry{Event: evt}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		hash, err := client.Submit(ctx, entry)
+		if err != nil {
+			t.Fatalf("Submit(%s): %v", opType, err)
+		}
+		return evt.EventID, hash
+	}
+
+	// assertTampering calls Validate and asserts Valid=false with the expected
+	// ErrorDetail message.
+	assertTampering := func(t *testing.T, objectID, hashValue, wantDetail string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result, err := client.Validate(ctx, objectID, hashValue)
+		if err != nil {
+			t.Fatalf("Validate: unexpected error: %v", err)
+		}
+		if result.Valid {
+			t.Error("Validate: expected Valid=false after tampering, got Valid=true")
+		}
+		if result.ErrorDetail != wantDetail {
+			t.Errorf("Validate ErrorDetail = %q, want %q", result.ErrorDetail, wantDetail)
+		}
+	}
+
+	// assertClean calls Validate and asserts Valid=true. Uses t.Fatalf so a
+	// baseline failure stops the subtest immediately rather than letting the
+	// subsequent mutation run and produce a misleading second failure.
+	assertClean := func(t *testing.T, objectID, hashValue string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result, err := client.Validate(ctx, objectID, hashValue)
+		if err != nil {
+			t.Fatalf("Validate: unexpected error: %v", err)
+		}
+		if !result.Valid {
+			t.Fatalf("Validate: expected Valid=true, got Valid=false: %s", result.ErrorDetail)
+		}
+	}
+
+	// Check 1: hash_value in the stored output replaced with a different value.
+	t.Run("HashValueTampered", func(t *testing.T) {
+		objectID, hashValue := submitEvent(t, "totp")
+		dbID := "o_" + objectID
+
+		assertClean(t, objectID, hashValue) // baseline: fresh event must be valid
+
+		runSQL(t, fmt.Sprintf(
+			`UPDATE scalar.asset SET output = jsonb_set(output::jsonb, '{hash_value}', '"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"')::text WHERE id = '%s';`,
+			dbID,
+		))
+		assertTampering(t, objectID, hashValue, "record hash has been altered")
+	})
+
+	// Check 2: metadata.content replaced, so SHA-256(content) no longer
+	// matches hash_value even though hash_value itself is untouched.
+	t.Run("ContentTampered", func(t *testing.T) {
+		objectID, hashValue := submitEvent(t, "totp")
+		dbID := "o_" + objectID
+
+		assertClean(t, objectID, hashValue) // baseline
+
+		runSQL(t, fmt.Sprintf(
+			`UPDATE scalar.asset SET output = jsonb_set(output::jsonb, '{metadata,content}', to_jsonb((output::jsonb->'metadata'->>'content') || 'X'))::text WHERE id = '%s';`,
+			dbID,
+		))
+		assertTampering(t, objectID, hashValue, "event content has been altered")
+	})
+
+	// Check 3a: metadata.operation changed while hash_value and content are
+	// left intact, testing the cross-field consistency check.
+	t.Run("OperationFieldTampered", func(t *testing.T) {
+		objectID, hashValue := submitEvent(t, "totp")
+		dbID := "o_" + objectID
+
+		assertClean(t, objectID, hashValue) // baseline
+
+		runSQL(t, fmt.Sprintf(
+			`UPDATE scalar.asset SET output = jsonb_set(output::jsonb, '{metadata,operation}', '"hotp"')::text WHERE id = '%s';`,
+			dbID,
+		))
+		assertTampering(t, objectID, hashValue, "event type field has been altered")
+	})
+
+	// Check 3b: metadata.label_hash zeroed while hash_value and content are
+	// left intact, testing the cross-field consistency check.
+	t.Run("LabelHashTampered", func(t *testing.T) {
+		objectID, hashValue := submitEvent(t, "totp")
+		dbID := "o_" + objectID
+
+		assertClean(t, objectID, hashValue) // baseline
+
+		runSQL(t, fmt.Sprintf(
+			`UPDATE scalar.asset SET output = jsonb_set(output::jsonb, '{metadata,label_hash}', '"0000000000000000000000000000000000000000000000000000000000000000"')::text WHERE id = '%s';`,
+			dbID,
+		))
+		assertTampering(t, objectID, hashValue, "credential field has been altered")
+	})
 }
