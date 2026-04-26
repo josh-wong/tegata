@@ -544,6 +544,15 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 	}
 	// Each event uses a UUID EventID written exactly once, so len > 1 is
 	// unexpected and is itself evidence of tampering or a replay.
+	//
+	// NOTE: With the current ScalarDL HashStore SDK (v3.13+), this branch is
+	// unreachable in practice. The object.v1_0_0.Get contract is implemented in
+	// generic-contracts and calls ledger.get(), which returns Optional<Asset> —
+	// at most one record. The HashStore bootstrap registers the same generic
+	// contract class directly (hash-store depends on generic-contracts; it ships
+	// no separate Get implementation). If ScalarDL ever exposes a contract that
+	// returns multiple versions (e.g. via ledger.scan()), this guard would
+	// become active. Keep it for defensive correctness and to signal intent.
 	if len(records) > 1 {
 		return &ValidationResult{
 			Valid:       false,
