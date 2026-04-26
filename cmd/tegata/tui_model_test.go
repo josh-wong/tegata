@@ -561,11 +561,11 @@ func TestTUI_AuditVerifyValid(t *testing.T) {
 
 func TestTUI_AuditTamperDetected(t *testing.T) {
 	m := model{state: stateOverlayAudit, auditSubFlow: "verify", auditLoading: true}
-	msg := auditVerifyMsg{valid: false, eventCount: 3, detail: "hash mismatch at version 2"}
+	msg := auditVerifyMsg{valid: false, eventCount: 3, faults: []string{"tegata-abc123: record hash has been altered"}}
 	updated, _ := m.Update(msg)
 	result := updated.(model)
-	if !strings.Contains(result.auditMsg, "TAMPER DETECTED") {
-		t.Errorf("expected 'TAMPER DETECTED' in msg, got %q", result.auditMsg)
+	if !strings.Contains(result.auditMsg, "TAMPERING DETECTED") {
+		t.Errorf("expected 'TAMPERING DETECTED' in msg, got %q", result.auditMsg)
 	}
 }
 

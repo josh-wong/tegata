@@ -5,9 +5,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"math/big"
 	"net"
@@ -235,83 +238,180 @@ func newBufconnServerMulti(t *testing.T, ledger *mockLedgerServerMulti, privileg
 	return conn
 }
 
-// TestClient_ValidateArgSchema verifies that Validate calls object.v1_0_0.Validate
-// with a versions array containing the caller-supplied expectedHash. No Get call
-// is made — the hash comes from the vault, not ScalarDL.
-func TestClient_ValidateArgSchema(t *testing.T) {
+// buildGetResult returns a mock object.v1_0_0.Get JSON response containing
+// a single record with the given hash_value and metadata.
+func buildGetResult(t *testing.T, objectID, hashValue string, metadata map[string]interface{}) string {
+	t.Helper()
+	type record struct {
+		ObjectID  string                 `json:"object_id"`
+		HashValue string                 `json:"hash_value"`
+		Age       int                    `json:"age"`
+		Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	}
+	b, err := json.Marshal([]record{{ObjectID: objectID, HashValue: hashValue, Age: 0, Metadata: metadata}})
+	if err != nil {
+		t.Fatalf("buildGetResult: %v", err)
+	}
+	return string(b)
+}
+
+// TestClient_Validate_ValidRecord verifies that Validate returns Valid=true
+// when the stored hash_value and content both match the vault hash.
+func TestClient_Validate_ValidRecord(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 
-	// The Validate response returns correct status.
-	validateResult := `{"status":"correct","details":"","faulty_versions":[]}`
+	content := `{"event_id":"tegata-test","op_type":"totp","label_hash":"lhash","service_hash":"shash","host":"h1","success":true,"timestamp":"2024-01-01T00:00:00Z"}`
+	sum := sha256.Sum256([]byte(content))
+	hashValue := hex.EncodeToString(sum[:])
 
-	ledgerSrv := &mockLedgerServerMulti{
-		results: []string{validateResult},
-	}
-	privSrv := &mockPrivilegedServer{}
-	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
+	getResult := buildGetResult(t, "tegata-test", hashValue, map[string]interface{}{"content": content})
+	ledgerSrv := &mockLedgerServerMulti{results: []string{getResult}}
+	conn := newBufconnServerMulti(t, ledgerSrv, &mockPrivilegedServer{})
 
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer func() { _ = client.Close() }()
 
-	result, err := client.Validate(context.Background(), "tegata-", "abc123")
+	result, err := client.Validate(context.Background(), "tegata-test", hashValue)
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-
-	// Verify exactly one ExecuteContract call was made (Validate only, no Get).
-	if len(ledgerSrv.calls) != 1 {
-		t.Fatalf("expected 1 ExecuteContract call, got %d", len(ledgerSrv.calls))
-	}
-
-	// The call should be object.v1_0_0.Validate with versions array.
-	if ledgerSrv.calls[0].ContractId != "object.v1_0_0.Validate" {
-		t.Errorf("call contract ID = %q, want %q", ledgerSrv.calls[0].ContractId, "object.v1_0_0.Validate")
-	}
-
-	// The argument must contain the caller-supplied hash in the versions array.
-	arg := ledgerSrv.calls[0].ContractArgument
-	if !strings.Contains(arg, `"versions"`) {
-		t.Errorf("Validate argument missing 'versions' key: %s", arg)
-	}
-	if !strings.Contains(arg, `"object_id"`) {
-		t.Errorf("Validate argument missing 'object_id' key: %s", arg)
-	}
-	if !strings.Contains(arg, `"abc123"`) {
-		t.Errorf("Validate argument missing expected hash 'abc123': %s", arg)
-	}
-
 	if !result.Valid {
-		t.Error("expected Valid=true, got false")
+		t.Errorf("expected Valid=true, got false: %s", result.ErrorDetail)
+	}
+	// Validate uses Get (one call), not object.v1_0_0.Validate.
+	if len(ledgerSrv.calls) != 1 || ledgerSrv.calls[0].ContractId != "object.v1_0_0.Get" {
+		t.Errorf("expected one Get call, got %d calls; first=%q", len(ledgerSrv.calls), func() string {
+			if len(ledgerSrv.calls) > 0 {
+				return ledgerSrv.calls[0].ContractId
+			}
+			return ""
+		}())
 	}
 }
 
-// TestClient_ValidateTampered verifies that when the ScalarDL Validate contract
-// returns a "tampered" status, the result reflects Invalid with error detail.
-func TestClient_ValidateTampered(t *testing.T) {
+// TestClient_Validate_HashValueTampered verifies that Validate returns
+// Valid=false when the stored hash_value differs from the vault hash.
+func TestClient_Validate_HashValueTampered(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 
-	// The Validate response returns faulty status (ScalarDL's term for tampered).
-	validateResult := `{"status":"faulty","details":"A faulty version is found.","faulty_versions":["tegata-"]}`
-
-	ledgerSrv := &mockLedgerServerMulti{
-		results: []string{validateResult},
-	}
-	privSrv := &mockPrivilegedServer{}
-	conn := newBufconnServerMulti(t, ledgerSrv, privSrv)
+	getResult := buildGetResult(t, "tegata-test", "differenthash", nil)
+	ledgerSrv := &mockLedgerServerMulti{results: []string{getResult}}
+	conn := newBufconnServerMulti(t, ledgerSrv, &mockPrivilegedServer{})
 
 	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
 	defer func() { _ = client.Close() }()
 
-	result, err := client.Validate(context.Background(), "tegata-", "wronghash")
+	result, err := client.Validate(context.Background(), "tegata-test", "vaulthash")
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-
 	if result.Valid {
-		t.Error("expected Valid=false for tampered record, got true")
+		t.Error("expected Valid=false when hash_value is tampered, got true")
 	}
 	if result.ErrorDetail == "" {
-		t.Error("expected non-empty ErrorDetail for tampered record")
+		t.Error("expected non-empty ErrorDetail")
+	}
+}
+
+// TestClient_Validate_ContentTampered verifies that Validate returns Valid=false
+// when metadata content is changed even though hash_value is left intact.
+func TestClient_Validate_ContentTampered(t *testing.T) {
+	signer := &mockSigner{sig: []byte("fake-sig")}
+
+	// Original content and its hash.
+	content := `{"event_id":"tegata-test","op_type":"totp","label_hash":"lhash","service_hash":"shash","host":"h1","success":true,"timestamp":"2024-01-01T00:00:00Z"}`
+	sum := sha256.Sum256([]byte(content))
+	hashValue := hex.EncodeToString(sum[:])
+
+	// Stored record has the correct hash_value but tampered content.
+	tamperedContent := strings.Replace(content, "totp", "hotp", 1)
+	getResult := buildGetResult(t, "tegata-test", hashValue, map[string]interface{}{"content": tamperedContent})
+	ledgerSrv := &mockLedgerServerMulti{results: []string{getResult}}
+	conn := newBufconnServerMulti(t, ledgerSrv, &mockPrivilegedServer{})
+
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
+	defer func() { _ = client.Close() }()
+
+	result, err := client.Validate(context.Background(), "tegata-test", hashValue)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if result.Valid {
+		t.Error("expected Valid=false when content is tampered, got true")
+	}
+	if !strings.Contains(result.ErrorDetail, "event content has been altered") {
+		t.Errorf("expected 'event content has been altered' in ErrorDetail, got %q", result.ErrorDetail)
+	}
+}
+
+// TestClient_Validate_MetadataOperationTampered verifies that Validate returns
+// Valid=false when metadata.operation is changed while hash_value and content
+// are left intact (Check 3: cross-field consistency).
+func TestClient_Validate_MetadataOperationTampered(t *testing.T) {
+	signer := &mockSigner{sig: []byte("fake-sig")}
+
+	// Build a valid AuthEvent JSON for content (field names match AuthEvent struct tags).
+	content := `{"event_id":"tegata-test","timestamp":"2024-01-01T00:00:00Z","operation_type":"hotp","label_hash":"lhash","service_hash":"shash","host_hash":"hhash","success":true,"prev_hash":""}`
+	sum := sha256.Sum256([]byte(content))
+	hashValue := hex.EncodeToString(sum[:])
+
+	// metadata.operation is changed to "totp" but content (with "hotp") is left intact.
+	metadata := map[string]interface{}{
+		"content":    content,
+		"operation":  "totp", // tampered: original was "hotp" per content
+		"label_hash": "lhash",
+	}
+	getResult := buildGetResult(t, "tegata-test", hashValue, metadata)
+	ledgerSrv := &mockLedgerServerMulti{results: []string{getResult}}
+	conn := newBufconnServerMulti(t, ledgerSrv, &mockPrivilegedServer{})
+
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
+	defer func() { _ = client.Close() }()
+
+	result, err := client.Validate(context.Background(), "tegata-test", hashValue)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if result.Valid {
+		t.Error("expected Valid=false when metadata.operation is tampered, got true")
+	}
+	if !strings.Contains(result.ErrorDetail, "event type field has been altered") {
+		t.Errorf("expected 'event type field has been altered' in ErrorDetail, got %q", result.ErrorDetail)
+	}
+}
+
+// TestClient_Validate_MetadataLabelHashTampered verifies that Validate returns
+// Valid=false when metadata.label_hash is changed while hash_value and content
+// are left intact (Check 3: cross-field consistency).
+func TestClient_Validate_MetadataLabelHashTampered(t *testing.T) {
+	signer := &mockSigner{sig: []byte("fake-sig")}
+
+	content := `{"event_id":"tegata-test","timestamp":"2024-01-01T00:00:00Z","operation_type":"hotp","label_hash":"lhash","service_hash":"shash","host_hash":"hhash","success":true,"prev_hash":""}`
+	sum := sha256.Sum256([]byte(content))
+	hashValue := hex.EncodeToString(sum[:])
+
+	// metadata.label_hash is changed but content (with original label_hash) is left intact.
+	metadata := map[string]interface{}{
+		"content":    content,
+		"operation":  "hotp",
+		"label_hash": "tampered-label-hash", // tampered: original was "lhash" per content
+	}
+	getResult := buildGetResult(t, "tegata-test", hashValue, metadata)
+	ledgerSrv := &mockLedgerServerMulti{results: []string{getResult}}
+	conn := newBufconnServerMulti(t, ledgerSrv, &mockPrivilegedServer{})
+
+	client := audit.NewLedgerClientFromConn(conn, nil, signer, "test-entity", 1)
+	defer func() { _ = client.Close() }()
+
+	result, err := client.Validate(context.Background(), "tegata-test", hashValue)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if result.Valid {
+		t.Error("expected Valid=false when metadata.label_hash is tampered, got true")
+	}
+	if !strings.Contains(result.ErrorDetail, "credential field has been altered") {
+		t.Errorf("expected 'credential field has been altered' in ErrorDetail, got %q", result.ErrorDetail)
 	}
 }
 

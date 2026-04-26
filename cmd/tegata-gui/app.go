@@ -716,10 +716,10 @@ type AuditHistoryRecord struct {
 
 // AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
 type AuditVerifyResult struct {
-	Valid       bool   `json:"valid"`
-	EventCount  int    `json:"event_count"`
-	Skipped     int    `json:"skipped,omitempty"`
-	ErrorDetail string `json:"error_detail,omitempty"`
+	Valid       bool     `json:"valid"`
+	EventCount  int      `json:"event_count"`
+	Skipped     int      `json:"skipped,omitempty"`
+	Faults      []string `json:"faults,omitempty"`
 }
 
 // IsAuditEnabled returns whether audit logging is configured and enabled.
@@ -799,7 +799,7 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
 		Skipped:     result.Skipped,
-		ErrorDetail: result.ErrorDetail,
+		Faults:      result.Faults,
 	}, nil
 }
 
@@ -831,7 +831,7 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
 		Skipped:     result.Skipped,
-		ErrorDetail: result.ErrorDetail,
+		Faults:      result.Faults,
 	}, nil
 }
 

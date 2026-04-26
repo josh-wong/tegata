@@ -44,5 +44,6 @@ export interface AuditHistoryRecord {
 export interface AuditVerifyResult {
   valid: boolean
   event_count: number
-  error_detail?: string
+  skipped?: number
+  faults?: string[]
 }

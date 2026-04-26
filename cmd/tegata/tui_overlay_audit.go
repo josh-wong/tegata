@@ -28,7 +28,7 @@ type auditVerifyMsg struct {
 	valid      bool
 	eventCount int
 	skipped    int
-	detail     string
+	faults     []string // per-event fault descriptions when !valid
 	err        error
 }
 
@@ -96,7 +96,7 @@ func auditVerifyCmd(cfg config.AuditConfig, vaultHashes map[string]string) tea.C
 			valid:      result.Valid,
 			eventCount: result.EventCount,
 			skipped:    result.Skipped,
-			detail:     result.ErrorDetail,
+			faults:     result.Faults,
 		}
 	}
 }
@@ -262,7 +262,7 @@ func (m model) viewAuditVerify() string {
 	}
 
 	var body string
-	if strings.Contains(m.auditMsg, "TAMPER DETECTED") {
+	if strings.Contains(m.auditMsg, "TAMPERING DETECTED") {
 		body = errorStyle.Render(m.auditMsg)
 	} else if strings.Contains(m.auditMsg, "verified") {
 		body = tipStyle.Render(m.auditMsg)

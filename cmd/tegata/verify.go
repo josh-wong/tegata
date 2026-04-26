@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -29,6 +30,21 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 		Args: cobra.NoArgs,
 		RunE: runVerify,
 	}
+}
+
+// formatFault converts an "id: detail" fault string into a readable sentence.
+// Normal faults become "The {detail} for record {id}".
+// Error faults (from Validate returning an error) become "Verification error for record {id}: {err}".
+func formatFault(f string) string {
+	idx := strings.Index(f, ": ")
+	if idx < 0 {
+		return f
+	}
+	id, detail := f[:idx], f[idx+2:]
+	if strings.HasPrefix(detail, "error: ") {
+		return fmt.Sprintf("Verification error for record %s: %s", id, strings.TrimPrefix(detail, "error: "))
+	}
+	return fmt.Sprintf("The %s for record %s", detail, id)
 }
 
 func runVerify(cmd *cobra.Command, _ []string) error {
@@ -93,9 +109,9 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Integrity violation detected in %d of %d events:\n", len(result.Faults), result.EventCount)
+	fmt.Fprintf(os.Stderr, "TAMPERING DETECTED\n")
 	for _, f := range result.Faults {
-		fmt.Fprintf(os.Stderr, "  %s\n", f)
+		fmt.Fprintf(os.Stderr, "  %s\n", formatFault(f))
 	}
-	return tegerrors.ErrIntegrityViolation
+	return reportedError{tegerrors.ErrIntegrityViolation}
 }

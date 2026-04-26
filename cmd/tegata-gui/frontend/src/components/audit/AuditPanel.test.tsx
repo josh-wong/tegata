@@ -55,19 +55,19 @@ describe("AuditPanel", () => {
     })
   })
 
-  it("shows tamper detected warning", async () => {
+  it("shows tamper detected warning with per-event detail", async () => {
     vi.mocked(App.VerifyAuditLog).mockResolvedValue({
       valid: false,
       event_count: 2,
-      error_detail: "hash mismatch at version 1",
+      faults: ["tegata-abc12345-0000-0000-0000-000000000000: record hash has been altered"],
     })
 
     render(<AuditPanel open={true} onClose={() => {}} />)
     await userEvent.click(screen.getByText("Verify integrity"))
 
     await waitFor(() => {
-      expect(screen.getByText(/TAMPER DETECTED/)).toBeInTheDocument()
-      expect(screen.getByText(/hash mismatch/)).toBeInTheDocument()
+      expect(screen.getByText(/TAMPERING DETECTED/)).toBeInTheDocument()
+      expect(screen.getByText(/record hash has been altered/)).toBeInTheDocument()
     })
   })
 

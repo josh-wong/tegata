@@ -41,7 +41,12 @@ type Client interface {
 	// Get retrieves all event records for objectID from the ledger.
 	Get(ctx context.Context, objectID string) ([]*EventRecord, error)
 	// Validate verifies the integrity of objectID against the caller-supplied
-	// expectedHash. The hash comes from the vault, not from ScalarDL.
+	// expectedHash from the vault. It fetches the stored record via Get and
+	// performs three local checks: (1) stored hash_value == expectedHash, and
+	// (2) SHA-256(stored content) == expectedHash when content is present,
+	// and (3) individual metadata display fields (operation, label_hash) match
+	// the authenticated content. Check (3) detects targeted tampering of
+	// individual fields when hash_value and content are left intact.
 	Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error)
 	// CollectionCreate creates a new collection with the given object IDs.
 	CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error
@@ -512,67 +517,75 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 	return records, nil
 }
 
-// validateResult is the JSON shape returned by the object.Validate contract.
-// Matches the official ScalarDL generic contracts response schema.
-type validateResult struct {
-	Status         string   `json:"status"`
-	Details        string   `json:"details"`
-	FaultyVersions []string `json:"faulty_versions"`
-}
-
 // Validate verifies the integrity of objectID against the caller-supplied
-// expectedHash. The hash comes from the vault (stored at submission time),
-// not from ScalarDL — breaking the circular trust where the system being
-// validated was also the source of expected values.
+// expectedHash from the vault. It fetches the stored record via Get and
+// performs three local checks:
+//
+//  1. The stored hash_value must equal expectedHash — detects direct hash
+//     manipulation in the ScalarDL database.
+//  2. If a "content" field is present in the record metadata, its SHA-256
+//     must equal expectedHash — detects content replacement.
+//  3. Individual metadata display fields (operation, label_hash) must match
+//     the authenticated content — detects targeted field tampering when
+//     hash_value and content are left intact (e.g. changing
+//     operation "hotp" → "totp" without touching the other fields).
+//
+// Events submitted before content storage was introduced pass check (1) only.
 func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error) {
-	// Build versions array from caller-supplied expected hash (D-06).
-	// No Get() call — the hash comes from the vault, not ScalarDL.
-	versions := []map[string]string{
-		{
-			"version_id": objectID,
-			"hash_value": expectedHash,
-		},
-	}
-
-	contractID := "object.v1_0_0.Validate"
-	arg, err := json.Marshal(map[string]interface{}{
-		"object_id": objectID,
-		"versions":  versions,
-	})
+	records, err := c.Get(ctx, objectID)
 	if err != nil {
-		return nil, fmt.Errorf("marshalling Validate argument: %w", err)
+		return nil, fmt.Errorf("fetching record for validation: %w", err)
+	}
+	if len(records) == 0 {
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "no record found in ledger",
+		}, nil
+	}
+	record := records[len(records)-1]
+
+	// Check 1: stored hash_value must match the vault hash.
+	if record.HashValue != expectedHash {
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "record hash has been altered",
+		}, nil
 	}
 
-	nonce := uuid.New().String()
-	formatted := formatArgument(string(arg), nonce)
-	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
-	if err != nil {
-		return nil, fmt.Errorf("signing Validate request: %w", err)
-	}
+	// Checks 2 & 3: only run when content is present in metadata (events
+	// submitted after D-17). Check 2 recomputes SHA-256(content) to confirm
+	// content itself has not been replaced. Check 3 cross-checks individual
+	// display fields against the now-authenticated content to catch targeted
+	// field tampering (e.g. operation changed while content is left intact).
+	if content, ok := record.Metadata["content"].(string); ok && content != "" {
+		// Check 2: recompute SHA-256 of stored event content and compare.
+		sum := sha256.Sum256([]byte(content))
+		if hex.EncodeToString(sum[:]) != expectedHash {
+			return &ValidationResult{
+				Valid:       false,
+				ErrorDetail: "event content has been altered",
+			}, nil
+		}
 
-	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
-		ContractId:       contractID,
-		ContractArgument: formatted,
-		EntityId:         c.entityID,
-		KeyVersion:       c.keyVersion,
-		Signature:        sig,
-		Nonce:            nonce,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: Validate contract failed: %s", tegerrors.ErrNetworkFailed, err)
-	}
-
-	var vr validateResult
-	if resp.GetContractResult() != "" {
-		if err := json.Unmarshal([]byte(resp.GetContractResult()), &vr); err != nil {
-			return nil, fmt.Errorf("parsing Validate result: %w", err)
+		// Check 3: individual display fields must match the authenticated content.
+		var evt AuthEvent
+		if jsonErr := json.Unmarshal([]byte(content), &evt); jsonErr == nil {
+			if op, ok := record.Metadata["operation"].(string); ok && op != evt.OperationType {
+				return &ValidationResult{
+					Valid:       false,
+					ErrorDetail: "event type field has been altered",
+				}, nil
+			}
+			if lh, ok := record.Metadata["label_hash"].(string); ok && lh != evt.LabelHash {
+				return &ValidationResult{
+					Valid:       false,
+					ErrorDetail: "credential field has been altered",
+				}, nil
+			}
 		}
 	}
 
-	return &ValidationResult{
-		Valid:       vr.Status == "correct",
-		ErrorDetail: vr.Details,
-	}, nil
+	return &ValidationResult{Valid: true}, nil
 }
 
 // RegisterCert registers the client certificate on the LedgerPrivileged service.
@@ -663,6 +676,11 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) (string, er
 		return "", fmt.Errorf("serialising queue entry for submission: %w", err)
 	}
 	sum := sha256.Sum256(entryJSON)
+	// Capture the serialised event before zeroing. Stored as "content" in
+	// ScalarDL metadata so validation can recompute SHA-256(content) and
+	// detect metadata tampering even when hash_value is left intact (D-17).
+	// The event JSON contains only hashed/derived fields, not raw secrets.
+	eventContent := string(entryJSON)
 	for i := range entryJSON {
 		entryJSON[i] = 0
 	}
@@ -672,6 +690,7 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) (string, er
 		"operation":  entry.Event.OperationType,
 		"label_hash": entry.Event.LabelHash,
 		"timestamp":  entry.Event.Timestamp.Unix(),
+		"content":    eventContent,
 	}
 
 	objectID := entry.Event.EventID

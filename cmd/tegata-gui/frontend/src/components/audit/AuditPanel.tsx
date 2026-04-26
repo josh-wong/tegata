@@ -6,6 +6,17 @@ import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError, hashString } from "@/lib/utils"
 
+function formatFault(f: string): string {
+  const idx = f.indexOf(": ")
+  if (idx < 0) return f
+  const id = f.slice(0, idx)
+  const detail = f.slice(idx + 2)
+  if (detail.startsWith("error: ")) {
+    return `Verification error for record ${id}: ${detail.slice(7)}`
+  }
+  return `The ${detail} for record ${id}`
+}
+
 const operationLabels: Record<string, string> = {
   totp: "TOTP",
   hotp: "HOTP",
@@ -146,11 +157,22 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     </div>
                   )
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                      TAMPER DETECTED: {verifyResult.error_detail}
-                    </p>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                        TAMPERING DETECTED
+                      </p>
+                    </div>
+                    {verifyResult.faults && verifyResult.faults.length > 0 && (
+                      <ul className="ml-6 space-y-0.5">
+                        {verifyResult.faults.map((f, i) => (
+                          <li key={i} className="text-sm text-red-700 dark:text-red-300">
+                            {formatFault(f)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </div>
