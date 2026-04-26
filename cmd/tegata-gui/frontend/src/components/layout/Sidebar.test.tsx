@@ -124,7 +124,7 @@ describe("Sidebar bulk deletion", () => {
     await user.click(screen.getByText(/Remove 1 selected/))
 
     // Dialog title and the selected credential's label should be visible
-    expect(screen.getByText("Remove 1 credentials?")).toBeInTheDocument()
+    expect(screen.getByText("Remove 1 credential?")).toBeInTheDocument()
     expect(screen.getAllByText("GitHub").length).toBeGreaterThan(0)
   })
 
@@ -174,6 +174,6 @@ describe("Sidebar bulk deletion", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }))
 
     expect(onRemove).not.toHaveBeenCalled()
-    expect(screen.queryByText("Remove 1 credentials?")).not.toBeInTheDocument()
+    expect(screen.queryByText("Remove 1 credential?")).not.toBeInTheDocument()
   })
 })

@@ -337,9 +337,9 @@ export function Sidebar({
       <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => { if (!open) { setBulkDeleteConfirm(false); setBulkDeleteInput("") } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove {selectedCreds.size} credentials?</DialogTitle>
+            <DialogTitle>Remove {selectedCreds.size} {selectedCreds.size === 1 ? "credential" : "credentials"}?</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of these {selectedCreds.size} credentials.
+              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of {selectedCreds.size === 1 ? "this credential" : `these ${selectedCreds.size} credentials`}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
