@@ -192,7 +192,7 @@ func TestIntegration_Validate(t *testing.T) {
 	if !result.Valid {
 		t.Errorf("Validate returned Valid=false: %s", result.ErrorDetail)
 	} else {
-		t.Logf("Validate succeeded: EventCount=%d", result.EventCount)
+		t.Logf("Validate succeeded")
 	}
 }
 
@@ -324,7 +324,7 @@ func TestIntegration_E2E_PutGetValidate(t *testing.T) {
 	if !result.Valid {
 		t.Errorf("Validate returned Valid=false for event 1: %s", result.ErrorDetail)
 	}
-	t.Logf("Validate event 1: Valid=%v EventCount=%d", result.Valid, result.EventCount)
+	t.Logf("Validate event 1: Valid=%v", result.Valid)
 }
 
 // TestIntegration_HistoryRetrieval verifies that events Put to the ledger can

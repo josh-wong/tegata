@@ -74,7 +74,6 @@ type EventRecord struct {
 // ValidationResult is returned by Validate.
 type ValidationResult struct {
 	Valid       bool
-	EventCount  int
 	ErrorDetail string
 }
 
@@ -572,7 +571,6 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 
 	return &ValidationResult{
 		Valid:       vr.Status == "correct",
-		EventCount:  1,
 		ErrorDetail: vr.Details,
 	}, nil
 }

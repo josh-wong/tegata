@@ -280,12 +280,8 @@ func TestClient_ValidateArgSchema(t *testing.T) {
 		t.Errorf("Validate argument missing expected hash 'abc123': %s", arg)
 	}
 
-	// Result should be valid with 1 event.
 	if !result.Valid {
 		t.Error("expected Valid=true, got false")
-	}
-	if result.EventCount != 1 {
-		t.Errorf("EventCount = %d, want 1", result.EventCount)
 	}
 }
 
@@ -294,8 +290,8 @@ func TestClient_ValidateArgSchema(t *testing.T) {
 func TestClient_ValidateTampered(t *testing.T) {
 	signer := &mockSigner{sig: []byte("fake-sig")}
 
-	// The Validate response returns tampered status.
-	validateResult := `{"status":"tampered","details":"hash mismatch at version tegata-","faulty_versions":["tegata-"]}`
+	// The Validate response returns faulty status (ScalarDL's term for tampered).
+	validateResult := `{"status":"faulty","details":"A faulty version is found.","faulty_versions":["tegata-"]}`
 
 	ledgerSrv := &mockLedgerServerMulti{
 		results: []string{validateResult},
@@ -313,9 +309,6 @@ func TestClient_ValidateTampered(t *testing.T) {
 
 	if result.Valid {
 		t.Error("expected Valid=false for tampered record, got true")
-	}
-	if result.EventCount != 1 {
-		t.Errorf("EventCount = %d, want 1", result.EventCount)
 	}
 	if result.ErrorDetail == "" {
 		t.Error("expected non-empty ErrorDetail for tampered record")

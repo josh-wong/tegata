@@ -395,6 +395,9 @@ func (m *Manager) Close() {
 		m.dek.Destroy()
 		m.dek = nil
 	}
+	if m.payload != nil {
+		ZeroAuditHashes(m.payload.AuditHashes)
+	}
 	m.payload = nil
 }
 

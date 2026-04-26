@@ -33,6 +33,17 @@ type EventBuilder struct {
 	OnHashStored  func(eventID, hashValue string) // called after successful Submit to store hash in vault (D-15)
 }
 
+// callSafe invokes fn, recovering any panic and logging it. Used for best-effort
+// callbacks that must not crash the caller (D-14).
+func callSafe(fn func(), panicMsg string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error(panicMsg, "err", r)
+		}
+	}()
+	fn()
+}
+
 // NewEventBuilder creates an EventBuilder. If client is nil the builder is
 // disabled and LogEvent becomes a no-op. When client is non-nil, the offline
 // queue is loaded from queuePath (creating an empty queue if the file does not
@@ -142,14 +153,8 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 				return
 			}
 			if b.OnHashStored != nil && hashValue != "" {
-				func() {
-					defer func() {
-						if r := recover(); r != nil {
-							slog.Error("audit OnHashStored panic (queued event)", "err", r)
-						}
-					}()
-					b.OnHashStored(e.Event.EventID, hashValue)
-				}()
+				id, hv := e.Event.EventID, hashValue
+				callSafe(func() { b.OnHashStored(id, hv) }, "audit OnHashStored panic (queued event)")
 			}
 		}
 
@@ -160,17 +165,10 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 			return
 		}
 
-		// Call OnHashStored callback for the new event (not queued events).
-		// Best-effort: log and swallow errors (per D-14).
+		// Call OnHashStored callback for the new event. Best-effort (D-14).
 		if b.OnHashStored != nil {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("audit OnHashStored panic", "err", r)
-					}
-				}()
-				b.OnHashStored(entry.Event.EventID, hashValue)
-			}()
+			id, hv := entry.Event.EventID, hashValue
+			callSafe(func() { b.OnHashStored(id, hv) }, "audit OnHashStored panic")
 		}
 
 		// Success: compute the hash of the newly submitted event for chain.
