@@ -270,10 +270,17 @@ func (q *Queue) Save(path string) error {
 // Flush calls client.Submit for each entry in append order. On the first
 // submission error, Flush stops and returns the error, leaving the queue
 // unchanged. On full success, the entries slice is cleared (Len returns 0).
-func (q *Queue) Flush(ctx context.Context, client Submitter) error {
+//
+// onHash, if non-nil, is called with (eventID, hashValue) for each successfully
+// submitted entry so callers can persist the hash for independent verification.
+func (q *Queue) Flush(ctx context.Context, client Submitter, onHash func(eventID, hashValue string)) error {
 	for _, entry := range q.entries {
-		if _, err := client.Submit(ctx, entry); err != nil {
+		hashValue, err := client.Submit(ctx, entry)
+		if err != nil {
 			return fmt.Errorf("submitting queue entry: %w", err)
+		}
+		if onHash != nil && hashValue != "" {
+			onHash(entry.Event.EventID, hashValue)
 		}
 	}
 	q.entries = q.entries[:0]

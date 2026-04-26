@@ -527,15 +527,25 @@ func (m *Manager) saveLocked() error {
 	// Extract and validate the passphrase-wrapped DEK from the existing file
 	// before incrementing WriteCounter so that in-memory state stays consistent
 	// with what is on disk if we bail out here.
+	if len(oldData) < headerSize+4 {
+		return fmt.Errorf("vault file corrupt: too short to contain payload length: %w", errors.ErrVaultCorrupt)
+	}
 	oldPayloadLen := binary.BigEndian.Uint32(oldData[headerSize : headerSize+4])
 	oldAfterPayload := headerSize + 4 + int(oldPayloadLen)
+	if len(oldData) < oldAfterPayload+4 {
+		return fmt.Errorf("vault file corrupt: too short to contain wrapped DEK length: %w", errors.ErrVaultCorrupt)
+	}
 	oldWrappedDEKLen := binary.BigEndian.Uint32(oldData[oldAfterPayload : oldAfterPayload+4])
 	if oldWrappedDEKLen == 0 {
 		// The passphrase-wrapped DEK is missing from the on-disk file — this
 		// indicates prior corruption. Refuse to write and propagate the state.
 		return fmt.Errorf("vault file corrupt: passphrase-wrapped DEK is missing: %w", errors.ErrVaultCorrupt)
 	}
-	passphraseWrappedDEK := oldData[oldAfterPayload+4 : oldAfterPayload+4+int(oldWrappedDEKLen)]
+	dekEnd := oldAfterPayload + 4 + int(oldWrappedDEKLen)
+	if dekEnd > len(oldData) {
+		return fmt.Errorf("vault file corrupt: wrapped DEK extends past end of file: %w", errors.ErrVaultCorrupt)
+	}
+	passphraseWrappedDEK := oldData[oldAfterPayload+4 : dekEnd]
 
 	dekBuf, err := m.dek.Open()
 	if err != nil {
@@ -861,6 +871,8 @@ func (m *Manager) SetAuditHash(eventID, hashValue string) error {
 // is responsible for zeroing the returned map after use (D-16).
 // Returns nil if the vault is locked or no hashes exist.
 func (m *Manager) AuditHashes() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.payload == nil || m.payload.AuditHashes == nil {
 		return nil
 	}

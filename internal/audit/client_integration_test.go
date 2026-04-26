@@ -414,7 +414,7 @@ func TestIntegration_QueueFlush(t *testing.T) {
 	}
 
 	// Flush the queue to the live ScalarDL instance.
-	if err := q.Flush(ctx, client); err != nil {
+	if err := q.Flush(ctx, client, nil); err != nil {
 		t.Fatalf("Flush: %v", err)
 	}
 
