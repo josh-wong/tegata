@@ -296,7 +296,9 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// All callers issue UPDATE statements targeting a single row. runSQL asserts
 	// that psql reports "UPDATE 1" so that a silent zero-row update (e.g. due to
 	// a wrong object ID prefix) fails immediately with a clear message rather
-	// than letting assertTampering fail with a confusing Valid=true.
+	// than letting assertTampering fail with a confusing Valid=true. The id value
+	// interpolated into each SQL string is always a UUID from evt.EventID (hex
+	// digits and hyphens only), so fmt.Sprintf is safe here.
 	runSQL := func(t *testing.T, sql string) {
 		t.Helper()
 		out, err := exec.Command(
