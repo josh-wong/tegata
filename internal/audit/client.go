@@ -542,7 +542,15 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 			ErrorDetail: "no record found in ledger",
 		}, nil
 	}
-	record := records[len(records)-1]
+	// Each event uses a UUID EventID written exactly once, so len > 1 is
+	// unexpected and is itself evidence of tampering or a replay.
+	if len(records) > 1 {
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "unexpected multiple versions for event record",
+		}, nil
+	}
+	record := records[0]
 
 	// Check 1: stored hash_value must match the vault hash.
 	if record.HashValue != expectedHash {
