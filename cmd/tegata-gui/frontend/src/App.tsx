@@ -79,6 +79,7 @@ function App() {
       const result = await WailsApp.GenerateTOTP(label)
       if (result?.code) {
         await navigator.clipboard.writeText(result.code)
+        WailsApp.RecordTOTPUsed(label).catch(() => {})
       }
     } catch (err) {
       console.error("Failed to copy code:", err)

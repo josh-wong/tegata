@@ -368,10 +368,25 @@ func (a *App) GenerateTOTP(label string) (*TOTPResult, error) {
 	}
 
 	code, remaining := auth.GenerateTOTP(secret, time.Now(), period, digits, cred.Algorithm)
-	if a.builder != nil {
-		_ = a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
-	}
 	return &TOTPResult{Code: code, Remaining: remaining}, nil
+}
+
+// RecordTOTPUsed logs an audit event for a TOTP credential. It is called
+// explicitly by the frontend when the user copies a TOTP code, not on every
+// automatic code refresh.
+func (a *App) RecordTOTPUsed(label string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.builder == nil {
+		return nil
+	}
+	cred, err := a.vault.GetCredential(label)
+	if err != nil {
+		return err
+	}
+	return a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 }
 
 // GenerateHOTP generates an HOTP code for the credential with the given label.

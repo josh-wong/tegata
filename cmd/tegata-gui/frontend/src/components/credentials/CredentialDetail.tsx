@@ -334,6 +334,7 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         copied={copied}
         onCopy={() => {
           navigator.clipboard.writeText(totp.code)
+          App.RecordTOTPUsed(credential.label).catch(() => {})
           setCopied(true)
           onUsed()
           setTimeout(() => setCopied(false), 2000)

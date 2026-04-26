@@ -40,6 +40,7 @@ interface WailsAppBindings {
   AddCredentialFromURI(uri: string): Promise<string>
   RemoveCredential(id: string): Promise<void>
   GenerateTOTP(label: string): Promise<TOTPResult>
+  RecordTOTPUsed(label: string): Promise<void>
   GenerateHOTP(label: string): Promise<string>
   GetStaticPassword(label: string): Promise<void>
   SignChallenge(label: string, challenge: string): Promise<string>
@@ -89,6 +90,7 @@ export const App = {
   AddCredentialFromURI: (uri: string) => getApp().AddCredentialFromURI(uri),
   RemoveCredential: (id: string) => getApp().RemoveCredential(id),
   GenerateTOTP: (label: string) => getApp().GenerateTOTP(label),
+  RecordTOTPUsed: (label: string) => getApp().RecordTOTPUsed(label),
   GenerateHOTP: (label: string) => getApp().GenerateHOTP(label),
   GetStaticPassword: (label: string) => getApp().GetStaticPassword(label),
   SignChallenge: (label: string, challenge: string) => getApp().SignChallenge(label, challenge),
