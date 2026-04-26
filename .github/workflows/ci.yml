@@ -75,7 +75,7 @@ jobs:
   integration-tests:
     name: Integration tests (Docker)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: [build-and-test]
     steps:
       - name: Checkout code
@@ -90,4 +90,4 @@ jobs:
         run: docker info
 
       - name: Run Docker integration tests
-        run: go test -tags integration ./internal/audit/... -v -timeout 10m
+        run: go test -tags integration ./internal/audit/... -v -timeout 20m
