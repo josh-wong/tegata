@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -288,6 +289,11 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// container via docker exec. The container name is always
 	// tegata-ledger-postgres-1 because the compose project name is fixed to
 	// "tegata-ledger" in docker-compose.yml.
+	//
+	// All callers issue UPDATE statements targeting a single row. runSQL asserts
+	// that psql reports "UPDATE 1" so that a silent zero-row update (e.g. due to
+	// a wrong object ID prefix) fails immediately with a clear message rather
+	// than letting assertTampering fail with a confusing Valid=true.
 	runSQL := func(t *testing.T, sql string) {
 		t.Helper()
 		out, err := exec.Command(
@@ -296,6 +302,16 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 		).CombinedOutput()
 		if err != nil {
 			t.Fatalf("psql: %v\n%s", err, out)
+		}
+		found := false
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.TrimSpace(line) == "UPDATE 1" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("psql UPDATE affected != 1 row; verify the \"o_\" object ID prefix convention\n%s", out)
 		}
 	}
 
@@ -349,6 +365,7 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// Check 1: hash_value in the stored output replaced with a different value.
 	t.Run("HashValueTampered", func(t *testing.T) {
 		objectID, hashValue := submitEvent(t, "totp")
+		// ScalarDL stores object IDs in scalar.asset with an "o_" prefix.
 		dbID := "o_" + objectID
 
 		assertClean(t, objectID, hashValue) // baseline: fresh event must be valid
@@ -364,6 +381,7 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// matches hash_value even though hash_value itself is untouched.
 	t.Run("ContentTampered", func(t *testing.T) {
 		objectID, hashValue := submitEvent(t, "totp")
+		// ScalarDL stores object IDs in scalar.asset with an "o_" prefix.
 		dbID := "o_" + objectID
 
 		assertClean(t, objectID, hashValue) // baseline
@@ -379,6 +397,7 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// left intact, testing the cross-field consistency check.
 	t.Run("OperationFieldTampered", func(t *testing.T) {
 		objectID, hashValue := submitEvent(t, "totp")
+		// ScalarDL stores object IDs in scalar.asset with an "o_" prefix.
 		dbID := "o_" + objectID
 
 		assertClean(t, objectID, hashValue) // baseline
@@ -394,6 +413,7 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// left intact, testing the cross-field consistency check.
 	t.Run("LabelHashTampered", func(t *testing.T) {
 		objectID, hashValue := submitEvent(t, "totp")
+		// ScalarDL stores object IDs in scalar.asset with an "o_" prefix.
 		dbID := "o_" + objectID
 
 		assertClean(t, objectID, hashValue) // baseline
