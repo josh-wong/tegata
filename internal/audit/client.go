@@ -40,8 +40,14 @@ type Client interface {
 	PutWithMetadata(ctx context.Context, objectID, hashValue string, metadata map[string]interface{}) error
 	// Get retrieves all event records for objectID from the ledger.
 	Get(ctx context.Context, objectID string) ([]*EventRecord, error)
-	// Validate verifies the integrity of all records for objectID on the ledger.
-	Validate(ctx context.Context, objectID string) (*ValidationResult, error)
+	// Validate verifies the integrity of objectID against the caller-supplied
+	// expectedHash from the vault. It fetches the stored record via Get and
+	// performs three local checks: (1) stored hash_value == expectedHash, and
+	// (2) SHA-256(stored content) == expectedHash when content is present,
+	// and (3) individual metadata display fields (operation, label_hash) match
+	// the authenticated content. Check (3) detects targeted tampering of
+	// individual fields when hash_value and content are left intact.
+	Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error)
 	// CollectionCreate creates a new collection with the given object IDs.
 	CollectionCreate(ctx context.Context, collectionID string, objectIDs []string) error
 	// CollectionAdd adds object IDs to an existing collection.
@@ -57,8 +63,9 @@ type Client interface {
 	// Close releases the underlying gRPC connection.
 	Close() error
 	// Submit stores each event as its own ScalarDL object with metadata and
-	// adds it to a per-entity collection.
-	Submit(ctx context.Context, entry QueueEntry) error
+	// adds it to a per-entity collection. Returns the computed hash value
+	// (hex-encoded SHA-256 of the event JSON) for vault storage.
+	Submit(ctx context.Context, entry QueueEntry) (string, error)
 }
 
 // EventRecord is a single record returned by a Get call.
@@ -72,7 +79,6 @@ type EventRecord struct {
 // ValidationResult is returned by Validate.
 type ValidationResult struct {
 	Valid       bool
-	EventCount  int
 	ErrorDetail string
 }
 
@@ -511,87 +517,92 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 	return records, nil
 }
 
-// validateResult is the JSON shape returned by the object.Validate contract.
-// Matches the official ScalarDL generic contracts response schema.
-type validateResult struct {
-	Status         string   `json:"status"`
-	Details        string   `json:"details"`
-	FaultyVersions []string `json:"faulty_versions"`
-}
-
-// Validate verifies the integrity of all records for objectID on the ledger.
-// It uses a two-step flow: first calls object.Get to retrieve stored records,
-// then calls object.Validate with a versions array built from those records.
-// If Get returns no records, it returns Valid=true with EventCount=0 without
-// calling object.Validate (nothing to validate).
-func (c *LedgerClient) Validate(ctx context.Context, objectID string) (*ValidationResult, error) {
-	// Step 1: Retrieve all stored records via object.Get.
+// Validate verifies the integrity of objectID against the caller-supplied
+// expectedHash from the vault. It fetches the stored record via Get and
+// performs three local checks:
+//
+//  1. The stored hash_value must equal expectedHash — detects direct hash
+//     manipulation in the ScalarDL database.
+//  2. If a "content" field is present in the record metadata, its SHA-256
+//     must equal expectedHash — detects content replacement.
+//  3. Individual metadata display fields (operation, label_hash) must match
+//     the authenticated content — detects targeted field tampering when
+//     hash_value and content are left intact (e.g. changing
+//     operation "hotp" → "totp" without touching the other fields).
+//
+// Events submitted before content storage was introduced pass check (1) only.
+func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error) {
 	records, err := c.Get(ctx, objectID)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving records for validation: %w", err)
+		return nil, fmt.Errorf("fetching record for validation: %w", err)
 	}
-
-	// If no records exist, there is nothing to validate.
 	if len(records) == 0 {
-		return &ValidationResult{Valid: true, EventCount: 0}, nil
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "no record found in ledger",
+		}, nil
+	}
+	// Each event uses a UUID EventID written exactly once, so len > 1 is
+	// unexpected and is itself evidence of tampering or a replay.
+	//
+	// NOTE: With the current ScalarDL HashStore SDK (v3.13+), this branch is
+	// unreachable in practice. The object.v1_0_0.Get contract is implemented in
+	// generic-contracts and calls ledger.get(), which returns Optional<Asset> —
+	// at most one record. The HashStore bootstrap registers the same generic
+	// contract class directly (hash-store depends on generic-contracts; it ships
+	// no separate Get implementation). If ScalarDL ever exposes a contract that
+	// returns multiple versions (e.g. via ledger.scan()), this guard would
+	// become active. Keep it for defensive correctness and to signal intent.
+	if len(records) > 1 {
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "unexpected multiple versions for event record",
+		}, nil
+	}
+	record := records[0]
+
+	// Check 1: stored hash_value must match the vault hash.
+	if record.HashValue != expectedHash {
+		return &ValidationResult{
+			Valid:       false,
+			ErrorDetail: "record hash has been altered",
+		}, nil
 	}
 
-	// Step 2: Build versions array from retrieved records.
-	// The HashStore object.Validate contract expects each version entry to
-	// contain "version_id" (the object ID string, not a numeric version) and
-	// "hash_value". This matches the HashStore SDK's ValidateRequest schema
-	// where version_id identifies the object, not a sequential version number.
-	versions := make([]map[string]string, len(records))
-	for i, r := range records {
-		versions[i] = map[string]string{
-			"version_id": r.ObjectID,
-			"hash_value": r.HashValue,
+	// Checks 2 & 3: only run when content is present in metadata (events
+	// submitted after D-17). Check 2 recomputes SHA-256(content) to confirm
+	// content itself has not been replaced. Check 3 cross-checks individual
+	// display fields against the now-authenticated content to catch targeted
+	// field tampering (e.g. operation changed while content is left intact).
+	if content, ok := record.Metadata["content"].(string); ok && content != "" {
+		// Check 2: recompute SHA-256 of stored event content and compare.
+		sum := sha256.Sum256([]byte(content))
+		if hex.EncodeToString(sum[:]) != expectedHash {
+			return &ValidationResult{
+				Valid:       false,
+				ErrorDetail: "event content has been altered",
+			}, nil
+		}
+
+		// Check 3: individual display fields must match the authenticated content.
+		var evt AuthEvent
+		if jsonErr := json.Unmarshal([]byte(content), &evt); jsonErr == nil {
+			if op, ok := record.Metadata["operation"].(string); ok && op != evt.OperationType {
+				return &ValidationResult{
+					Valid:       false,
+					ErrorDetail: "event type field has been altered",
+				}, nil
+			}
+			if lh, ok := record.Metadata["label_hash"].(string); ok && lh != evt.LabelHash {
+				return &ValidationResult{
+					Valid:       false,
+					ErrorDetail: "credential field has been altered",
+				}, nil
+			}
 		}
 	}
 
-	// Step 3: Marshal the validate argument with object_id and versions.
-	contractID := "object.v1_0_0.Validate"
-	arg, err := json.Marshal(map[string]interface{}{
-		"object_id": objectID,
-		"versions":  versions,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshalling Validate argument: %w", err)
-	}
-
-	// Step 4: Sign and execute object.Validate.
-	nonce := uuid.New().String()
-	formatted := formatArgument(string(arg), nonce)
-	sig, err := c.signer.Sign(contractID, formatted, nonce, c.entityID, c.keyVersion)
-	if err != nil {
-		return nil, fmt.Errorf("signing Validate request: %w", err)
-	}
-
-	resp, err := c.ledger.ExecuteContract(ctx, &rpc.ContractExecutionRequest{
-		ContractId:       contractID,
-		ContractArgument: formatted,
-		EntityId:         c.entityID,
-		KeyVersion:       c.keyVersion,
-		Signature:        sig,
-		Nonce:            nonce,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: Validate contract failed: %s", tegerrors.ErrNetworkFailed, err)
-	}
-
-	// Step 5: Parse and map the response.
-	var vr validateResult
-	if resp.GetContractResult() != "" {
-		if err := json.Unmarshal([]byte(resp.GetContractResult()), &vr); err != nil {
-			return nil, fmt.Errorf("parsing Validate result: %w", err)
-		}
-	}
-
-	return &ValidationResult{
-		Valid:       vr.Status == "correct",
-		EventCount:  len(records),
-		ErrorDetail: vr.Details,
-	}, nil
+	return &ValidationResult{Valid: true}, nil
 }
 
 // RegisterCert registers the client certificate on the LedgerPrivileged service.
@@ -674,13 +685,19 @@ func (c *LedgerClient) Close() error {
 
 // Submit implements the Submitter interface. Each event is stored as its own
 // ScalarDL object with metadata (operation, label hash, timestamp) and added
-// to a per-entity collection for listing.
-func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
+// to a per-entity collection for listing. Returns the computed hash value
+// (hex-encoded SHA-256 of the event JSON) so callers can store it in the vault.
+func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) (string, error) {
 	entryJSON, err := json.Marshal(entry.Event)
 	if err != nil {
-		return fmt.Errorf("serialising queue entry for submission: %w", err)
+		return "", fmt.Errorf("serialising queue entry for submission: %w", err)
 	}
 	sum := sha256.Sum256(entryJSON)
+	// Capture the serialised event before zeroing. Stored as "content" in
+	// ScalarDL metadata so validation can recompute SHA-256(content) and
+	// detect metadata tampering even when hash_value is left intact (D-17).
+	// The event JSON contains only hashed/derived fields, not raw secrets.
+	eventContent := string(entryJSON)
 	for i := range entryJSON {
 		entryJSON[i] = 0
 	}
@@ -690,11 +707,12 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 		"operation":  entry.Event.OperationType,
 		"label_hash": entry.Event.LabelHash,
 		"timestamp":  entry.Event.Timestamp.Unix(),
+		"content":    eventContent,
 	}
 
 	objectID := entry.Event.EventID
 	if err := c.PutWithMetadata(ctx, objectID, hashValue, metadata); err != nil {
-		return err
+		return "", err
 	}
 
 	// Add the event to the entity's audit collection. If the collection
@@ -706,7 +724,7 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 		// Only fall through to CollectionCreate when the collection does
 		// not exist. Transient or other errors should propagate immediately.
 		if !tegerrors.Is(err, errCollectionNotFound) {
-			return fmt.Errorf("adding event to collection: %w", err)
+			return "", fmt.Errorf("adding event to collection: %w", err)
 		}
 		createErr := c.CollectionCreate(ctx, collectionID, []string{objectID})
 		if createErr != nil {
@@ -714,14 +732,14 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) error {
 				// Another caller created the collection between our Add
 				// and Create — retry Add now that the collection exists.
 				if retryErr := c.CollectionAdd(ctx, collectionID, []string{objectID}); retryErr != nil {
-					return fmt.Errorf("adding event to collection after retry: %w", retryErr)
+					return "", fmt.Errorf("adding event to collection after retry: %w", retryErr)
 				}
 			} else {
-				return fmt.Errorf("creating audit collection: %w", createErr)
+				return "", fmt.Errorf("creating audit collection: %w", createErr)
 			}
 		}
 	}
 
-	return nil
+	return hashValue, nil
 }
 

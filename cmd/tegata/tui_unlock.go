@@ -98,6 +98,17 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		m.vaultID = msg.mgr.VaultID()
 	}
 	m.builder = msg.builder
+
+	// Wire OnHashStored so submitted audit event hashes are persisted to the
+	// vault for independent verification (D-15).
+	if m.builder != nil && m.vaultMgr != nil {
+		mgr := m.vaultMgr
+		m.builder.OnHashStored = func(eventID, hashValue string) {
+			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: failed to store audit hash: %v\n", err)
+			}
+		}
+	}
 	m.passphraseInput.Blur()
 	m = loadCredentials(m)
 	m.state = stateMainView

@@ -184,7 +184,7 @@ func TestIntegration_Validate(t *testing.T) {
 	}
 	t.Logf("Put succeeded: objectID=%s", objectID)
 
-	result, err := client.Validate(ctx, objectID)
+	result, err := client.Validate(ctx, objectID, hashValue)
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestIntegration_Validate(t *testing.T) {
 	if !result.Valid {
 		t.Errorf("Validate returned Valid=false: %s", result.ErrorDetail)
 	} else {
-		t.Logf("Validate succeeded: EventCount=%d", result.EventCount)
+		t.Logf("Validate succeeded")
 	}
 }
 
@@ -265,7 +265,7 @@ func TestIntegration_RegisterContracts(t *testing.T) {
 	t.Logf("object.Get contract verified: %d records", len(records))
 
 	// Verify Validate also works (object.Validate contract registered).
-	result, err := client.Validate(ctx, testObjID)
+	result, err := client.Validate(ctx, testObjID, testHash)
 	if err != nil {
 		t.Fatalf("Validate failed — object.Validate contract may not be registered: %v", err)
 	}
@@ -317,14 +317,14 @@ func TestIntegration_E2E_PutGetValidate(t *testing.T) {
 	t.Logf("Get event 1: %d records", len(records1))
 
 	// Step 3: Validate event 1 integrity.
-	result, err := client.Validate(ctx, objectID1)
+	result, err := client.Validate(ctx, objectID1, hash1)
 	if err != nil {
 		t.Fatalf("Validate event 1: %v", err)
 	}
 	if !result.Valid {
 		t.Errorf("Validate returned Valid=false for event 1: %s", result.ErrorDetail)
 	}
-	t.Logf("Validate event 1: Valid=%v EventCount=%d", result.Valid, result.EventCount)
+	t.Logf("Validate event 1: Valid=%v", result.Valid)
 }
 
 // TestIntegration_HistoryRetrieval verifies that events Put to the ledger can
@@ -414,7 +414,7 @@ func TestIntegration_QueueFlush(t *testing.T) {
 	}
 
 	// Flush the queue to the live ScalarDL instance.
-	if err := q.Flush(ctx, client); err != nil {
+	if err := q.Flush(ctx, client, nil); err != nil {
 		t.Fatalf("Flush: %v", err)
 	}
 
@@ -493,7 +493,7 @@ func TestIntegration_HMAC_SubmitAndCollectionGet(t *testing.T) {
 		"",
 	)
 	entry := audit.QueueEntry{Event: evt}
-	if err := client.Submit(ctx, entry); err != nil {
+	if _, err := client.Submit(ctx, entry); err != nil {
 		t.Fatalf("Submit (HMAC): %v", err)
 	}
 	t.Logf("Submit succeeded: %s", evt.EventID)

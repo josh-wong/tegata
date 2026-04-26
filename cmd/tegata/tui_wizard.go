@@ -477,7 +477,7 @@ func strengthLabel(pass []byte) string {
 	_, label := strengthLevel(pass)
 	switch label {
 	case "Strong":
-		return successStyle.Render(label)
+		return tipStyle.Render(label)
 	case "Weak", "Too short":
 		return errorStyle.Render(label)
 	default:

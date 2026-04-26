@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/vault"
 )
 
 // auditHistoryMsg carries the result of an async history fetch.
@@ -26,7 +27,8 @@ type auditHistoryMsg struct {
 type auditVerifyMsg struct {
 	valid      bool
 	eventCount int
-	detail     string
+	skipped    int
+	faults     []string // per-event fault descriptions when !valid
 	err        error
 }
 
@@ -71,8 +73,12 @@ func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 }
 
 // auditVerifyCmd creates a tea.Cmd that runs audit verification asynchronously.
-func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
+// vaultHashes is the caller's copy of the audit hash map from the vault; the
+// cmd takes ownership and zeros it after use (D-16).
+func auditVerifyCmd(cfg config.AuditConfig, vaultHashes map[string]string) tea.Cmd {
 	return func() tea.Msg {
+		defer vault.ZeroAuditHashes(vaultHashes)
+
 		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return auditVerifyMsg{err: err}
@@ -82,14 +88,15 @@ func auditVerifyCmd(cfg config.AuditConfig) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		result, err := audit.VerifyAll(ctx, client, cfg.EntityID)
+		result, err := audit.VerifyAll(ctx, client, cfg.EntityID, vaultHashes)
 		if err != nil {
 			return auditVerifyMsg{err: err}
 		}
 		return auditVerifyMsg{
 			valid:      result.Valid,
 			eventCount: result.EventCount,
-			detail:     result.ErrorDetail,
+			skipped:    result.Skipped,
+			faults:     result.Faults,
 		}
 	}
 }
@@ -160,7 +167,11 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 1:
 				m.auditSubFlow = "verify"
 				m.auditLoading = true
-				return m, auditVerifyCmd(m.cfg.Audit)
+				var hashes map[string]string
+				if m.vaultMgr != nil {
+					hashes = m.vaultMgr.AuditHashes()
+				}
+				return m, auditVerifyCmd(m.cfg.Audit, hashes)
 			}
 		}
 	}
@@ -193,7 +204,7 @@ func (m model) viewAuditMenu() string {
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
-			menu.WriteString(successStyle.Render("▸ " + item))
+			menu.WriteString(tipStyle.Render("▸ " + item))
 		} else {
 			menu.WriteString("  " + item)
 		}
@@ -251,10 +262,10 @@ func (m model) viewAuditVerify() string {
 	}
 
 	var body string
-	if strings.Contains(m.auditMsg, "TAMPER DETECTED") {
+	if strings.Contains(m.auditMsg, "TAMPERING DETECTED") {
 		body = errorStyle.Render(m.auditMsg)
 	} else if strings.Contains(m.auditMsg, "verified") {
-		body = successStyle.Render(m.auditMsg)
+		body = tipStyle.Render(m.auditMsg)
 	} else {
 		body = m.auditMsg
 	}
@@ -316,7 +327,7 @@ func (m model) viewAuditStart() string {
 			strings.Contains(m.auditMsg, "error") || strings.Contains(m.auditMsg, "Error") {
 			body = errorStyle.Render(m.auditMsg)
 		} else {
-			body = successStyle.Render(m.auditMsg)
+			body = tipStyle.Render(m.auditMsg)
 		}
 	}
 

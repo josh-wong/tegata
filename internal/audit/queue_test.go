@@ -33,12 +33,12 @@ type mockSubmitter struct {
 	retErr error
 }
 
-func (m *mockSubmitter) Submit(_ context.Context, entry audit.QueueEntry) error {
+func (m *mockSubmitter) Submit(_ context.Context, entry audit.QueueEntry) (string, error) {
 	m.calls = append(m.calls, entry)
 	if m.errOn > 0 && len(m.calls) == m.errOn {
-		return m.retErr
+		return "", m.retErr
 	}
-	return nil
+	return "fakehash", nil
 }
 
 func TestQueue_NewQueueEmpty(t *testing.T) {
@@ -128,7 +128,7 @@ func TestQueue_Flush_SuccessCallsSubmitter(t *testing.T) {
 	_ = q.Append(makeEvent("hotp"))
 
 	mock := &mockSubmitter{}
-	if err := q.Flush(context.Background(), mock); err != nil {
+	if err := q.Flush(context.Background(), mock, nil); err != nil {
 		t.Fatalf("Flush returned error: %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestQueue_Flush_ErrorLeavesQueueUnchanged(t *testing.T) {
 	_ = q.Append(makeEvent("hotp"))
 
 	mock := &mockSubmitter{errOn: 1, retErr: audit.ErrFlushFailed}
-	err := q.Flush(context.Background(), mock)
+	err := q.Flush(context.Background(), mock, nil)
 	if err == nil {
 		t.Fatal("Flush should return error when submitter fails")
 	}
@@ -163,7 +163,7 @@ func TestQueue_Flush_OrderPreserved(t *testing.T) {
 	_ = q.Append(audit.NewAuthEvent("static", "third", "svc", "host", true, ""))
 
 	mock := &mockSubmitter{}
-	_ = q.Flush(context.Background(), mock)
+	_ = q.Flush(context.Background(), mock, nil)
 
 	if len(mock.calls) != 3 {
 		t.Fatalf("expected 3 calls, got %d", len(mock.calls))

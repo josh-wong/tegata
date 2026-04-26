@@ -8,9 +8,6 @@ var titleStyle = lipgloss.NewStyle().Bold(true).AlignHorizontal(lipgloss.Center)
 // errorStyle renders error messages in red.
 var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F"))
 
-// successStyle renders success or info messages in green.
-var successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FFF5F"))
-
 // helpBarStyle renders the bottom help bar in dim/faint text.
 var helpBarStyle = lipgloss.NewStyle().Faint(true)
 

@@ -13,9 +13,19 @@ import (
 // version is set via -ldflags "-X main.version=..." at build time.
 var version = "dev"
 
+// reportedError wraps an error that has already been printed to the user.
+// main() skips printing for these so commands can control their own output order.
+type reportedError struct{ err error }
+
+func (e reportedError) Error() string { return e.err.Error() }
+func (e reportedError) Unwrap() error { return e.err }
+
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		var re reportedError
+		if !errors.As(err, &re) {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		}
 		os.Exit(errors.ExitCode(err))
 	}
 }

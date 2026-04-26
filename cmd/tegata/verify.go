@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +32,21 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 	}
 }
 
+// formatFault converts an "id: detail" fault string into a readable sentence.
+// Normal faults become "The {detail} for record {id}".
+// Error faults (from Validate returning an error) become "Verification error for record {id}: {err}".
+func formatFault(f string) string {
+	idx := strings.Index(f, ": ")
+	if idx < 0 {
+		return f
+	}
+	id, detail := f[:idx], f[idx+2:]
+	if strings.HasPrefix(detail, "error: ") {
+		return fmt.Sprintf("Verification error for record %s: %s", id, strings.TrimPrefix(detail, "error: "))
+	}
+	return fmt.Sprintf("The %s for record %s", detail, id)
+}
+
 func runVerify(cmd *cobra.Command, _ []string) error {
 	vaultPath, err := resolveVaultPath(cmd)
 	if err != nil {
@@ -46,6 +63,20 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
+	passphrase, err := promptPassphrase("Passphrase: ")
+	if err != nil {
+		return err
+	}
+	mgr, err := openAndUnlock(vaultPath, passphrase)
+	zeroBytes(passphrase)
+	if err != nil {
+		return err
+	}
+	defer mgr.Close()
+
+	hashes := mgr.AuditHashes()
+	defer vault.ZeroAuditHashes(hashes)
+
 	client, err := audit.NewClientFromConfig(cfg.Audit)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)
@@ -55,24 +86,32 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := audit.VerifyAll(ctx, client, cfg.Audit.EntityID)
+	result, err := audit.VerifyAll(ctx, client, cfg.Audit.EntityID, hashes)
 	if err != nil {
 		return err
 	}
 
-	if result.EventCount == 0 {
+	if result.EventCount == 0 && result.Skipped == 0 {
 		_, _ = fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
 		return nil
 	}
 
+	if result.Skipped > 0 {
+		fmt.Fprintf(os.Stderr, "Note: %d events pre-date independent hash storage and were not verified.\n", result.Skipped)
+	}
+
 	if result.Valid {
-		fmt.Printf("Audit log integrity verified. %d events checked.\n", result.EventCount)
+		if result.EventCount > 0 {
+			fmt.Printf("Audit log integrity verified. %d events checked.\n", result.EventCount)
+		} else {
+			fmt.Printf("No events could be verified — all %d events pre-date independent hash storage.\n", result.Skipped)
+		}
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Integrity violation detected in %d of %d events:\n", len(result.Faults), result.EventCount)
+	fmt.Fprintf(os.Stderr, "TAMPERING DETECTED\n")
 	for _, f := range result.Faults {
-		fmt.Fprintf(os.Stderr, "  %s\n", f)
+		fmt.Fprintf(os.Stderr, "  %s\n", formatFault(f))
 	}
-	return tegerrors.ErrIntegrityViolation
+	return reportedError{tegerrors.ErrIntegrityViolation}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -217,6 +218,16 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 	a.builder = builder
 
+	// Wire OnHashStored so each submitted audit event's hash is persisted to
+	// the vault for independent verification (D-15).
+	if a.builder != nil {
+		a.builder.OnHashStored = func(eventID, hashValue string) {
+			if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+				slog.Error("failed to store audit hash in vault", "err", err)
+			}
+		}
+	}
+
 	// Zero passphrase AFTER builder construction.
 	zeroBytes(passBytes)
 
@@ -357,10 +368,25 @@ func (a *App) GenerateTOTP(label string) (*TOTPResult, error) {
 	}
 
 	code, remaining := auth.GenerateTOTP(secret, time.Now(), period, digits, cred.Algorithm)
-	if a.builder != nil {
-		_ = a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
-	}
 	return &TOTPResult{Code: code, Remaining: remaining}, nil
+}
+
+// RecordTOTPUsed logs an audit event for a TOTP credential. It is called
+// explicitly by the frontend when the user copies a TOTP code, not on every
+// automatic code refresh.
+func (a *App) RecordTOTPUsed(label string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.builder == nil {
+		return nil
+	}
+	cred, err := a.vault.GetCredential(label)
+	if err != nil {
+		return err
+	}
+	return a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 }
 
 // GenerateHOTP generates an HOTP code for the credential with the given label.
@@ -705,9 +731,10 @@ type AuditHistoryRecord struct {
 
 // AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
 type AuditVerifyResult struct {
-	Valid       bool   `json:"valid"`
-	EventCount  int    `json:"event_count"`
-	ErrorDetail string `json:"error_detail,omitempty"`
+	Valid       bool     `json:"valid"`
+	EventCount  int      `json:"event_count"`
+	Skipped     int      `json:"skipped,omitempty"`
+	Faults      []string `json:"faults,omitempty"`
 }
 
 // IsAuditEnabled returns whether audit logging is configured and enabled.
@@ -774,8 +801,11 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	hashes := a.vault.AuditHashes()
+	defer vault.ZeroAuditHashes(hashes)
+
 	labelHash := audit.HashString(label)
-	result, err := audit.VerifyByLabelHash(ctx, client, a.config.Audit.EntityID, labelHash)
+	result, err := audit.VerifyByLabelHash(ctx, client, a.config.Audit.EntityID, labelHash, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +813,8 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	return &AuditVerifyResult{
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
-		ErrorDetail: result.ErrorDetail,
+		Skipped:     result.Skipped,
+		Faults:      result.Faults,
 	}, nil
 }
 
@@ -803,7 +834,10 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := audit.VerifyAll(ctx, client, a.config.Audit.EntityID)
+	hashes := a.vault.AuditHashes()
+	defer vault.ZeroAuditHashes(hashes)
+
+	result, err := audit.VerifyAll(ctx, client, a.config.Audit.EntityID, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -811,7 +845,8 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	return &AuditVerifyResult{
 		Valid:       result.Valid,
 		EventCount:  result.EventCount,
-		ErrorDetail: result.ErrorDetail,
+		Skipped:     result.Skipped,
+		Faults:      result.Faults,
 	}, nil
 }
 

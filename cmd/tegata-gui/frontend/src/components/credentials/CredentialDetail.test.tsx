@@ -83,9 +83,9 @@ describe("CredentialDetail", () => {
     // Click the remove button to open the confirmation dialog
     await user.click(screen.getByText("Remove credential"))
 
-    // Type "DELETE" in the confirmation input
-    const confirmInput = screen.getByPlaceholderText('Type "DELETE" to confirm')
-    await user.type(confirmInput, "DELETE")
+    // Type "REMOVE" in the confirmation input
+    const confirmInput = screen.getByPlaceholderText('Type "REMOVE" to confirm')
+    await user.type(confirmInput, "REMOVE")
 
     // Click the Remove button in the dialog
     await user.click(screen.getByRole("button", { name: "Remove" }))

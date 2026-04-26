@@ -115,13 +115,14 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg max-h-[80vh] overflow-y-auto">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="w-full max-w-md rounded-lg bg-card shadow-lg flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between border-b p-3">
           <h2 className="text-lg font-semibold">Settings</h2>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
+        <div className="overflow-y-auto p-6">
 
         {/* Theme */}
         <section className="space-y-2">
@@ -325,6 +326,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
           {appVersion && <p className="text-xs text-muted-foreground">Version: {appVersion}</p>}
           <p className="text-xs text-muted-foreground">License: MIT</p>
         </section>
+        </div>
       </div>
     </div>
   )
@@ -411,35 +413,44 @@ function ExportImport({ onImported }: { onImported: () => void }) {
 
       {showExport && (
         <div className="space-y-2 rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">
-            Enter a passphrase to encrypt the export file.
-          </p>
-          <Input
-            type="password"
-            placeholder="Export passphrase"
-            value={exportPass}
-            onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
-          />
-          {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
-          <Input
-            type="password"
-            placeholder="Confirm passphrase"
-            value={exportConfirm}
-            onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
-          />
-          {message && (
-            <p className={`text-sm ${message.error ? "text-destructive" : "text-green-500"}`}>
-              {message.text}
-            </p>
+          {message && !message.error ? (
+            <>
+              <p className="text-sm text-green-500">{message.text}</p>
+              <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
+                Done
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Enter a passphrase to encrypt the export file.
+              </p>
+              <Input
+                type="password"
+                placeholder="Export passphrase"
+                value={exportPass}
+                onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
+              />
+              {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
+              <Input
+                type="password"
+                placeholder="Confirm passphrase"
+                value={exportConfirm}
+                onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
+              />
+              {message && (
+                <p className="text-sm text-destructive">{message.text}</p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
+                  {loading ? "Exporting..." : "Export to file"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }} disabled={loading}>
+                  Cancel
+                </Button>
+              </div>
+            </>
           )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
-              {loading ? "Exporting..." : "Export to file"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
-              Cancel
-            </Button>
-          </div>
         </div>
       )}
 

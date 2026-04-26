@@ -55,6 +55,11 @@ func newCodeCmd() *cobra.Command {
 			}
 			if builder != nil {
 				defer func() { _ = builder.Close() }()
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
 			}
 
 			cred, err := mgr.GetCredential(label)

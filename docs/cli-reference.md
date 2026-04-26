@@ -409,14 +409,17 @@ tegata ui
 
 ### tegata verify
 
-Verify the integrity of the audit log stored in ScalarDL Ledger. Retrieves all event IDs from the entity's collection and validates each event individually. Reports the total number of events checked and lists per-event faults if any are detected.
+Verify the integrity of the audit log stored in ScalarDL Ledger. Unlocks the vault (requires passphrase) to read audit event hashes stored during credential operations. Retrieves all event IDs from the entity's collection and validates each event individually against its stored hash. Reports the total number of events verified and lists per-event faults if any are detected.
 
-**Usage:** `tegata verify`
+Events logged before audit hashes were stored independently are reported as pre-existing and skipped (they cannot be verified without a hash).
+
+**Usage:** `tegata verify [--vault <path>]`
 
 **Example:**
 
 ```bash
 tegata verify
+tegata verify --vault /media/usb/vault.tegata
 ```
 
 Exit codes: 0 on success, 9 on integrity violation, 8 on network failure. Requires audit to be enabled in `tegata.toml`.

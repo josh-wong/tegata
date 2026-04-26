@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -336,7 +337,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.valid {
 			m.auditMsg = fmt.Sprintf("Audit log integrity verified. %d events checked.", msg.eventCount)
 		} else {
-			m.auditMsg = fmt.Sprintf("TAMPER DETECTED: %s", msg.detail)
+			var sb strings.Builder
+			sb.WriteString("TAMPERING DETECTED\n")
+			for _, f := range msg.faults {
+				sb.WriteString(formatFault(f) + "\n")
+			}
+			m.auditMsg = strings.TrimRight(sb.String(), "\n")
 		}
 		return m, nil
 

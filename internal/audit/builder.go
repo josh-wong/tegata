@@ -23,13 +23,25 @@ import (
 // Auth commands are never blocked or returned errors due to audit failures
 // — audit errors are silently absorbed, keeping the event in the queue.
 type EventBuilder struct {
-	client     Submitter      // nil when audit is disabled
-	queue      *Queue
-	queuePath  string
-	queueKey   []byte         // 32-byte key; EventBuilder does NOT own lifecycle
-	disabled   bool           // true when client == nil
-	lastHash   string         // SHA-256 of the last successfully submitted event JSON
-	submitTimeout time.Duration // timeout for submit operations (default 3s)
+	client        Submitter      // nil when audit is disabled
+	queue         *Queue
+	queuePath     string
+	queueKey      []byte         // 32-byte key; EventBuilder does NOT own lifecycle
+	disabled      bool           // true when client == nil
+	lastHash      string         // SHA-256 of the last successfully submitted event JSON
+	submitTimeout time.Duration  // timeout for submit operations (default 3s)
+	OnHashStored  func(eventID, hashValue string) // called after successful Submit to store hash in vault (D-15)
+}
+
+// callSafe invokes fn, recovering any panic and logging it. Used for best-effort
+// callbacks that must not crash the caller (D-14).
+func callSafe(fn func(), panicMsg string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error(panicMsg, "err", r)
+		}
+	}()
+	fn()
 }
 
 // NewEventBuilder creates an EventBuilder. If client is nil the builder is
@@ -131,21 +143,35 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 	resultCh := make(chan submitResult, 1)
 
 	go func() {
-		// Submit any previously queued events from the snapshot.
+		// Submit any previously queued events from the snapshot and store
+		// their hashes via OnHashStored — queued events failed to submit
+		// originally so their hashes were never persisted (D-15).
 		for _, e := range snapshot {
-			if err := b.client.Submit(ctx, e); err != nil {
+			hashValue, err := b.client.Submit(ctx, e)
+			if err != nil {
 				resultCh <- submitResult{err: err}
 				return
+			}
+			if b.OnHashStored != nil && hashValue != "" {
+				id, hv := e.Event.EventID, hashValue
+				callSafe(func() { b.OnHashStored(id, hv) }, "audit OnHashStored panic (queued event)")
 			}
 		}
 
 		entry := QueueEntry{Event: evt}
-		if err := b.client.Submit(ctx, entry); err != nil {
+		hashValue, err := b.client.Submit(ctx, entry)
+		if err != nil {
 			resultCh <- submitResult{err: err}
 			return
 		}
 
-		// Success: compute the hash of the newly submitted event.
+		// Call OnHashStored callback for the new event. Best-effort (D-14).
+		if b.OnHashStored != nil {
+			id, hv := entry.Event.EventID, hashValue
+			callSafe(func() { b.OnHashStored(id, hv) }, "audit OnHashStored panic")
+		}
+
+		// Success: compute the hash of the newly submitted event for chain.
 		// AuthEvent contains only string, bool, and time.Time fields, so
 		// Marshal failure is a programming error — panic like EntryHash does.
 		eventJSON, err := json.Marshal(evt)
