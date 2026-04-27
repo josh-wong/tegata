@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -232,12 +233,15 @@ func TestWizardRecoveryKeyBlocksDuringCreation(t *testing.T) {
 // TestWizardLocalVaultWarning asserts that choosing a non-removable path shows
 // the local-drive advisory on the first Enter and advances on the second Enter.
 func TestWizardLocalVaultWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	vaultPath := filepath.Join(tmpDir, "test-vault")
+
 	m := initialModel("")
 	// Type a path that is definitely not on a removable drive.
-	m = typeInto(m, "/tmp/test-vault")
+	m = typeInto(m, vaultPath)
 	// First Enter: advisory should be shown; state stays at welcome.
 	m = sendKey(m, "enter")
-	if !isRemovablePath("/tmp/test-vault") {
+	if !isRemovablePath(vaultPath) {
 		// Non-removable: expect the warning state.
 		if m.state != stateWizardWelcome {
 			t.Errorf("expected stateWizardWelcome after first Enter on non-removable path, got %v", m.state)
@@ -264,11 +268,14 @@ func TestWizardLocalVaultWarning(t *testing.T) {
 // TestWizardLocalVaultWarningClearsOnEdit asserts that editing the path after
 // the advisory clears the warning so a fresh check runs on the next Enter.
 func TestWizardLocalVaultWarningClearsOnEdit(t *testing.T) {
+	tmpDir := t.TempDir()
+	vaultPath := filepath.Join(tmpDir, "test-vault")
+
 	m := initialModel("")
-	m = typeInto(m, "/tmp/test-vault")
+	m = typeInto(m, vaultPath)
 	m = sendKey(m, "enter") // trigger advisory (if non-removable)
 	if !m.localVaultWarn {
-		t.Skip("skipping: /tmp is removable on this system")
+		t.Skip("skipping: path is removable on this system")
 	}
 	// Typing clears the advisory.
 	m = typeInto(m, "x")
