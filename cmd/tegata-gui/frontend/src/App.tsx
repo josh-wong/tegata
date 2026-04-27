@@ -32,10 +32,11 @@ function App() {
   const [auditEnabled, setAuditEnabled] = useState(false)
 
   useEffect(() => {
+    if (!vault.isUnlocked) return
     WailsApp.GetIdleTimeoutSeconds()
       .then((s) => setIdleTimeoutMs(s * 1000))
       .catch(() => {})
-  }, [settingsOpen])
+  }, [settingsOpen, vault.isUnlocked])
 
   useEffect(() => {
     if (vault.isUnlocked) {

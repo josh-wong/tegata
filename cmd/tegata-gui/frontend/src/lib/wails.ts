@@ -55,6 +55,9 @@ interface WailsAppBindings {
   GetConfig(): Promise<Record<string, unknown>>
   GetIdleTimeoutSeconds(): Promise<number>
   SetIdleTimeoutSeconds(seconds: number): Promise<void>
+  GetClipboardTimeoutSeconds(): Promise<number>
+  SetClipboardTimeoutSeconds(seconds: number): Promise<void>
+  ResetIdle(): Promise<void>
   CheckForUpdate(): Promise<UpdateInfo | null>
   IsAuditEnabled(): Promise<boolean>
   GetAuditHistory(): Promise<AuditHistoryRecord[]>
@@ -105,6 +108,9 @@ export const App = {
   GetConfig: () => getApp().GetConfig(),
   GetIdleTimeoutSeconds: () => getApp().GetIdleTimeoutSeconds(),
   SetIdleTimeoutSeconds: (seconds: number) => getApp().SetIdleTimeoutSeconds(seconds),
+  GetClipboardTimeoutSeconds: () => getApp().GetClipboardTimeoutSeconds(),
+  SetClipboardTimeoutSeconds: (seconds: number) => getApp().SetClipboardTimeoutSeconds(seconds),
+  ResetIdle: () => getApp().ResetIdle(),
   CheckForUpdate: () => getApp().CheckForUpdate(),
   IsAuditEnabled: () => getApp().IsAuditEnabled(),
   GetAuditHistory: () => getApp().GetAuditHistory(),

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
 import { renderHook, act } from "@testing-library/react"
+import { App as WailsApp } from "@/lib/wails"
 import { useIdleTimer } from "./useIdleTimer"
 
 describe("useIdleTimer", () => {
@@ -78,6 +79,50 @@ describe("useIdleTimer", () => {
     })
 
     expect(onIdle).not.toHaveBeenCalled()
+  })
+
+  it("syncs backend idle timer after activity when BACKEND_RESET_INTERVAL elapses", () => {
+    const onIdle = vi.fn()
+    const resetIdleMock = vi.mocked(WailsApp.ResetIdle)
+    resetIdleMock.mockClear()
+
+    renderHook(() => useIdleTimer(10 * 60 * 1000, onIdle)) // 10-minute timeout
+
+    // Trigger user activity.
+    act(() => {
+      document.dispatchEvent(new Event("mousedown"))
+    })
+
+    // Advance 35s — past the 30s BACKEND_RESET_INTERVAL. ResetIdle should fire.
+    act(() => {
+      vi.advanceTimersByTime(35_000)
+    })
+
+    expect(resetIdleMock).toHaveBeenCalled()
+    expect(onIdle).not.toHaveBeenCalled()
+  })
+
+  it("does NOT sync backend timer when no activity occurred since last sync", () => {
+    const onIdle = vi.fn()
+    const resetIdleMock = vi.mocked(WailsApp.ResetIdle)
+    resetIdleMock.mockClear()
+
+    renderHook(() => useIdleTimer(10 * 60 * 1000, onIdle))
+
+    // Advance 5s to trigger the first poll, which initialises lastBackendReset
+    // (lastActivity starts at Date.now() so lastActivity > lastBackendReset initially).
+    act(() => {
+      vi.advanceTimersByTime(5_000)
+    })
+    resetIdleMock.mockClear()
+
+    // No further activity. Advance another 35s — no new activity, so ResetIdle
+    // must NOT be called again.
+    act(() => {
+      vi.advanceTimersByTime(35_000)
+    })
+
+    expect(resetIdleMock).not.toHaveBeenCalled()
   })
 
   it("resets activity baseline when re-enabled after being disabled (login transition)", () => {
