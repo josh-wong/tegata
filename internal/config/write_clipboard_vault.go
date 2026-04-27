@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // WriteClipboardVaultSections writes or replaces the [clipboard] and [vault]
@@ -13,28 +14,31 @@ import (
 // section already exists, it is replaced in place; otherwise it is appended.
 func WriteClipboardVaultSections(dir string, clipboardTimeout, idleTimeout int) error {
 	path := filepath.Join(dir, configFileName)
-	existing, _ := os.ReadFile(path) // ignore not-found
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 
 	clipBlock := fmt.Sprintf("[clipboard]\ntimeout = %d\n", clipboardTimeout)
 	vaultBlock := fmt.Sprintf("[vault]\nidle_timeout = %d\n", idleTimeout)
 
-	content := rewriteOrAppendSection(existing, "clipboard", clipBlock)
-	content = rewriteOrAppendSection([]byte(content), "vault", vaultBlock)
+	content := rewriteSection(existing, "clipboard", clipBlock)
+	content = rewriteSection([]byte(content), "vault", vaultBlock)
 
 	return os.WriteFile(path, []byte(content), 0600)
 }
 
-// rewriteOrAppendSection replaces the named TOML section in existing with
-// newBlock, or appends newBlock if the section is absent. All other sections
-// are preserved. newBlock must start with "[name]\n" and end with "\n".
-func rewriteOrAppendSection(existing []byte, name, newBlock string) string {
+// rewriteSection replaces the named TOML section in existing with newBlock,
+// or appends newBlock if the section is absent. All other sections are
+// preserved. newBlock must start with "[name]\n" and end with "\n".
+func rewriteSection(existing []byte, name, newBlock string) string {
 	header := []byte("[" + name + "]")
 
 	hasSection := bytes.HasPrefix(existing, header) ||
 		bytes.Contains(existing, append([]byte("\n"), header...))
 
 	if !hasSection {
-		content := trimTrailingNewlines(string(existing))
+		content := strings.TrimRight(string(existing), "\n")
 		if content != "" {
 			return content + "\n\n" + newBlock
 		}
@@ -63,14 +67,14 @@ func rewriteOrAppendSection(existing []byte, name, newBlock string) string {
 			continue
 		}
 		trimmed := bytes.TrimSpace(line)
-		if len(trimmed) > 2 && trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']' {
+		if len(trimmed) > 0 && trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']' {
 			end = offset
 			break
 		}
 		offset += len(line) + 1
 	}
 
-	before := trimTrailingNewlines(string(existing[:start]))
+	before := strings.TrimRight(string(existing[:start]), "\n")
 	after := ""
 	if end < len(existing) {
 		after = string(existing[end:])
