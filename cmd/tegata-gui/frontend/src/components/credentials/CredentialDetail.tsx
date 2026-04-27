@@ -333,7 +333,7 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
       <CopyButton
         copied={copied}
         onCopy={() => {
-          navigator.clipboard.writeText(totp.code)
+          App.CopyToClipboard(totp.code).catch(() => {})
           App.RecordTOTPUsed(credential.label).catch(() => {})
           setCopied(true)
           onUsed()
@@ -375,7 +375,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
           <CopyButton
             copied={copied}
             onCopy={() => {
-              navigator.clipboard.writeText(code)
+              App.CopyToClipboard(code).catch(() => {})
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}
@@ -410,7 +410,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        The password will be copied to your clipboard and auto-cleared after 45 seconds.
+        The password will be copied to your clipboard and cleared automatically after the configured timeout.
       </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button onClick={copyPassword}>
@@ -419,7 +419,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
         ) : (
           <Copy className="mr-2 h-4 w-4" />
         )}
-        {copied ? "Copied — auto-clears in 45s" : "Copy to clipboard"}
+        {copied ? "Copied — auto-clears shortly" : "Copy to clipboard"}
       </Button>
     </div>
   )
@@ -469,7 +469,7 @@ function ChallengeResponseView({ credential, onUsed }: { credential: Credential;
           <CopyButton
             copied={copied}
             onCopy={() => {
-              navigator.clipboard.writeText(response)
+              App.CopyToClipboard(response).catch(() => {})
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}

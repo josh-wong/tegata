@@ -57,6 +57,7 @@ interface WailsAppBindings {
   SetIdleTimeoutSeconds(seconds: number): Promise<void>
   GetClipboardTimeoutSeconds(): Promise<number>
   SetClipboardTimeoutSeconds(seconds: number): Promise<void>
+  CopyToClipboard(text: string): Promise<void>
   ResetIdle(): Promise<void>
   CheckForUpdate(): Promise<UpdateInfo | null>
   IsAuditEnabled(): Promise<boolean>
@@ -110,6 +111,7 @@ export const App = {
   SetIdleTimeoutSeconds: (seconds: number) => getApp().SetIdleTimeoutSeconds(seconds),
   GetClipboardTimeoutSeconds: () => getApp().GetClipboardTimeoutSeconds(),
   SetClipboardTimeoutSeconds: (seconds: number) => getApp().SetClipboardTimeoutSeconds(seconds),
+  CopyToClipboard: (text: string) => getApp().CopyToClipboard(text),
   ResetIdle: () => getApp().ResetIdle(),
   CheckForUpdate: () => getApp().CheckForUpdate(),
   IsAuditEnabled: () => getApp().IsAuditEnabled(),

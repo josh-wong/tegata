@@ -124,7 +124,7 @@ describe("CredentialDetail", () => {
   it("static type shows copy to clipboard button", () => {
     render(<CredentialDetail credential={staticCredential} onRemove={vi.fn()} />)
     expect(screen.getByText("Copy to clipboard")).toBeInTheDocument()
-    expect(screen.getByText(/auto-cleared after 45/)).toBeInTheDocument()
+    expect(screen.getByText(/cleared automatically/)).toBeInTheDocument()
   })
 
   it("static type calls GetStaticPassword on copy", async () => {

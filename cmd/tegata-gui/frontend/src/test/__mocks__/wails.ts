@@ -28,6 +28,7 @@ export const App = {
   SetIdleTimeoutSeconds: vi.fn().mockResolvedValue(undefined),
   GetClipboardTimeoutSeconds: vi.fn().mockResolvedValue(45),
   SetClipboardTimeoutSeconds: vi.fn().mockResolvedValue(undefined),
+  CopyToClipboard: vi.fn().mockResolvedValue(undefined),
   ResetIdle: vi.fn().mockResolvedValue(undefined),
   CheckForUpdate: vi.fn().mockResolvedValue(null),
   IsAuditEnabled: vi.fn().mockResolvedValue(false),

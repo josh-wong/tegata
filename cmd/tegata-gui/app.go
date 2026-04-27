@@ -717,6 +717,20 @@ func (a *App) SetClipboardTimeoutSeconds(seconds int) error {
 	return nil
 }
 
+// CopyToClipboard writes text to the clipboard with auto-clear. All credential
+// copy actions in the GUI must route through this method so the configured
+// clipboard timeout is respected regardless of credential type.
+func (a *App) CopyToClipboard(text string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.clipboard == nil {
+		return nil
+	}
+	return a.clipboard.CopyWithAutoClear(text, a.config.ClipboardTimeout)
+}
+
 // ResetIdle resets the backend idle timer. The frontend calls this when user
 // activity is detected (e.g., mouse or keyboard events) so the backend timer
 // stays in sync with the frontend's idle tracking.
