@@ -31,6 +31,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
   const [recoveryResult, setRecoveryResult] = useState<boolean | null>(null)
 
   const [idleTimeout, setIdleTimeout] = useState(300)
+  const [clipboardTimeout, setClipboardTimeout] = useState(45)
   const [auditConfigured, setAuditConfigured] = useState(false)
   const [autoStart, setAutoStart] = useState(false)
   const [appVersion, setAppVersion] = useState("")
@@ -42,6 +43,9 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
     if (open) {
       App.GetIdleTimeoutSeconds()
         .then(setIdleTimeout)
+        .catch(() => {})
+      App.GetClipboardTimeoutSeconds()
+        .then(setClipboardTimeout)
         .catch(() => {})
       App.GetVersion()
         .then(setAppVersion)
@@ -67,6 +71,17 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       // Revert on failure
       const current = await App.GetIdleTimeoutSeconds()
       setIdleTimeout(current)
+    }
+  }
+
+  async function handleClipboardTimeoutChange(seconds: number) {
+    setClipboardTimeout(seconds)
+    try {
+      await App.SetClipboardTimeoutSeconds(seconds)
+    } catch {
+      // Revert on failure
+      const current = await App.GetClipboardTimeoutSeconds()
+      setClipboardTimeout(current)
     }
   }
 
@@ -152,6 +167,9 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
             value={idleTimeout}
             onChange={(e) => handleIdleTimeoutChange(Number(e.target.value))}
           >
+            {![60, 120, 300, 600, 900, 1800, 0].includes(idleTimeout) && (
+              <option value={idleTimeout}>{idleTimeout} seconds (custom)</option>
+            )}
             <option value={60}>1 minute</option>
             <option value={120}>2 minutes</option>
             <option value={300}>5 minutes (default)</option>
@@ -162,6 +180,31 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
           </select>
           <p className="text-xs text-muted-foreground">
             Lock the vault automatically after a period of inactivity.
+          </p>
+        </section>
+
+        <Separator className="my-4" />
+
+        {/* Clipboard */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">Clipboard</h3>
+          <select
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={clipboardTimeout}
+            onChange={(e) => handleClipboardTimeoutChange(Number(e.target.value))}
+          >
+            {![15, 30, 45, 60, 120, 0].includes(clipboardTimeout) && (
+              <option value={clipboardTimeout}>{clipboardTimeout} seconds (custom)</option>
+            )}
+            <option value={15}>15 seconds</option>
+            <option value={30}>30 seconds</option>
+            <option value={45}>45 seconds (default)</option>
+            <option value={60}>1 minute</option>
+            <option value={120}>2 minutes</option>
+            <option value={0}>Never</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Clear the clipboard automatically after copying a credential.
           </p>
         </section>
 

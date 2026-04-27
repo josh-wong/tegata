@@ -32,10 +32,11 @@ function App() {
   const [auditEnabled, setAuditEnabled] = useState(false)
 
   useEffect(() => {
+    if (!vault.isUnlocked) return
     WailsApp.GetIdleTimeoutSeconds()
       .then((s) => setIdleTimeoutMs(s * 1000))
       .catch(() => {})
-  }, [settingsOpen])
+  }, [settingsOpen, vault.isUnlocked])
 
   useEffect(() => {
     if (vault.isUnlocked) {
@@ -78,7 +79,7 @@ function App() {
     try {
       const result = await WailsApp.GenerateTOTP(label)
       if (result?.code) {
-        await navigator.clipboard.writeText(result.code)
+        await WailsApp.CopyToClipboard(result.code)
         WailsApp.RecordTOTPUsed(label).catch(() => {})
       }
     } catch (err) {

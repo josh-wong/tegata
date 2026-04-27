@@ -256,17 +256,26 @@ func NewManagerWith(cb ClipboardAccess) *Manager {
 // clearing after the specified timeout. If the clipboard content is changed by
 // another application before the timeout, the clear is skipped.
 // A new call to CopyWithAutoClear cancels any pending auto-clear.
+// A timeout of 0 or less disables auto-clear — the content remains until
+// overwritten by another application.
 func (m *Manager) CopyWithAutoClear(text string, timeout time.Duration) error {
 	m.mu.Lock()
 
 	// Cancel any previously scheduled auto-clear.
 	if m.cancelClear != nil {
 		m.cancelClear()
+		m.cancelClear = nil
 	}
 
 	if err := m.cb.WriteAll(text); err != nil {
 		m.mu.Unlock()
 		return m.clipboardError(err)
+	}
+
+	// A zero or negative timeout means auto-clear is disabled.
+	if timeout <= 0 {
+		m.mu.Unlock()
+		return nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

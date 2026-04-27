@@ -465,3 +465,101 @@ func TestApp_VerifyAuditLog_RequiresUnlock(t *testing.T) {
 		t.Fatal("expected error when vault is locked")
 	}
 }
+
+func TestApp_ResetIdle_Safe(t *testing.T) {
+	// ResetIdle must not panic when no idle timer is running (e.g. vault locked).
+	app := NewApp()
+	app.ResetIdle() // no panic expected
+}
+
+func TestApp_GetClipboardTimeoutSeconds(t *testing.T) {
+	app := NewApp()
+	got := app.GetClipboardTimeoutSeconds()
+	if got != 45 {
+		t.Errorf("expected default clipboard timeout 45s, got %d", got)
+	}
+}
+
+func TestApp_SetClipboardTimeoutSeconds_PersistsToFile(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+	app.config = config.DefaultConfig()
+
+	if err := app.SetClipboardTimeoutSeconds(30); err != nil {
+		t.Fatalf("SetClipboardTimeoutSeconds: %v", err)
+	}
+	if app.GetClipboardTimeoutSeconds() != 30 {
+		t.Errorf("expected in-memory timeout 30s, got %d", app.GetClipboardTimeoutSeconds())
+	}
+
+	// Reload config from disk to verify persistence.
+	reloaded, err := config.Load(filepath.Dir(vaultPath))
+	if err != nil {
+		t.Fatalf("reloading config: %v", err)
+	}
+	if int(reloaded.ClipboardTimeout.Seconds()) != 30 {
+		t.Errorf("expected persisted clipboard timeout 30s, got %d", int(reloaded.ClipboardTimeout.Seconds()))
+	}
+
+	app.LockVault()
+}
+
+func TestApp_SetIdleTimeoutSeconds_PersistsToFile(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+	app.config = config.DefaultConfig()
+
+	if err := app.SetIdleTimeoutSeconds(120); err != nil {
+		t.Fatalf("SetIdleTimeoutSeconds: %v", err)
+	}
+	if app.GetIdleTimeoutSeconds() != 120 {
+		t.Errorf("expected in-memory timeout 120s, got %d", app.GetIdleTimeoutSeconds())
+	}
+
+	// Reload config from disk to verify persistence.
+	reloaded, err := config.Load(filepath.Dir(vaultPath))
+	if err != nil {
+		t.Fatalf("reloading config: %v", err)
+	}
+	if int(reloaded.IdleTimeout.Seconds()) != 120 {
+		t.Errorf("expected persisted idle timeout 120s, got %d", int(reloaded.IdleTimeout.Seconds()))
+	}
+
+	app.LockVault()
+}
+
+func TestApp_SetClipboardTimeoutSeconds_RejectsNegative(t *testing.T) {
+	app := NewApp()
+	if err := app.SetClipboardTimeoutSeconds(-1); err == nil {
+		t.Fatal("expected error for negative clipboard timeout")
+	}
+}
+
+func TestApp_SetIdleTimeoutSeconds_RejectsNegative(t *testing.T) {
+	app := NewApp()
+	if err := app.SetIdleTimeoutSeconds(-1); err == nil {
+		t.Fatal("expected error for negative idle timeout")
+	}
+}

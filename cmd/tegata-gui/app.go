@@ -673,8 +673,8 @@ func (a *App) GetIdleTimeoutSeconds() int {
 	return int(a.config.IdleTimeout.Seconds())
 }
 
-// SetIdleTimeoutSeconds updates the idle lock timeout and restarts the timer.
-// A value of 0 disables auto-lock.
+// SetIdleTimeoutSeconds updates the idle lock timeout, restarts the timer, and
+// persists the new value to tegata.toml. A value of 0 disables auto-lock.
 func (a *App) SetIdleTimeoutSeconds(seconds int) error {
 	if seconds < 0 {
 		return fmt.Errorf("timeout must be non-negative")
@@ -686,7 +686,56 @@ func (a *App) SetIdleTimeoutSeconds(seconds int) error {
 	if seconds > 0 && a.vault != nil {
 		a.startIdleTimer()
 	}
+	if a.vaultPath != "" {
+		clipSec := int(a.config.ClipboardTimeout.Seconds())
+		if err := config.WriteClipboardVaultSections(vaultDir(a.vaultPath), clipSec, seconds); err != nil {
+			return fmt.Errorf("saving idle timeout: %w", err)
+		}
+	}
 	return nil
+}
+
+// GetClipboardTimeoutSeconds returns the current clipboard auto-clear timeout
+// in seconds. A value of 0 means auto-clear is disabled.
+func (a *App) GetClipboardTimeoutSeconds() int {
+	return int(a.config.ClipboardTimeout.Seconds())
+}
+
+// SetClipboardTimeoutSeconds updates the clipboard auto-clear timeout and
+// persists the new value to tegata.toml. A value of 0 disables auto-clear.
+func (a *App) SetClipboardTimeoutSeconds(seconds int) error {
+	if seconds < 0 {
+		return fmt.Errorf("timeout must be non-negative")
+	}
+	a.config.ClipboardTimeout = time.Duration(seconds) * time.Second
+	if a.vaultPath != "" {
+		idleSec := int(a.config.IdleTimeout.Seconds())
+		if err := config.WriteClipboardVaultSections(vaultDir(a.vaultPath), seconds, idleSec); err != nil {
+			return fmt.Errorf("saving clipboard timeout: %w", err)
+		}
+	}
+	return nil
+}
+
+// CopyToClipboard writes text to the clipboard with auto-clear. All credential
+// copy actions in the GUI must route through this method so the configured
+// clipboard timeout is respected regardless of credential type.
+func (a *App) CopyToClipboard(text string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.clipboard == nil {
+		return nil
+	}
+	return a.clipboard.CopyWithAutoClear(text, a.config.ClipboardTimeout)
+}
+
+// ResetIdle resets the backend idle timer. The frontend calls this when user
+// activity is detected (e.g., mouse or keyboard events) so the backend timer
+// stays in sync with the frontend's idle tracking.
+func (a *App) ResetIdle() {
+	a.resetIdle()
 }
 
 // CheckForUpdate checks the GitHub Releases API for a newer version. Returns

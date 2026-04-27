@@ -176,6 +176,23 @@ func TestCopyWithAutoClearReturnsClipboardError(t *testing.T) {
 	}
 }
 
+func TestCopyWithAutoClear_ZeroTimeoutDoesNotClear(t *testing.T) {
+	mock := &mockClipboard{}
+	mgr := NewManagerWith(mock)
+	defer mgr.Close()
+
+	if err := mgr.CopyWithAutoClear("secret", 0); err != nil {
+		t.Fatalf("CopyWithAutoClear returned error: %v", err)
+	}
+
+	// Wait longer than any goroutine scheduler delay to confirm no clear fires.
+	time.Sleep(100 * time.Millisecond)
+
+	if got := mock.getContent(); got != "secret" {
+		t.Errorf("clipboard should not be cleared with timeout=0, got %q", got)
+	}
+}
+
 func TestNewWaylandClipboardFailsWithoutWlCopy(t *testing.T) {
 	t.Setenv("PATH", "")
 
