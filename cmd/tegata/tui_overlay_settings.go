@@ -874,13 +874,13 @@ func (m model) viewSettingsConfig() string {
 	return strings.Join(lines, "\n")
 }
 
-// writeConfigFile writes the effective clipboard and idle timeouts to tegata.toml.
+// writeConfigFile writes the effective clipboard and idle timeouts to tegata.toml,
+// preserving any other existing sections such as [audit].
 func writeConfigFile(vaultPath string, cfg config.Config) error {
 	dir := filepath.Dir(vaultPath)
-	content := fmt.Sprintf("[clipboard]\ntimeout = %d\n\n[vault]\nidle_timeout = %d\n",
+	return config.WriteClipboardVaultSections(dir,
 		int(cfg.ClipboardTimeout.Seconds()),
 		int(cfg.IdleTimeout.Seconds()))
-	return os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0600)
 }
 
 // secondsDuration converts an integer number of seconds to a time.Duration.
