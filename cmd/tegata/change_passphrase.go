@@ -43,7 +43,11 @@ func newChangePassphraseCmd() *cobra.Command {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", clientErr)
 				} else {
 					defer func() { _ = auditClient.Close() }()
-					builder, _ = audit.NewEventBuilderMemQueue(auditClient)
+					var memErr error
+					builder, memErr = audit.NewEventBuilderMemQueue(auditClient)
+					if memErr != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", memErr)
+					}
 				}
 			}
 			if builder != nil {
