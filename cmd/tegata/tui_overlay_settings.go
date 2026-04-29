@@ -324,6 +324,10 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			if m.builder != nil {
+				_ = m.builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true)
+			}
+
 			m.settingsInput1.Reset()
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
@@ -429,6 +433,10 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := os.WriteFile(path, data, 0600); err != nil {
 				m.settingsMsg = fmt.Sprintf("Write failed: %v", err)
 				return m, nil
+			}
+
+			if m.builder != nil {
+				_ = m.builder.LogEvent("credential-export", "", "", audit.Hostname(), true)
 			}
 
 			m.settingsInput1.Reset()

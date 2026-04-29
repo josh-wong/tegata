@@ -103,6 +103,10 @@ func FormatOperation(op string) string {
 		return "Credential update"
 	case "credential-import":
 		return "Credential import"
+	case "credential-export":
+		return "Credential export"
+	case "vault-passphrase-change":
+		return "Vault passphrase change"
 	default:
 		return op
 	}

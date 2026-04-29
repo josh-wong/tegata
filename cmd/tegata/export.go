@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -51,6 +53,23 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not unlock vault: %w", err)
 	}
 	defer mgr.Close()
+
+	cfg, _ := config.Load(vaultDir(vaultPath))
+	builder, builderErr := newEventBuilder(cfg, vaultDir(vaultPath), vaultPass)
+	if builderErr != nil {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", builderErr)
+	}
+	if builder != nil {
+		defer func() { _ = builder.Close() }()
+		builder.OnHashStored = func(eventID, hashValue string) {
+			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+			}
+		}
+		if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+		}
+	}
 
 	// Prompt for export passphrase directly via term.ReadPassword.
 	// The export passphrase is a new credential and must never be read from
@@ -102,6 +121,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
 		return fmt.Errorf("writing backup file %q: %w", outPath, err)
+	}
+
+	if builder != nil {
+		if logErr := builder.LogEvent("credential-export", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+		}
 	}
 
 	credCount := len(mgr.ListCredentials())

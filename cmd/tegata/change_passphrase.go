@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +32,31 @@ func newChangePassphraseCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			// Use an in-memory queue rather than the disk-backed queue: after the
+			// passphrase changes, the queue key (derived from the old passphrase)
+			// becomes invalid, so writing it to disk would leave an unreadable file.
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			var builder *audit.EventBuilder
+			if cfg.Audit.Enabled {
+				auditClient, clientErr := audit.NewClientFromConfig(cfg.Audit)
+				if clientErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", clientErr)
+				} else {
+					defer func() { _ = auditClient.Close() }()
+					builder, _ = audit.NewEventBuilderMemQueue(auditClient)
+				}
+			}
+			if builder != nil {
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
+				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
+
 			newPassphrase, err := promptNewPassphrase()
 			if err != nil {
 				return err
@@ -38,6 +65,13 @@ func newChangePassphraseCmd() *cobra.Command {
 
 			if err := mgr.ChangePassphrase(newPassphrase); err != nil {
 				return fmt.Errorf("changing passphrase: %w", err)
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+				_ = builder.Close()
 			}
 
 			fmt.Println("Passphrase changed successfully.")

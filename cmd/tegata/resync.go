@@ -6,7 +6,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
@@ -36,6 +38,23 @@ func newResyncCmd() *cobra.Command {
 				return err
 			}
 			defer mgr.Close()
+
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+			}
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
+				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
 
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
@@ -77,6 +96,12 @@ func newResyncCmd() *cobra.Command {
 			cred.Counter = newCounter
 			if err := mgr.UpdateCredential(cred); err != nil {
 				return fmt.Errorf("saving counter: %w", err)
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
 			}
 
 			fmt.Printf("Counter resynchronized. Next code will use counter %d.\n", newCounter)
