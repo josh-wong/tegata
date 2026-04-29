@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/errors"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
@@ -53,6 +54,11 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 			defer mgr.Close()
+
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+			}
 
 			var cred pkgmodel.Credential
 
@@ -121,6 +127,12 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 			_ = id
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+				}
+			}
 
 			displayIssuer := cred.Issuer
 			if displayIssuer == "" {

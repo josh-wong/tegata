@@ -39,19 +39,11 @@ func newGetCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			// Load config and build audit builder while passphrase is in scope.
+			// Load config for clipboard settings; build audit builder while passphrase is still in scope.
 			cfg, _ := config.Load(vaultDir(vaultPath))
-			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
-			if err != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
-			}
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
 			if builder != nil {
 				defer func() { _ = builder.Close() }()
-				builder.OnHashStored = func(eventID, hashValue string) {
-					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
-					}
-				}
 			}
 
 			cred, err := mgr.GetCredential(label)
@@ -68,14 +60,14 @@ func newGetCmd() *cobra.Command {
 			// Emit audit event after successful static password retrieval.
 			if builder != nil {
 				if logErr := builder.LogEvent("static", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 
 			cm := clipboard.NewManager()
 			defer cm.Close()
 			if err := cm.CopyWithAutoClear(string(password), cfg.ClipboardTimeout); err != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: clipboard copy failed: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Clipboard copy failed: %v\n", err)
 			} else {
 				fmt.Printf("Copied to clipboard (auto-clear in %ds)\n",
 					int(cfg.ClipboardTimeout.Seconds()))

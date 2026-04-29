@@ -48,7 +48,7 @@ func newBenchCmd() *cobra.Command {
 			fmt.Println("Target: under 3000ms")
 
 			if avg > 3*time.Second {
-				fmt.Println("\nWarning: unlock time exceeds 3s target. Consider reducing Argon2id parameters.")
+				fmt.Println("\nWarning: Unlock time exceeds 3s target. Consider reducing Argon2id parameters.")
 			}
 
 			return nil

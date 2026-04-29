@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
@@ -36,6 +37,11 @@ func newResyncCmd() *cobra.Command {
 				return err
 			}
 			defer mgr.Close()
+
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+			}
 
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
@@ -77,6 +83,12 @@ func newResyncCmd() *cobra.Command {
 			cred.Counter = newCounter
 			if err := mgr.UpdateCredential(cred); err != nil {
 				return fmt.Errorf("saving counter: %w", err)
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("hotp-resync", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+				}
 			}
 
 			fmt.Printf("Counter resynchronized. Next code will use counter %d.\n", newCounter)

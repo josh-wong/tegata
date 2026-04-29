@@ -59,7 +59,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
 		if builderErr != nil {
 			// Non-fatal: TUI works without audit.
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit unavailable: %v\n", builderErr)
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit unavailable: %v\n", builderErr)
 		}
 
 		zeroBytes(passphrase)
@@ -105,8 +105,11 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		mgr := m.vaultMgr
 		m.builder.OnHashStored = func(eventID, hashValue string) {
 			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: failed to store audit hash: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "Warning: Failed to store audit hash: %v\n", err)
 			}
+		}
+		if logErr := m.builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 		}
 	}
 	m.passphraseInput.Blur()

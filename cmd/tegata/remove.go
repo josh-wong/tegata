@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,11 @@ func newRemoveCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+			}
+
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
 				return err
@@ -45,6 +51,12 @@ func newRemoveCmd() *cobra.Command {
 
 			if err := mgr.RemoveCredential(cred.ID); err != nil {
 				return err
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-remove", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+				}
 			}
 
 			fmt.Printf("Removed: %s\n", label)

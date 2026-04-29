@@ -228,6 +228,13 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		}
 	}
 
+	// Emit vault-unlock after builder is wired up and passphrase is still available.
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
+	}
+
 	// Zero passphrase AFTER builder construction.
 	zeroBytes(passBytes)
 
@@ -244,6 +251,9 @@ func (a *App) UnlockVault(path, passphrase string) error {
 // It emits a "vault:locked" event to the frontend.
 func (a *App) LockVault() {
 	if a.builder != nil {
+		if logErr := a.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
 		_ = a.builder.Close()
 		a.builder = nil
 	}
@@ -773,6 +783,7 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 type AuditHistoryRecord struct {
 	ObjectID  string `json:"object_id"`
 	Operation string `json:"operation"`
+	Label     string `json:"label"`
 	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
@@ -819,11 +830,21 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: %s\n", result.Warning)
 	}
 
+	// Build label maps for hash resolution — same approach as TUI/CLI history.
+	creds := a.vault.ListCredentials()
+	labelNames := make([]string, len(creds))
+	for i, c := range creds {
+		labelNames[i] = c.Label
+	}
+	labelMap := audit.BuildLabelMap(labelNames)
+	deletedMap := a.vault.DeletedLabels()
+
 	records := make([]AuditHistoryRecord, len(result.Records))
 	for i, r := range result.Records {
 		records[i] = AuditHistoryRecord{
 			ObjectID:  r.ObjectID,
-			Operation: r.Operation,
+			Operation: audit.FormatOperation(r.Operation),
+			Label:     audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap),
 			LabelHash: r.LabelHash,
 			Timestamp: r.Timestamp,
 			HashValue: r.HashValue,

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -168,6 +169,11 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.settingsMsg = fmt.Sprintf("Error: %v", err)
 							} else {
 								m.settingsMsg = fmt.Sprintf("Added tag %q", tag)
+								if m.builder != nil {
+									if logErr := m.builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+										_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+									}
+								}
 								m = refreshCredList(m)
 							}
 						}
@@ -230,6 +236,11 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.settingsMsg = fmt.Sprintf("Error: %v", err)
 				} else {
 					m.settingsMsg = fmt.Sprintf("Removed tag %q", removed)
+					if m.builder != nil {
+						if logErr := m.builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+							_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+						}
+					}
 					m = refreshCredList(m)
 					if m.settingsTagIdx > 0 {
 						m.settingsTagIdx--
@@ -315,6 +326,12 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := m.vaultMgr.Save(); err != nil {
 				m.settingsMsg = fmt.Sprintf("Save error: %v", err)
 				return m, nil
+			}
+
+			if m.builder != nil {
+				if logErr := m.builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				}
 			}
 
 			m.settingsInput1.Reset()
@@ -424,6 +441,12 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			if m.builder != nil {
+				if logErr := m.builder.LogEvent("credential-export", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				}
+			}
+
 			m.settingsInput1.Reset()
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
@@ -506,6 +529,12 @@ func (m model) updateSettingsImport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				m.settingsMsg = fmt.Sprintf("Import failed: %v", err)
 				return m, nil
+			}
+
+			if m.builder != nil && imported > 0 {
+				if logErr := m.builder.LogEvent("credential-import", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				}
 			}
 
 			if err := m.vaultMgr.Save(); err != nil {

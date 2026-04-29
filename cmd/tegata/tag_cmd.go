@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
@@ -47,6 +48,11 @@ func newTagCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+			}
+
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
 				return err
@@ -81,6 +87,12 @@ func newTagCmd() *cobra.Command {
 
 			if err := mgr.UpdateCredential(cred); err != nil {
 				return err
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+				}
 			}
 
 			if len(cred.Tags) == 0 {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -51,6 +52,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not unlock vault: %w", err)
 	}
 	defer mgr.Close()
+
+	builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), vaultPass, mgr)
+	if builder != nil {
+		defer func() { _ = builder.Close() }()
+	}
 
 	// Prompt for export passphrase directly via term.ReadPassword.
 	// The export passphrase is a new credential and must never be read from
@@ -102,6 +108,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
 		return fmt.Errorf("writing backup file %q: %w", outPath, err)
+	}
+
+	if builder != nil {
+		if logErr := builder.LogEvent("credential-export", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+		}
 	}
 
 	credCount := len(mgr.ListCredentials())

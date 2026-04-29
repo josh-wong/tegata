@@ -113,6 +113,15 @@ func (m model) buildLabelMap() map[string]string {
 	return audit.BuildLabelMap(labels)
 }
 
+// buildDeletedLabelMap returns the vault's deleted-label hash→name map,
+// used to resolve labels for credentials that have been removed.
+func (m model) buildDeletedLabelMap() map[string]string {
+	if m.vaultMgr == nil {
+		return nil
+	}
+	return m.vaultMgr.DeletedLabels()
+}
+
 // resetAuditOverlay clears all audit overlay state.
 func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
@@ -223,20 +232,21 @@ func (m model) viewAuditHistory() string {
 			helpBarStyle.Render("[Esc] Back")
 	}
 
-	// Build hash→label lookup from loaded credentials.
+	// Build hash→label lookup from loaded credentials and deleted labels.
 	labelMap := m.buildLabelMap()
+	deletedMap := m.buildDeletedLabelMap()
 
 	var body strings.Builder
 	if len(m.auditRecords) > 0 {
 		body.WriteString(fmt.Sprintf("%-20s %-20s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
 		body.WriteString(strings.Repeat("─", 80) + "\n")
 		for _, r := range m.auditRecords {
-			label := audit.ResolveLabel(r.LabelHash, labelMap)
+			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
 			if len(label) > 20 {
 				label = label[:19] + "…"
 			}
 			op := audit.FormatOperation(r.Operation)
-			ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+			ts := time.Unix(r.Timestamp, 0).Local().Format("2006-01-02 15:04:05")
 			hash := r.HashValue
 			if len(hash) > 16 {
 				hash = hash[:16] + "…"

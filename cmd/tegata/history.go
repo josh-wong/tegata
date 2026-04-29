@@ -68,6 +68,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				labels[i] = c.Label
 			}
 			labelMap := audit.BuildLabelMap(labels)
+			deletedMap := mgr.DeletedLabels()
 
 			client, err := audit.NewClientFromConfig(cfg.Audit)
 			if err != nil {
@@ -101,14 +102,14 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			// Parse --from and --to date filters.
 			var fromTime, toTime time.Time
 			if from != "" {
-				fromTime, err = time.Parse("2006-01-02", from)
+				fromTime, err = time.ParseInLocation("2006-01-02", from, time.Local)
 				if err != nil {
 					return fmt.Errorf("invalid --from date %q (expected YYYY-MM-DD): %w",
 						from, tegerrors.ErrInvalidInput)
 				}
 			}
 			if to != "" {
-				toTime, err = time.Parse("2006-01-02", to)
+				toTime, err = time.ParseInLocation("2006-01-02", to, time.Local)
 				if err != nil {
 					return fmt.Errorf("invalid --to date %q (expected YYYY-MM-DD): %w",
 						to, tegerrors.ErrInvalidInput)
@@ -126,7 +127,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return enc.Encode(filtered)
 			}
 
-			printRecordsTable(filtered, labelMap)
+			printRecordsTable(filtered, labelMap, deletedMap)
 			return nil
 		},
 	}
@@ -155,7 +156,7 @@ func filterRecords(records []historyRecord, from, to time.Time) []historyRecord 
 	}
 	var filtered []historyRecord
 	for _, r := range records {
-		t := time.Unix(r.Timestamp, 0).UTC()
+		t := time.Unix(r.Timestamp, 0).Local()
 		if !from.IsZero() && t.Before(from) {
 			continue
 		}
@@ -169,8 +170,8 @@ func filterRecords(records []historyRecord, from, to time.Time) []historyRecord 
 
 // printRecordsTable writes a human-readable tabular display of history records
 // with operation, label, timestamp, and hash columns. Labels are resolved from
-// hashes using labelMap; unresolved hashes are truncated to 12 characters.
-func printRecordsTable(records []historyRecord, labelMap map[string]string) {
+// hashes using labelMap and deletedMap; deleted credentials show as "Label (deleted)".
+func printRecordsTable(records []historyRecord, labelMap, deletedMap map[string]string) {
 	if len(records) == 0 {
 		fmt.Println("No audit events found.")
 		return
@@ -180,9 +181,9 @@ func printRecordsTable(records []historyRecord, labelMap map[string]string) {
 	_, _ = fmt.Fprintln(w, "Operation\tLabel\tTimestamp\tHash")
 	_, _ = fmt.Fprintln(w, "---------\t-----\t---------\t----")
 	for _, r := range records {
-		label := audit.ResolveLabel(r.LabelHash, labelMap)
+		label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
 		op := audit.FormatOperation(r.Operation)
-		ts := time.Unix(r.Timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+		ts := time.Unix(r.Timestamp, 0).Local().Format("2006-01-02 15:04:05")
 		hash := r.HashValue
 		if len(hash) > 16 {
 			hash = hash[:16] + "..."

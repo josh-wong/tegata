@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -37,6 +38,10 @@ const (
 
 // tickMsg is fired every second to update the TOTP countdown and idle timer.
 type tickMsg struct{ t time.Time }
+
+// sigTermMsg is sent to the model when SIGTERM or SIGHUP is received, so the
+// normal quit() path runs and vault-lock is logged before the process exits.
+type sigTermMsg struct{}
 
 // model is the root Bubbletea model. It holds all application state for the
 // duration of a `tegata ui` session.
@@ -257,6 +262,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case sigTermMsg:
+		return m.quit()
+
 	case tea.KeyMsg:
 		// Ctrl+C always quits, even during text input.
 		if msg.Type == tea.KeyCtrlC {
@@ -284,6 +292,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			effectiveState == stateOverlayAudit
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
+				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				}
 				_ = m.builder.Close()
 				m.builder = nil
 			}
@@ -422,6 +433,9 @@ func (m model) View() string {
 // quit cleanly closes all resources and returns tea.Quit.
 func (m model) quit() (tea.Model, tea.Cmd) {
 	if m.builder != nil {
+		if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+		}
 		_ = m.builder.Close()
 		m.builder = nil
 	}

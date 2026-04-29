@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"os/signal"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -24,7 +26,20 @@ creation. If a vault exists, you will be prompted to unlock it.`,
 			m := initialModel(vaultPath)
 			// Do NOT redirect stdout before p.Run() (pitfall 3 from RESEARCH.md).
 			p := tea.NewProgram(m, tea.WithAltScreen())
+
+			// Forward SIGTERM and SIGHUP into the BubbleTea message loop so
+			// quit() runs normally and vault-lock is logged before exit.
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP)
+			go func() {
+				if _, ok := <-sigCh; ok {
+					p.Send(sigTermMsg{})
+				}
+			}()
+
 			_, err := p.Run()
+			signal.Stop(sigCh)
+			close(sigCh)
 			return err
 		},
 	}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/crypto/guard"
 	"github.com/josh-wong/tegata/internal/errors"
@@ -429,7 +430,9 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 	return cred.ID, nil
 }
 
-// RemoveCredential removes a credential by ID and saves.
+// RemoveCredential removes a credential by ID and saves. The credential's
+// label is retained in DeletedLabels so audit history can display "Label
+// (deleted)" rather than an unresolvable hash.
 func (m *Manager) RemoveCredential(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -438,12 +441,32 @@ func (m *Manager) RemoveCredential(id string) error {
 	}
 	for i, c := range m.payload.Credentials {
 		if c.ID == id {
+			// Preserve label for audit history resolution before removing.
+			if m.payload.DeletedLabels == nil {
+				m.payload.DeletedLabels = make(map[string]string)
+			}
+			m.payload.DeletedLabels[audit.HashString(c.Label)] = c.Label
 			m.payload.Credentials = append(m.payload.Credentials[:i], m.payload.Credentials[i+1:]...)
 			m.payload.ModifiedAt = time.Now().UTC()
 			return m.saveLocked()
 		}
 	}
 	return fmt.Errorf("credential %q: %w", id, errors.ErrNotFound)
+}
+
+// DeletedLabels returns a copy of the hash→label map for removed credentials.
+// Used by audit history display to resolve deleted credential labels.
+func (m *Manager) DeletedLabels() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil || m.payload.DeletedLabels == nil {
+		return nil
+	}
+	cp := make(map[string]string, len(m.payload.DeletedLabels))
+	for k, v := range m.payload.DeletedLabels {
+		cp[k] = v
+	}
+	return cp
 }
 
 // GetCredential returns the credential matching the given label (case-insensitive).

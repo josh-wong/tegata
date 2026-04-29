@@ -45,21 +45,11 @@ func newCodeCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			// Load config before zeroing passphrase; build audit builder while
-			// passphrase is still available.
+			// Load config for clipboard settings; build audit builder while passphrase is still in scope.
 			cfg, _ := config.Load(vaultDir(vaultPath))
-			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
-			if err != nil {
-				// Non-fatal: log and continue without audit.
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
-			}
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
 			if builder != nil {
 				defer func() { _ = builder.Close() }()
-				builder.OnHashStored = func(eventID, hashValue string) {
-					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
-					}
-				}
 			}
 
 			cred, err := mgr.GetCredential(label)
@@ -107,7 +97,7 @@ func newCodeCmd() *cobra.Command {
 			if builder != nil {
 				opType := string(cred.Type)
 				if logErr := builder.LogEvent(opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 

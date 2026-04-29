@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
@@ -298,6 +300,12 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			if m.builder != nil {
+				if logErr := m.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				}
+			}
+
 			m = refreshCredList(m, labelVal)
 
 			label := labelVal
@@ -441,6 +449,11 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.errMsg = fmt.Sprintf("Remove failed: %v", err)
 					m.state = stateMainView
 					return m, nil
+				}
+				if m.builder != nil {
+					if logErr := m.builder.LogEvent("credential-remove", item.cred.Label, item.cred.Issuer, audit.Hostname(), true); logErr != nil {
+						_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+					}
 				}
 			}
 

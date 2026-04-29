@@ -28,7 +28,7 @@ describe("AuditPanel", () => {
 
   it("fetches and displays history", async () => {
     vi.mocked(App.GetAuditHistory).mockResolvedValue([
-      { object_id: "evt-1", operation: "totp", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcd1234" },
+      { object_id: "evt-1", operation: "TOTP", label: "GitHub", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcd1234" },
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
