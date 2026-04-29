@@ -773,6 +773,7 @@ func (a *App) buildEventBuilder(cfg config.Config, vaultPath string, passphrase 
 type AuditHistoryRecord struct {
 	ObjectID  string `json:"object_id"`
 	Operation string `json:"operation"`
+	Label     string `json:"label"`
 	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
@@ -819,11 +820,21 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: %s\n", result.Warning)
 	}
 
+	// Build label maps for hash resolution — same approach as TUI/CLI history.
+	creds := a.vault.ListCredentials()
+	labelNames := make([]string, len(creds))
+	for i, c := range creds {
+		labelNames[i] = c.Label
+	}
+	labelMap := audit.BuildLabelMap(labelNames)
+	deletedMap := a.vault.DeletedLabels()
+
 	records := make([]AuditHistoryRecord, len(result.Records))
 	for i, r := range result.Records {
 		records[i] = AuditHistoryRecord{
 			ObjectID:  r.ObjectID,
 			Operation: audit.FormatOperation(r.Operation),
+			Label:     audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap),
 			LabelHash: r.LabelHash,
 			Timestamp: r.Timestamp,
 			HashValue: r.HashValue,

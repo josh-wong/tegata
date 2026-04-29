@@ -36,6 +36,7 @@ export interface UpdateInfo {
 export interface AuditHistoryRecord {
   object_id: string
   operation: string
+  label: string
   label_hash: string
   timestamp: number
   hash_value: string
