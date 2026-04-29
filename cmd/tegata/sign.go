@@ -52,17 +52,17 @@ func newSignCmd() *cobra.Command {
 			cfg, _ := config.Load(vaultDir(vaultPath))
 			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
 			if err != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit unavailable: %v\n", err)
 			}
 			if builder != nil {
 				defer func() { _ = builder.Close() }()
 				builder.OnHashStored = func(eventID, hashValue string) {
 					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to store audit hash: %v\n", err)
 					}
 				}
 				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 
@@ -87,7 +87,7 @@ func newSignCmd() *cobra.Command {
 			// Emit audit event after successful sign.
 			if builder != nil {
 				if logErr := builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 
@@ -95,7 +95,7 @@ func newSignCmd() *cobra.Command {
 				cm := clipboard.NewManager()
 				defer cm.Close()
 				if copyErr := cm.CopyWithAutoClear(hexResult, cfg.ClipboardTimeout); copyErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: clipboard copy failed: %v\n", copyErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Clipboard copy failed: %v\n", copyErr)
 				} else {
 					_, _ = fmt.Fprintf(os.Stderr, "Copied to clipboard (auto-clear in %ds)\n",
 						int(cfg.ClipboardTimeout.Seconds()))

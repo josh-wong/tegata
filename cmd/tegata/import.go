@@ -57,17 +57,17 @@ func runImport(cmd *cobra.Command, args []string) error {
 	cfg, _ := config.Load(vaultDir(vaultPath))
 	builder, builderErr := newEventBuilder(cfg, vaultDir(vaultPath), vaultPass)
 	if builderErr != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", builderErr)
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit unavailable: %v\n", builderErr)
 	}
 	if builder != nil {
 		defer func() { _ = builder.Close() }()
 		builder.OnHashStored = func(eventID, hashValue string) {
 			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to store audit hash: %v\n", err)
 			}
 		}
 		if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 		}
 	}
 
@@ -109,7 +109,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	if builder != nil && imported > 0 {
 		if logErr := builder.LogEvent("credential-import", "", "", audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 		}
 	}
 

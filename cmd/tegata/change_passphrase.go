@@ -40,24 +40,24 @@ func newChangePassphraseCmd() *cobra.Command {
 			if cfg.Audit.Enabled {
 				auditClient, clientErr := audit.NewClientFromConfig(cfg.Audit)
 				if clientErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", clientErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit unavailable: %v\n", clientErr)
 				} else {
 					defer func() { _ = auditClient.Close() }()
 					var memErr error
 					builder, memErr = audit.NewEventBuilderMemQueue(auditClient)
 					if memErr != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", memErr)
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit unavailable: %v\n", memErr)
 					}
 				}
 			}
 			if builder != nil {
 				builder.OnHashStored = func(eventID, hashValue string) {
 					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to store audit hash: %v\n", err)
 					}
 				}
 				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 
@@ -73,7 +73,7 @@ func newChangePassphraseCmd() *cobra.Command {
 
 			if builder != nil {
 				if logErr := builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 				_ = builder.Close()
 			}

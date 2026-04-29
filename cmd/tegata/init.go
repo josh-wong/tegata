@@ -68,7 +68,7 @@ vault directory; otherwise the current directory is used.`,
 
 			// Write default config alongside the vault.
 			if err := config.WriteDefaults(dir); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not write default config: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Warning: Could not write default config: %v\n", err)
 			}
 
 			fmt.Printf("Vault created: %s\n\n", vaultPath)
@@ -133,7 +133,7 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 	}
 
 	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not save audit config: %v\n", writeErr)
+		fmt.Fprintf(os.Stderr, "Warning: Could not save audit config: %v\n", writeErr)
 		return
 	}
 
