@@ -302,7 +302,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
 
@@ -452,7 +452,7 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if m.builder != nil {
 					if logErr := m.builder.LogEvent("credential-remove", item.cred.Label, item.cred.Issuer, audit.Hostname(), true); logErr != nil {
-						_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+						_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 					}
 				}
 			}

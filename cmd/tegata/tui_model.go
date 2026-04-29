@@ -286,7 +286,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 				}
 				_ = m.builder.Close()
 				m.builder = nil
@@ -426,6 +426,9 @@ func (m model) View() string {
 // quit cleanly closes all resources and returns tea.Quit.
 func (m model) quit() (tea.Model, tea.Cmd) {
 	if m.builder != nil {
+		if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+		}
 		_ = m.builder.Close()
 		m.builder = nil
 	}

@@ -27,8 +27,8 @@ type AuthEvent struct {
 
 // HashString returns the lowercase hex-encoded SHA-256 digest of s. Used to
 // hash labels, service names, and host names before including them in audit
-// records. The algorithm is mirrored by vault/manager.go:hashLabel for storing
-// deleted-label hashes in the vault payload — both must be kept in sync.
+// records. vault/manager.go calls this function directly when storing
+// deleted-label hashes in the vault payload.
 func HashString(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])

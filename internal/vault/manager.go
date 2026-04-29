@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/crypto/guard"
 	"github.com/josh-wong/tegata/internal/errors"
@@ -35,16 +36,6 @@ func zeroBytes(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
-}
-
-// hashLabel returns the lowercase hex-encoded SHA-256 digest of label.
-// The algorithm is intentionally identical to audit.HashString — both functions
-// must be kept in sync so that deleted-label hashes stored here match the
-// hashes recorded in the audit ledger. If the hashing scheme ever changes,
-// update both functions together.
-func hashLabel(label string) string {
-	sum := sha256.Sum256([]byte(label))
-	return hex.EncodeToString(sum[:])
 }
 
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
@@ -454,7 +445,7 @@ func (m *Manager) RemoveCredential(id string) error {
 			if m.payload.DeletedLabels == nil {
 				m.payload.DeletedLabels = make(map[string]string)
 			}
-			m.payload.DeletedLabels[hashLabel(c.Label)] = c.Label
+			m.payload.DeletedLabels[audit.HashString(c.Label)] = c.Label
 			m.payload.Credentials = append(m.payload.Credentials[:i], m.payload.Credentials[i+1:]...)
 			m.payload.ModifiedAt = time.Now().UTC()
 			return m.saveLocked()
