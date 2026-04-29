@@ -39,6 +39,10 @@ const (
 // tickMsg is fired every second to update the TOTP countdown and idle timer.
 type tickMsg struct{ t time.Time }
 
+// sigTermMsg is sent to the model when SIGTERM or SIGHUP is received, so the
+// normal quit() path runs and vault-lock is logged before the process exits.
+type sigTermMsg struct{}
+
 // model is the root Bubbletea model. It holds all application state for the
 // duration of a `tegata ui` session.
 type model struct {
@@ -257,6 +261,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = m.prevState
 		}
 		return m, nil
+
+	case sigTermMsg:
+		return m.quit()
 
 	case tea.KeyMsg:
 		// Ctrl+C always quits, even during text input.

@@ -31,6 +31,13 @@ type EventBuilder struct {
 	lastHash      string         // SHA-256 of the last successfully submitted event JSON
 	submitTimeout time.Duration  // timeout for submit operations (default 3s)
 	OnHashStored  func(eventID, hashValue string) // called after successful Submit to store hash in vault (D-15)
+	// LogVaultLockOnClose, when true, emits a vault-lock event just before the
+	// queue is saved and the builder is torn down. Set by setupAuditBuilder so
+	// CLI commands (which have no explicit quit path) automatically log the
+	// closing of a session without any per-command boilerplate.
+	// Leave false in the TUI: the TUI logs vault-lock explicitly before calling
+	// Close(), so setting this flag would produce a duplicate event.
+	LogVaultLockOnClose bool
 }
 
 // callSafe invokes fn, recovering any panic and logging it. Used for best-effort
@@ -213,10 +220,15 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 }
 
 // Close saves the offline queue to disk. Should be called in a deferred
-// function in each auth command after LogEvent.
+// function in each auth command after LogEvent. When LogVaultLockOnClose is
+// true, a vault-lock event is emitted first so that CLI commands (which have
+// no explicit quit path) produce a matched unlock/lock pair in the audit log.
 func (b *EventBuilder) Close() error {
 	if b.disabled {
 		return nil
+	}
+	if b.LogVaultLockOnClose {
+		_ = b.LogEvent("vault-lock", "", "", Hostname(), true)
 	}
 	return b.queue.Save(b.queuePath)
 }

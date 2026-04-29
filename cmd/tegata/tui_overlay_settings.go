@@ -170,7 +170,7 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 							} else {
 								m.settingsMsg = fmt.Sprintf("Added tag %q", tag)
 								if m.builder != nil {
-									if logErr := m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+									if logErr := m.builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
 										_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 									}
 								}
@@ -237,7 +237,7 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.settingsMsg = fmt.Sprintf("Removed tag %q", removed)
 					if m.builder != nil {
-						if logErr := m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+						if logErr := m.builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
 							_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
 						}
 					}

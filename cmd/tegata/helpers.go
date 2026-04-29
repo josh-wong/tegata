@@ -322,6 +322,7 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
 		_, _ = fmt.Fprintf(w, "Warning: Audit log failed: %v\n", logErr)
 	}
+	builder.LogVaultLockOnClose = true
 	return builder
 }
 

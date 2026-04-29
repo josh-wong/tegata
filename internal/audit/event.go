@@ -102,6 +102,10 @@ func FormatOperation(op string) string {
 		return "Credential remove"
 	case "credential-update":
 		return "Credential update"
+	case "credential-tag-update":
+		return "Credential tag update"
+	case "hotp-resync":
+		return "HOTP resync"
 	case "credential-import":
 		return "Credential import"
 	case "credential-export":

@@ -228,6 +228,13 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		}
 	}
 
+	// Emit vault-unlock after builder is wired up and passphrase is still available.
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
+	}
+
 	// Zero passphrase AFTER builder construction.
 	zeroBytes(passBytes)
 
@@ -244,6 +251,9 @@ func (a *App) UnlockVault(path, passphrase string) error {
 // It emits a "vault:locked" event to the frontend.
 func (a *App) LockVault() {
 	if a.builder != nil {
+		if logErr := a.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
 		_ = a.builder.Close()
 		a.builder = nil
 	}

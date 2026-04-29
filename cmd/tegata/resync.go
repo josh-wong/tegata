@@ -86,7 +86,7 @@ func newResyncCmd() *cobra.Command {
 			}
 
 			if builder != nil {
-				if logErr := builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+				if logErr := builder.LogEvent("hotp-resync", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 			}
