@@ -170,7 +170,9 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 							} else {
 								m.settingsMsg = fmt.Sprintf("Added tag %q", tag)
 								if m.builder != nil {
-									_ = m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true)
+									if logErr := m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+										_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+									}
 								}
 								m = refreshCredList(m)
 							}
@@ -235,7 +237,9 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.settingsMsg = fmt.Sprintf("Removed tag %q", removed)
 					if m.builder != nil {
-						_ = m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true)
+						if logErr := m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+							_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+						}
 					}
 					m = refreshCredList(m)
 					if m.settingsTagIdx > 0 {
@@ -325,7 +329,9 @@ func (m model) updateSettingsPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if m.builder != nil {
-				_ = m.builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true)
+				if logErr := m.builder.LogEvent("vault-passphrase-change", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+				}
 			}
 
 			m.settingsInput1.Reset()
@@ -436,7 +442,9 @@ func (m model) updateSettingsExport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if m.builder != nil {
-				_ = m.builder.LogEvent("credential-export", "", "", audit.Hostname(), true)
+				if logErr := m.builder.LogEvent("credential-export", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+				}
 			}
 
 			m.settingsInput1.Reset()
@@ -524,7 +532,9 @@ func (m model) updateSettingsImport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if m.builder != nil && imported > 0 {
-				_ = m.builder.LogEvent("credential-import", "", "", audit.Hostname(), true)
+				if logErr := m.builder.LogEvent("credential-import", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+				}
 			}
 
 			if err := m.vaultMgr.Save(); err != nil {

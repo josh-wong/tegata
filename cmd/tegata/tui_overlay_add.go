@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -300,7 +301,9 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if m.builder != nil {
-				_ = m.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true)
+				if logErr := m.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+				}
 			}
 
 			m = refreshCredList(m, labelVal)
@@ -448,7 +451,9 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if m.builder != nil {
-					_ = m.builder.LogEvent("credential-remove", item.cred.Label, item.cred.Issuer, audit.Hostname(), true)
+					if logErr := m.builder.LogEvent("credential-remove", item.cred.Label, item.cred.Issuer, audit.Hostname(), true); logErr != nil {
+						_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+					}
 				}
 			}
 

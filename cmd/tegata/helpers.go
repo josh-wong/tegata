@@ -294,6 +294,31 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 	return audit.NewEventBuilderFromConfig(cfg.Audit, vaultDir, passphrase)
 }
 
+// setupAuditBuilder loads config, initialises an EventBuilder, wires up the
+// OnHashStored callback so hashes are persisted in the vault, and emits a
+// vault-unlock event. Returns nil when audit is disabled or unavailable.
+// The caller must defer builder.Close() when the return value is non-nil.
+func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Manager) *audit.EventBuilder {
+	cfg, _ := config.Load(dir)
+	builder, err := newEventBuilder(cfg, dir, passphrase)
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "Warning: Audit unavailable: %v\n", err)
+		return nil
+	}
+	if builder == nil {
+		return nil
+	}
+	builder.OnHashStored = func(eventID, hashValue string) {
+		if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+			_, _ = fmt.Fprintf(w, "Warning: Failed to store audit hash: %v\n", err)
+		}
+	}
+	if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+		_, _ = fmt.Fprintf(w, "Warning: Audit log failed: %v\n", logErr)
+	}
+	return builder
+}
+
 // humanizeError translates OS and filesystem errors into user-friendly messages.
 // Falls through to the original error for unknown types.
 func humanizeError(err error) string {

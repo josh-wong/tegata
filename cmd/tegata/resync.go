@@ -8,7 +8,6 @@ import (
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
-	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
@@ -39,21 +38,9 @@ func newResyncCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			cfg, _ := config.Load(vaultDir(vaultPath))
-			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
-			if err != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit unavailable: %v\n", err)
-			}
+			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
 			if builder != nil {
 				defer func() { _ = builder.Close() }()
-				builder.OnHashStored = func(eventID, hashValue string) {
-					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to store audit hash: %v\n", err)
-					}
-				}
-				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
-				}
 			}
 
 			cred, err := mgr.GetCredential(label)
