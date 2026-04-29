@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
@@ -53,6 +55,23 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 			defer mgr.Close()
+
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+			}
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
+				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
 
 			var cred pkgmodel.Credential
 
@@ -121,6 +140,12 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 			_ = id
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
 
 			displayIssuer := cred.Issuer
 			if displayIssuer == "" {

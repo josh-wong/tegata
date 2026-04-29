@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +34,23 @@ func newRemoveCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+			}
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
+				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
+
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
 				return err
@@ -45,6 +64,12 @@ func newRemoveCmd() *cobra.Command {
 
 			if err := mgr.RemoveCredential(cred.ID); err != nil {
 				return err
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-remove", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
 			}
 
 			fmt.Printf("Removed: %s\n", label)

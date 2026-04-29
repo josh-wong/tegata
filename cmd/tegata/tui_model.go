@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -284,6 +285,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			effectiveState == stateOverlayAudit
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
+				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+				}
 				_ = m.builder.Close()
 				m.builder = nil
 			}

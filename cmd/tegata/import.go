@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -52,6 +54,23 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	defer mgr.Close()
 
+	cfg, _ := config.Load(vaultDir(vaultPath))
+	builder, builderErr := newEventBuilder(cfg, vaultDir(vaultPath), vaultPass)
+	if builderErr != nil {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", builderErr)
+	}
+	if builder != nil {
+		defer func() { _ = builder.Close() }()
+		builder.OnHashStored = func(eventID, hashValue string) {
+			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+			}
+		}
+		if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+		}
+	}
+
 	// Read backup file with size guard (10 MB max, matching GUI).
 	const maxImportSize = 10 << 20
 	info, err := os.Stat(backupPath)
@@ -86,6 +105,12 @@ func runImport(cmd *cobra.Command, args []string) error {
 	imported, skipped, err := mgr.ImportCredentials(data, importPass)
 	if err != nil {
 		return fmt.Errorf("import failed: %w", err)
+	}
+
+	if builder != nil && imported > 0 {
+		if logErr := builder.LogEvent("credential-import", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+		}
 	}
 
 	fmt.Printf("%d imported, %d skipped (duplicate label)\n", imported, skipped)

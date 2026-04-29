@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
@@ -47,6 +49,23 @@ func newTagCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
+			cfg, _ := config.Load(vaultDir(vaultPath))
+			builder, err := newEventBuilder(cfg, vaultDir(vaultPath), passphrase)
+			if err != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit unavailable: %v\n", err)
+			}
+			if builder != nil {
+				defer func() { _ = builder.Close() }()
+				builder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to store audit hash: %v\n", err)
+					}
+				}
+				if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
+			}
+
 			cred, err := mgr.GetCredential(label)
 			if err != nil {
 				return err
@@ -81,6 +100,12 @@ func newTagCmd() *cobra.Command {
 
 			if err := mgr.UpdateCredential(cred); err != nil {
 				return err
+			}
+
+			if builder != nil {
+				if logErr := builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: audit log failed: %v\n", logErr)
+				}
 			}
 
 			if len(cred.Tags) == 0 {

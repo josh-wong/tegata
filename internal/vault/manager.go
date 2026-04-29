@@ -37,6 +37,14 @@ func zeroBytes(b []byte) {
 	}
 }
 
+// hashLabel returns the lowercase hex-encoded SHA-256 digest of label,
+// matching the hash produced by audit.HashString so deleted-label hashes
+// align with what the audit ledger stores.
+func hashLabel(label string) string {
+	sum := sha256.Sum256([]byte(label))
+	return hex.EncodeToString(sum[:])
+}
+
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
@@ -429,7 +437,9 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 	return cred.ID, nil
 }
 
-// RemoveCredential removes a credential by ID and saves.
+// RemoveCredential removes a credential by ID and saves. The credential's
+// label is retained in DeletedLabels so audit history can display "Label
+// (deleted)" rather than an unresolvable hash.
 func (m *Manager) RemoveCredential(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -438,12 +448,32 @@ func (m *Manager) RemoveCredential(id string) error {
 	}
 	for i, c := range m.payload.Credentials {
 		if c.ID == id {
+			// Preserve label for audit history resolution before removing.
+			if m.payload.DeletedLabels == nil {
+				m.payload.DeletedLabels = make(map[string]string)
+			}
+			m.payload.DeletedLabels[hashLabel(c.Label)] = c.Label
 			m.payload.Credentials = append(m.payload.Credentials[:i], m.payload.Credentials[i+1:]...)
 			m.payload.ModifiedAt = time.Now().UTC()
 			return m.saveLocked()
 		}
 	}
 	return fmt.Errorf("credential %q: %w", id, errors.ErrNotFound)
+}
+
+// DeletedLabels returns a copy of the hash→label map for removed credentials.
+// Used by audit history display to resolve deleted credential labels.
+func (m *Manager) DeletedLabels() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil || m.payload.DeletedLabels == nil {
+		return nil
+	}
+	cp := make(map[string]string, len(m.payload.DeletedLabels))
+	for k, v := range m.payload.DeletedLabels {
+		cp[k] = v
+	}
+	return cp
 }
 
 // GetCredential returns the credential matching the given label (case-insensitive).

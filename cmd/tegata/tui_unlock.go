@@ -108,6 +108,9 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 				_, _ = fmt.Fprintf(os.Stderr, "tegata: failed to store audit hash: %v\n", err)
 			}
 		}
+		if logErr := m.builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit log failed: %v\n", logErr)
+		}
 	}
 	m.passphraseInput.Blur()
 	m = loadCredentials(m)

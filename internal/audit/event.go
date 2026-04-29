@@ -33,6 +33,10 @@ func HashString(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// emptyLabelHash is the SHA-256 of an empty string, used as a sentinel to
+// identify events that have no associated credential (e.g. vault-unlock).
+var emptyLabelHash = HashString("")
+
 // BuildLabelMap creates a hash→label lookup table from a list of label strings.
 // This allows client-side resolution of label hashes back to human-readable
 // names without exposing plaintext labels in the audit ledger.
@@ -45,11 +49,31 @@ func BuildLabelMap(labels []string) map[string]string {
 }
 
 // ResolveLabel returns the human-readable label for a hash if found in the
-// lookup map, otherwise returns "(deleted)" to indicate the credential no
-// longer exists in the vault.
+// lookup map. Returns "—" for events with no associated credential (e.g.
+// vault-unlock), or "(deleted)" when the credential no longer exists.
 func ResolveLabel(labelHash string, labelMap map[string]string) string {
+	if labelHash == emptyLabelHash {
+		return "—"
+	}
 	if name, ok := labelMap[labelHash]; ok {
 		return name
+	}
+	return "(deleted)"
+}
+
+// ResolveLabelWithDeleted resolves a label hash using both the current label
+// map and a deleted-labels map. Returns "—" for events with no associated
+// credential, "Label (deleted)" for removed credentials, and "(deleted)" for
+// hashes with no record (e.g. entries predating this feature).
+func ResolveLabelWithDeleted(labelHash string, labelMap, deletedMap map[string]string) string {
+	if labelHash == emptyLabelHash {
+		return "—"
+	}
+	if name, ok := labelMap[labelHash]; ok {
+		return name
+	}
+	if name, ok := deletedMap[labelHash]; ok {
+		return name + " (deleted)"
 	}
 	return "(deleted)"
 }
@@ -67,6 +91,18 @@ func FormatOperation(op string) string {
 		return "Static password"
 	case "challenge-response":
 		return "Challenge-response"
+	case "vault-unlock":
+		return "Vault unlock"
+	case "vault-lock":
+		return "Vault lock"
+	case "credential-add":
+		return "Credential add"
+	case "credential-remove":
+		return "Credential remove"
+	case "credential-update":
+		return "Credential update"
+	case "credential-import":
+		return "Credential import"
 	default:
 		return op
 	}

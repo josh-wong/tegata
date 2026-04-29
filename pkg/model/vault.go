@@ -57,6 +57,7 @@ type VaultPayload struct {
 	RecoveryKeyHash string       `json:"recovery_key_hash"`
 	VaultID         string            `json:"vault_id,omitempty"`
 	AuditHashes     map[string]string `json:"audit_hashes,omitempty"`
+	DeletedLabels   map[string]string `json:"deleted_labels,omitempty"` // labelHash → label for removed credentials
 }
 
 // VaultHeader represents the plaintext header of a vault file as specified in

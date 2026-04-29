@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -168,6 +169,9 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.settingsMsg = fmt.Sprintf("Error: %v", err)
 							} else {
 								m.settingsMsg = fmt.Sprintf("Added tag %q", tag)
+								if m.builder != nil {
+									_ = m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true)
+								}
 								m = refreshCredList(m)
 							}
 						}
@@ -230,6 +234,9 @@ func (m model) updateSettingsTags(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.settingsMsg = fmt.Sprintf("Error: %v", err)
 				} else {
 					m.settingsMsg = fmt.Sprintf("Removed tag %q", removed)
+					if m.builder != nil {
+						_ = m.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true)
+					}
 					m = refreshCredList(m)
 					if m.settingsTagIdx > 0 {
 						m.settingsTagIdx--
@@ -506,6 +513,10 @@ func (m model) updateSettingsImport(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				m.settingsMsg = fmt.Sprintf("Import failed: %v", err)
 				return m, nil
+			}
+
+			if m.builder != nil && imported > 0 {
+				_ = m.builder.LogEvent("credential-import", "", "", audit.Hostname(), true)
 			}
 
 			if err := m.vaultMgr.Save(); err != nil {
