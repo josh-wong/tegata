@@ -823,7 +823,7 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 	for i, r := range result.Records {
 		records[i] = AuditHistoryRecord{
 			ObjectID:  r.ObjectID,
-			Operation: r.Operation,
+			Operation: audit.FormatOperation(r.Operation),
 			LabelHash: r.LabelHash,
 			Timestamp: r.Timestamp,
 			HashValue: r.HashValue,
