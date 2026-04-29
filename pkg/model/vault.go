@@ -60,6 +60,9 @@ type VaultPayload struct {
 	// DeletedLabels maps labelHash → label for credentials that have been removed.
 	// Entries are never pruned; the map grows by one entry per removed credential
 	// so that audit history can display "Label (deleted)" indefinitely.
+	// TODO: Add a pruning strategy (e.g. remove entries whose hash appears in no
+	// audit record fetched within the last N months) to bound map growth for
+	// long-lived vaults with frequent credential rotation.
 	DeletedLabels map[string]string `json:"deleted_labels,omitempty"`
 }
 

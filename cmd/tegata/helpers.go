@@ -298,6 +298,12 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 // OnHashStored callback so hashes are persisted in the vault, and emits a
 // vault-unlock event. Returns nil when audit is disabled or unavailable.
 // The caller must defer builder.Close() when the return value is non-nil.
+//
+// Every CLI invocation that opens the vault logs a vault-unlock event followed
+// by the operation-specific event. This is intentional: each invocation
+// decrypts the vault from scratch, so vault-unlock accurately reflects that a
+// session was started. Audit consumers will see one vault-unlock per command
+// (e.g. tegata add → vault-unlock + credential-add).
 func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Manager) *audit.EventBuilder {
 	cfg, _ := config.Load(dir)
 	builder, err := newEventBuilder(cfg, dir, passphrase)

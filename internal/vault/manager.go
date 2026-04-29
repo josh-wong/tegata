@@ -37,9 +37,11 @@ func zeroBytes(b []byte) {
 	}
 }
 
-// hashLabel returns the lowercase hex-encoded SHA-256 digest of label,
-// matching the hash produced by audit.HashString so deleted-label hashes
-// align with what the audit ledger stores.
+// hashLabel returns the lowercase hex-encoded SHA-256 digest of label.
+// The algorithm is intentionally identical to audit.HashString — both functions
+// must be kept in sync so that deleted-label hashes stored here match the
+// hashes recorded in the audit ledger. If the hashing scheme ever changes,
+// update both functions together.
 func hashLabel(label string) string {
 	sum := sha256.Sum256([]byte(label))
 	return hex.EncodeToString(sum[:])

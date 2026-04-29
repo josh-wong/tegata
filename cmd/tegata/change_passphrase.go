@@ -51,6 +51,14 @@ func newChangePassphraseCmd() *cobra.Command {
 				}
 			}
 			if builder != nil {
+				// Deferred close acts as a safety net for early returns. The explicit
+				// builder.Close() call below (after the passphrase-change event) is
+				// the normal path; this only fires if an early return is hit first.
+				defer func() {
+					if builder != nil {
+						_ = builder.Close()
+					}
+				}()
 				builder.OnHashStored = func(eventID, hashValue string) {
 					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to store audit hash: %v\n", err)
@@ -76,6 +84,7 @@ func newChangePassphraseCmd() *cobra.Command {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
 				}
 				_ = builder.Close()
+				builder = nil // prevent deferred safety-net close from double-closing
 			}
 
 			fmt.Println("Passphrase changed successfully.")
