@@ -8,14 +8,38 @@ interface HeaderProps {
   onAuditClick?: () => void
   onSwitchVault: () => void
   onUpdateFound: (info: UpdateInfo) => void
+  vaultPath?: string
 }
 
-export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound }: HeaderProps) {
+function truncateVaultPath(path: string, maxWidth: number): string {
+  if (path.length <= maxWidth) {
+    return path
+  }
+  if (maxWidth < 10) {
+    return "vault"
+  }
+  const ellipsis = "..."
+  const usableWidth = maxWidth - ellipsis.length
+  const startWidth = Math.floor(usableWidth / 2)
+  const endWidth = usableWidth - startWidth
+  return path.slice(0, startWidth) + ellipsis + path.slice(-endWidth)
+}
+
+export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {
+  const truncatedPath = vaultPath ? truncateVaultPath(vaultPath, 100) : ""
+
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-      <h1 className="text-lg font-semibold tracking-tight text-primary">
-        Tegata
-      </h1>
+      <div className="flex flex-col">
+        <h1 className="text-lg font-semibold tracking-tight text-primary">
+          Tegata
+        </h1>
+        {truncatedPath && (
+          <p className="text-xs text-muted-foreground" title={vaultPath}>
+            {truncatedPath}
+          </p>
+        )}
+      </div>
 
       <div className="flex items-center gap-1">
         <Button

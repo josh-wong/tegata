@@ -359,3 +359,24 @@ func humanizeError(err error) string {
 	return msg
 }
 
+// truncateVaultPath returns a truncated vault path that fits within maxWidth.
+// If the path fits entirely, it is returned as-is. If truncation is needed,
+// the start and end of the path are shown with "..." in the middle.
+// Example: /Volumes/External_Drive.../my-vault.tegata
+func truncateVaultPath(path string, maxWidth int) string {
+	if len(path) <= maxWidth {
+		return path
+	}
+	if maxWidth < 10 {
+		return "vault" // minimal fallback
+	}
+
+	// Reserve space for "..." (3 chars) + some buffer
+	ellipsis := "..."
+	usableWidth := maxWidth - len(ellipsis)
+	startWidth := usableWidth / 2
+	endWidth := usableWidth - startWidth
+
+	return path[:startWidth] + ellipsis + path[len(path)-endWidth:]
+}
+
