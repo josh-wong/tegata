@@ -12,7 +12,8 @@ interface HeaderProps {
 }
 
 function truncateVaultPath(path: string, maxWidth: number): string {
-  if (path.length <= maxWidth) {
+  const chars = [...path]
+  if (chars.length <= maxWidth) {
     return path
   }
   if (maxWidth < 10) {
@@ -22,7 +23,7 @@ function truncateVaultPath(path: string, maxWidth: number): string {
   const usableWidth = maxWidth - ellipsis.length
   const startWidth = Math.floor(usableWidth / 2)
   const endWidth = usableWidth - startWidth
-  return path.slice(0, startWidth) + ellipsis + path.slice(-endWidth)
+  return chars.slice(0, startWidth).join("") + ellipsis + chars.slice(-endWidth).join("")
 }
 
 export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {

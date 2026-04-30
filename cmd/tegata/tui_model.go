@@ -150,6 +150,7 @@ func initialModel(vaultPath string) model {
 	credList.DisableQuitKeybindings()
 	credList.SetFilteringEnabled(false)
 	credList.SetShowHelp(false)
+	credList.SetShowStatusBar(false)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot

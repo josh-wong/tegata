@@ -51,20 +51,19 @@ func resolveVaultPath(cmd *cobra.Command) (string, error) {
 	return path, nil
 }
 
-// resolvePathArg resolves a user-provided path argument to a vault file path.
-// If the path is a directory, it appends the vault filename. If it is a file
-// path, it is used as-is.
+// resolvePathArg resolves a user-provided path argument to an absolute vault
+// file path. If the path is a directory, it appends the vault filename. If it
+// is a file path, it is used as-is. Relative paths are made absolute using the
+// current working directory.
 func resolvePathArg(path string) (string, error) {
 	info, err := os.Stat(path)
 	if err == nil && info.IsDir() {
-		return filepath.Join(path, vaultFilename), nil
+		path = filepath.Join(path, vaultFilename)
+	} else if strings.HasSuffix(path, string(filepath.Separator)) {
+		// Looks like a directory path (ends with separator) but Stat failed.
+		path = filepath.Join(path, vaultFilename)
 	}
-	// If it's a file or doesn't exist yet (for init), return as-is.
-	// If it looks like a directory path (ends with separator), append filename.
-	if strings.HasSuffix(path, string(filepath.Separator)) {
-		return filepath.Join(path, vaultFilename), nil
-	}
-	return path, nil
+	return filepath.Abs(path)
 }
 
 // promptPassphrase reads a passphrase using the precedence:
@@ -364,19 +363,20 @@ func humanizeError(err error) string {
 // the start and end of the path are shown with "..." in the middle.
 // Example: /Volumes/External_Drive.../my-vault.tegata
 func truncateVaultPath(path string, maxWidth int) string {
-	if len(path) <= maxWidth {
+	runes := []rune(path)
+	if len(runes) <= maxWidth {
 		return path
 	}
 	if maxWidth < 10 {
 		return "vault" // minimal fallback
 	}
 
-	// Reserve space for "..." (3 chars) + some buffer
+	// Reserve space for "..." (3 chars).
 	ellipsis := "..."
 	usableWidth := maxWidth - len(ellipsis)
 	startWidth := usableWidth / 2
 	endWidth := usableWidth - startWidth
 
-	return path[:startWidth] + ellipsis + path[len(path)-endWidth:]
+	return string(runes[:startWidth]) + ellipsis + string(runes[len(runes)-endWidth:])
 }
 

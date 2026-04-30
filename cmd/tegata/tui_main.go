@@ -310,15 +310,19 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 
 // viewMainView renders the two-column credential list + detail panel layout.
 func (m model) viewMainView() string {
-	// Vault identifier header (shows truncated path).
-	truncatedPath := truncateVaultPath(m.vaultPath, m.width-4)
-	vaultHeader := lipgloss.NewStyle().
-		Faint(true).
-		Render("Vault: " + truncatedPath)
+	// Vault identifier header (shows full path).
+	var vaultHeader string
+	sidebarHeight := m.height - 4
+	if m.vaultPath != "" {
+		vaultHeader = lipgloss.NewStyle().
+			Faint(true).
+			Render("Vault: " + m.vaultPath)
+		sidebarHeight = m.height - 5
+	}
 
 	// Sidebar (fixed width 30).
 	sidebarContent := m.credList.View()
-	sidebar := sidebarStyle.Width(28).Height(m.height - 5).Render(sidebarContent)
+	sidebar := sidebarStyle.Width(28).Height(sidebarHeight).Render(sidebarContent)
 
 	// Panel (remaining width).
 	panelWidth := m.width - 32
@@ -337,7 +341,10 @@ func (m model) viewMainView() string {
 	}
 	help := helpBarStyle.Render(helpText)
 
-	return vaultHeader + "\n" + columns + "\n" + help
+	if vaultHeader != "" {
+		return vaultHeader + "\n" + columns + "\n" + help
+	}
+	return columns + "\n" + help
 }
 
 // renderDetailPanel renders the right-side credential detail for the selected item.
