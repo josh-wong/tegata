@@ -151,6 +151,8 @@ func initialModel(vaultPath string) model {
 	credList.SetFilteringEnabled(false)
 	credList.SetShowHelp(false)
 	credList.SetShowStatusBar(false)
+	credList.Styles.TitleBar = credList.Styles.TitleBar.PaddingLeft(0)
+	credList.Styles.Title = credList.Styles.Title.Padding(0, 2)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
