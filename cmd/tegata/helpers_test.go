@@ -109,15 +109,15 @@ func contains(s, substr string) bool {
 // and correctly appends the vault filename when given a directory.
 func TestResolvePathArg(t *testing.T) {
 	t.Run("relative file path becomes absolute", func(t *testing.T) {
-		got, err := resolvePathArg("tmp/vault.tegata")
+		got, err := resolvePathArg(filepath.Join("tmp", "vault.tegata"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if !filepath.IsAbs(got) {
 			t.Errorf("expected absolute path, got %q", got)
 		}
-		if !strings.HasSuffix(got, "tmp/vault.tegata") {
-			t.Errorf("expected path to end with tmp/vault.tegata, got %q", got)
+		if !strings.HasSuffix(got, filepath.Join("tmp", "vault.tegata")) {
+			t.Errorf("expected path to end with %q, got %q", filepath.Join("tmp", "vault.tegata"), got)
 		}
 	})
 
@@ -159,7 +159,8 @@ func TestResolvePathArg(t *testing.T) {
 	})
 
 	t.Run("absolute file path is returned as-is", func(t *testing.T) {
-		abs := "/tmp/my-vault.tegata"
+		// Use t.TempDir() so the base path is absolute on all platforms.
+		abs := filepath.Join(t.TempDir(), "my-vault.tegata")
 		got, err := resolvePathArg(abs)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
