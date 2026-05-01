@@ -55,11 +55,11 @@ func totpProgressBar(remaining, period, width int) string {
 	var color lipgloss.Color
 	switch {
 	case remaining > period/2:
-		color = lipgloss.Color("#5FFF5F") // green
+		color = lipgloss.Color("#34A853") // green
 	case remaining > period/4:
-		color = lipgloss.Color("#FFAF5F") // amber
+		color = lipgloss.Color("#D97706") // amber
 	default:
-		color = lipgloss.Color("#FF5F5F") // red
+		color = lipgloss.Color("#F04368") // red
 	}
 	return lipgloss.NewStyle().Foreground(color).Render(bar)
 }
@@ -310,12 +310,15 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 
 // viewMainView renders the two-column credential list + detail panel layout.
 func (m model) viewMainView() string {
+	// App name header (always shown, cinnabar brand color).
+	appHeader := appNameStyle.Render("Tegata")
+
 	// Vault identifier header (shows full path with bold filename).
 	var vaultHeader string
-	sidebarHeight := m.height - 4
+	sidebarHeight := m.height - 5
 	if m.vaultPath != "" {
 		vaultHeader = formatVaultPathWithBoldFilename(m.vaultPath)
-		sidebarHeight = m.height - 5
+		sidebarHeight = m.height - 6
 	}
 
 	// Sidebar (fixed width 30).
@@ -340,9 +343,9 @@ func (m model) viewMainView() string {
 	help := helpBarStyle.Render(helpText)
 
 	if vaultHeader != "" {
-		return vaultHeader + "\n" + columns + "\n" + help
+		return appHeader + "\n" + vaultHeader + "\n" + columns + "\n" + help
 	}
-	return columns + "\n" + help
+	return appHeader + "\n" + columns + "\n" + help
 }
 
 // renderDetailPanel renders the right-side credential detail for the selected item.
