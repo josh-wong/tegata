@@ -146,13 +146,25 @@ func newPassphraseInput(placeholder string) textinput.Model {
 // exists and the TUI starts at the unlock screen; otherwise it starts the
 // first-time setup wizard.
 func initialModel(vaultPath string) model {
-	credList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(cinnabar).
+		Foreground(cinnabar).
+		Padding(0, 0, 0, 1)
+	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(cinnabar).
+		Foreground(cinnabar).
+		Padding(0, 0, 0, 1)
+
+	credList := list.New([]list.Item{}, delegate, 0, 0)
 	credList.DisableQuitKeybindings()
 	credList.SetFilteringEnabled(false)
 	credList.SetShowHelp(false)
 	credList.SetShowStatusBar(false)
 	credList.Styles.TitleBar = credList.Styles.TitleBar.PaddingLeft(0)
-	credList.Styles.Title = credList.Styles.Title.Padding(0, 2)
+	credList.Styles.Title = lipgloss.NewStyle().Padding(0, 2).Foreground(cinnabar).Bold(true)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot

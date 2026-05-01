@@ -2,20 +2,29 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
+// cinnabar is the primary brand color used throughout the TUI.
+const cinnabar lipgloss.Color = "#E34234"
+
+// appName is the display name rendered in the TUI header.
+const appName = "Tegata"
+
 // titleStyle renders bold centered text for wizard and overlay titles.
 var titleStyle = lipgloss.NewStyle().Bold(true).AlignHorizontal(lipgloss.Center)
 
-// errorStyle renders error messages in red.
-var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F"))
+// appNameStyle renders the "Tegata" app name in cinnabar (brand color), bold.
+var appNameStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
+
+// errorStyle renders error messages in rose-red.
+var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F04368"))
 
 // helpBarStyle renders the bottom help bar in dim/faint text.
 var helpBarStyle = lipgloss.NewStyle().Faint(true)
 
-// warnStyle renders advisory warnings in dark orange.
-var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D4660A"))
+// warnStyle renders advisory warnings in amber.
+var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 
-// tipStyle renders informational tips in green, bold.
-var tipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6BA55E")).Bold(true)
+// tipStyle renders informational tips and selected items in cinnabar, bold.
+var tipStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
 
 // overlayBoxStyle is a centered bordered box used for overlay modals.
 var overlayBoxStyle = lipgloss.NewStyle().
@@ -32,8 +41,8 @@ var sidebarStyle = lipgloss.NewStyle().
 var panelStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder())
 
-// spinnerStyle renders the spinner in cyan during async operations.
-var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
+// spinnerStyle renders the spinner in amber during async operations.
+var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 
 // renderErrMsg renders msg with errorStyle, wrapping at terminal width minus
 // padding so long error strings (e.g. file paths) do not overflow narrow

@@ -205,12 +205,15 @@ func (m model) viewUnlock() string {
 
 // viewUnlockScreen renders the passphrase entry UI.
 func (m model) viewUnlockScreen() string {
+	appNameHeader := appNameStyle.Render(appName)
 	var content string
 	if m.unlocking {
-		content = titleStyle.Render("Unlock Vault") + "\n\n" +
+		content = appNameHeader + "\n\n" +
+			titleStyle.Render("Unlock Vault") + "\n\n" +
 			m.spinner.View() + " Unlocking…\n"
 	} else {
-		content = titleStyle.Render("Unlock Vault") + "\n\n" +
+		content = appNameHeader + "\n\n" +
+			titleStyle.Render("Unlock Vault") + "\n\n" +
 			m.passphraseInput.View() + "\n"
 		if m.errMsg != "" {
 			content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
