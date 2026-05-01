@@ -28,8 +28,20 @@ function truncateVaultPath(path: string, maxWidth: number): string {
 
 const MAX_VAULT_PATH_DISPLAY = 100
 
+function getVaultPathParts(path: string): { dir: string; filename: string } {
+  const lastSep = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
+  if (lastSep === -1) {
+    return { dir: "", filename: path }
+  }
+  return {
+    dir: path.slice(0, lastSep + 1),
+    filename: path.slice(lastSep + 1),
+  }
+}
+
 export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {
   const truncatedPath = vaultPath ? truncateVaultPath(vaultPath, MAX_VAULT_PATH_DISPLAY) : ""
+  const pathParts = truncatedPath ? getVaultPathParts(truncatedPath) : { dir: "", filename: "" }
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -39,7 +51,8 @@ export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateF
         </h1>
         {truncatedPath && (
           <p className="text-xs text-muted-foreground" title={vaultPath}>
-            {truncatedPath}
+            <span>{pathParts.dir}</span>
+            <span className="font-semibold">{pathParts.filename}</span>
           </p>
         )}
       </div>

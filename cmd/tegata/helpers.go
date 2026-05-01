@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
@@ -378,5 +379,26 @@ func truncateVaultPath(path string, maxWidth int) string {
 	endWidth := usableWidth - startWidth
 
 	return string(runes[:startWidth]) + ellipsis + string(runes[len(runes)-endWidth:])
+}
+
+// formatVaultPathWithBoldFilename renders a vault path with the filename
+// bolded for visual distinction. The prefix "Vault: " and directory part are
+// rendered faint, while the filename is bold. Example output:
+// [faint]Vault: /path/to/[/bold][bold]vault.tegata[/bold]
+func formatVaultPathWithBoldFilename(path string) string {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	faintStyle := lipgloss.NewStyle().Faint(true)
+	boldStyle := lipgloss.NewStyle().Bold(true)
+
+	// If there's no directory (current dir or just filename), render just the bold filename.
+	if dir == "." || dir == "" {
+		return boldStyle.Render(filename)
+	}
+
+	// Render faint "Vault: " prefix + directory, then concat bold filename.
+	separator := string(filepath.Separator)
+	return faintStyle.Render("Vault: "+dir+separator) + boldStyle.Render(filename)
 }
 
