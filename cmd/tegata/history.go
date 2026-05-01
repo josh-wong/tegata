@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -18,6 +20,10 @@ func newHistoryCmd() *cobra.Command {
 	var (
 		from    string
 		to      string
+		opType  string
+		sortBy  string
+		order   string
+		limit   int
 		jsonOut bool
 	)
 
@@ -31,6 +37,9 @@ user privacy in the audit log.
 Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 		Example: `  tegata history
   tegata history --from 2026-01-01 --to 2026-03-31
+  tegata history --type totp
+  tegata history --sort operation --order asc
+  tegata history --limit 20
   tegata history --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -47,6 +56,17 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			if !cfg.Audit.Enabled {
 				printAuditNotEnabledHint(os.Stderr)
 				return nil
+			}
+
+			// Validate --sort and --order flag values.
+			validSortCols := map[string]bool{"operation": true, "label": true, "timestamp": true, "hash": true}
+			if sortBy != "" && !validSortCols[sortBy] {
+				return fmt.Errorf("invalid --sort value %q (expected: operation, label, timestamp, hash): %w",
+					sortBy, tegerrors.ErrInvalidInput)
+			}
+			if order != "" && order != "asc" && order != "desc" {
+				return fmt.Errorf("invalid --order value %q (expected: asc, desc): %w",
+					order, tegerrors.ErrInvalidInput)
 			}
 
 			// Unlock vault to resolve label hashes to human-readable names.
@@ -118,8 +138,16 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}
 
-			// Apply date filters.
-			filtered := filterRecords(records, fromTime, toTime)
+			// Apply date and operation type filters.
+			filtered := filterRecords(records, fromTime, toTime, opType)
+
+			// Apply column sort (default: timestamp desc, already set by FetchHistory).
+			sortRecords(filtered, labelMap, deletedMap, sortBy, order)
+
+			// Apply row limit.
+			if limit > 0 && len(filtered) > limit {
+				filtered = filtered[:limit]
+			}
 
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
@@ -134,6 +162,10 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 
 	cmd.Flags().StringVar(&from, "from", "", "start date filter (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&to, "to", "", "end date filter (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&opType, "type", "", "filter by operation type (e.g. totp, hotp, vault-unlock)")
+	cmd.Flags().StringVar(&sortBy, "sort", "", "sort column (operation, label, timestamp, hash); default: timestamp")
+	cmd.Flags().StringVar(&order, "order", "", "sort order (asc, desc); default: desc")
+	cmd.Flags().IntVar(&limit, "limit", 0, "maximum number of rows to display (0 = no limit)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON array")
 
 	return cmd
@@ -149,13 +181,17 @@ type historyRecord struct {
 	HashValue string `json:"hash_value"`
 }
 
-// filterRecords applies date filtering using the metadata timestamp.
-func filterRecords(records []historyRecord, from, to time.Time) []historyRecord {
-	if from.IsZero() && to.IsZero() {
+// filterRecords applies date and operation type filtering using the metadata
+// timestamp and operation fields.
+func filterRecords(records []historyRecord, from, to time.Time, opType string) []historyRecord {
+	if from.IsZero() && to.IsZero() && opType == "" {
 		return records
 	}
 	var filtered []historyRecord
 	for _, r := range records {
+		if opType != "" && !strings.EqualFold(r.Operation, opType) {
+			continue
+		}
 		t := time.Unix(r.Timestamp, 0).Local()
 		if !from.IsZero() && t.Before(from) {
 			continue
@@ -166,6 +202,51 @@ func filterRecords(records []historyRecord, from, to time.Time) []historyRecord 
 		filtered = append(filtered, r)
 	}
 	return filtered
+}
+
+// sortRecords sorts records in-place by the given column and order. When sortBy
+// is empty the records remain in their default order (timestamp descending, set
+// by FetchHistory). labelMap and deletedMap are used to resolve label hashes for
+// label-column sorting.
+func sortRecords(records []historyRecord, labelMap, deletedMap map[string]string, sortBy, order string) {
+	if sortBy == "" {
+		// Already in default order (timestamp desc). Apply ascending flip if requested.
+		if order == "asc" {
+			for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
+				records[i], records[j] = records[j], records[i]
+			}
+		}
+		return
+	}
+
+	sort.SliceStable(records, func(i, j int) bool {
+		switch sortBy {
+		case "operation":
+			a := audit.FormatOperation(records[i].Operation)
+			b := audit.FormatOperation(records[j].Operation)
+			if order == "desc" {
+				return a > b
+			}
+			return a < b
+		case "label":
+			a := audit.ResolveLabelWithDeleted(records[i].LabelHash, labelMap, deletedMap)
+			b := audit.ResolveLabelWithDeleted(records[j].LabelHash, labelMap, deletedMap)
+			if order == "desc" {
+				return a > b
+			}
+			return a < b
+		case "hash":
+			if order == "desc" {
+				return records[i].HashValue > records[j].HashValue
+			}
+			return records[i].HashValue < records[j].HashValue
+		default: // "timestamp" — default desc (newest first)
+			if order == "asc" {
+				return records[i].Timestamp < records[j].Timestamp
+			}
+			return records[i].Timestamp > records[j].Timestamp
+		}
+	})
 }
 
 // printRecordsTable writes a human-readable tabular display of history records

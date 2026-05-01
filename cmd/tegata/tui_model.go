@@ -116,11 +116,13 @@ type model struct {
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
 
 	// Audit overlay state
-	auditMenuIdx int            // 0=History, 1=Verify, 2=Start
-	auditSubFlow string         // ""|"history"|"verify"|"start"
-	auditMsg     string         // result/status message
-	auditRecords []historyRecord // fetched records
-	auditLoading bool           // true while async gRPC call is in progress
+	auditMenuIdx    int             // 0=History, 1=Verify, 2=Start
+	auditSubFlow    string          // ""|"history"|"verify"|"start"
+	auditMsg        string          // result/status message
+	auditRecords    []historyRecord // fetched records
+	auditLoading    bool            // true while async gRPC call is in progress
+	auditCursor     int             // selected row index in history view
+	auditScrollOff  int             // first visible row index in history view
 
 	// Audit event builder (nil when audit disabled or vault locked)
 	builder *audit.EventBuilder

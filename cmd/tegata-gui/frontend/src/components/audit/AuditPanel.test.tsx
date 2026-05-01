@@ -26,17 +26,42 @@ describe("AuditPanel", () => {
     expect(screen.getByText("Verify integrity")).toBeInTheDocument()
   })
 
-  it("fetches and displays history", async () => {
+  it("fetches and displays history with truncated hash", async () => {
     vi.mocked(App.GetAuditHistory).mockResolvedValue([
-      { object_id: "evt-1", operation: "TOTP", label: "GitHub", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcd1234" },
+      { object_id: "evt-1", operation: "TOTP", label: "GitHub", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcdef1234567890" },
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
     await userEvent.click(screen.getByText("View history"))
 
     await waitFor(() => {
-      expect(screen.getByText("1 events")).toBeInTheDocument()
-      expect(screen.getByText("abcd1234")).toBeInTheDocument()
+      expect(screen.getByText("1 of 1 events")).toBeInTheDocument()
+      // Hash is truncated to first 10 chars + ellipsis
+      expect(screen.getByText("abcdef1234…")).toBeInTheDocument()
+    })
+  })
+
+  it("reveals full hash on click and copies to clipboard", async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "TOTP", label: "GitHub", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcdef1234567890full" },
+    ])
+
+    render(<AuditPanel open={true} onClose={() => {}} />)
+    await userEvent.click(screen.getByText("View history"))
+
+    await waitFor(() => {
+      expect(screen.getByText("abcdef1234…")).toBeInTheDocument()
+    })
+
+    // Click the truncated hash to reveal it
+    await userEvent.click(screen.getByText("abcdef1234…"))
+
+    await waitFor(() => {
+      expect(screen.getByText("abcdef1234567890full")).toBeInTheDocument()
     })
   })
 
@@ -83,5 +108,49 @@ describe("AuditPanel", () => {
     await waitFor(() => {
       expect(screen.getByText(/Nothing to verify/)).toBeInTheDocument()
     })
+  })
+
+  it("filters by operation type", async () => {
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "totp", label: "GitHub", label_hash: "abc", timestamp: 1700000000, hash_value: "hash1234567890ab" },
+      { object_id: "evt-2", operation: "hotp", label: "GitLab", label_hash: "def", timestamp: 1700000001, hash_value: "hash2234567890ab" },
+    ])
+
+    render(<AuditPanel open={true} onClose={() => {}} />)
+    await userEvent.click(screen.getByText("View history"))
+
+    await waitFor(() => {
+      expect(screen.getByText("2 of 2 events")).toBeInTheDocument()
+    })
+
+    // Filter to TOTP only
+    const select = screen.getByRole("combobox")
+    await userEvent.selectOptions(select, "totp")
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 2 events")).toBeInTheDocument()
+    })
+  })
+
+  it("sorts by column on header click", async () => {
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "totp", label: "GitHub", label_hash: "abc", timestamp: 1700000002, hash_value: "hash1234567890ab" },
+      { object_id: "evt-2", operation: "hotp", label: "GitLab", label_hash: "def", timestamp: 1700000001, hash_value: "hash2234567890ab" },
+    ])
+
+    render(<AuditPanel open={true} onClose={() => {}} />)
+    await userEvent.click(screen.getByText("View history"))
+
+    await waitFor(() => {
+      expect(screen.getByText("2 of 2 events")).toBeInTheDocument()
+    })
+
+    // Click Operation header to sort ascending
+    await userEvent.click(screen.getByText(/^Operation/))
+
+    // After ascending sort by operation, "hotp" < "totp" so GitLab row comes first
+    const rows = screen.getAllByRole("row")
+    // rows[0] is the header row; rows[1] is the first data row
+    expect(rows[1].textContent).toContain("hotp")
   })
 })

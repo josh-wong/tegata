@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { AlertTriangle, CheckCircle, Shield, X } from "lucide-react"
+import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { App } from "@/lib/wails"
@@ -17,6 +17,24 @@ function formatFault(f: string): string {
   return `The ${detail} for record ${id}`
 }
 
+type SortCol = "operation" | "label" | "timestamp" | "hash"
+type SortDir = "asc" | "desc"
+
+const PAGE_SIZE = 20
+
+const ALL_OPERATION_TYPES = [
+  { value: "", label: "All operations" },
+  { value: "totp", label: "TOTP" },
+  { value: "hotp", label: "HOTP" },
+  { value: "static", label: "Static password" },
+  { value: "challenge-response", label: "Challenge-response" },
+  { value: "vault-unlock", label: "Vault unlock" },
+  { value: "vault-lock", label: "Vault lock" },
+  { value: "credential-add", label: "Credential add" },
+  { value: "credential-remove", label: "Credential remove" },
+  { value: "credential-update", label: "Credential update" },
+]
+
 interface AuditPanelProps {
   open: boolean
   onClose: () => void
@@ -29,6 +47,21 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [error, setError] = useState("")
   const [dockerPath, setDockerPath] = useState("")
 
+  // Sorting state
+  const [sortCol, setSortCol] = useState<SortCol>("timestamp")
+  const [sortDir, setSortDir] = useState<SortDir>("desc")
+
+  // Filter state
+  const [opFilter, setOpFilter] = useState("")
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+
+  // Pagination state
+  const [page, setPage] = useState(0)
+
+  // Expanded hash state: record index → boolean
+  const [expandedHash, setExpandedHash] = useState<Record<number, boolean>>({})
+
   useEffect(() => {
     if (open) {
       setError("")
@@ -40,6 +73,8 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   async function handleFetchHistory() {
     setLoading(true)
     setError("")
+    setPage(0)
+    setExpandedHash({})
     try {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
@@ -64,12 +99,67 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     }
   }
 
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortCol(col)
+      setSortDir(col === "timestamp" ? "desc" : "asc")
+    }
+    setPage(0)
+  }
+
+  function SortIcon({ col }: { col: SortCol }) {
+    if (sortCol !== col) return <ChevronDown className="h-3 w-3 opacity-30 inline ml-0.5" />
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
+      : <ChevronDown className="h-3 w-3 inline ml-0.5" />
+  }
+
+  function toggleHash(idx: number, hash: string) {
+    const nowExpanded = !expandedHash[idx]
+    setExpandedHash((prev) => ({ ...prev, [idx]: nowExpanded }))
+    if (nowExpanded) {
+      navigator.clipboard.writeText(hash).catch(() => {})
+    }
+  }
+
+  // Apply filters
+  const filtered = history.filter((r) => {
+    if (opFilter && r.operation !== opFilter) return false
+    if (fromDate) {
+      const from = new Date(fromDate + "T00:00:00")
+      if (new Date(r.timestamp * 1000) < from) return false
+    }
+    if (toDate) {
+      const to = new Date(toDate + "T23:59:59.999")
+      if (new Date(r.timestamp * 1000) > to) return false
+    }
+    return true
+  })
+
+  // Apply sort
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0
+    switch (sortCol) {
+      case "operation": cmp = a.operation.localeCompare(b.operation); break
+      case "label":     cmp = (a.label ?? "").localeCompare(b.label ?? ""); break
+      case "hash":      cmp = a.hash_value.localeCompare(b.hash_value); break
+      case "timestamp": cmp = a.timestamp - b.timestamp; break
+    }
+    return sortDir === "asc" ? cmp : -cmp
+  })
+
+  // Paginate
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
+  const pageRows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
   if (!open) return null
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-background border rounded-lg shadow-lg w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="bg-background border rounded-lg shadow-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -87,6 +177,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               </p>
             )}
 
+            {/* Action buttons */}
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={handleFetchHistory}
@@ -157,32 +248,131 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             {history.length > 0 && (
               <>
                 <Separator />
+
+                {/* Filters toolbar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="text-xs border rounded px-2 py-1 bg-background"
+                    value={opFilter}
+                    onChange={(e) => { setOpFilter(e.target.value); setPage(0) }}
+                    aria-label="Filter by operation type"
+                  >
+                    {ALL_OPERATION_TYPES.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    className="text-xs border rounded px-2 py-1 bg-background"
+                    value={fromDate}
+                    onChange={(e) => { setFromDate(e.target.value); setPage(0) }}
+                    aria-label="From date"
+                    title="From date"
+                  />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <input
+                    type="date"
+                    className="text-xs border rounded px-2 py-1 bg-background"
+                    value={toDate}
+                    onChange={(e) => { setToDate(e.target.value); setPage(0) }}
+                    aria-label="To date"
+                    title="To date"
+                  />
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {filtered.length} of {history.length} events
+                  </span>
+                </div>
+
+                {/* History table */}
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{history.length} events</p>
                   <div className="border rounded-md overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2">Operation</th>
-                          <th className="text-left p-2">Label</th>
-                          <th className="text-left p-2">Timestamp</th>
-                          <th className="text-left p-2">Hash</th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("operation")}
+                          >
+                            Operation <SortIcon col="operation" />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("label")}
+                          >
+                            Label <SortIcon col="label" />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("timestamp")}
+                          >
+                            Timestamp <SortIcon col="timestamp" />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[34%]"
+                            onClick={() => toggleSort("hash")}
+                          >
+                            Hash <SortIcon col="hash" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {history.map((record, i) => (
-                          <tr key={i} className="border-b last:border-0">
-                            <td className="p-2">{record.operation}</td>
-                            <td className="p-2">{record.label}</td>
-                            <td className="p-2 text-muted-foreground">
-                              {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
-                            </td>
-                            <td className="p-2 font-mono truncate max-w-[200px]">{record.hash_value}</td>
-                          </tr>
-                        ))}
+                        {pageRows.map((record, i) => {
+                          const rowIdx = page * PAGE_SIZE + i
+                          const isExpanded = !!expandedHash[rowIdx]
+                          return (
+                            <tr key={rowIdx} className="border-b last:border-0">
+                              <td className="p-2">{record.operation}</td>
+                              <td className="p-2">{record.label}</td>
+                              <td className="p-2 text-muted-foreground">
+                                {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
+                              </td>
+                              <td className="p-2 font-mono">
+                                <button
+                                  type="button"
+                                  className="text-left hover:underline focus:outline-none focus:underline"
+                                  title={isExpanded ? "Click to collapse" : "Click to reveal and copy full hash"}
+                                  onClick={() => toggleHash(rowIdx, record.hash_value)}
+                                >
+                                  {isExpanded
+                                    ? record.hash_value
+                                    : record.hash_value.slice(0, 10) + "…"}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <span className="text-xs text-muted-foreground">
+                        Page {page + 1} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => p - 1)}
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={page >= totalPages - 1}
+                        onClick={() => setPage((p) => p + 1)}
+                        aria-label="Next page"
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
