@@ -161,6 +161,7 @@ function App() {
           vault.setView("setup")
         }}
         onUpdateFound={setUpdateInfo}
+        vaultPath={vault.vaultPath ?? undefined}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
