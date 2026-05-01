@@ -2,11 +2,14 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
+// cinnabar is the primary brand color used throughout the TUI.
+const cinnabar lipgloss.Color = "#E34234"
+
 // titleStyle renders bold centered text for wizard and overlay titles.
 var titleStyle = lipgloss.NewStyle().Bold(true).AlignHorizontal(lipgloss.Center)
 
 // appNameStyle renders the "Tegata" app name in cinnabar (brand color), bold.
-var appNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E34234")).Bold(true)
+var appNameStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
 
 // errorStyle renders error messages in rose-red.
 var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F04368"))
@@ -17,8 +20,8 @@ var helpBarStyle = lipgloss.NewStyle().Faint(true)
 // warnStyle renders advisory warnings in amber.
 var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 
-// tipStyle renders informational tips and selected items in cinnabar, bold.
-var tipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E34234")).Bold(true)
+// tipStyle renders informational tips in cinnabar, bold.
+var tipStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
 
 // overlayBoxStyle is a centered bordered box used for overlay modals.
 var overlayBoxStyle = lipgloss.NewStyle().
@@ -36,7 +39,7 @@ var panelStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder())
 
 // spinnerStyle renders the spinner in cinnabar during async operations.
-var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E34234"))
+var spinnerStyle = lipgloss.NewStyle().Foreground(cinnabar)
 
 // renderErrMsg renders msg with errorStyle, wrapping at terminal width minus
 // padding so long error strings (e.g. file paths) do not overflow narrow
