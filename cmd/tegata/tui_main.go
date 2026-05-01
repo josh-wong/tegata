@@ -311,7 +311,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 // viewMainView renders the two-column credential list + detail panel layout.
 func (m model) viewMainView() string {
 	// App name header (always shown, cinnabar brand color).
-	appHeader := appNameStyle.Render("Tegata")
+	appHeader := appNameStyle.Render(appName)
 
 	// Vault identifier header (shows full path with bold filename).
 	var vaultHeader string

@@ -383,8 +383,8 @@ func truncateVaultPath(path string, maxWidth int) string {
 
 // formatVaultPathWithBoldFilename renders a vault path with the filename
 // bolded for visual distinction. The prefix "Vault: " and directory part are
-// plain text, while the filename is bold. Example output:
-// Vault: /path/to/[bold]vault.tegata[/bold]
+// rendered as plain text. Example output:
+// Vault: /path/to/vault.tegata  (filename portion is bold)
 func formatVaultPathWithBoldFilename(path string) string {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
