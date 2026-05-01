@@ -147,6 +147,8 @@ func TestResolvePathArg(t *testing.T) {
 
 	t.Run("path ending with separator gets vault filename appended", func(t *testing.T) {
 		// Non-existent directory path ending with separator.
+		// Note: the leading slash makes this an absolute path on Unix only;
+		// on Windows filepath.Abs would prepend the CWD drive letter instead.
 		got, err := resolvePathArg("/nonexistent/dir" + string(filepath.Separator))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -238,4 +240,42 @@ func TestTruncateVaultPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestFormatVaultPathWithBoldFilename tests that the vault path is rendered
+// with the filename bold and the directory prefix faint.
+func TestFormatVaultPathWithBoldFilename(t *testing.T) {
+	t.Run("path with directory contains filename", func(t *testing.T) {
+		got := formatVaultPathWithBoldFilename("/path/to/vault.tegata")
+		if !strings.Contains(got, "vault.tegata") {
+			t.Errorf("expected output to contain filename, got %q", got)
+		}
+		if !strings.Contains(got, "Vault: ") {
+			t.Errorf("expected output to contain 'Vault: ' prefix, got %q", got)
+		}
+	})
+
+	t.Run("filename-only path skips directory prefix", func(t *testing.T) {
+		got := formatVaultPathWithBoldFilename("vault.tegata")
+		if !strings.Contains(got, "vault.tegata") {
+			t.Errorf("expected output to contain filename, got %q", got)
+		}
+		if strings.Contains(got, "Vault: ") {
+			t.Errorf("expected no 'Vault: ' prefix for bare filename, got %q", got)
+		}
+	})
+
+	t.Run("output is non-empty for any non-empty path", func(t *testing.T) {
+		paths := []string{
+			"/tmp/my-vault.tegata",
+			"vault.tegata",
+			"/Volumes/USB/auth.tegata",
+		}
+		for _, p := range paths {
+			got := formatVaultPathWithBoldFilename(p)
+			if got == "" {
+				t.Errorf("formatVaultPathWithBoldFilename(%q) returned empty string", p)
+			}
+		}
+	})
 }

@@ -40,19 +40,28 @@ function getVaultPathParts(path: string): { dir: string; filename: string } {
 }
 
 export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {
-  const truncatedPath = vaultPath ? truncateVaultPath(vaultPath, MAX_VAULT_PATH_DISPLAY) : ""
-  const pathParts = truncatedPath ? getVaultPathParts(truncatedPath) : { dir: "", filename: "" }
+  let displayDir = ""
+  let displayFilename = ""
+
+  if (vaultPath) {
+    const { dir, filename } = getVaultPathParts(vaultPath)
+    displayFilename = filename
+    if (dir) {
+      const maxDirWidth = MAX_VAULT_PATH_DISPLAY - [...filename].length
+      displayDir = maxDirWidth >= 10 ? truncateVaultPath(dir, maxDirWidth) : ""
+    }
+  }
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+    <header className={`flex shrink-0 items-center justify-between border-b border-border bg-card px-4 ${vaultPath ? "h-16" : "h-12"}`}>
       <div className="flex flex-col">
         <h1 className="text-lg font-semibold tracking-tight text-primary">
           Tegata
         </h1>
-        {truncatedPath && (
+        {vaultPath && (
           <p className="text-xs text-muted-foreground" title={vaultPath}>
-            <span>{pathParts.dir}</span>
-            <span className="font-semibold">{pathParts.filename}</span>
+            {displayDir && <span>{displayDir}</span>}
+            <span className="font-semibold">{displayFilename}</span>
           </p>
         )}
       </div>

@@ -32,9 +32,6 @@ var sidebarStyle = lipgloss.NewStyle().
 var panelStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder())
 
-// vaultHeaderStyle renders the faint vault path line above the main view.
-var vaultHeaderStyle = lipgloss.NewStyle().Faint(true)
-
 // spinnerStyle renders the spinner in cyan during async operations.
 var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
 
