@@ -314,9 +314,7 @@ func (m model) viewMainView() string {
 	var vaultHeader string
 	sidebarHeight := m.height - 4
 	if m.vaultPath != "" {
-		vaultHeader = lipgloss.NewStyle().
-			Faint(true).
-			Render("Vault: " + m.vaultPath)
+		vaultHeader = vaultHeaderStyle.Render("Vault: " + m.vaultPath)
 		sidebarHeight = m.height - 5
 	}
 

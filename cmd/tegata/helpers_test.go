@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -104,6 +105,69 @@ func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
+// TestResolvePathArg tests that resolvePathArg always returns an absolute path
+// and correctly appends the vault filename when given a directory.
+func TestResolvePathArg(t *testing.T) {
+	t.Run("relative file path becomes absolute", func(t *testing.T) {
+		got, err := resolvePathArg("tmp/vault.tegata")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path, got %q", got)
+		}
+		if !strings.HasSuffix(got, "tmp/vault.tegata") {
+			t.Errorf("expected path to end with tmp/vault.tegata, got %q", got)
+		}
+	})
+
+	t.Run("non-existent relative path becomes absolute", func(t *testing.T) {
+		got, err := resolvePathArg("does-not-exist.tegata")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path, got %q", got)
+		}
+	})
+
+	t.Run("existing directory gets vault filename appended", func(t *testing.T) {
+		dir := t.TempDir()
+		got, err := resolvePathArg(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path, got %q", got)
+		}
+		if filepath.Base(got) != vaultFilename {
+			t.Errorf("expected filename %q, got %q", vaultFilename, filepath.Base(got))
+		}
+	})
+
+	t.Run("path ending with separator gets vault filename appended", func(t *testing.T) {
+		// Non-existent directory path ending with separator.
+		got, err := resolvePathArg("/nonexistent/dir" + string(filepath.Separator))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if filepath.Base(got) != vaultFilename {
+			t.Errorf("expected filename %q, got %q", vaultFilename, filepath.Base(got))
+		}
+	})
+
+	t.Run("absolute file path is returned as-is", func(t *testing.T) {
+		abs := "/tmp/my-vault.tegata"
+		got, err := resolvePathArg(abs)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != abs {
+			t.Errorf("expected %q, got %q", abs, got)
+		}
+	})
+}
+
 // TestTruncateVaultPath tests smart path truncation for display.
 func TestTruncateVaultPath(t *testing.T) {
 	tests := []struct {
@@ -152,6 +216,16 @@ func TestTruncateVaultPath(t *testing.T) {
 			maxWidth: 20,
 			check: func(got string, maxWidth, pathLen int) bool {
 				return len(got) <= maxWidth
+			},
+		},
+		{
+			name:     "multi-byte path truncated by rune count not byte count",
+			path:     "/ボリューム/認証/保管庫/vault.tegata",
+			maxWidth: 15,
+			check: func(got string, maxWidth, pathLen int) bool {
+				// Result must contain ellipsis, and rune count must not exceed maxWidth.
+				runes := []rune(got)
+				return strings.Contains(got, "...") && len(runes) <= maxWidth
 			},
 		},
 	}

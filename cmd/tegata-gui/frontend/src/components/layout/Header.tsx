@@ -26,8 +26,10 @@ function truncateVaultPath(path: string, maxWidth: number): string {
   return chars.slice(0, startWidth).join("") + ellipsis + chars.slice(-endWidth).join("")
 }
 
+const MAX_VAULT_PATH_DISPLAY = 100
+
 export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {
-  const truncatedPath = vaultPath ? truncateVaultPath(vaultPath, 100) : ""
+  const truncatedPath = vaultPath ? truncateVaultPath(vaultPath, MAX_VAULT_PATH_DISPLAY) : ""
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
