@@ -27,6 +27,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
   const [digits, setDigits] = useState(6)
   const [period, setPeriod] = useState(30)
   const [tags, setTags] = useState("")
+  const [category, setCategory] = useState("")
 
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -44,6 +45,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     setDigits(6)
     setPeriod(30)
     setTags("")
+    setCategory("")
     setShowAdvanced(false)
     setUri("")
     setError("")
@@ -74,9 +76,10 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     try {
       const tagList = tags
         .split(",")
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean)
-      await App.AddCredential(label, issuer, credType, secret, algorithm, digits, period, tagList)
+      const normalizedCategory = category.trim().toLowerCase()
+      await App.AddCredential(label, issuer, credType, secret, algorithm, digits, period, tagList, normalizedCategory)
       reset()
       onAdded()
       onClose()
@@ -221,6 +224,11 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 placeholder="Tags (comma-separated)"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
+              />
+              <Input
+                placeholder="Category (optional)"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
               />
 
               {error && <p className="text-sm text-destructive">{error}</p>}

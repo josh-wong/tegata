@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,14 +47,16 @@ type UpdateInfo struct {
 // runtime. The struct holds references to the vault manager, config, clipboard,
 // and idle timer, delegating all business logic to the internal packages.
 type App struct {
-	ctx       context.Context
-	vault     *vault.Manager
-	config    config.Config
-	clipboard *clipboard.Manager
-	vaultPath string
-	idleTimer *IdleTimer
-	locked    bool
-	builder   *audit.EventBuilder // nil when audit disabled or vault locked
+	ctx          context.Context
+	vault        *vault.Manager
+	config       config.Config
+	clipboard    *clipboard.Manager
+	vaultPath    string
+	vaultModTime time.Time    // mtime of vault file at last read; used to detect external writes
+	watcherStop  chan struct{} // closed to stop the vault file watcher goroutine
+	idleTimer    *IdleTimer
+	locked       bool
+	builder      *audit.EventBuilder // nil when audit disabled or vault locked
 }
 
 // NewApp creates a new App instance with default configuration.
@@ -187,6 +190,11 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	a.vaultPath = path
 	a.locked = false
 
+	// Capture the vault file mtime so ListCredentials can detect external writes.
+	if fi, err := os.Stat(path); err == nil {
+		a.vaultModTime = fi.ModTime()
+	}
+
 	// Load config from vault directory.
 	cfg, err := config.Load(vaultDir(path))
 	if err != nil {
@@ -241,8 +249,9 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// Initialize clipboard manager.
 	a.clipboard = clipboard.NewManager()
 
-	// Start idle timer.
+	// Start idle timer and vault file watcher.
 	a.startIdleTimer()
+	a.startVaultWatcher()
 
 	return nil
 }
@@ -260,6 +269,7 @@ func (a *App) LockVault() {
 	if a.idleTimer != nil {
 		a.idleTimer.Stop()
 	}
+	a.stopVaultWatcher()
 	if a.vault != nil {
 		a.vault.Close()
 		a.vault = nil
@@ -298,7 +308,7 @@ func (a *App) GetCredential(label string) (*model.Credential, error) {
 }
 
 // AddCredential creates a new credential in the vault and returns its ID.
-func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, digits, period int, tags []string) (string, error) {
+func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, digits, period int, tags []string, category string) (string, error) {
 	if a.vault == nil {
 		return "", fmt.Errorf("vault is locked")
 	}
@@ -317,6 +327,7 @@ func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, d
 		Digits:    digits,
 		Period:    period,
 		Tags:      tags,
+		Category:  strings.ToLower(strings.TrimSpace(category)),
 	}
 
 	return a.vault.AddCredential(cred)
@@ -347,6 +358,98 @@ func (a *App) RemoveCredential(id string) error {
 	if err := a.vault.RemoveCredential(id); err != nil {
 		return fmt.Errorf("removing credential: %w", err)
 	}
+	return nil
+}
+
+// EditCredential updates a credential's label, issuer, and/or tags.
+// If a field is empty, it is not updated (except tags and category, which can be cleared by passing an empty slice/string).
+func (a *App) EditCredential(id, label, issuer string, tags []string, category string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+
+	// Find the credential by ID
+	creds := a.vault.ListCredentials()
+	var cred *model.Credential
+	for i := range creds {
+		if creds[i].ID == id {
+			cred = &creds[i]
+			break
+		}
+	}
+	if cred == nil {
+		return fmt.Errorf("credential not found")
+	}
+
+	// Track original values for per-field audit events.
+	origLabel := cred.Label
+	origIssuer := cred.Issuer
+	origCategory := cred.Category
+	origTags := slices.Clone(cred.Tags)
+
+	// Apply updates
+	if label != "" {
+		label = strings.TrimSpace(label)
+		if label == "" {
+			return fmt.Errorf("label cannot be empty or whitespace-only")
+		}
+		// Check for duplicate label
+		for _, c := range creds {
+			if strings.EqualFold(c.Label, label) && c.ID != id {
+				return fmt.Errorf("a credential with label %q already exists", label)
+			}
+		}
+		cred.Label = label
+	}
+
+	if issuer != "" {
+		cred.Issuer = issuer
+	}
+
+	if tags != nil {
+		// Normalize tags to lowercase and validate no duplicates
+		var normalizedTags []string
+		seen := make(map[string]struct{})
+		for _, t := range tags {
+			normalized := strings.ToLower(t)
+			if _, exists := seen[normalized]; exists {
+				return fmt.Errorf("duplicate tag: %q", t)
+			}
+			seen[normalized] = struct{}{}
+			normalizedTags = append(normalizedTags, normalized)
+		}
+		cred.Tags = normalizedTags
+	}
+
+	// Always overwrite category (empty string clears it).
+	cred.Category = strings.ToLower(strings.TrimSpace(category))
+
+	if err := a.vault.UpdateCredential(cred); err != nil {
+		return fmt.Errorf("updating credential: %w", err)
+	}
+
+	// Log one audit event per changed field.
+	if a.builder != nil {
+		type fieldEvent struct {
+			changed bool
+			opType  string
+		}
+		events := []fieldEvent{
+			{cred.Label != origLabel, "credential-label-update"},
+			{cred.Issuer != origIssuer, "credential-issuer-update"},
+			{cred.Category != origCategory, "credential-category-update"},
+			{!slices.Equal(origTags, cred.Tags), "credential-tag-update"},
+		}
+		for _, fe := range events {
+			if fe.changed {
+				if logErr := a.builder.LogEvent(fe.opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -770,6 +873,50 @@ func (a *App) startIdleTimer() {
 func (a *App) resetIdle() {
 	if a.idleTimer != nil {
 		a.idleTimer.Reset()
+	}
+}
+
+// startVaultWatcher launches a background goroutine that polls the vault file
+// mtime every 2 seconds. When a change is detected, it reloads the in-memory
+// payload and emits "vault:updated" so the frontend can refresh its credential
+// list without requiring user interaction. The goroutine exits when the vault
+// is locked (stopVaultWatcher closes watcherStop).
+func (a *App) startVaultWatcher() {
+	a.stopVaultWatcher() // stop any previous watcher first
+	stop := make(chan struct{})
+	a.watcherStop = stop
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				fi, err := os.Stat(a.vaultPath)
+				if err != nil {
+					continue
+				}
+				if fi.ModTime().After(a.vaultModTime) {
+					if reloadErr := a.vault.ReloadPayload(); reloadErr == nil {
+						a.vaultModTime = fi.ModTime()
+						if a.ctx != nil {
+							wailsruntime.EventsEmit(a.ctx, "vault:updated")
+						}
+					} else {
+						slog.Warn("vault watcher reload failed", "err", reloadErr)
+					}
+				}
+			}
+		}
+	}()
+}
+
+// stopVaultWatcher stops the vault file watcher goroutine if one is running.
+func (a *App) stopVaultWatcher() {
+	if a.watcherStop != nil {
+		close(a.watcherStop)
+		a.watcherStop = nil
 	}
 }
 

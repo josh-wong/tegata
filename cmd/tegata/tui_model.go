@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ const (
 	stateOverlayRemove                       // Remove-credential confirmation overlay
 	stateOverlaySettings                     // Settings overlay
 	stateOverlayAudit                        // Audit history/verify overlay
+	stateOverlayEdit                         // Edit-credential overlay
 	stateTerminalTooNarrow                   // Terminal is narrower than 80 columns
 )
 
@@ -102,8 +104,17 @@ type model struct {
 	addFocusIdx    int             // which add-overlay slot has focus
 	addPeriodInput textinput.Model // period in seconds (TOTP only)
 	addTagsInput   textinput.Model // comma-separated tags
+	addCategoryInput textinput.Model // category (optional)
 	addAlgoIdx     int             // 0=SHA1, 1=SHA256, 2=SHA512
 	addDigitsIdx   int             // 0=6, 1=8
+
+	// Edit-credential overlay inputs
+	editLabelInput  textinput.Model // label
+	editIssuerInput textinput.Model // issuer (optional)
+	editTagsInput   textinput.Model // comma-separated tags
+	editCategoryInput textinput.Model // category (optional)
+	editFocusIdx    int             // which edit-overlay slot has focus
+	editCredID      string          // ID of credential being edited
 
 	// Settings overlay state
 	settingsMenuIdx  int          // 0-3 menu selection
@@ -138,6 +149,23 @@ type model struct {
 	clipMgr         *clipboard.Manager
 }
 
+// customDelegate wraps the default list delegate so we can render category
+// header items with a specific style that won't be overridden by the default
+// delegate rendering.
+type customDelegate struct{
+	list.DefaultDelegate
+}
+
+// Render applies `categoryStyle` to categoryHeaderItem titles; all other
+// items are rendered by the embedded DefaultDelegate.
+func (d customDelegate) Render(w io.Writer, lm list.Model, index int, item list.Item) {
+	if ch, ok := item.(categoryHeaderItem); ok {
+		_, _ = fmt.Fprint(w, categoryStyle.Render(strings.ToUpper(ch.category)))
+		return
+	}
+	d.DefaultDelegate.Render(w, lm, index, item)
+}
+
 // newPassphraseInput returns a textinput configured for masked passphrase entry.
 func newPassphraseInput(placeholder string) textinput.Model {
 	t := textinput.New()
@@ -151,17 +179,25 @@ func newPassphraseInput(placeholder string) textinput.Model {
 // exists and the TUI starts at the unlock screen; otherwise it starts the
 // first-time setup wizard.
 func initialModel(vaultPath string) model {
-	delegate := list.NewDefaultDelegate()
+	delegate := customDelegate{list.NewDefaultDelegate()}
 	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(cinnabar).
-		Foreground(cinnabar).
+		BorderForeground(darkRed).
+		Foreground(darkRed).
+		Bold(true).
 		Padding(0, 0, 0, 1)
 	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(cinnabar).
-		Foreground(cinnabar).
+		BorderForeground(darkRed).
+		Foreground(darkRed).
 		Padding(0, 0, 0, 1)
+	// Also set the default (non-selected) item styles on the delegate to
+	// darkRed so category headers (rendered via DefaultDelegate) use the
+	// same dark-red color.
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2).Bold(true)
+	delegate.Styles.NormalDesc = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
+	delegate.Styles.DimmedTitle = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
+	delegate.Styles.DimmedDesc = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
 
 	credList := list.New([]list.Item{}, delegate, 0, 0)
 	credList.DisableQuitKeybindings()
@@ -169,7 +205,9 @@ func initialModel(vaultPath string) model {
 	credList.SetShowHelp(false)
 	credList.SetShowStatusBar(false)
 	credList.Styles.TitleBar = credList.Styles.TitleBar.PaddingLeft(0)
-	credList.Styles.Title = lipgloss.NewStyle().Padding(0, 2).Foreground(cinnabar).Bold(true)
+	// Unindented title (no horizontal padding) so "X credentials" aligns
+	// with the left border of the sidebar.
+	credList.Styles.Title = lipgloss.NewStyle().Padding(0, 0).Bold(true)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -203,8 +241,28 @@ func initialModel(vaultPath string) model {
 	addPeriod.EchoMode = textinput.EchoNormal
 
 	addTags := textinput.New()
-	addTags.Placeholder = "Tags (comma-separated)"
+	addTags.Placeholder = "Tags (comma-separated, optional)"
 	addTags.EchoMode = textinput.EchoNormal
+
+	addCategory := textinput.New()
+	addCategory.Placeholder = "Category (optional)"
+	addCategory.EchoMode = textinput.EchoNormal
+
+	editLabel := textinput.New()
+	editLabel.Placeholder = "Label"
+	editLabel.EchoMode = textinput.EchoNormal
+
+	editIssuer := textinput.New()
+	editIssuer.Placeholder = "Issuer (optional)"
+	editIssuer.EchoMode = textinput.EchoNormal
+
+	editTags := textinput.New()
+	editTags.Placeholder = "Tags (comma-separated, optional)"
+	editTags.EchoMode = textinput.EchoNormal
+
+	editCategory := textinput.New()
+	editCategory.Placeholder = "Category (optional)"
+	editCategory.EchoMode = textinput.EchoNormal
 
 	settingsIn1 := textinput.New()
 	settingsIn1.EchoMode = textinput.EchoNormal
@@ -232,6 +290,11 @@ func initialModel(vaultPath string) model {
 		addSecretInput:   addSecret,
 		addPeriodInput:   addPeriod,
 		addTagsInput:     addTags,
+		addCategoryInput: addCategory,
+		editLabelInput:   editLabel,
+		editIssuerInput:  editIssuer,
+		editTagsInput:    editTags,
+		editCategoryInput: editCategory,
 		settingsInput1:   settingsIn1,
 		settingsInput2:   settingsIn2,
 		settingsInput3:   settingsIn3,
@@ -316,7 +379,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			effectiveState == stateOverlayAdd ||
 			effectiveState == stateOverlayRemove ||
 			effectiveState == stateOverlaySettings ||
-			effectiveState == stateOverlayAudit
+			effectiveState == stateOverlayAudit ||
+			effectiveState == stateOverlayEdit
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
@@ -336,6 +400,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Reset overlay and challenge-response state so stale focus
 			// does not suppress keybindings after re-unlock.
 			m.resetAddOverlay()
+			m.resetEditOverlay()
 			m.resetSettingsOverlay()
 			m.resetAuditOverlay()
 			m.crChallengeActive = false
@@ -426,7 +491,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stateMainView:
 		return m.updateMainView(msg)
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlayEdit, stateOverlaySettings, stateOverlayAudit:
 		return m.updateOverlay(msg)
 	}
 
@@ -453,7 +518,7 @@ func (m model) View() string {
 	case stateMainView:
 		return m.viewMainView()
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlayEdit, stateOverlaySettings, stateOverlayAudit:
 		return m.viewOverlay()
 	}
 
@@ -486,7 +551,9 @@ func (m model) isInputFocused() bool {
 		m.vaultPathInput.Focused() ||
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
-		m.addPeriodInput.Focused() || m.addTagsInput.Focused() ||
+		m.addPeriodInput.Focused() || m.addTagsInput.Focused() || m.addCategoryInput.Focused() ||
+		m.editLabelInput.Focused() || m.editIssuerInput.Focused() || m.editTagsInput.Focused() ||
+		m.editCategoryInput.Focused() ||
 		m.settingsInput1.Focused() || m.settingsInput2.Focused() || m.settingsInput3.Focused()
 }
 
@@ -509,6 +576,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateOverlayAdd(msg)
 	case stateOverlayRemove:
 		return m.updateOverlayRemove(msg)
+	case stateOverlayEdit:
+		return m.updateOverlayEdit(msg)
 	case stateOverlaySettings:
 		return m.updateOverlaySettings(msg)
 	case stateOverlayAudit:
@@ -524,6 +593,8 @@ func (m model) viewOverlay() string {
 		return m.viewOverlayAdd()
 	case stateOverlayRemove:
 		return m.viewOverlayRemove()
+	case stateOverlayEdit:
+		return m.viewOverlayEdit()
 	case stateOverlaySettings:
 		return m.viewOverlaySettings()
 	case stateOverlayAudit:

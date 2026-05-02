@@ -96,7 +96,7 @@ func TestAdapter_AddAndListCredentials(t *testing.T) {
 	app.vaultPath = vaultPath
 
 	// Add a TOTP credential.
-	id, err := app.AddCredential("test-totp", "TestIssuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, []string{"test"})
+	id, err := app.AddCredential("test-totp", "TestIssuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, []string{"test"}, "")
 	if err != nil {
 		t.Fatalf("adding credential: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestAdapter_RemoveCredential(t *testing.T) {
 	app.vaultPath = vaultPath
 
 	// Add then remove a credential.
-	id, err := app.AddCredential("to-remove", "Issuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil)
+	id, err := app.AddCredential("to-remove", "Issuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
 	if err != nil {
 		t.Fatalf("adding credential: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestAdapter_GenerateTOTP(t *testing.T) {
 	app.vaultPath = vaultPath
 
 	// Add a TOTP credential with a known secret.
-	_, err = app.AddCredential("totp-test", "Issuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil)
+	_, err = app.AddCredential("totp-test", "Issuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
 	if err != nil {
 		t.Fatalf("adding credential: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestApp_AuditBuilderNilSafe(t *testing.T) {
 	// builder is nil (audit not configured)
 
 	// Add a TOTP credential.
-	_, err = app.AddCredential("test-totp", "Test", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil)
+	_, err = app.AddCredential("test-totp", "Test", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
 	if err != nil {
 		t.Fatalf("adding credential: %v", err)
 	}
