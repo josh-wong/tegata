@@ -5,6 +5,9 @@ import "github.com/charmbracelet/lipgloss"
 // cinnabar is the primary brand color used throughout the TUI.
 const cinnabar lipgloss.Color = "#E34234"
 
+// darkRed is the darker red used for filenames and emphatic headings.
+const darkRed lipgloss.Color = "#F04368"
+
 // appName is the display name rendered in the TUI header.
 const appName = "Tegata"
 
@@ -15,7 +18,7 @@ var titleStyle = lipgloss.NewStyle().Bold(true).AlignHorizontal(lipgloss.Center)
 var appNameStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
 
 // errorStyle renders error messages in rose-red.
-var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F04368"))
+var errorStyle = lipgloss.NewStyle().Foreground(darkRed)
 
 // helpBarStyle renders the bottom help bar in dim/faint text.
 var helpBarStyle = lipgloss.NewStyle().Faint(true)
@@ -25,6 +28,11 @@ var warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 
 // tipStyle renders informational tips and selected items in cinnabar, bold.
 var tipStyle = lipgloss.NewStyle().Foreground(cinnabar).Bold(true)
+
+// categoryStyle styles category headings: bold with no foreground override so
+// the terminal's default text color is used, matching the vault filename in
+// the header.
+var categoryStyle = lipgloss.NewStyle().Bold(true)
 
 // overlayBoxStyle is a centered bordered box used for overlay modals.
 var overlayBoxStyle = lipgloss.NewStyle().
