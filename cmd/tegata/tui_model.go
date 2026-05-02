@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -148,6 +149,23 @@ type model struct {
 	clipMgr         *clipboard.Manager
 }
 
+// customDelegate wraps the default list delegate so we can render category
+// header items with a specific style that won't be overridden by the default
+// delegate rendering.
+type customDelegate struct{
+	list.DefaultDelegate
+}
+
+// Render applies `categoryStyle` to categoryHeaderItem titles; all other
+// items are rendered by the embedded DefaultDelegate.
+func (d customDelegate) Render(w io.Writer, lm list.Model, index int, item list.Item) {
+	if ch, ok := item.(categoryHeaderItem); ok {
+		_, _ = fmt.Fprint(w, categoryStyle.Render(strings.ToUpper(ch.category)))
+		return
+	}
+	d.DefaultDelegate.Render(w, lm, index, item)
+}
+
 // newPassphraseInput returns a textinput configured for masked passphrase entry.
 func newPassphraseInput(placeholder string) textinput.Model {
 	t := textinput.New()
@@ -161,17 +179,25 @@ func newPassphraseInput(placeholder string) textinput.Model {
 // exists and the TUI starts at the unlock screen; otherwise it starts the
 // first-time setup wizard.
 func initialModel(vaultPath string) model {
-	delegate := list.NewDefaultDelegate()
+	delegate := customDelegate{list.NewDefaultDelegate()}
 	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(cinnabar).
-		Foreground(cinnabar).
+		BorderForeground(darkRed).
+		Foreground(darkRed).
+		Bold(true).
 		Padding(0, 0, 0, 1)
 	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(cinnabar).
-		Foreground(cinnabar).
+		BorderForeground(darkRed).
+		Foreground(darkRed).
 		Padding(0, 0, 0, 1)
+	// Also set the default (non-selected) item styles on the delegate to
+	// darkRed so category headers (rendered via DefaultDelegate) use the
+	// same dark-red color.
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2).Bold(true)
+	delegate.Styles.NormalDesc = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
+	delegate.Styles.DimmedTitle = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
+	delegate.Styles.DimmedDesc = lipgloss.NewStyle().Foreground(darkRed).Padding(0, 0, 0, 2)
 
 	credList := list.New([]list.Item{}, delegate, 0, 0)
 	credList.DisableQuitKeybindings()
@@ -179,7 +205,9 @@ func initialModel(vaultPath string) model {
 	credList.SetShowHelp(false)
 	credList.SetShowStatusBar(false)
 	credList.Styles.TitleBar = credList.Styles.TitleBar.PaddingLeft(0)
-	credList.Styles.Title = lipgloss.NewStyle().Padding(0, 2).Foreground(cinnabar).Bold(true)
+	// Unindented title (no horizontal padding) so "X credentials" aligns
+	// with the left border of the sidebar.
+	credList.Styles.Title = lipgloss.NewStyle().Padding(0, 0).Bold(true)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot

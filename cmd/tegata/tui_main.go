@@ -26,6 +26,23 @@ func (i credItem) Title() string { return truncateLabel(i.cred.Label, 20) }
 // Description returns the credential type string shown below the label.
 func (i credItem) Description() string { return string(i.cred.Type) }
 
+// categoryHeaderItem wraps a category name for display as a list header.
+type categoryHeaderItem struct{ category string }
+
+// FilterValue implements list.Item.
+func (i categoryHeaderItem) FilterValue() string { return "" }
+
+// Title returns the category name in uppercase, styled with dark red (error color) and bold.
+// These headers are non-selectable; navigation skips them.
+func (i categoryHeaderItem) Title() string {
+	// Return the raw uppercase category string; the delegate will apply
+	// the `categoryStyle` when rendering so outer styles don't override it.
+	return strings.ToUpper(i.category)
+}
+
+// Description returns empty string (headers have no description).
+func (i categoryHeaderItem) Description() string { return "" }
+
 // truncateLabel truncates s to at most max runes. If truncated, the last rune
 // is replaced by an ellipsis so the total width stays within max.
 func truncateLabel(s string, max int) string {
@@ -90,23 +107,41 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j'):
-			if m.cursor < len(m.credList.Items())-1 {
-				m.cursor++
-			}
 			m.statusMsg = ""
 			m.errMsg = ""
+			nextIdx := m.cursor + 1
+			// Skip past category headers to find the next credential
+			for nextIdx < len(m.credList.Items()) {
+				if _, ok := m.credList.Items()[nextIdx].(categoryHeaderItem); ok {
+					nextIdx++
+				} else {
+					break
+				}
+			}
+			if nextIdx < len(m.credList.Items()) {
+				m.cursor = nextIdx
+			}
 			var cmd tea.Cmd
-			m.credList, cmd = m.credList.Update(tea.KeyMsg{Type: tea.KeyDown})
+			m.credList.Select(m.cursor)
 			return m, cmd
 
 		case msg.Type == tea.KeyUp || (len(msg.Runes) == 1 && msg.Runes[0] == 'k'):
-			if m.cursor > 0 {
-				m.cursor--
-			}
 			m.statusMsg = ""
 			m.errMsg = ""
+			nextIdx := m.cursor - 1
+			// Skip past category headers to find the previous credential
+			for nextIdx >= 0 {
+				if _, ok := m.credList.Items()[nextIdx].(categoryHeaderItem); ok {
+					nextIdx--
+				} else {
+					break
+				}
+			}
+			if nextIdx >= 0 {
+				m.cursor = nextIdx
+			}
 			var cmd tea.Cmd
-			m.credList, cmd = m.credList.Update(tea.KeyMsg{Type: tea.KeyUp})
+			m.credList.Select(m.cursor)
 			return m, cmd
 
 		case msg.Type == tea.KeyEnter:
