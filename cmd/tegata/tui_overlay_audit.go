@@ -135,7 +135,7 @@ func (m *model) resetAuditOverlay() {
 }
 
 // auditHistoryPageSize is the number of history rows visible at one time in the TUI.
-const auditHistoryPageSize = 8
+const auditHistoryPageSize = 10
 
 // updateOverlayAudit handles input for the audit overlay.
 func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -242,13 +242,33 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // viewOverlayAudit renders the audit overlay.
 func (m model) viewOverlayAudit() string {
-	var content string
+	// History needs a wider box to display four columns without wrapping.
+	//
+	// Lipgloss Width() sets the content width *before* padding.
+	// wrapAt = Width - leftPad - rightPad = Width - 2 (for Padding(1)).
+	// Outer box width = Width + 2 (padding) + 2 (border) = Width + 4.
+	//
+	// We want the outer box to leave at least 4 cols of breathing room:
+	//   outer ≤ m.width - 4  →  Width ≤ m.width - 8
+	// lineW (actual text wrap boundary) = Width - 2 = m.width - 10.
+	if m.auditSubFlow == "history" {
+		lineW := m.width - 10
+		if lineW > 96 {
+			lineW = 96
+		}
+		if lineW < 64 {
+			lineW = 64
+		}
+		boxW := lineW + 2 // Width() = lineW + leftPad + rightPad
+		content := m.viewAuditHistory(lineW)
+		box := overlayBoxStyle.Width(boxW).Render(content)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	}
 
+	var content string
 	switch m.auditSubFlow {
 	case "":
 		content = m.viewAuditMenu()
-	case "history":
-		content = m.viewAuditHistory()
 	case "verify":
 		content = m.viewAuditVerify()
 	case "start":
@@ -277,7 +297,9 @@ func (m model) viewAuditMenu() string {
 	return title + "\n\n" + menu.String() + "\n" + help
 }
 
-func (m model) viewAuditHistory() string {
+// viewAuditHistory renders the audit history sub-flow.
+// boxW is the lipgloss Width value (text area, before padding and border).
+func (m model) viewAuditHistory(boxW int) string {
 	title := titleStyle.Render("Audit history")
 
 	if m.auditLoading {
@@ -285,14 +307,33 @@ func (m model) viewAuditHistory() string {
 			helpBarStyle.Render("[Esc] Back")
 	}
 
+	// Derive column widths from available space.
+	// Each row: 2-char prefix + opW + 1 + labelW + 1 + 19 (timestamp) + 1 + hashW
+	const tsW = 19
+	const prefixW = 2
+	remainder := boxW - prefixW - 5 - tsW // 5 = spaces between the 4 columns (3 before hash)
+	opW := remainder * 2 / 5
+	if opW < 15 {
+		opW = 15
+	}
+	labelW := remainder * 3 / 10
+	if labelW < 10 {
+		labelW = 10
+	}
+	hashW := remainder - opW - labelW
+	if hashW < 10 {
+		hashW = 10
+	}
+	lineW := prefixW + opW + 1 + labelW + 1 + tsW + 1 + hashW
+
 	// Build hash→label lookup from loaded credentials and deleted labels.
 	labelMap := m.buildLabelMap()
 	deletedMap := m.buildDeletedLabelMap()
 
 	var body strings.Builder
 	if len(m.auditRecords) > 0 {
-		body.WriteString(fmt.Sprintf("%-28s %-18s %-19s %s\n", "Operation", "Label", "Timestamp", "Hash"))
-		body.WriteString(strings.Repeat("─", 80) + "\n")
+		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
+		body.WriteString(strings.Repeat("─", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
 		if end > len(m.auditRecords) {
@@ -301,19 +342,19 @@ func (m model) viewAuditHistory() string {
 		for idx := m.auditScrollOff; idx < end; idx++ {
 			r := m.auditRecords[idx]
 			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
-			if len(label) > 18 {
-				label = label[:17] + "…"
+			if len(label) > labelW {
+				label = label[:labelW-1] + "…"
 			}
 			op := audit.FormatOperation(r.Operation)
-			if len(op) > 28 {
-				op = op[:27] + "…"
+			if len(op) > opW {
+				op = op[:opW-1] + "…"
 			}
 			ts := time.Unix(r.Timestamp, 0).Local().Format("2006-01-02 15:04:05")
 			hash := r.HashValue
-			if len(hash) > 12 {
-				hash = hash[:12] + "…"
+			if len(hash) > hashW {
+				hash = hash[:hashW-1] + "…"
 			}
-			line := fmt.Sprintf("%-28s %-18s %-19s %s", op, label, ts, hash)
+			line := fmt.Sprintf("%-*s %-*s %-*s   %s", opW, op, labelW, label, tsW, ts, hash)
 			if idx == m.auditCursor {
 				body.WriteString(tipStyle.Render("▸ " + line))
 			} else {

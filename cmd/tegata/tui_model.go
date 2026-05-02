@@ -357,9 +357,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.auditRecords = nil
 		} else {
 			m.auditRecords = msg.records
-			m.auditMsg = fmt.Sprintf("%d events", len(msg.records))
 			if msg.warning != "" {
-				m.auditMsg += " (" + msg.warning + ")"
+				m.auditMsg = msg.warning
+			} else {
+				m.auditMsg = ""
 			}
 		}
 		return m, nil
