@@ -134,8 +134,7 @@ func filterAuditRecords(records []historyRecord, showLock bool) []historyRecord 
 	}
 	filtered := make([]historyRecord, 0, len(records))
 	for _, r := range records {
-		op := strings.ToLower(r.Operation)
-		if op != "vault lock" && op != "vault unlock" {
+		if r.Operation != "vault-lock" && r.Operation != "vault-unlock" {
 			filtered = append(filtered, r)
 		}
 	}
