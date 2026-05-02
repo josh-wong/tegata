@@ -268,12 +268,12 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// Parse comma-separated tags.
+			// Parse comma-separated tags and normalize to lowercase.
 			var tags []string
 			if raw := strings.TrimSpace(m.addTagsInput.Value()); raw != "" {
 				for _, t := range strings.Split(raw, ",") {
 					if t = strings.TrimSpace(t); t != "" {
-						tags = append(tags, t)
+						tags = append(tags, strings.ToLower(t))
 					}
 				}
 			}

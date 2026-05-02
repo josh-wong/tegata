@@ -89,11 +89,11 @@ func newEditCmd() *cobra.Command {
 			}
 
 			if tags != "" {
-				// Parse tags: split by comma, trim whitespace, filter empty strings.
+				// Parse tags: split by comma, trim whitespace, filter empty strings, and normalize to lowercase.
 				var newTags []string
 				for _, t := range strings.Split(tags, ",") {
 					if t = strings.TrimSpace(t); t != "" {
-						newTags = append(newTags, t)
+						newTags = append(newTags, strings.ToLower(t))
 					}
 				}
 

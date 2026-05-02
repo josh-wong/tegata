@@ -83,13 +83,13 @@ func (m *model) focusEditInput() {
 	}
 }
 
-// parseTags parses comma-separated tag input, trims whitespace, and filters empty strings.
+// parseTags parses comma-separated tag input, trims whitespace, filters empty strings, and normalizes to lowercase.
 func parseTags(raw string) []string {
 	var tags []string
 	if trimmed := strings.TrimSpace(raw); trimmed != "" {
 		for _, t := range strings.Split(trimmed, ",") {
 			if t = strings.TrimSpace(t); t != "" {
-				tags = append(tags, t)
+				tags = append(tags, strings.ToLower(t))
 			}
 		}
 	}

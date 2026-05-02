@@ -400,15 +400,18 @@ func (a *App) EditCredential(id, label, issuer string, tags []string) error {
 	}
 
 	if tags != nil {
-		// Validate no duplicates
+		// Normalize tags to lowercase and validate no duplicates
+		var normalizedTags []string
 		seen := make(map[string]struct{})
 		for _, t := range tags {
-			if _, exists := seen[t]; exists {
+			normalized := strings.ToLower(t)
+			if _, exists := seen[normalized]; exists {
 				return fmt.Errorf("duplicate tag: %q", t)
 			}
-			seen[t] = struct{}{}
+			seen[normalized] = struct{}{}
+			normalizedTags = append(normalizedTags, normalized)
 		}
-		cred.Tags = tags
+		cred.Tags = normalizedTags
 	}
 
 	if err := a.vault.UpdateCredential(cred); err != nil {

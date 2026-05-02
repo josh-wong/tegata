@@ -50,7 +50,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
 
     const tagList = tags
       .split(",")
-      .map((t) => t.trim())
+      .map((t) => t.trim().toLowerCase())
       .filter((t) => t !== "")
 
     // Check for duplicate tags

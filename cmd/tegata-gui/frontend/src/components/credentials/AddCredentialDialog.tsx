@@ -74,7 +74,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     try {
       const tagList = tags
         .split(",")
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean)
       await App.AddCredential(label, issuer, credType, secret, algorithm, digits, period, tagList)
       reset()
