@@ -23,6 +23,10 @@ type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 10
 
+// OPERATION_TYPE_LABELS maps raw operation type values from the ledger to
+// display labels. Keys are the canonical operation names (e.g., "totp",
+// "Vault unlock") used for filtering—not display strings. The filter applies
+// case-insensitive matching against these raw values.
 const OPERATION_TYPE_LABELS: Record<string, string> = {
   "": "All operations",
   "totp": "TOTP",

@@ -126,6 +126,11 @@ func (m model) buildDeletedLabelMap() map[string]string {
 // false, vault lock/unlock events are excluded (the default). The returned
 // slice is what auditFiltered is set to, keeping cursor navigation and
 // hash-copy in sync with the rendered table.
+//
+// The canonical operation names from the ledger are "vault-lock" and
+// "vault-unlock" (hyphen-separated, lowercase). This must match the values
+// used by audit.FormatOperation in the CLI history command to ensure
+// consistent filtering across all surfaces (GUI, TUI, CLI).
 func filterAuditRecords(records []historyRecord, showLock bool) []historyRecord {
 	if showLock {
 		out := make([]historyRecord, len(records))
