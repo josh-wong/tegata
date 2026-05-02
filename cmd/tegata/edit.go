@@ -69,6 +69,11 @@ func newEditCmd() *cobra.Command {
 
 			// Apply updates from flags.
 			if label != "" {
+				label = strings.TrimSpace(label)
+				if label == "" {
+					return fmt.Errorf("label cannot be empty or whitespace-only: %w",
+						errors.ErrInvalidInput)
+				}
 				// Check for duplicate label.
 				for _, c := range mgr.ListCredentials() {
 					if strings.EqualFold(c.Label, label) && c.ID != cred.ID {

@@ -129,11 +129,11 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyEnter:
-			labelVal := m.editLabelInput.Value()
+			labelVal := strings.TrimSpace(m.editLabelInput.Value())
 			issuerVal := m.editIssuerInput.Value()
 			rawTags := m.editTagsInput.Value()
 
-			// Validate label is not empty.
+			// Validate label is not empty (after trimming whitespace).
 			if labelVal == "" {
 				m.errMsg = "Label is required"
 				return m, nil

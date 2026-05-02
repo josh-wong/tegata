@@ -494,6 +494,59 @@ func (m *Manager) ListCredentials() []model.Credential {
 	return result
 }
 
+// ReloadPayload re-reads and decrypts the vault file from disk using the
+// already-unlocked DEK. This is used when an external process (e.g. the TUI)
+// may have written a newer version of the vault to disk without this process
+// knowing. The caller should check whether the file has been modified (e.g.
+// via os.Stat mtime) before calling, to avoid unnecessary I/O.
+func (m *Manager) ReloadPayload() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.dek == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	data, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault: %w", err)
+	}
+	if len(data) < headerSize+4 {
+		return fmt.Errorf("vault file too small: %w", errors.ErrVaultCorrupt)
+	}
+
+	header, err := Unmarshal(data[:headerSize])
+	if err != nil {
+		return fmt.Errorf("parsing header: %w", err)
+	}
+
+	payloadLen := binary.BigEndian.Uint32(data[headerSize : headerSize+4])
+	if int(headerSize+4+payloadLen) > len(data) {
+		return fmt.Errorf("vault file truncated: %w", errors.ErrVaultCorrupt)
+	}
+	encryptedPayload := data[headerSize+4 : headerSize+4+int(payloadLen)]
+
+	dekBuf, err := m.dek.Open()
+	if err != nil {
+		return fmt.Errorf("opening DEK: %w", err)
+	}
+	plaintext, err := crypto.Open(dekBuf, header.WriteCounter, encryptedPayload, nil)
+	dekBuf.Destroy()
+	if err != nil {
+		return fmt.Errorf("decrypting payload: %w", errors.ErrVaultCorrupt)
+	}
+
+	var payload model.VaultPayload
+	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		zeroBytes(plaintext)
+		return fmt.Errorf("parsing payload: %w", errors.ErrVaultCorrupt)
+	}
+	zeroBytes(plaintext)
+
+	m.payload = &payload
+	m.header.WriteCounter = header.WriteCounter
+	return nil
+}
+
 // UpdateCredential replaces the credential with the matching ID and saves.
 func (m *Manager) UpdateCredential(cred *model.Credential) error {
 	m.mu.Lock()
