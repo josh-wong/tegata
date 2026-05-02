@@ -103,6 +103,7 @@ type model struct {
 	addFocusIdx    int             // which add-overlay slot has focus
 	addPeriodInput textinput.Model // period in seconds (TOTP only)
 	addTagsInput   textinput.Model // comma-separated tags
+	addCategoryInput textinput.Model // category (optional)
 	addAlgoIdx     int             // 0=SHA1, 1=SHA256, 2=SHA512
 	addDigitsIdx   int             // 0=6, 1=8
 
@@ -110,6 +111,7 @@ type model struct {
 	editLabelInput  textinput.Model // label
 	editIssuerInput textinput.Model // issuer (optional)
 	editTagsInput   textinput.Model // comma-separated tags
+	editCategoryInput textinput.Model // category (optional)
 	editFocusIdx    int             // which edit-overlay slot has focus
 	editCredID      string          // ID of credential being edited
 
@@ -211,8 +213,12 @@ func initialModel(vaultPath string) model {
 	addPeriod.EchoMode = textinput.EchoNormal
 
 	addTags := textinput.New()
-	addTags.Placeholder = "Tags (comma-separated)"
+	addTags.Placeholder = "Tags (comma-separated, optional)"
 	addTags.EchoMode = textinput.EchoNormal
+
+	addCategory := textinput.New()
+	addCategory.Placeholder = "Category (optional)"
+	addCategory.EchoMode = textinput.EchoNormal
 
 	editLabel := textinput.New()
 	editLabel.Placeholder = "Label"
@@ -225,6 +231,10 @@ func initialModel(vaultPath string) model {
 	editTags := textinput.New()
 	editTags.Placeholder = "Tags (comma-separated, optional)"
 	editTags.EchoMode = textinput.EchoNormal
+
+	editCategory := textinput.New()
+	editCategory.Placeholder = "Category (optional)"
+	editCategory.EchoMode = textinput.EchoNormal
 
 	settingsIn1 := textinput.New()
 	settingsIn1.EchoMode = textinput.EchoNormal
@@ -252,9 +262,11 @@ func initialModel(vaultPath string) model {
 		addSecretInput:   addSecret,
 		addPeriodInput:   addPeriod,
 		addTagsInput:     addTags,
+		addCategoryInput: addCategory,
 		editLabelInput:   editLabel,
 		editIssuerInput:  editIssuer,
 		editTagsInput:    editTags,
+		editCategoryInput: editCategory,
 		settingsInput1:   settingsIn1,
 		settingsInput2:   settingsIn2,
 		settingsInput3:   settingsIn3,
@@ -511,8 +523,9 @@ func (m model) isInputFocused() bool {
 		m.vaultPathInput.Focused() ||
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
-		m.addPeriodInput.Focused() || m.addTagsInput.Focused() ||
+		m.addPeriodInput.Focused() || m.addTagsInput.Focused() || m.addCategoryInput.Focused() ||
 		m.editLabelInput.Focused() || m.editIssuerInput.Focused() || m.editTagsInput.Focused() ||
+		m.editCategoryInput.Focused() ||
 		m.settingsInput1.Focused() || m.settingsInput2.Focused() || m.settingsInput3.Focused()
 }
 
