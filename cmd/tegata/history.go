@@ -164,7 +164,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 	cmd.Flags().StringVar(&to, "to", "", "end date filter (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&opType, "type", "", "filter by operation type (e.g. totp, hotp, vault-unlock)")
 	cmd.Flags().StringVar(&sortBy, "sort", "", "sort column (operation, label, timestamp, hash); default: timestamp")
-	cmd.Flags().StringVar(&order, "order", "", "sort order (asc, desc); default: asc for text columns, desc for timestamp")
+	cmd.Flags().StringVar(&order, "order", "", "sort order (asc, desc); default: desc when --sort is timestamp, asc otherwise")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum number of rows to display (0 = no limit)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON array")
 
@@ -240,7 +240,7 @@ func sortRecords(records []historyRecord, labelMap, deletedMap map[string]string
 				return records[i].HashValue > records[j].HashValue
 			}
 			return records[i].HashValue < records[j].HashValue
-		default: // "timestamp" — default desc (newest first)
+		default: // "timestamp" — only remaining valid value after upstream validation
 			if order == "asc" {
 				return records[i].Timestamp < records[j].Timestamp
 			}
