@@ -22,7 +22,7 @@ describe("AuditPanel", () => {
   it("renders title and buttons when open", () => {
     render(<AuditPanel open={true} onClose={() => {}} />)
     expect(screen.getByText("Audit")).toBeInTheDocument()
-    expect(screen.getByText("View history")).toBeInTheDocument()
+    expect(screen.getByText("Refresh")).toBeInTheDocument()
     expect(screen.getByText("Verify integrity")).toBeInTheDocument()
   })
 
@@ -32,7 +32,6 @@ describe("AuditPanel", () => {
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
-    await userEvent.click(screen.getByText("View history"))
 
     await waitFor(() => {
       expect(screen.getByText("1 of 1 events")).toBeInTheDocument()
@@ -50,7 +49,6 @@ describe("AuditPanel", () => {
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
-    await userEvent.click(screen.getByText("View history"))
 
     await waitFor(() => {
       expect(screen.getByText("abcdef1234…")).toBeInTheDocument()
@@ -118,7 +116,6 @@ describe("AuditPanel", () => {
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
-    await userEvent.click(screen.getByText("View history"))
 
     await waitFor(() => {
       expect(screen.getByText("2 of 2 events")).toBeInTheDocument()
@@ -140,7 +137,6 @@ describe("AuditPanel", () => {
     ])
 
     render(<AuditPanel open={true} onClose={() => {}} />)
-    await userEvent.click(screen.getByText("View history"))
 
     await waitFor(() => {
       expect(screen.getByText("2 of 2 events")).toBeInTheDocument()

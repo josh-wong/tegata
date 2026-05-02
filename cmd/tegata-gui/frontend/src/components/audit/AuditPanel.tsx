@@ -75,7 +75,9 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       setError("")
       setVerifyResult(null)
       App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
+      handleFetchHistory()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   async function handleFetchHistory() {
@@ -202,7 +204,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 variant="outline"
                 size="sm"
               >
-                View history
+                Refresh
               </Button>
               <Button
                 onClick={handleVerify}
