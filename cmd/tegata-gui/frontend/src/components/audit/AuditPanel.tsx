@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -23,26 +23,25 @@ type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 10
 
-// OPERATION_TYPE_LABELS maps raw operation type values from the ledger to
-// display labels. Keys are the canonical operation names (e.g., "totp",
-// "Vault unlock") used for filtering—not display strings. The filter applies
-// case-insensitive matching against these raw values.
+// OPERATION_TYPE_LABELS maps the display strings returned by GetAuditHistory
+// (which calls audit.FormatOperation server-side) to dropdown labels. Keys must
+// match what the API returns, not the raw ledger values. Unknown operations fall
+// through to the raw string via the `|| op` fallback in the dropdown.
 const OPERATION_TYPE_LABELS: Record<string, string> = {
-  "": "All operations",
-  "totp": "TOTP",
-  "hotp": "HOTP",
-  "static": "Static password",
-  "challenge-response": "Challenge-response",
+  "TOTP": "TOTP",
+  "HOTP": "HOTP",
+  "Static password": "Static password",
+  "Challenge-response": "Challenge-response",
   "Vault unlock": "Vault unlock",
   "Vault lock": "Vault lock",
-  "credential-add": "Credential add",
-  "credential-remove": "Credential remove",
-  "credential-update": "Credential update",
-  "credential-tag-update": "Credential tag update",
-  "credential-import": "Credential import",
-  "credential-export": "Credential export",
-  "vault-passphrase-change": "Vault passphrase change",
-  "hotp-resync": "HOTP resync",
+  "Credential addition": "Credential addition",
+  "Credential removal": "Credential removal",
+  "Credential update": "Credential update",
+  "Credential tag update": "Credential tag update",
+  "Credential import": "Credential import",
+  "Credential export": "Credential export",
+  "Vault passphrase change": "Vault passphrase change",
+  "HOTP resync": "HOTP resync",
 }
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
@@ -78,6 +77,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
 
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const [copyMsg, setCopyMsg] = useState("")
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleFetchHistory = useCallback(async () => {
     setLoading(true)
@@ -131,9 +131,11 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     navigator.clipboard.writeText(hash).then(() => {
       setCopiedHash(hash)
       setCopyMsg("Hash copied to clipboard")
-      setTimeout(() => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => {
         setCopyMsg("")
         setCopiedHash(null)
+        copyTimerRef.current = null
       }, 2000)
     }).catch(() => {
       // Keep the error visible for 10 seconds and show the hash as a fallback
@@ -144,7 +146,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   }
 
   // Apply filters
-  const filtered = history.filter((r) => {
+  const filtered = useMemo(() => history.filter((r) => {
     // When no filter selected, hide lock/unlock events by default
     if (!opFilter) {
       const op = r.operation.toLowerCase()
@@ -163,10 +165,10 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       if (new Date(r.timestamp * 1000) > to) return false
     }
     return true
-  })
+  }), [history, opFilter, fromDate, toDate])
 
   // Apply sort
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
     let cmp = 0
     switch (sortCol) {
       case "operation": cmp = a.operation.localeCompare(b.operation); break
@@ -175,7 +177,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       case "timestamp": cmp = a.timestamp - b.timestamp; break
     }
     return sortDir === "asc" ? cmp : -cmp
-  })
+  }), [filtered, sortCol, sortDir])
 
   // Paginate
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
@@ -282,12 +284,12 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 {/* Filters toolbar */}
                 <div className="flex flex-wrap items-center gap-2">
                   <select
-                    className="text-xs border rounded px-2 py-1 bg-background"
+                    className="text-xs border rounded px-2 py-1 bg-background min-w-[11.5rem]"
                     value={opFilter}
                     onChange={(e) => { setOpFilter(e.target.value); setPage(0) }}
                     aria-label="Filter by operation type"
                   >
-                    <option value="">All operations</option>
+                    <option value="">All (lock/unlock hidden)</option>
                     {Array.from(new Set(history.map((r) => r.operation)))
                       .sort()
                       .map((op) => (
