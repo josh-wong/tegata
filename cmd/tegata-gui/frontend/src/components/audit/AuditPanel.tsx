@@ -357,12 +357,8 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                               <td className="p-2 font-mono">
                                 <button
                                   type="button"
-                                  className={cn(
-                                    "text-left focus:outline-none",
-                                    justCopied
-                                      ? "text-green-600 dark:text-green-400"
-                                      : "hover:underline focus:underline"
-                                  )}
+                                  className="text-left focus:outline-none cursor-pointer"
+                                  style={justCopied ? { color: "var(--cinnabar)" } : undefined}
                                   title="Click to copy full hash"
                                   onClick={() => copyHash(rowIdx, record.hash_value)}
                                 >
