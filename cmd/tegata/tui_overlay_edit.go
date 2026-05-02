@@ -153,14 +153,16 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Find the credential being edited by ID.
-			var originalCred *pkgmodel.Credential
+			var originalCred pkgmodel.Credential
+			found := false
 			for _, c := range m.vaultMgr.ListCredentials() {
 				if c.ID == m.editCredID {
-					originalCred = &c
+					originalCred = c
+					found = true
 					break
 				}
 			}
-			if originalCred == nil {
+			if !found {
 				m.errMsg = "Credential not found"
 				return m, nil
 			}
@@ -176,7 +178,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Build updated credential.
-			updatedCred := *originalCred
+			updatedCred := originalCred
 			updatedCred.Label = labelVal
 			updatedCred.Issuer = issuerVal
 			updatedCred.Tags = tags
