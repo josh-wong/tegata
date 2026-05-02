@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
-import { AlertTriangle, CheckCircle, Shield, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { DatePicker } from "@/components/ui/date-picker"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
@@ -17,6 +18,19 @@ function formatFault(f: string): string {
   return `The ${detail} for record ${id}`
 }
 
+type SortCol = "operation" | "label" | "timestamp" | "hash"
+type SortDir = "asc" | "desc"
+
+const PAGE_SIZE = 10
+
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronDown className="h-3 w-3 opacity-30 inline ml-0.5" />
+  return sortDir === "asc"
+    ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
+    : <ChevronDown className="h-3 w-3 inline ml-0.5" />
+}
+
 interface AuditPanelProps {
   open: boolean
   onClose: () => void
@@ -29,17 +43,35 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [error, setError] = useState("")
   const [dockerPath, setDockerPath] = useState("")
 
-  useEffect(() => {
-    if (open) {
-      setError("")
-      setVerifyResult(null)
-      App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
-    }
-  }, [open])
+  // Sorting state
+  const [sortCol, setSortCol] = useState<SortCol>("timestamp")
+  const [sortDir, setSortDir] = useState<SortDir>("desc")
 
-  async function handleFetchHistory() {
+  // Filter state
+  const [opFilter, setOpFilter] = useState("")
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
+  const [toDate, setToDate] = useState<Date | undefined>(undefined)
+
+  // Pagination state
+  const [page, setPage] = useState(0)
+
+  const [copiedHash, setCopiedHash] = useState<string | null>(null)
+  const [copyMsg, setCopyMsg] = useState("")
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear any pending copy-feedback timer on unmount to prevent state updates
+  // on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+    }
+  }, [])
+
+  const handleFetchHistory = useCallback(async () => {
     setLoading(true)
     setError("")
+    setPage(0)
+    setCopiedHash(null)
     try {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
@@ -48,7 +80,16 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      setError("")
+      setVerifyResult(null)
+      App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
+      handleFetchHistory()
+    }
+  }, [open, handleFetchHistory])
 
   async function handleVerify() {
     setLoading(true)
@@ -64,12 +105,78 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     }
   }
 
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortCol(col)
+      setSortDir(col === "timestamp" ? "desc" : "asc")
+    }
+    setPage(0)
+  }
+
+  function copyHash(hash: string) {
+    navigator.clipboard.writeText(hash).then(() => {
+      setCopiedHash(hash)
+      setCopyMsg("Hash copied to clipboard")
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => {
+        setCopyMsg("")
+        setCopiedHash(null)
+        copyTimerRef.current = null
+      }, 2000)
+    }).catch(() => {
+      // Keep the error visible for 10 seconds and show the hash as a fallback
+      // so users can copy it manually if the clipboard is unavailable.
+      setError(`Failed to copy hash to clipboard. Hash: ${hash}`)
+      setTimeout(() => setError(""), 10000)
+    })
+  }
+
+  // Apply filters
+  const filtered = useMemo(() => history.filter((r) => {
+    // When no filter selected, hide lock/unlock events by default
+    if (!opFilter) {
+      const op = r.operation.toLowerCase()
+      if (op === "vault unlock" || op === "vault lock") return false
+    }
+    // Case-insensitive operation type filter
+    if (opFilter && r.operation.toLowerCase() !== opFilter.toLowerCase()) return false
+    if (fromDate) {
+      const from = new Date(fromDate)
+      from.setHours(0, 0, 0, 0)
+      if (new Date(r.timestamp * 1000) < from) return false
+    }
+    if (toDate) {
+      const to = new Date(toDate)
+      to.setHours(23, 59, 59, 999)
+      if (new Date(r.timestamp * 1000) > to) return false
+    }
+    return true
+  }), [history, opFilter, fromDate, toDate])
+
+  // Apply sort
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
+    let cmp = 0
+    switch (sortCol) {
+      case "operation": cmp = a.operation.localeCompare(b.operation); break
+      case "label":     cmp = (a.label ?? "").localeCompare(b.label ?? ""); break
+      case "hash":      cmp = a.hash_value.localeCompare(b.hash_value); break
+      case "timestamp": cmp = a.timestamp - b.timestamp; break
+    }
+    return sortDir === "asc" ? cmp : -cmp
+  }), [filtered, sortCol, sortDir])
+
+  // Paginate
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
+  const pageRows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
   if (!open) return null
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-background border rounded-lg shadow-lg w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="bg-background border rounded-lg shadow-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -87,14 +194,15 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               </p>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
               <Button
                 onClick={handleFetchHistory}
                 disabled={loading}
                 variant="outline"
                 size="sm"
               >
-                View history
+                Refresh
               </Button>
               <Button
                 onClick={handleVerify}
@@ -104,6 +212,9 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               >
                 Verify integrity
               </Button>
+              {copyMsg && (
+                <span className="ml-auto text-xs" style={{ color: "var(--cinnabar)" }}>{copyMsg}</span>
+              )}
             </div>
 
             {error && (
@@ -157,32 +268,128 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             {history.length > 0 && (
               <>
                 <Separator />
+
+                {/* Filters toolbar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="text-xs border rounded px-2 py-1 bg-background min-w-[11.5rem]"
+                    value={opFilter}
+                    onChange={(e) => { setOpFilter(e.target.value); setPage(0) }}
+                    aria-label="Filter by operation type"
+                  >
+                    <option value="">All (lock/unlock hidden)</option>
+                    {Array.from(new Set(history.map((r) => r.operation)))
+                      .sort()
+                      .map((op) => (
+                        <option key={op} value={op}>{op}</option>
+                      ))}
+                  </select>
+                  <DatePicker
+                    value={fromDate}
+                    onChange={(d) => { setFromDate(d); setPage(0) }}
+                    placeholder="From date"
+                    aria-label="From date"
+                  />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <DatePicker
+                    value={toDate}
+                    onChange={(d) => { setToDate(d); setPage(0) }}
+                    placeholder="To date"
+                    aria-label="To date"
+                  />
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {filtered.length} of {history.length} events
+                  </span>
+                </div>
+
+                {/* History table */}
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{history.length} events</p>
                   <div className="border rounded-md overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2">Operation</th>
-                          <th className="text-left p-2">Label</th>
-                          <th className="text-left p-2">Timestamp</th>
-                          <th className="text-left p-2">Hash</th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("operation")}
+                          >
+                            Operation <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("label")}
+                          >
+                            Label <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[22%]"
+                            onClick={() => toggleSort("timestamp")}
+                          >
+                            Timestamp <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
+                          </th>
+                          <th
+                            className="text-left p-2 cursor-pointer select-none w-[34%]"
+                            onClick={() => toggleSort("hash")}
+                          >
+                            Hash <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {history.map((record, i) => (
-                          <tr key={i} className="border-b last:border-0">
-                            <td className="p-2">{record.operation}</td>
-                            <td className="p-2">{record.label}</td>
-                            <td className="p-2 text-muted-foreground">
-                              {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
-                            </td>
-                            <td className="p-2 font-mono truncate max-w-[200px]">{record.hash_value}</td>
-                          </tr>
-                        ))}
+                        {pageRows.map((record, i) => {
+                          const justCopied = copiedHash === record.hash_value
+                          return (
+                            <tr key={i} className="border-b last:border-0">
+                              <td className="p-2">{record.operation}</td>
+                              <td className="p-2">{record.label}</td>
+                              <td className="p-2 text-muted-foreground">
+                                {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
+                              </td>
+                              <td className="p-2 font-mono">
+                                <button
+                                  type="button"
+                                  className="text-left focus:outline-none cursor-pointer"
+                                  style={justCopied ? { color: "var(--cinnabar)" } : undefined}
+                                  title="Click to copy full hash"
+                                  onClick={() => copyHash(record.hash_value)}
+                                >
+                                  {record.hash_value.length > 10 ? record.hash_value.slice(0, 10) + "…" : record.hash_value}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <span className="text-xs text-muted-foreground">
+                        Page {page + 1} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => p - 1)}
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={page >= totalPages - 1}
+                        onClick={() => setPage((p) => p + 1)}
+                        aria-label="Next page"
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}

@@ -116,11 +116,16 @@ type model struct {
 	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
 
 	// Audit overlay state
-	auditMenuIdx int            // 0=History, 1=Verify, 2=Start
-	auditSubFlow string         // ""|"history"|"verify"|"start"
-	auditMsg     string         // result/status message
-	auditRecords []historyRecord // fetched records
-	auditLoading bool           // true while async gRPC call is in progress
+	auditMenuIdx    int             // 0=History, 1=Verify, 2=Start
+	auditSubFlow    string          // ""|"history"|"verify"|"start"
+	auditMsg        string          // result/status message
+	auditRecords        []historyRecord // fetched records (unfiltered)
+	auditFiltered       []historyRecord // fetched records after lock/unlock filter applied
+	auditLoading        bool            // true while async gRPC call is in progress
+	auditCursor         int             // selected row index in auditFiltered
+	auditScrollOff      int             // first visible row index in auditFiltered
+	auditMsgTime        time.Time       // time when auditMsg was set (for auto-dismiss)
+	auditShowLockEvents bool            // when true, vault lock/unlock rows are visible
 
 	// Audit event builder (nil when audit disabled or vault locked)
 	builder *audit.EventBuilder
@@ -294,6 +299,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.now = msg.t
+		// Auto-dismiss the "hash copied" status message after 3 seconds so it
+		// doesn't linger for the full clipboard auto-clear duration.
+		if m.state == stateOverlayAudit && m.auditSubFlow == "history" &&
+			!m.auditMsgTime.IsZero() && time.Since(m.auditMsgTime) >= 3*time.Second {
+			m.auditMsg = ""
+			m.auditMsgTime = time.Time{}
+		}
 		// Determine whether the effective state (accounting for narrow
 		// terminal overlay) is one where idle auto-lock should apply.
 		effectiveState := m.state
@@ -345,11 +357,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if len(msg.records) == 0 {
 			m.auditMsg = "No audit events found."
 			m.auditRecords = nil
+			m.auditFiltered = nil
 		} else {
 			m.auditRecords = msg.records
-			m.auditMsg = fmt.Sprintf("%d events", len(msg.records))
+			m.auditFiltered = filterAuditRecords(msg.records, m.auditShowLockEvents)
 			if msg.warning != "" {
-				m.auditMsg += " (" + msg.warning + ")"
+				m.auditMsg = msg.warning
+			} else {
+				m.auditMsg = ""
 			}
 		}
 		return m, nil

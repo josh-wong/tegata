@@ -122,14 +122,46 @@ func (m model) buildDeletedLabelMap() map[string]string {
 	return m.vaultMgr.DeletedLabels()
 }
 
+// filterAuditRecords returns records filtered for display. When showLock is
+// false, vault lock/unlock events are excluded (the default). The returned
+// slice is what auditFiltered is set to, keeping cursor navigation and
+// hash-copy in sync with the rendered table.
+//
+// The canonical operation names from the ledger are "vault-lock" and
+// "vault-unlock" (hyphen-separated, lowercase). This must match the values
+// used by audit.FormatOperation in the CLI history command to ensure
+// consistent filtering across all surfaces (GUI, TUI, CLI).
+func filterAuditRecords(records []historyRecord, showLock bool) []historyRecord {
+	if showLock {
+		out := make([]historyRecord, len(records))
+		copy(out, records)
+		return out
+	}
+	filtered := make([]historyRecord, 0, len(records))
+	for _, r := range records {
+		if r.Operation != "vault-lock" && r.Operation != "vault-unlock" {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}
+
 // resetAuditOverlay clears all audit overlay state.
 func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
 	m.auditSubFlow = ""
 	m.auditMsg = ""
 	m.auditRecords = nil
+	m.auditFiltered = nil
 	m.auditLoading = false
+	m.auditCursor = 0
+	m.auditScrollOff = 0
+	m.auditMsgTime = time.Time{}
+	m.auditShowLockEvents = false
 }
+
+// auditHistoryPageSize is the number of history rows visible at one time in the TUI.
+const auditHistoryPageSize = 10
 
 // updateOverlayAudit handles input for the audit overlay.
 func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -149,12 +181,67 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.auditSubFlow = ""
 				m.auditMsg = ""
 				m.auditRecords = nil
+				m.auditFiltered = nil
+				m.auditCursor = 0
+				m.auditScrollOff = 0
 				return m, nil
 			}
 			m.resetAuditOverlay()
 			m.state = stateMainView
 			return m, nil
 
+		// History sub-flow navigation: j/↓ and k/↑ scroll through records.
+		case m.auditSubFlow == "history" && !m.auditLoading &&
+			(msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j')):
+			if m.auditCursor < len(m.auditFiltered)-1 {
+				m.auditCursor++
+				if m.auditCursor >= m.auditScrollOff+auditHistoryPageSize {
+					m.auditScrollOff++
+				}
+			}
+			return m, nil
+
+		case m.auditSubFlow == "history" && !m.auditLoading &&
+			(msg.Type == tea.KeyUp || (len(msg.Runes) == 1 && msg.Runes[0] == 'k')):
+			if m.auditCursor > 0 {
+				m.auditCursor--
+				if m.auditCursor < m.auditScrollOff {
+					m.auditScrollOff--
+				}
+			}
+			return m, nil
+
+		// History sub-flow: Enter or 'c' copies the selected record's full hash.
+		case m.auditSubFlow == "history" && !m.auditLoading && len(m.auditFiltered) > 0 &&
+			(msg.Type == tea.KeyEnter || (len(msg.Runes) == 1 && msg.Runes[0] == 'c')):
+			if m.auditCursor < len(m.auditFiltered) {
+				hash := m.auditFiltered[m.auditCursor].HashValue
+				if m.clipMgr != nil {
+					if err := m.clipMgr.CopyWithAutoClear(hash, m.cfg.ClipboardTimeout); err != nil {
+						m.auditMsg = fmt.Sprintf("Hash: %s  (clipboard unavailable)", hash)
+						m.auditMsgTime = time.Time{} // don't auto-dismiss error messages
+					} else {
+						m.auditMsg = fmt.Sprintf("Hash copied to clipboard (auto-clears in %ds)",
+							int(m.cfg.ClipboardTimeout.Seconds()))
+						m.auditMsgTime = m.now // set time for auto-dismiss
+					}
+				} else {
+					m.auditMsg = fmt.Sprintf("Hash: %s", hash)
+					m.auditMsgTime = time.Time{}
+				}
+			}
+			return m, nil
+
+		// History sub-flow: 'f' toggles visibility of vault lock/unlock events.
+		case m.auditSubFlow == "history" && !m.auditLoading &&
+			len(msg.Runes) == 1 && msg.Runes[0] == 'f':
+			m.auditShowLockEvents = !m.auditShowLockEvents
+			m.auditFiltered = filterAuditRecords(m.auditRecords, m.auditShowLockEvents)
+			m.auditCursor = 0
+			m.auditScrollOff = 0
+			return m, nil
+
+		// Menu navigation (when not in a sub-flow).
 		case m.auditSubFlow == "" && (msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j')):
 			if m.auditMenuIdx < 1 {
 				m.auditMenuIdx++
@@ -172,6 +259,8 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 0:
 				m.auditSubFlow = "history"
 				m.auditLoading = true
+				m.auditCursor = 0
+				m.auditScrollOff = 0
 				return m, auditHistoryCmd(m.cfg.Audit)
 			case 1:
 				m.auditSubFlow = "verify"
@@ -189,13 +278,33 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // viewOverlayAudit renders the audit overlay.
 func (m model) viewOverlayAudit() string {
-	var content string
+	// History needs a wider box to display four columns without wrapping.
+	//
+	// Lipgloss Width() sets the content width *before* padding.
+	// wrapAt = Width - leftPad - rightPad = Width - 2 (for Padding(1)).
+	// Outer box width = Width + 2 (padding) + 2 (border) = Width + 4.
+	//
+	// We want the outer box to leave at least 4 cols of breathing room:
+	//   outer ≤ m.width - 4  →  Width ≤ m.width - 8
+	// lineW (actual text wrap boundary) = Width - 2 = m.width - 10.
+	if m.auditSubFlow == "history" {
+		lineW := m.width - 10
+		if lineW > 96 {
+			lineW = 96
+		}
+		if lineW < 64 {
+			lineW = 64
+		}
+		boxW := lineW + 2 // Width() = lineW + leftPad + rightPad
+		content := m.viewAuditHistory(lineW)
+		box := overlayBoxStyle.Width(boxW).Render(content)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	}
 
+	var content string
 	switch m.auditSubFlow {
 	case "":
 		content = m.viewAuditMenu()
-	case "history":
-		content = m.viewAuditHistory()
 	case "verify":
 		content = m.viewAuditVerify()
 	case "start":
@@ -224,7 +333,9 @@ func (m model) viewAuditMenu() string {
 	return title + "\n\n" + menu.String() + "\n" + help
 }
 
-func (m model) viewAuditHistory() string {
+// viewAuditHistory renders the audit history sub-flow.
+// boxW is the lipgloss Width value (text area, before padding and border).
+func (m model) viewAuditHistory(boxW int) string {
 	title := titleStyle.Render("Audit history")
 
 	if m.auditLoading {
@@ -232,26 +343,66 @@ func (m model) viewAuditHistory() string {
 			helpBarStyle.Render("[Esc] Back")
 	}
 
+	// Derive column widths from available space.
+	// Each row: 2-char prefix + opW + 1 + labelW + 1 + 19 (timestamp) + 1 + hashW
+	const tsW = 19
+	const prefixW = 2
+	remainder := boxW - prefixW - 5 - tsW // 5 = spaces between the 4 columns (3 before hash)
+	opW := remainder * 2 / 5
+	if opW < 15 {
+		opW = 15
+	}
+	labelW := remainder * 3 / 10
+	if labelW < 10 {
+		labelW = 10
+	}
+	hashW := remainder - opW - labelW
+	if hashW < 10 {
+		hashW = 10
+	}
+	lineW := prefixW + opW + 1 + labelW + 1 + tsW + 1 + hashW
+
 	// Build hash→label lookup from loaded credentials and deleted labels.
 	labelMap := m.buildLabelMap()
 	deletedMap := m.buildDeletedLabelMap()
 
 	var body strings.Builder
-	if len(m.auditRecords) > 0 {
-		body.WriteString(fmt.Sprintf("%-20s %-20s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
-		body.WriteString(strings.Repeat("─", 80) + "\n")
-		for _, r := range m.auditRecords {
+	if len(m.auditFiltered) > 0 {
+		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
+		body.WriteString(strings.Repeat("─", lineW) + "\n")
+
+		end := m.auditScrollOff + auditHistoryPageSize
+		if end > len(m.auditFiltered) {
+			end = len(m.auditFiltered)
+		}
+		for idx := m.auditScrollOff; idx < end; idx++ {
+			r := m.auditFiltered[idx]
 			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
-			if len(label) > 20 {
-				label = label[:19] + "…"
+			if len(label) > labelW {
+				label = label[:labelW-1] + "…"
 			}
 			op := audit.FormatOperation(r.Operation)
+			if len(op) > opW {
+				op = op[:opW-1] + "…"
+			}
 			ts := time.Unix(r.Timestamp, 0).Local().Format("2006-01-02 15:04:05")
 			hash := r.HashValue
-			if len(hash) > 16 {
-				hash = hash[:16] + "…"
+			if len(hash) > hashW {
+				hash = hash[:hashW-1] + "…"
 			}
-			body.WriteString(fmt.Sprintf("%-20s %-20s %-20s %s\n", op, label, ts, hash))
+			line := fmt.Sprintf("%-*s %-*s %-*s   %s", opW, op, labelW, label, tsW, ts, hash)
+			if idx == m.auditCursor {
+				body.WriteString(tipStyle.Render("▸ " + line))
+			} else {
+				body.WriteString("  " + line)
+			}
+			body.WriteString("\n")
+		}
+
+		// Show scroll indicator when the list overflows.
+		if len(m.auditFiltered) > auditHistoryPageSize {
+			body.WriteString(fmt.Sprintf("\n  %d–%d of %d",
+				m.auditScrollOff+1, end, len(m.auditFiltered)))
 		}
 	}
 
@@ -259,7 +410,11 @@ func (m model) viewAuditHistory() string {
 		body.WriteString("\n" + m.auditMsg)
 	}
 
-	help := helpBarStyle.Render("[Esc] Back")
+	lockToggleLabel := "[f] Show lock events"
+	if m.auditShowLockEvents {
+		lockToggleLabel = "[f] Hide lock events"
+	}
+	help := helpBarStyle.Render("[↑↓] Navigate  [Enter/c] Copy hash  " + lockToggleLabel + "  [Esc] Back")
 	return title + "\n\n" + body.String() + "\n\n" + help
 }
 

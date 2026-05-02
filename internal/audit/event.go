@@ -97,9 +97,9 @@ func FormatOperation(op string) string {
 	case "vault-lock":
 		return "Vault lock"
 	case "credential-add":
-		return "Credential add"
+		return "Credential addition"
 	case "credential-remove":
-		return "Credential remove"
+		return "Credential removal"
 	case "credential-update":
 		return "Credential update"
 	case "credential-tag-update":
