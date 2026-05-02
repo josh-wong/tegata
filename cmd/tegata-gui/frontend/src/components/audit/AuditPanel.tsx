@@ -29,8 +29,8 @@ const OPERATION_TYPE_LABELS: Record<string, string> = {
   "hotp": "HOTP",
   "static": "Static password",
   "challenge-response": "Challenge-response",
-  "vault-unlock": "Vault unlock",
-  "vault-lock": "Vault lock",
+  "Vault unlock": "Vault unlock",
+  "Vault lock": "Vault lock",
   "credential-add": "Credential add",
   "credential-remove": "Credential remove",
   "credential-update": "Credential update",
@@ -142,6 +142,11 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
 
   // Apply filters
   const filtered = history.filter((r) => {
+    // When no filter selected, hide lock/unlock events by default
+    if (!opFilter) {
+      const op = r.operation.toLowerCase()
+      if (op === "vault unlock" || op === "vault lock") return false
+    }
     // Case-insensitive operation type filter
     if (opFilter && r.operation.toLowerCase() !== opFilter.toLowerCase()) return false
     if (fromDate) {

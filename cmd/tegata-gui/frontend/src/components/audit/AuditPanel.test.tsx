@@ -109,6 +109,52 @@ describe("AuditPanel", () => {
     })
   })
 
+  it("hides lock/unlock events by default", async () => {
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "totp", label: "GitHub", label_hash: "abc", timestamp: 1700000000, hash_value: "hash1234567890ab" },
+      { object_id: "evt-2", operation: "Vault lock", label: "Vault", label_hash: "def", timestamp: 1700000001, hash_value: "hash2234567890ab" },
+      { object_id: "evt-3", operation: "Vault unlock", label: "Vault", label_hash: "ghi", timestamp: 1700000002, hash_value: "hash3234567890ab" },
+    ])
+
+    render(<AuditPanel open={true} onClose={() => {}} />)
+
+    await waitFor(() => {
+      // Should show 1 of 3 (only TOTP visible, lock/unlock hidden from table)
+      expect(screen.getByText("1 of 3 events")).toBeInTheDocument()
+      // Check that TOTP is in the table
+      const rows = screen.getAllByRole("row")
+      const tableText = rows.map(r => r.textContent).join(" ")
+      expect(tableText).toContain("totp")
+      expect(tableText).not.toContain("Vault lock")
+      expect(tableText).not.toContain("Vault unlock")
+    })
+  })
+
+  it("shows lock/unlock events when explicitly selected", async () => {
+    vi.mocked(App.GetAuditHistory).mockResolvedValue([
+      { object_id: "evt-1", operation: "totp", label: "GitHub", label_hash: "abc", timestamp: 1700000000, hash_value: "hash1234567890ab" },
+      { object_id: "evt-2", operation: "Vault lock", label: "Vault", label_hash: "def", timestamp: 1700000001, hash_value: "hash2234567890ab" },
+    ])
+
+    render(<AuditPanel open={true} onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 2 events")).toBeInTheDocument()
+    })
+
+    // Filter to Vault lock
+    const select = screen.getByRole("combobox")
+    await userEvent.selectOptions(select, "Vault lock")
+
+    await waitFor(() => {
+      // After filtering to Vault lock, should show 1 of 2 and see the Vault lock row
+      expect(screen.getByText("1 of 2 events")).toBeInTheDocument()
+      const rows = screen.getAllByRole("row")
+      const tableText = rows.map(r => r.textContent).join(" ")
+      expect(tableText).toContain("Vault lock")
+    })
+  })
+
   it("filters by operation type", async () => {
     vi.mocked(App.GetAuditHistory).mockResolvedValue([
       { object_id: "evt-1", operation: "totp", label: "GitHub", label_hash: "abc", timestamp: 1700000000, hash_value: "hash1234567890ab" },

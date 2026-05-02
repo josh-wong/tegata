@@ -330,17 +330,26 @@ func (m model) viewAuditHistory(boxW int) string {
 	labelMap := m.buildLabelMap()
 	deletedMap := m.buildDeletedLabelMap()
 
+	// Filter out lock/unlock events by default.
+	filtered := make([]historyRecord, 0, len(m.auditRecords))
+	for _, r := range m.auditRecords {
+		op := strings.ToLower(r.Operation)
+		if op != "vault lock" && op != "vault unlock" {
+			filtered = append(filtered, r)
+		}
+	}
+
 	var body strings.Builder
-	if len(m.auditRecords) > 0 {
+	if len(filtered) > 0 {
 		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
 		body.WriteString(strings.Repeat("─", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
-		if end > len(m.auditRecords) {
-			end = len(m.auditRecords)
+		if end > len(filtered) {
+			end = len(filtered)
 		}
 		for idx := m.auditScrollOff; idx < end; idx++ {
-			r := m.auditRecords[idx]
+			r := filtered[idx]
 			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
 			if len(label) > labelW {
 				label = label[:labelW-1] + "…"
@@ -364,9 +373,9 @@ func (m model) viewAuditHistory(boxW int) string {
 		}
 
 		// Show scroll indicator when the list overflows.
-		if len(m.auditRecords) > auditHistoryPageSize {
+		if len(filtered) > auditHistoryPageSize {
 			body.WriteString(fmt.Sprintf("\n  %d–%d of %d",
-				m.auditScrollOff+1, end, len(m.auditRecords)))
+				m.auditScrollOff+1, end, len(filtered)))
 		}
 	}
 
