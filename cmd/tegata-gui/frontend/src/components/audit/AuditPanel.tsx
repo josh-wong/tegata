@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { DatePicker } from "@/components/ui/date-picker"
 import { App } from "@/lib/wails"
 import type { AuditHistoryRecord, AuditVerifyResult } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
@@ -58,8 +59,8 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
 
   // Filter state
   const [opFilter, setOpFilter] = useState("")
-  const [fromDate, setFromDate] = useState("")
-  const [toDate, setToDate] = useState("")
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
+  const [toDate, setToDate] = useState<Date | undefined>(undefined)
 
   // Pagination state
   const [page, setPage] = useState(0)
@@ -142,11 +143,13 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     // Case-insensitive operation type filter
     if (opFilter && r.operation.toLowerCase() !== opFilter.toLowerCase()) return false
     if (fromDate) {
-      const from = new Date(fromDate + "T00:00:00")
+      const from = new Date(fromDate)
+      from.setHours(0, 0, 0, 0)
       if (new Date(r.timestamp * 1000) < from) return false
     }
     if (toDate) {
-      const to = new Date(toDate + "T23:59:59.999")
+      const to = new Date(toDate)
+      to.setHours(23, 59, 59, 999)
       if (new Date(r.timestamp * 1000) > to) return false
     }
     return true
@@ -283,22 +286,18 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                         </option>
                       ))}
                   </select>
-                  <input
-                    type="date"
-                    className="text-xs border rounded px-2 py-1 bg-background"
+                  <DatePicker
                     value={fromDate}
-                    onChange={(e) => { setFromDate(e.target.value); setPage(0) }}
+                    onChange={(d) => { setFromDate(d); setPage(0) }}
+                    placeholder="From date"
                     aria-label="From date"
-                    title="From date"
                   />
                   <span className="text-xs text-muted-foreground">–</span>
-                  <input
-                    type="date"
-                    className="text-xs border rounded px-2 py-1 bg-background"
+                  <DatePicker
                     value={toDate}
-                    onChange={(e) => { setToDate(e.target.value); setPage(0) }}
+                    onChange={(d) => { setToDate(d); setPage(0) }}
+                    placeholder="To date"
                     aria-label="To date"
-                    title="To date"
                   />
                   <span className="text-xs text-muted-foreground ml-auto">
                     {filtered.length} of {history.length} events
