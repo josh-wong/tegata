@@ -27,16 +27,13 @@ interface ContextMenuState {
   credential: Credential
 }
 
-function groupByTag(credentials: Credential[]) {
+function groupByCategory(credentials: Credential[]) {
   const groups = new Map<string, Credential[]>()
   for (const cred of credentials) {
-    const t = cred.tags ?? []
-    const tags = t.length > 0 ? t : ["[Untagged]"]
-    for (const tag of tags) {
-      const list = groups.get(tag) ?? []
-      list.push(cred)
-      groups.set(tag, list)
-    }
+    const key = cred.category?.trim() ? cred.category.trim() : "[Uncategorized]"
+    const list = groups.get(key) ?? []
+    list.push(cred)
+    groups.set(key, list)
   }
   return groups
 }
@@ -95,7 +92,7 @@ export function Sidebar({
       (c.issuer ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  const groups = groupByTag(filtered)
+  const groups = groupByCategory(filtered)
 
   function toggleGroup(tag: string) {
     setCollapsed((prev) => {
@@ -145,9 +142,9 @@ export function Sidebar({
         <div className="px-2 pb-2">
           {Array.from(groups.entries())
             .sort(([tagA], [tagB]) => {
-              // Put [Untagged] at the end
-              if (tagA === "[Untagged]") return 1
-              if (tagB === "[Untagged]") return -1
+              // Put [Uncategorized] at the end
+              if (tagA === "[Uncategorized]") return 1
+              if (tagB === "[Uncategorized]") return -1
               // Otherwise sort alphabetically
               return tagA.localeCompare(tagB)
             })

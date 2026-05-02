@@ -307,7 +307,7 @@ func (a *App) GetCredential(label string) (*model.Credential, error) {
 }
 
 // AddCredential creates a new credential in the vault and returns its ID.
-func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, digits, period int, tags []string) (string, error) {
+func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, digits, period int, tags []string, category string) (string, error) {
 	if a.vault == nil {
 		return "", fmt.Errorf("vault is locked")
 	}
@@ -326,6 +326,7 @@ func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, d
 		Digits:    digits,
 		Period:    period,
 		Tags:      tags,
+		Category:  strings.ToLower(strings.TrimSpace(category)),
 	}
 
 	return a.vault.AddCredential(cred)
@@ -360,8 +361,8 @@ func (a *App) RemoveCredential(id string) error {
 }
 
 // EditCredential updates a credential's label, issuer, and/or tags.
-// If a field is empty, it is not updated (except tags, which can be cleared by passing an empty slice).
-func (a *App) EditCredential(id, label, issuer string, tags []string) error {
+// If a field is empty, it is not updated (except tags and category, which can be cleared by passing an empty slice/string).
+func (a *App) EditCredential(id, label, issuer string, tags []string, category string) error {
 	if a.vault == nil {
 		return fmt.Errorf("vault is locked")
 	}
@@ -413,6 +414,9 @@ func (a *App) EditCredential(id, label, issuer string, tags []string) error {
 		}
 		cred.Tags = normalizedTags
 	}
+
+	// Always overwrite category (empty string clears it).
+	cred.Category = strings.ToLower(strings.TrimSpace(category))
 
 	if err := a.vault.UpdateCredential(cred); err != nil {
 		return fmt.Errorf("updating credential: %w", err)

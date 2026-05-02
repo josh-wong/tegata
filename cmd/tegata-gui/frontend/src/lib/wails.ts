@@ -36,9 +36,10 @@ interface WailsAppBindings {
     digits: number,
     period: number,
     tags: string[],
+    category: string,
   ): Promise<string>
   AddCredentialFromURI(uri: string): Promise<string>
-  EditCredential(id: string, label: string, issuer: string, tags: string[]): Promise<void>
+  EditCredential(id: string, label: string, issuer: string, tags: string[], category: string): Promise<void>
   RemoveCredential(id: string): Promise<void>
   GenerateTOTP(label: string): Promise<TOTPResult>
   RecordTOTPUsed(label: string): Promise<void>
@@ -93,7 +94,7 @@ export const App = {
   GetCredential: (label: string) => getApp().GetCredential(label),
   AddCredential: (...args: Parameters<WailsAppBindings["AddCredential"]>) => getApp().AddCredential(...args),
   AddCredentialFromURI: (uri: string) => getApp().AddCredentialFromURI(uri),
-  EditCredential: (id: string, label: string, issuer: string, tags: string[]) => getApp().EditCredential(id, label, issuer, tags),
+  EditCredential: (id: string, label: string, issuer: string, tags: string[], category: string) => getApp().EditCredential(id, label, issuer, tags, category),
   RemoveCredential: (id: string) => getApp().RemoveCredential(id),
   GenerateTOTP: (label: string) => getApp().GenerateTOTP(label),
   RecordTOTPUsed: (label: string) => getApp().RecordTOTPUsed(label),

@@ -17,6 +17,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
   const [label, setLabel] = useState("")
   const [issuer, setIssuer] = useState("")
   const [tags, setTags] = useState("")
+  const [category, setCategory] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -26,6 +27,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
       setLabel(credential.label)
       setIssuer(credential.issuer ?? "")
       setTags((credential.tags ?? []).join(", "))
+      setCategory(credential.category ?? "")
       setError("")
     }
   }, [credential])
@@ -36,6 +38,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
     setLabel("")
     setIssuer("")
     setTags("")
+    setCategory("")
     setError("")
   }
 
@@ -60,10 +63,12 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
       return
     }
 
+    const normalizedCategory = category.trim().toLowerCase()
+
     setLoading(true)
     setError("")
     try {
-      await App.EditCredential(credential!.id, trimmedLabel, issuer, tagList)
+      await App.EditCredential(credential!.id, trimmedLabel, issuer, tagList, normalizedCategory)
       reset()
       onUpdated()
       onClose()
@@ -80,7 +85,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
         <DialogHeader>
           <DialogTitle>Edit Credential</DialogTitle>
           <DialogDescription>
-            Update the label, issuer, and tags for this credential.
+            Update the label, issuer, category, and tags for this credential.
           </DialogDescription>
         </DialogHeader>
 
@@ -104,6 +109,17 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               value={issuer}
               onChange={(e) => setIssuer(e.target.value)}
               placeholder="e.g. GitHub Inc"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Category (optional)</label>
+            <Input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. work"
               disabled={loading}
             />
           </div>
