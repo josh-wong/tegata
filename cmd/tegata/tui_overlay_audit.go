@@ -122,12 +122,28 @@ func (m model) buildDeletedLabelMap() map[string]string {
 	return m.vaultMgr.DeletedLabels()
 }
 
+// filterAuditRecords returns a copy of records with vault lock/unlock events
+// removed. This is the default display filter applied in both the TUI view and
+// the model state so that cursor navigation and hash-copy operate on the same
+// slice as the rendered table.
+func filterAuditRecords(records []historyRecord) []historyRecord {
+	filtered := make([]historyRecord, 0, len(records))
+	for _, r := range records {
+		op := strings.ToLower(r.Operation)
+		if op != "vault lock" && op != "vault unlock" {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}
+
 // resetAuditOverlay clears all audit overlay state.
 func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
 	m.auditSubFlow = ""
 	m.auditMsg = ""
 	m.auditRecords = nil
+	m.auditFiltered = nil
 	m.auditLoading = false
 	m.auditCursor = 0
 	m.auditScrollOff = 0
@@ -155,6 +171,7 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.auditSubFlow = ""
 				m.auditMsg = ""
 				m.auditRecords = nil
+				m.auditFiltered = nil
 				m.auditCursor = 0
 				m.auditScrollOff = 0
 				return m, nil
@@ -166,7 +183,7 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// History sub-flow navigation: j/↓ and k/↑ scroll through records.
 		case m.auditSubFlow == "history" && !m.auditLoading &&
 			(msg.Type == tea.KeyDown || (len(msg.Runes) == 1 && msg.Runes[0] == 'j')):
-			if m.auditCursor < len(m.auditRecords)-1 {
+			if m.auditCursor < len(m.auditFiltered)-1 {
 				m.auditCursor++
 				if m.auditCursor >= m.auditScrollOff+auditHistoryPageSize {
 					m.auditScrollOff++
@@ -185,10 +202,10 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		// History sub-flow: Enter or 'c' copies the selected record's full hash.
-		case m.auditSubFlow == "history" && !m.auditLoading && len(m.auditRecords) > 0 &&
+		case m.auditSubFlow == "history" && !m.auditLoading && len(m.auditFiltered) > 0 &&
 			(msg.Type == tea.KeyEnter || (len(msg.Runes) == 1 && msg.Runes[0] == 'c')):
-			if m.auditCursor < len(m.auditRecords) {
-				hash := m.auditRecords[m.auditCursor].HashValue
+			if m.auditCursor < len(m.auditFiltered) {
+				hash := m.auditFiltered[m.auditCursor].HashValue
 				if m.clipMgr != nil {
 					if err := m.clipMgr.CopyWithAutoClear(hash, m.cfg.ClipboardTimeout); err != nil {
 						m.auditMsg = fmt.Sprintf("Hash: %s  (clipboard unavailable)", hash)
@@ -330,26 +347,17 @@ func (m model) viewAuditHistory(boxW int) string {
 	labelMap := m.buildLabelMap()
 	deletedMap := m.buildDeletedLabelMap()
 
-	// Filter out lock/unlock events by default.
-	filtered := make([]historyRecord, 0, len(m.auditRecords))
-	for _, r := range m.auditRecords {
-		op := strings.ToLower(r.Operation)
-		if op != "vault lock" && op != "vault unlock" {
-			filtered = append(filtered, r)
-		}
-	}
-
 	var body strings.Builder
-	if len(filtered) > 0 {
+	if len(m.auditFiltered) > 0 {
 		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
 		body.WriteString(strings.Repeat("─", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
-		if end > len(filtered) {
-			end = len(filtered)
+		if end > len(m.auditFiltered) {
+			end = len(m.auditFiltered)
 		}
 		for idx := m.auditScrollOff; idx < end; idx++ {
-			r := filtered[idx]
+			r := m.auditFiltered[idx]
 			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
 			if len(label) > labelW {
 				label = label[:labelW-1] + "…"
@@ -373,9 +381,9 @@ func (m model) viewAuditHistory(boxW int) string {
 		}
 
 		// Show scroll indicator when the list overflows.
-		if len(filtered) > auditHistoryPageSize {
+		if len(m.auditFiltered) > auditHistoryPageSize {
 			body.WriteString(fmt.Sprintf("\n  %d–%d of %d",
-				m.auditScrollOff+1, end, len(filtered)))
+				m.auditScrollOff+1, end, len(m.auditFiltered)))
 		}
 	}
 

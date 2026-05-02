@@ -119,10 +119,11 @@ type model struct {
 	auditMenuIdx    int             // 0=History, 1=Verify, 2=Start
 	auditSubFlow    string          // ""|"history"|"verify"|"start"
 	auditMsg        string          // result/status message
-	auditRecords    []historyRecord // fetched records
+	auditRecords    []historyRecord // fetched records (unfiltered)
+	auditFiltered   []historyRecord // fetched records after lock/unlock filter applied
 	auditLoading    bool            // true while async gRPC call is in progress
-	auditCursor     int             // selected row index in history view
-	auditScrollOff  int             // first visible row index in history view
+	auditCursor     int             // selected row index in auditFiltered
+	auditScrollOff  int             // first visible row index in auditFiltered
 	auditMsgTime    time.Time       // time when auditMsg was set (for auto-dismiss)
 
 	// Audit event builder (nil when audit disabled or vault locked)
@@ -355,8 +356,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if len(msg.records) == 0 {
 			m.auditMsg = "No audit events found."
 			m.auditRecords = nil
+			m.auditFiltered = nil
 		} else {
 			m.auditRecords = msg.records
+			m.auditFiltered = filterAuditRecords(msg.records)
 			if msg.warning != "" {
 				m.auditMsg = msg.warning
 			} else {

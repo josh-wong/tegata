@@ -67,7 +67,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
 
 
 
-  const [copiedHashIdx, setCopiedHashIdx] = useState<number | null>(null)
+  const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const [copyMsg, setCopyMsg] = useState("")
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     setLoading(true)
     setError("")
     setPage(0)
-    setCopiedHashIdx(null)
+    setCopiedHash(null)
     try {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
@@ -126,13 +126,13 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
 
-  function copyHash(idx: number, hash: string) {
+  function copyHash(hash: string) {
     navigator.clipboard.writeText(hash).then(() => {
-      setCopiedHashIdx(idx)
+      setCopiedHash(hash)
       setCopyMsg("Hash copied to clipboard")
       setTimeout(() => {
         setCopyMsg("")
-        setCopiedHashIdx(null)
+        setCopiedHash(null)
       }, 2000)
     }).catch(() => {
       setError("Failed to copy hash to clipboard")
@@ -345,10 +345,9 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                       </thead>
                       <tbody>
                         {pageRows.map((record, i) => {
-                          const rowIdx = page * PAGE_SIZE + i
-                          const justCopied = copiedHashIdx === rowIdx
+                          const justCopied = copiedHash === record.hash_value
                           return (
-                            <tr key={rowIdx} className="border-b last:border-0">
+                            <tr key={i} className="border-b last:border-0">
                               <td className="p-2">{record.operation}</td>
                               <td className="p-2">{record.label}</td>
                               <td className="p-2 text-muted-foreground">
@@ -360,7 +359,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                                   className="text-left focus:outline-none cursor-pointer"
                                   style={justCopied ? { color: "var(--cinnabar)" } : undefined}
                                   title="Click to copy full hash"
-                                  onClick={() => copyHash(rowIdx, record.hash_value)}
+                                  onClick={() => copyHash(record.hash_value)}
                                 >
                                   {record.hash_value.slice(0, 10) + "…"}
                                 </button>
