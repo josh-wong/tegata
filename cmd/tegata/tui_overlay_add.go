@@ -503,25 +503,75 @@ func (m model) viewOverlayRemove() string {
 }
 
 // refreshCredList rebuilds the credential list from the vault manager,
-// sorted alphabetically by label. The list selection moves to the item
-// matching selectLabel (if non-empty), or resets to the top.
+// grouped by category, with each category section alphabetically sorted.
+// The list selection moves to the item matching selectLabel (if non-empty), or resets to the top.
 func refreshCredList(m model, selectLabel ...string) model {
 	if m.vaultMgr == nil {
 		return m
 	}
 	creds := m.vaultMgr.ListCredentials()
-	sort.Slice(creds, func(i, j int) bool {
-		return strings.ToLower(creds[i].Label) < strings.ToLower(creds[j].Label)
+
+	// Group credentials by category
+	groups := make(map[string][]pkgmodel.Credential)
+	for _, c := range creds {
+		key := c.Category
+		if key == "" {
+			key = "[Uncategorized]"
+		}
+		groups[key] = append(groups[key], c)
+	}
+
+	// Sort category keys (alphabetically, with [Uncategorized] at the end)
+	var categories []string
+	for cat := range groups {
+		categories = append(categories, cat)
+	}
+	sort.Slice(categories, func(i, j int) bool {
+		if categories[i] == "[Uncategorized]" {
+			return false
+		}
+		if categories[j] == "[Uncategorized]" {
+			return true
+		}
+		return categories[i] < categories[j]
 	})
-	items := make([]list.Item, 0, len(creds))
+
+	// Build items list with category headers and sorted credentials
+	items := make([]list.Item, 0, len(creds)+len(categories))
 	selectedIdx := 0
-	for i, c := range creds {
-		items = append(items, credItem{cred: c})
-		if len(selectLabel) > 0 && c.Label == selectLabel[0] {
-			selectedIdx = i
+	itemIdx := 0
+
+	for _, cat := range categories {
+		// Add category header
+		items = append(items, categoryHeaderItem{category: cat})
+		itemIdx++
+
+		// Sort credentials within this category by label
+		catCreds := groups[cat]
+		sort.Slice(catCreds, func(i, j int) bool {
+			return strings.ToLower(catCreds[i].Label) < strings.ToLower(catCreds[j].Label)
+		})
+
+		// Add credentials
+		for _, c := range catCreds {
+			items = append(items, credItem{cred: c})
+			if len(selectLabel) > 0 && c.Label == selectLabel[0] {
+				selectedIdx = itemIdx
+			}
+			itemIdx++
 		}
 	}
+
 	m.credList.SetItems(items)
+	// If no specific label to select, find the first credItem (skip category headers)
+	if len(selectLabel) == 0 && selectedIdx == 0 {
+		for i, item := range items {
+			if _, ok := item.(credItem); ok {
+				selectedIdx = i
+				break
+			}
+		}
+	}
 	m.credList.Select(selectedIdx)
 	m.cursor = selectedIdx
 	if len(creds) == 1 {
