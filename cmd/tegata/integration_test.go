@@ -839,6 +839,164 @@ func TestHistory_FilterRecords(t *testing.T) {
 			t.Errorf("got %d records, want 0", len(filtered))
 		}
 	})
+
+	t.Run("opType filter matches case-insensitively", func(t *testing.T) {
+		filtered := filterRecords(records, time.Time{}, time.Time{}, "TOTP")
+		if len(filtered) != 2 {
+			t.Fatalf("got %d records, want 2", len(filtered))
+		}
+		for _, r := range filtered {
+			if !strings.EqualFold(r.Operation, "totp") {
+				t.Errorf("unexpected operation %q in filtered results", r.Operation)
+			}
+		}
+	})
+
+	t.Run("opType filter with no matches returns empty", func(t *testing.T) {
+		filtered := filterRecords(records, time.Time{}, time.Time{}, "static")
+		if len(filtered) != 0 {
+			t.Errorf("got %d records, want 0", len(filtered))
+		}
+	})
+
+	t.Run("opType combined with date filter", func(t *testing.T) {
+		from := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
+		filtered := filterRecords(records, from, time.Time{}, "hotp")
+		if len(filtered) != 1 {
+			t.Fatalf("got %d records, want 1", len(filtered))
+		}
+		if filtered[0].ObjectID != "evt-3" {
+			t.Errorf("record = %q, want evt-3", filtered[0].ObjectID)
+		}
+	})
+}
+
+// TestHistory_SortRecords verifies that sortRecords correctly sorts by each
+// supported column in both ascending and descending order.
+func TestHistory_SortRecords(t *testing.T) {
+	base := []historyRecord{
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "lbl-c", Timestamp: 3000, HashValue: "zzz"},
+		{ObjectID: "evt-2", Operation: "hotp", LabelHash: "lbl-a", Timestamp: 1000, HashValue: "aaa"},
+		{ObjectID: "evt-3", Operation: "static", LabelHash: "lbl-b", Timestamp: 2000, HashValue: "mmm"},
+	}
+	labelMap := map[string]string{
+		"lbl-a": "Alpha",
+		"lbl-b": "Beta",
+		"lbl-c": "Gamma",
+	}
+
+	clone := func() []historyRecord {
+		cp := make([]historyRecord, len(base))
+		copy(cp, base)
+		return cp
+	}
+
+	t.Run("empty sortBy with order asc reverses default (timestamp desc) order", func(t *testing.T) {
+		// Simulate records already in default desc order: 3000, 2000, 1000.
+		r := []historyRecord{base[0], base[2], base[1]}
+		sortRecords(r, labelMap, nil, "", "asc")
+		want := []string{"evt-2", "evt-3", "evt-1"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy timestamp asc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "timestamp", "asc")
+		want := []string{"evt-2", "evt-3", "evt-1"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy timestamp desc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "timestamp", "desc")
+		want := []string{"evt-1", "evt-3", "evt-2"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy hash asc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "hash", "asc")
+		// aaa < mmm < zzz → evt-2, evt-3, evt-1
+		want := []string{"evt-2", "evt-3", "evt-1"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy hash desc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "hash", "desc")
+		// zzz > mmm > aaa → evt-1, evt-3, evt-2
+		want := []string{"evt-1", "evt-3", "evt-2"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy operation asc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "operation", "asc")
+		// FormatOperation: "hotp"→"HOTP", "static"→"Static password", "totp"→"TOTP"
+		// Alphabetical asc: HOTP < Static password < TOTP → evt-2, evt-3, evt-1
+		want := []string{"evt-2", "evt-3", "evt-1"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy operation desc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "operation", "desc")
+		// desc: TOTP > Static password > HOTP → evt-1, evt-3, evt-2
+		want := []string{"evt-1", "evt-3", "evt-2"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy label asc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "label", "asc")
+		// Alpha < Beta < Gamma → evt-2, evt-3, evt-1
+		want := []string{"evt-2", "evt-3", "evt-1"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
+
+	t.Run("sortBy label desc", func(t *testing.T) {
+		r := clone()
+		sortRecords(r, labelMap, nil, "label", "desc")
+		// Gamma > Beta > Alpha → evt-1, evt-3, evt-2
+		want := []string{"evt-1", "evt-3", "evt-2"}
+		for i, id := range want {
+			if r[i].ObjectID != id {
+				t.Errorf("position %d = %q, want %q", i, r[i].ObjectID, id)
+			}
+		}
+	})
 }
 
 func TestIntegration_StaticBinaryBuild(t *testing.T) {

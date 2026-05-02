@@ -136,8 +136,10 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
         setCopiedHash(null)
       }, 2000)
     }).catch(() => {
-      setError("Failed to copy hash to clipboard")
-      setTimeout(() => setError(""), 2000)
+      // Keep the error visible for 10 seconds and show the hash as a fallback
+      // so users can copy it manually if the clipboard is unavailable.
+      setError(`Failed to copy hash to clipboard. Hash: ${hash}`)
+      setTimeout(() => setError(""), 10000)
     })
   }
 

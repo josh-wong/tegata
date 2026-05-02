@@ -619,3 +619,48 @@ func TestTUI_AuditMenu(t *testing.T) {
 		t.Error("expected 'Verify integrity' in audit menu")
 	}
 }
+
+// TestTUI_FilterAuditRecords verifies that filterAuditRecords correctly
+// excludes or includes vault lock/unlock events based on the showLock flag.
+func TestTUI_FilterAuditRecords(t *testing.T) {
+	records := []historyRecord{
+		{ObjectID: "evt-1", Operation: "totp", LabelHash: "abc", Timestamp: 1000, HashValue: "hash1"},
+		{ObjectID: "evt-2", Operation: "vault-lock", LabelHash: "def", Timestamp: 2000, HashValue: "hash2"},
+		{ObjectID: "evt-3", Operation: "vault-unlock", LabelHash: "ghi", Timestamp: 3000, HashValue: "hash3"},
+		{ObjectID: "evt-4", Operation: "hotp", LabelHash: "jkl", Timestamp: 4000, HashValue: "hash4"},
+	}
+
+	t.Run("showLock false excludes vault-lock and vault-unlock", func(t *testing.T) {
+		filtered := filterAuditRecords(records, false)
+		if len(filtered) != 2 {
+			t.Fatalf("got %d records, want 2", len(filtered))
+		}
+		for _, r := range filtered {
+			if r.Operation == "vault-lock" || r.Operation == "vault-unlock" {
+				t.Errorf("unexpected lock event %q in filtered results", r.Operation)
+			}
+		}
+	})
+
+	t.Run("showLock true returns all records", func(t *testing.T) {
+		filtered := filterAuditRecords(records, true)
+		if len(filtered) != 4 {
+			t.Fatalf("got %d records, want 4", len(filtered))
+		}
+	})
+
+	t.Run("showLock true returns a copy, not the original slice", func(t *testing.T) {
+		filtered := filterAuditRecords(records, true)
+		filtered[0].ObjectID = "mutated"
+		if records[0].ObjectID == "mutated" {
+			t.Error("filterAuditRecords with showLock=true shares underlying array with source")
+		}
+	})
+
+	t.Run("showLock false on empty input returns empty", func(t *testing.T) {
+		filtered := filterAuditRecords(nil, false)
+		if len(filtered) != 0 {
+			t.Errorf("got %d records, want 0", len(filtered))
+		}
+	})
+}
