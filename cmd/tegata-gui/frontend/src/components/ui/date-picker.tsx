@@ -83,6 +83,7 @@ export function DatePicker({
             {/* Calendar popup — sits above the backdrop */}
             <div
               role="dialog"
+              aria-modal="true"
               style={{ position: "absolute", top: position.top, left: position.left, zIndex: 9999 }}
               className="rounded-md border bg-background shadow-md"
             >
