@@ -122,11 +122,16 @@ func (m model) buildDeletedLabelMap() map[string]string {
 	return m.vaultMgr.DeletedLabels()
 }
 
-// filterAuditRecords returns a copy of records with vault lock/unlock events
-// removed. This is the default display filter applied in both the TUI view and
-// the model state so that cursor navigation and hash-copy operate on the same
-// slice as the rendered table.
-func filterAuditRecords(records []historyRecord) []historyRecord {
+// filterAuditRecords returns records filtered for display. When showLock is
+// false, vault lock/unlock events are excluded (the default). The returned
+// slice is what auditFiltered is set to, keeping cursor navigation and
+// hash-copy in sync with the rendered table.
+func filterAuditRecords(records []historyRecord, showLock bool) []historyRecord {
+	if showLock {
+		out := make([]historyRecord, len(records))
+		copy(out, records)
+		return out
+	}
 	filtered := make([]historyRecord, 0, len(records))
 	for _, r := range records {
 		op := strings.ToLower(r.Operation)
@@ -148,6 +153,7 @@ func (m *model) resetAuditOverlay() {
 	m.auditCursor = 0
 	m.auditScrollOff = 0
 	m.auditMsgTime = time.Time{}
+	m.auditShowLockEvents = false
 }
 
 // auditHistoryPageSize is the number of history rows visible at one time in the TUI.
@@ -220,6 +226,15 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.auditMsgTime = time.Time{}
 				}
 			}
+			return m, nil
+
+		// History sub-flow: 'f' toggles visibility of vault lock/unlock events.
+		case m.auditSubFlow == "history" && !m.auditLoading &&
+			len(msg.Runes) == 1 && msg.Runes[0] == 'f':
+			m.auditShowLockEvents = !m.auditShowLockEvents
+			m.auditFiltered = filterAuditRecords(m.auditRecords, m.auditShowLockEvents)
+			m.auditCursor = 0
+			m.auditScrollOff = 0
 			return m, nil
 
 		// Menu navigation (when not in a sub-flow).
@@ -391,7 +406,11 @@ func (m model) viewAuditHistory(boxW int) string {
 		body.WriteString("\n" + m.auditMsg)
 	}
 
-	help := helpBarStyle.Render("[↑↓] Navigate  [Enter/c] Copy hash  [Esc] Back")
+	lockToggleLabel := "[f] Show lock events"
+	if m.auditShowLockEvents {
+		lockToggleLabel = "[f] Hide lock events"
+	}
+	help := helpBarStyle.Render("[↑↓] Navigate  [Enter/c] Copy hash  " + lockToggleLabel + "  [Esc] Back")
 	return title + "\n\n" + body.String() + "\n\n" + help
 }
 
