@@ -28,10 +28,10 @@ export function DatePicker({
   function handleTriggerClick() {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setPosition({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-    })
+    // Use viewport-relative coordinates (no scrollY/scrollX) because the popup
+    // uses position: fixed, which is always relative to the viewport regardless
+    // of scroll position or ancestor positioning.
+    setPosition({ top: rect.bottom + 4, left: rect.left })
     setMonth(value ?? new Date())
     setOpen((prev) => !prev)
   }
@@ -84,7 +84,7 @@ export function DatePicker({
             <div
               role="dialog"
               aria-modal="true"
-              style={{ position: "absolute", top: position.top, left: position.left, zIndex: 9999 }}
+              style={{ position: "fixed", top: position.top, left: position.left, zIndex: 9999 }}
               className="rounded-md border bg-background shadow-md"
             >
               <Calendar

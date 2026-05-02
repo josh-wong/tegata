@@ -23,26 +23,6 @@ type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 10
 
-// OPERATION_TYPE_LABELS maps the display strings returned by GetAuditHistory
-// (which calls audit.FormatOperation server-side) to dropdown labels. Keys must
-// match what the API returns, not the raw ledger values. Unknown operations fall
-// through to the raw string via the `|| op` fallback in the dropdown.
-const OPERATION_TYPE_LABELS: Record<string, string> = {
-  "TOTP": "TOTP",
-  "HOTP": "HOTP",
-  "Static password": "Static password",
-  "Challenge-response": "Challenge-response",
-  "Vault unlock": "Vault unlock",
-  "Vault lock": "Vault lock",
-  "Credential addition": "Credential addition",
-  "Credential removal": "Credential removal",
-  "Credential update": "Credential update",
-  "Credential tag update": "Credential tag update",
-  "Credential import": "Credential import",
-  "Credential export": "Credential export",
-  "Vault passphrase change": "Vault passphrase change",
-  "HOTP resync": "HOTP resync",
-}
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
   if (sortCol !== col) return <ChevronDown className="h-3 w-3 opacity-30 inline ml-0.5" />
@@ -78,6 +58,14 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const [copyMsg, setCopyMsg] = useState("")
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear any pending copy-feedback timer on unmount to prevent state updates
+  // on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+    }
+  }, [])
 
   const handleFetchHistory = useCallback(async () => {
     setLoading(true)
@@ -293,9 +281,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     {Array.from(new Set(history.map((r) => r.operation)))
                       .sort()
                       .map((op) => (
-                        <option key={op} value={op}>
-                          {OPERATION_TYPE_LABELS[op] || op}
-                        </option>
+                        <option key={op} value={op}>{op}</option>
                       ))}
                   </select>
                   <DatePicker
