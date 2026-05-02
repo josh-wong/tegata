@@ -143,7 +143,15 @@ export function Sidebar({
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-2">
-          {Array.from(groups.entries()).map(([tag, creds]) => (
+          {Array.from(groups.entries())
+            .sort(([tagA], [tagB]) => {
+              // Put [Untagged] at the end
+              if (tagA === "[Untagged]") return 1
+              if (tagB === "[Untagged]") return -1
+              // Otherwise sort alphabetically
+              return tagA.localeCompare(tagB)
+            })
+            .map(([tag, creds]) => (
             <div key={tag} className="mb-1">
               <button
                 onClick={() => toggleGroup(tag)}
