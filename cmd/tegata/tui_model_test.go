@@ -548,8 +548,8 @@ func TestTUI_AuditHistoryResult(t *testing.T) {
 	if len(result.auditRecords) != 2 {
 		t.Errorf("expected 2 records, got %d", len(result.auditRecords))
 	}
-	if !strings.Contains(result.auditMsg, "2 events") {
-		t.Errorf("expected '2 events' in msg, got %q", result.auditMsg)
+	if len(result.auditFiltered) != 2 {
+		t.Errorf("expected 2 filtered records, got %d", len(result.auditFiltered))
 	}
 }
 
