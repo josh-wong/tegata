@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -41,6 +41,13 @@ const OPERATION_TYPE_LABELS: Record<string, string> = {
   "hotp-resync": "HOTP resync",
 }
 
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronDown className="h-3 w-3 opacity-30 inline ml-0.5" />
+  return sortDir === "asc"
+    ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
+    : <ChevronDown className="h-3 w-3 inline ml-0.5" />
+}
+
 interface AuditPanelProps {
   open: boolean
   onClose: () => void
@@ -65,22 +72,10 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   // Pagination state
   const [page, setPage] = useState(0)
 
-
-
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const [copyMsg, setCopyMsg] = useState("")
 
-  useEffect(() => {
-    if (open) {
-      setError("")
-      setVerifyResult(null)
-      App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
-      handleFetchHistory()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  async function handleFetchHistory() {
+  const handleFetchHistory = useCallback(async () => {
     setLoading(true)
     setError("")
     setPage(0)
@@ -93,7 +88,16 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      setError("")
+      setVerifyResult(null)
+      App.GetAuditDockerPath().then((p) => setDockerPath(p ?? "")).catch(() => setDockerPath(""))
+      handleFetchHistory()
+    }
+  }, [open, handleFetchHistory])
 
   async function handleVerify() {
     setLoading(true)
@@ -117,13 +121,6 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       setSortDir(col === "timestamp" ? "desc" : "asc")
     }
     setPage(0)
-  }
-
-  function SortIcon({ col }: { col: SortCol }) {
-    if (sortCol !== col) return <ChevronDown className="h-3 w-3 opacity-30 inline ml-0.5" />
-    return sortDir === "asc"
-      ? <ChevronUp className="h-3 w-3 inline ml-0.5" />
-      : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
 
   function copyHash(hash: string) {
@@ -321,25 +318,25 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                             className="text-left p-2 cursor-pointer select-none w-[22%]"
                             onClick={() => toggleSort("operation")}
                           >
-                            Operation <SortIcon col="operation" />
+                            Operation <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
                           </th>
                           <th
                             className="text-left p-2 cursor-pointer select-none w-[22%]"
                             onClick={() => toggleSort("label")}
                           >
-                            Label <SortIcon col="label" />
+                            Label <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
                           </th>
                           <th
                             className="text-left p-2 cursor-pointer select-none w-[22%]"
                             onClick={() => toggleSort("timestamp")}
                           >
-                            Timestamp <SortIcon col="timestamp" />
+                            Timestamp <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
                           </th>
                           <th
                             className="text-left p-2 cursor-pointer select-none w-[34%]"
                             onClick={() => toggleSort("hash")}
                           >
-                            Hash <SortIcon col="hash" />
+                            Hash <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
                           </th>
                         </tr>
                       </thead>
@@ -361,7 +358,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                                   title="Click to copy full hash"
                                   onClick={() => copyHash(record.hash_value)}
                                 >
-                                  {record.hash_value.slice(0, 10) + "…"}
+                                  {record.hash_value.length > 10 ? record.hash_value.slice(0, 10) + "…" : record.hash_value}
                                 </button>
                               </td>
                             </tr>
