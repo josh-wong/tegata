@@ -359,6 +359,72 @@ func (a *App) RemoveCredential(id string) error {
 	return nil
 }
 
+// EditCredential updates a credential's label, issuer, and/or tags.
+// If a field is empty, it is not updated (except tags, which can be cleared by passing an empty slice).
+func (a *App) EditCredential(id, label, issuer string, tags []string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+
+	// Find the credential by ID
+	creds := a.vault.ListCredentials()
+	var cred *model.Credential
+	for i := range creds {
+		if creds[i].ID == id {
+			cred = &creds[i]
+			break
+		}
+	}
+	if cred == nil {
+		return fmt.Errorf("credential not found")
+	}
+
+	// Apply updates
+	if label != "" {
+		label = strings.TrimSpace(label)
+		if label == "" {
+			return fmt.Errorf("label cannot be empty or whitespace-only")
+		}
+		// Check for duplicate label
+		for _, c := range creds {
+			if strings.EqualFold(c.Label, label) && c.ID != id {
+				return fmt.Errorf("a credential with label %q already exists", label)
+			}
+		}
+		cred.Label = label
+	}
+
+	if issuer != "" {
+		cred.Issuer = issuer
+	}
+
+	if tags != nil {
+		// Validate no duplicates
+		seen := make(map[string]struct{})
+		for _, t := range tags {
+			if _, exists := seen[t]; exists {
+				return fmt.Errorf("duplicate tag: %q", t)
+			}
+			seen[t] = struct{}{}
+		}
+		cred.Tags = tags
+	}
+
+	if err := a.vault.UpdateCredential(cred); err != nil {
+		return fmt.Errorf("updating credential: %w", err)
+	}
+
+	// Log audit event
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
+	}
+
+	return nil
+}
+
 // GenerateTOTP generates a TOTP code for the credential with the given label.
 func (a *App) GenerateTOTP(label string) (*TOTPResult, error) {
 	if a.vault == nil {

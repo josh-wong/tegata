@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck } from "lucide-react"
+import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -17,6 +17,7 @@ interface SidebarProps {
   onAddClick: () => void
   onCopyCode: (label: string) => void
   onCopyPassword: (label: string) => void
+  onEdit: (credential: Credential) => void
   onRemove: (id: string) => void
 }
 
@@ -60,6 +61,7 @@ export function Sidebar({
   onAddClick,
   onCopyCode,
   onCopyPassword,
+  onEdit,
   onRemove,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -267,6 +269,12 @@ export function Sidebar({
               <Key className="h-3.5 w-3.5" /> Copy password
             </button>
           )}
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            onClick={() => { onEdit(ctxMenu.credential); setCtxMenu(null) }}
+          >
+            <Edit className="h-3.5 w-3.5" /> Edit
+          </button>
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
             onClick={() => { setDeleteConfirmCred(ctxMenu.credential); setCtxMenu(null) }}

@@ -19,54 +19,54 @@ This document outlines the manual testing steps required to verify the credentia
 4. Confirm the help bar shows the new `e Edit` keybinding
 
 ### Basic Edit Overlay Opening
-- [ ] Press `e` on a selected credential → Edit overlay should open
-- [ ] Overlay should display "Edit Credential" title
-- [ ] Label field should be pre-populated with current label
-- [ ] Issuer field should be pre-populated with current issuer (or empty)
-- [ ] Tags field should be pre-populated with comma-separated tags (or empty)
-- [ ] Focus starts on Label field (highlighted)
+- [x] Press `e` on a selected credential → Edit overlay should open
+- [x] Overlay should display "Edit Credential" title
+- [x] Label field should be pre-populated with current label
+- [x] Issuer field should be pre-populated with current issuer (or empty)
+- [x] Tags field should be pre-populated with comma-separated tags (or empty)
+- [x] Focus starts on Label field (highlighted)
 
 ### Field Navigation
-- [ ] Press Tab → Focus moves to next field (Issuer)
-- [ ] Press Tab again → Focus moves to Tags
-- [ ] Press Tab again → Focus wraps back to Label
-- [ ] Press Shift-Tab → Focus moves backward through fields
+- [x] Press Tab → Focus moves to next field (Issuer)
+- [x] Press Tab again → Focus moves to Tags
+- [x] Press Tab again → Focus wraps back to Label
+- [x] Press Shift-Tab → Focus moves backward through fields
 
 ### Editing Label
-- [ ] Clear label field and type new name (e.g., "github-personal")
-- [ ] Press Enter → Credential should be updated with new label
-- [ ] Credential list should refresh and show new label
-- [ ] Status message should show "Updated 'github-personal'"
-- [ ] Return to main view
+- [x] Clear label field and type new name (e.g., "github-personal")
+- [x] Press Enter → Credential should be updated with new label
+- [x] Credential list should refresh and show new label
+- [x] Status message should show "Updated 'github-personal'"
+- [x] Return to main view
 
 ### Editing Issuer
-- [ ] Press `e` on a credential
-- [ ] Press Tab to move to Issuer field
-- [ ] Change issuer (e.g., "GitHub Inc")
-- [ ] Press Enter → Credential updated with new issuer
-- [ ] Return to main view and verify issuer shown in detail panel
+- [x] Press `e` on a credential
+- [x] Press Tab to move to Issuer field
+- [x] Change issuer (e.g., "GitHub Inc")
+- [x] Press Enter → Credential updated with new issuer
+- [x] Return to main view and verify issuer shown in detail panel
 
 ### Editing Tags
-- [ ] Press `e` on a credential without tags
-- [ ] Press Tab twice to reach Tags field
-- [ ] Type comma-separated tags: "work, personal, 2fa"
-- [ ] Press Enter → Tags should be added
-- [ ] Edit credential again → Tags should appear in Tags field as "work, personal, 2fa"
+- [x] Press `e` on a credential without tags
+- [x] Press Tab twice to reach Tags field
+- [x] Type comma-separated tags: "work, personal, 2fa"
+- [x] Press Enter → Tags should be added
+- [x] Edit credential again → Tags should appear in Tags field as "work, personal, 2fa"
 
 ### Tag Validation - Duplicate Tags
-- [ ] Press `e` on a credential
-- [ ] Navigate to Tags field
-- [ ] Type tags with duplicates: "work, personal, work"
-- [ ] Press Enter → Error message should appear: "Duplicate tag: 'work'"
-- [ ] Overlay should remain open for correction
-- [ ] Change to "work, personal" and press Enter → Should succeed
+- [x] Press `e` on a credential
+- [x] Navigate to Tags field
+- [x] Type tags with duplicates: "work, personal, work"
+- [x] Press Enter → Error message should appear: "Duplicate tag: 'work'"
+- [x] Overlay should remain open for correction
+- [x] Change to "work, personal" and press Enter → Should succeed
 
 ### Tag Validation - Empty Strings
-- [ ] Press `e` on a credential
-- [ ] Navigate to Tags field
-- [ ] Type tags with extra spaces: "work,  , personal"
-- [ ] Press Enter → Empty strings should be silently filtered
-- [ ] Tags should be saved as "work, personal"
+- [x] Press `e` on a credential
+- [x] Navigate to Tags field
+- [x] Type tags with extra spaces: "work,  , personal"
+- [x] Press Enter → Empty strings should be silently filtered
+- [x] Tags should be saved as "work, personal"
 
 ### Label Validation - Required Field
 - [ ] Press `e` on a credential
