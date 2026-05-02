@@ -131,6 +131,7 @@ func (m *model) resetAuditOverlay() {
 	m.auditLoading = false
 	m.auditCursor = 0
 	m.auditScrollOff = 0
+	m.auditMsgTime = time.Time{}
 }
 
 // auditHistoryPageSize is the number of history rows visible at one time in the TUI.
@@ -191,12 +192,15 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.clipMgr != nil {
 					if err := m.clipMgr.CopyWithAutoClear(hash, m.cfg.ClipboardTimeout); err != nil {
 						m.auditMsg = fmt.Sprintf("Hash: %s  (clipboard unavailable)", hash)
+						m.auditMsgTime = time.Time{} // don't auto-dismiss error messages
 					} else {
-						m.auditMsg = fmt.Sprintf("Hash copied to clipboard (auto-clear in %ds)",
+						m.auditMsg = fmt.Sprintf("Hash copied to clipboard (auto-clears in %ds)",
 							int(m.cfg.ClipboardTimeout.Seconds()))
+						m.auditMsgTime = m.now // set time for auto-dismiss
 					}
 				} else {
 					m.auditMsg = fmt.Sprintf("Hash: %s", hash)
+					m.auditMsgTime = time.Time{}
 				}
 			}
 			return m, nil
@@ -287,7 +291,7 @@ func (m model) viewAuditHistory() string {
 
 	var body strings.Builder
 	if len(m.auditRecords) > 0 {
-		body.WriteString(fmt.Sprintf("%-22s %-20s %-20s %s\n", "Operation", "Label", "Timestamp", "Hash"))
+		body.WriteString(fmt.Sprintf("%-28s %-18s %-19s %s\n", "Operation", "Label", "Timestamp", "Hash"))
 		body.WriteString(strings.Repeat("─", 80) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
@@ -297,19 +301,19 @@ func (m model) viewAuditHistory() string {
 		for idx := m.auditScrollOff; idx < end; idx++ {
 			r := m.auditRecords[idx]
 			label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
-			if len(label) > 20 {
-				label = label[:19] + "…"
+			if len(label) > 18 {
+				label = label[:17] + "…"
 			}
 			op := audit.FormatOperation(r.Operation)
-			if len(op) > 22 {
-				op = op[:21] + "…"
+			if len(op) > 28 {
+				op = op[:27] + "…"
 			}
 			ts := time.Unix(r.Timestamp, 0).Local().Format("2006-01-02 15:04:05")
 			hash := r.HashValue
-			if len(hash) > 16 {
-				hash = hash[:16] + "…"
+			if len(hash) > 12 {
+				hash = hash[:12] + "…"
 			}
-			line := fmt.Sprintf("%-22s %-20s %-20s %s", op, label, ts, hash)
+			line := fmt.Sprintf("%-28s %-18s %-19s %s", op, label, ts, hash)
 			if idx == m.auditCursor {
 				body.WriteString(tipStyle.Render("▸ " + line))
 			} else {

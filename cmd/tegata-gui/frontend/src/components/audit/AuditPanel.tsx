@@ -20,20 +20,25 @@ function formatFault(f: string): string {
 type SortCol = "operation" | "label" | "timestamp" | "hash"
 type SortDir = "asc" | "desc"
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
-const ALL_OPERATION_TYPES = [
-  { value: "", label: "All operations" },
-  { value: "totp", label: "TOTP" },
-  { value: "hotp", label: "HOTP" },
-  { value: "static", label: "Static password" },
-  { value: "challenge-response", label: "Challenge-response" },
-  { value: "vault-unlock", label: "Vault unlock" },
-  { value: "vault-lock", label: "Vault lock" },
-  { value: "credential-add", label: "Credential add" },
-  { value: "credential-remove", label: "Credential remove" },
-  { value: "credential-update", label: "Credential update" },
-]
+const OPERATION_TYPE_LABELS: Record<string, string> = {
+  "": "All operations",
+  "totp": "TOTP",
+  "hotp": "HOTP",
+  "static": "Static password",
+  "challenge-response": "Challenge-response",
+  "vault-unlock": "Vault unlock",
+  "vault-lock": "Vault lock",
+  "credential-add": "Credential add",
+  "credential-remove": "Credential remove",
+  "credential-update": "Credential update",
+  "credential-tag-update": "Credential tag update",
+  "credential-import": "Credential import",
+  "credential-export": "Credential export",
+  "vault-passphrase-change": "Vault passphrase change",
+  "hotp-resync": "HOTP resync",
+}
 
 interface AuditPanelProps {
   open: boolean
@@ -59,8 +64,10 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   // Pagination state
   const [page, setPage] = useState(0)
 
-  // Expanded hash state: record index → boolean
-  const [expandedHash, setExpandedHash] = useState<Record<number, boolean>>({})
+
+
+  const [copiedHashIdx, setCopiedHashIdx] = useState<number | null>(null)
+  const [copyMsg, setCopyMsg] = useState("")
 
   useEffect(() => {
     if (open) {
@@ -74,7 +81,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
     setLoading(true)
     setError("")
     setPage(0)
-    setExpandedHash({})
+    setCopiedHashIdx(null)
     try {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
@@ -116,17 +123,24 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       : <ChevronDown className="h-3 w-3 inline ml-0.5" />
   }
 
-  function toggleHash(idx: number, hash: string) {
-    const nowExpanded = !expandedHash[idx]
-    setExpandedHash((prev) => ({ ...prev, [idx]: nowExpanded }))
-    if (nowExpanded) {
-      navigator.clipboard.writeText(hash).catch(() => {})
-    }
+  function copyHash(idx: number, hash: string) {
+    navigator.clipboard.writeText(hash).then(() => {
+      setCopiedHashIdx(idx)
+      setCopyMsg("Hash copied to clipboard")
+      setTimeout(() => {
+        setCopyMsg("")
+        setCopiedHashIdx(null)
+      }, 2000)
+    }).catch(() => {
+      setError("Failed to copy hash to clipboard")
+      setTimeout(() => setError(""), 2000)
+    })
   }
 
   // Apply filters
   const filtered = history.filter((r) => {
-    if (opFilter && r.operation !== opFilter) return false
+    // Case-insensitive operation type filter
+    if (opFilter && r.operation.toLowerCase() !== opFilter.toLowerCase()) return false
     if (fromDate) {
       const from = new Date(fromDate + "T00:00:00")
       if (new Date(r.timestamp * 1000) < from) return false
@@ -178,7 +192,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             )}
 
             {/* Action buttons */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2">
               <Button
                 onClick={handleFetchHistory}
                 disabled={loading}
@@ -195,6 +209,9 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               >
                 Verify integrity
               </Button>
+              {copyMsg && (
+                <span className="ml-auto text-xs" style={{ color: "var(--cinnabar)" }}>{copyMsg}</span>
+              )}
             </div>
 
             {error && (
@@ -257,9 +274,14 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     onChange={(e) => { setOpFilter(e.target.value); setPage(0) }}
                     aria-label="Filter by operation type"
                   >
-                    {ALL_OPERATION_TYPES.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
+                    <option value="">All operations</option>
+                    {Array.from(new Set(history.map((r) => r.operation)))
+                      .sort()
+                      .map((op) => (
+                        <option key={op} value={op}>
+                          {OPERATION_TYPE_LABELS[op] || op}
+                        </option>
+                      ))}
                   </select>
                   <input
                     type="date"
@@ -318,7 +340,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                       <tbody>
                         {pageRows.map((record, i) => {
                           const rowIdx = page * PAGE_SIZE + i
-                          const isExpanded = !!expandedHash[rowIdx]
+                          const justCopied = copiedHashIdx === rowIdx
                           return (
                             <tr key={rowIdx} className="border-b last:border-0">
                               <td className="p-2">{record.operation}</td>
@@ -329,13 +351,16 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                               <td className="p-2 font-mono">
                                 <button
                                   type="button"
-                                  className="text-left hover:underline focus:outline-none focus:underline"
-                                  title={isExpanded ? "Click to collapse" : "Click to reveal and copy full hash"}
-                                  onClick={() => toggleHash(rowIdx, record.hash_value)}
+                                  className={cn(
+                                    "text-left focus:outline-none",
+                                    justCopied
+                                      ? "text-green-600 dark:text-green-400"
+                                      : "hover:underline focus:underline"
+                                  )}
+                                  title="Click to copy full hash"
+                                  onClick={() => copyHash(rowIdx, record.hash_value)}
                                 >
-                                  {isExpanded
-                                    ? record.hash_value
-                                    : record.hash_value.slice(0, 10) + "…"}
+                                  {record.hash_value.slice(0, 10) + "…"}
                                 </button>
                               </td>
                             </tr>

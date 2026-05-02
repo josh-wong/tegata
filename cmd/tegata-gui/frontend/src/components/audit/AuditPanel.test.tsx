@@ -41,10 +41,9 @@ describe("AuditPanel", () => {
     })
   })
 
-  it("reveals full hash on click and copies to clipboard", async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
-    })
+  it("copies hash to clipboard on click without revealing full value", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
 
     vi.mocked(App.GetAuditHistory).mockResolvedValue([
       { object_id: "evt-1", operation: "TOTP", label: "GitHub", label_hash: "abc123def456", timestamp: 1700000000, hash_value: "abcdef1234567890full" },
@@ -57,11 +56,13 @@ describe("AuditPanel", () => {
       expect(screen.getByText("abcdef1234…")).toBeInTheDocument()
     })
 
-    // Click the truncated hash to reveal it
+    // Click the truncated hash — it should copy but stay truncated
     await userEvent.click(screen.getByText("abcdef1234…"))
 
     await waitFor(() => {
-      expect(screen.getByText("abcdef1234567890full")).toBeInTheDocument()
+      expect(writeText).toHaveBeenCalledWith("abcdef1234567890full")
+      expect(screen.getByText("abcdef1234…")).toBeInTheDocument()
+      expect(screen.queryByText("abcdef1234567890full")).not.toBeInTheDocument()
     })
   })
 
