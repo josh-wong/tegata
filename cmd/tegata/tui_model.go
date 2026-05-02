@@ -33,6 +33,7 @@ const (
 	stateOverlayRemove                       // Remove-credential confirmation overlay
 	stateOverlaySettings                     // Settings overlay
 	stateOverlayAudit                        // Audit history/verify overlay
+	stateOverlayEdit                         // Edit-credential overlay
 	stateTerminalTooNarrow                   // Terminal is narrower than 80 columns
 )
 
@@ -104,6 +105,13 @@ type model struct {
 	addTagsInput   textinput.Model // comma-separated tags
 	addAlgoIdx     int             // 0=SHA1, 1=SHA256, 2=SHA512
 	addDigitsIdx   int             // 0=6, 1=8
+
+	// Edit-credential overlay inputs
+	editLabelInput  textinput.Model // label
+	editIssuerInput textinput.Model // issuer (optional)
+	editTagsInput   textinput.Model // comma-separated tags
+	editFocusIdx    int             // which edit-overlay slot has focus
+	editCredID      string          // ID of credential being edited
 
 	// Settings overlay state
 	settingsMenuIdx  int          // 0-3 menu selection
@@ -206,6 +214,18 @@ func initialModel(vaultPath string) model {
 	addTags.Placeholder = "Tags (comma-separated)"
 	addTags.EchoMode = textinput.EchoNormal
 
+	editLabel := textinput.New()
+	editLabel.Placeholder = "Label"
+	editLabel.EchoMode = textinput.EchoNormal
+
+	editIssuer := textinput.New()
+	editIssuer.Placeholder = "Issuer (optional)"
+	editIssuer.EchoMode = textinput.EchoNormal
+
+	editTags := textinput.New()
+	editTags.Placeholder = "Tags (comma-separated, optional)"
+	editTags.EchoMode = textinput.EchoNormal
+
 	settingsIn1 := textinput.New()
 	settingsIn1.EchoMode = textinput.EchoNormal
 
@@ -232,6 +252,9 @@ func initialModel(vaultPath string) model {
 		addSecretInput:   addSecret,
 		addPeriodInput:   addPeriod,
 		addTagsInput:     addTags,
+		editLabelInput:   editLabel,
+		editIssuerInput:  editIssuer,
+		editTagsInput:    editTags,
 		settingsInput1:   settingsIn1,
 		settingsInput2:   settingsIn2,
 		settingsInput3:   settingsIn3,
@@ -316,7 +339,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			effectiveState == stateOverlayAdd ||
 			effectiveState == stateOverlayRemove ||
 			effectiveState == stateOverlaySettings ||
-			effectiveState == stateOverlayAudit
+			effectiveState == stateOverlayAudit ||
+			effectiveState == stateOverlayEdit
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
@@ -336,6 +360,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Reset overlay and challenge-response state so stale focus
 			// does not suppress keybindings after re-unlock.
 			m.resetAddOverlay()
+			m.resetEditOverlay()
 			m.resetSettingsOverlay()
 			m.resetAuditOverlay()
 			m.crChallengeActive = false
@@ -426,7 +451,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stateMainView:
 		return m.updateMainView(msg)
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlayEdit, stateOverlaySettings, stateOverlayAudit:
 		return m.updateOverlay(msg)
 	}
 
@@ -453,7 +478,7 @@ func (m model) View() string {
 	case stateMainView:
 		return m.viewMainView()
 
-	case stateOverlayAdd, stateOverlayRemove, stateOverlaySettings, stateOverlayAudit:
+	case stateOverlayAdd, stateOverlayRemove, stateOverlayEdit, stateOverlaySettings, stateOverlayAudit:
 		return m.viewOverlay()
 	}
 
@@ -487,6 +512,7 @@ func (m model) isInputFocused() bool {
 		m.crChallengeInput.Focused() ||
 		m.addLabelInput.Focused() || m.addIssuerInput.Focused() || m.addSecretInput.Focused() ||
 		m.addPeriodInput.Focused() || m.addTagsInput.Focused() ||
+		m.editLabelInput.Focused() || m.editIssuerInput.Focused() || m.editTagsInput.Focused() ||
 		m.settingsInput1.Focused() || m.settingsInput2.Focused() || m.settingsInput3.Focused()
 }
 
@@ -509,6 +535,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateOverlayAdd(msg)
 	case stateOverlayRemove:
 		return m.updateOverlayRemove(msg)
+	case stateOverlayEdit:
+		return m.updateOverlayEdit(msg)
 	case stateOverlaySettings:
 		return m.updateOverlaySettings(msg)
 	case stateOverlayAudit:
@@ -524,6 +552,8 @@ func (m model) viewOverlay() string {
 		return m.viewOverlayAdd()
 	case stateOverlayRemove:
 		return m.viewOverlayRemove()
+	case stateOverlayEdit:
+		return m.viewOverlayEdit()
 	case stateOverlaySettings:
 		return m.viewOverlaySettings()
 	case stateOverlayAudit:
