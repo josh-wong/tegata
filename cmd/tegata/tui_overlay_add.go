@@ -45,6 +45,7 @@ const (
 	addSlotDigits    = 5
 	addSlotPeriod    = 6
 	addSlotTags      = 7
+	addSlotCategory  = 8
 )
 
 // resetAddOverlay clears all add-overlay input fields and resets indices.
@@ -59,6 +60,8 @@ func (m *model) resetAddOverlay() {
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Reset()
 	m.addTagsInput.Blur()
+	m.addCategoryInput.Reset()
+	m.addCategoryInput.Blur()
 	m.addTypeIdx = 0
 	m.addAlgoIdx = 0
 	m.addDigitsIdx = 0
@@ -93,7 +96,7 @@ func (m model) addVisibleSlots() []int {
 	case pkgmodel.CredentialChallengeResponse:
 		slots = append(slots, addSlotAlgorithm)
 	}
-	slots = append(slots, addSlotTags)
+	slots = append(slots, addSlotTags, addSlotCategory)
 	return slots
 }
 
@@ -143,6 +146,7 @@ func (m *model) focusAddInput() {
 	m.addSecretInput.Blur()
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Blur()
+	m.addCategoryInput.Blur()
 	switch m.addFocusIdx {
 	case addSlotLabel:
 		m.addLabelInput.Focus()
@@ -154,6 +158,8 @@ func (m *model) focusAddInput() {
 		m.addPeriodInput.Focus()
 	case addSlotTags:
 		m.addTagsInput.Focus()
+	case addSlotCategory:
+		m.addCategoryInput.Focus()
 	}
 }
 
@@ -278,6 +284,9 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+			// Normalize category to lowercase.
+			category := strings.ToLower(strings.TrimSpace(m.addCategoryInput.Value()))
+
 			// Build credential from inputs.
 			cred := pkgmodel.Credential{
 				Label:     labelVal,
@@ -288,6 +297,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Digits:    digits,
 				Period:    period,
 				Tags:      tags,
+				Category:  category,
 			}
 
 			if m.vaultMgr == nil {
@@ -330,6 +340,8 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addPeriodInput, cmd = m.addPeriodInput.Update(msg)
 	case addSlotTags:
 		m.addTagsInput, cmd = m.addTagsInput.Update(msg)
+	case addSlotCategory:
+		m.addCategoryInput, cmd = m.addCategoryInput.Update(msg)
 	}
 	return m, cmd
 }
@@ -379,6 +391,9 @@ func (m model) viewOverlayAdd() string {
 
 	// Tags text input.
 	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Tags:", m.addTagsInput.View(), helpBarStyle.Render("(optional)")))
+
+	// Category text input.
+	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Category:", m.addCategoryInput.View(), helpBarStyle.Render("(optional)")))
 
 	if m.errMsg != "" {
 		lines = append(lines, "")

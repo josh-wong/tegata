@@ -12,25 +12,27 @@ import (
 
 func newEditCmd() *cobra.Command {
 	var (
-		label  string
-		issuer string
-		tags   string
+		label    string
+		issuer   string
+		tags     string
+		category string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "edit <label>",
-		Short: "Edit a credential's metadata (label, issuer, tags)",
+		Short: "Edit a credential's metadata (label, issuer, category, tags)",
 		Args:  cobra.ExactArgs(1),
 		Example: `  tegata edit github --issuer "GitHub Inc"
   tegata edit github --tags "work, totp"
+  tegata edit github --category "work"
   tegata edit github --label "github-personal"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			credLabel := args[0]
 
 			// Validate that at least one field is being updated.
-			if label == "" && issuer == "" && tags == "" {
+			if label == "" && issuer == "" && tags == "" && category == "" {
 				return fmt.Errorf(
-					"at least one of --label, --issuer, or --tags must be provided: %w",
+					"at least one of --label, --issuer, --tags, or --category must be provided: %w",
 					errors.ErrInvalidInput,
 				)
 			}
@@ -66,6 +68,7 @@ func newEditCmd() *cobra.Command {
 			origLabel := cred.Label
 			origIssuer := cred.Issuer
 			origTags := slices.Clone(cred.Tags)
+			origCategory := cred.Category
 
 			// Apply updates from flags.
 			if label != "" {
@@ -109,27 +112,39 @@ func newEditCmd() *cobra.Command {
 				cred.Tags = newTags
 			}
 
+			if cmd.Flags().Changed("category") {
+				cred.Category = strings.ToLower(strings.TrimSpace(category))
+			}
+
 			if err := mgr.UpdateCredential(cred); err != nil {
 				return err
 			}
 
-			// Determine which audit event to log.
-			metadataChanged := cred.Label != origLabel || cred.Issuer != origIssuer
-			tagsChanged := !slices.Equal(origTags, cred.Tags)
-
+			// Log one audit event per changed field.
 			if builder != nil {
-				var logErr error
-				if metadataChanged {
-					logErr = builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true)
-				} else if tagsChanged {
-					logErr = builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true)
+				type fieldEvent struct {
+					changed bool
+					opType  string
 				}
-				if logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+				events := []fieldEvent{
+					{cred.Label != origLabel, "credential-label-update"},
+					{cred.Issuer != origIssuer, "credential-issuer-update"},
+					{cred.Category != origCategory, "credential-category-update"},
+					{!slices.Equal(origTags, cred.Tags), "credential-tag-update"},
+				}
+				for _, fe := range events {
+					if fe.changed {
+						if logErr := builder.LogEvent(fe.opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+							_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+						}
+					}
 				}
 			}
 
 			fmt.Printf("Updated %q\n", cred.Label)
+			if cred.Category != "" {
+				fmt.Printf("  Category: %s\n", cred.Category)
+			}
 			if len(cred.Tags) == 0 {
 				fmt.Printf("  Tags: (none)\n")
 			} else {
@@ -142,6 +157,7 @@ func newEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&label, "label", "", "new label for the credential")
 	cmd.Flags().StringVar(&issuer, "issuer", "", "new issuer for the credential")
 	cmd.Flags().StringVar(&tags, "tags", "", "comma-separated replacement tag list")
+	cmd.Flags().StringVar(&category, "category", "", "category for sidebar grouping (empty string clears it)")
 
 	return cmd
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -381,6 +382,12 @@ func (a *App) EditCredential(id, label, issuer string, tags []string, category s
 		return fmt.Errorf("credential not found")
 	}
 
+	// Track original values for per-field audit events.
+	origLabel := cred.Label
+	origIssuer := cred.Issuer
+	origCategory := cred.Category
+	origTags := slices.Clone(cred.Tags)
+
 	// Apply updates
 	if label != "" {
 		label = strings.TrimSpace(label)
@@ -422,10 +429,24 @@ func (a *App) EditCredential(id, label, issuer string, tags []string, category s
 		return fmt.Errorf("updating credential: %w", err)
 	}
 
-	// Log audit event
+	// Log one audit event per changed field.
 	if a.builder != nil {
-		if logErr := a.builder.LogEvent("credential-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		type fieldEvent struct {
+			changed bool
+			opType  string
+		}
+		events := []fieldEvent{
+			{cred.Label != origLabel, "credential-label-update"},
+			{cred.Issuer != origIssuer, "credential-issuer-update"},
+			{cred.Category != origCategory, "credential-category-update"},
+			{!slices.Equal(origTags, cred.Tags), "credential-tag-update"},
+		}
+		for _, fe := range events {
+			if fe.changed {
+				if logErr := a.builder.LogEvent(fe.opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+				}
+			}
 		}
 	}
 

@@ -13,9 +13,10 @@ import (
 
 // Focus slot constants for the edit overlay's unified focus model.
 const (
-	editSlotLabel  = 0
-	editSlotIssuer = 1
-	editSlotTags   = 2
+	editSlotLabel    = 0
+	editSlotIssuer   = 1
+	editSlotCategory = 2
+	editSlotTags     = 3
 )
 
 // resetEditOverlay clears all edit-overlay input fields and resets indices.
@@ -24,6 +25,8 @@ func (m *model) resetEditOverlay() {
 	m.editLabelInput.Blur()
 	m.editIssuerInput.Reset()
 	m.editIssuerInput.Blur()
+	m.editCategoryInput.Reset()
+	m.editCategoryInput.Blur()
 	m.editTagsInput.Reset()
 	m.editTagsInput.Blur()
 	m.editFocusIdx = 0
@@ -36,6 +39,7 @@ func (m *model) loadEditOverlay(cred pkgmodel.Credential) {
 	m.resetEditOverlay()
 	m.editLabelInput.SetValue(cred.Label)
 	m.editIssuerInput.SetValue(cred.Issuer)
+	m.editCategoryInput.SetValue(cred.Category)
 	if len(cred.Tags) > 0 {
 		m.editTagsInput.SetValue(strings.Join(cred.Tags, ", "))
 	}
@@ -47,7 +51,7 @@ func (m *model) loadEditOverlay(cred pkgmodel.Credential) {
 // editVisibleSlots returns the ordered list of focus slot indices that are
 // visible for the edit overlay. All slots are always visible.
 func (m model) editVisibleSlots() []int {
-	return []int{editSlotLabel, editSlotIssuer, editSlotTags}
+	return []int{editSlotLabel, editSlotIssuer, editSlotCategory, editSlotTags}
 }
 
 // editNextSlot returns the next (forward=true) or previous (forward=false)
@@ -72,12 +76,15 @@ func (m model) editNextSlot(forward bool) int {
 func (m *model) focusEditInput() {
 	m.editLabelInput.Blur()
 	m.editIssuerInput.Blur()
+	m.editCategoryInput.Blur()
 	m.editTagsInput.Blur()
 	switch m.editFocusIdx {
 	case editSlotLabel:
 		m.editLabelInput.Focus()
 	case editSlotIssuer:
 		m.editIssuerInput.Focus()
+	case editSlotCategory:
+		m.editCategoryInput.Focus()
 	case editSlotTags:
 		m.editTagsInput.Focus()
 	}
@@ -131,6 +138,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			labelVal := strings.TrimSpace(m.editLabelInput.Value())
 			issuerVal := m.editIssuerInput.Value()
+			categoryVal := strings.ToLower(strings.TrimSpace(m.editCategoryInput.Value()))
 			rawTags := m.editTagsInput.Value()
 
 			// Validate label is not empty (after trimming whitespace).
@@ -181,6 +189,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedCred := originalCred
 			updatedCred.Label = labelVal
 			updatedCred.Issuer = issuerVal
+			updatedCred.Category = categoryVal
 			updatedCred.Tags = tags
 
 			// Save to vault.
@@ -189,19 +198,24 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Determine which audit event to log.
-			metadataChanged := labelVal != originalCred.Label || issuerVal != originalCred.Issuer
-			tagsChanged := !slices.Equal(originalCred.Tags, tags)
-
+			// Log one audit event per changed field.
 			if m.builder != nil {
-				var logErr error
-				if metadataChanged {
-					logErr = m.builder.LogEvent("credential-update", labelVal, issuerVal, audit.Hostname(), true)
-				} else if tagsChanged {
-					logErr = m.builder.LogEvent("credential-tag-update", labelVal, issuerVal, audit.Hostname(), true)
+				type fieldEvent struct {
+					changed bool
+					opType  string
 				}
-				if logErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+				events := []fieldEvent{
+					{labelVal != originalCred.Label, "credential-label-update"},
+					{issuerVal != originalCred.Issuer, "credential-issuer-update"},
+					{categoryVal != originalCred.Category, "credential-category-update"},
+					{!slices.Equal(originalCred.Tags, tags), "credential-tag-update"},
+				}
+				for _, fe := range events {
+					if fe.changed {
+						if logErr := m.builder.LogEvent(fe.opType, labelVal, issuerVal, audit.Hostname(), true); logErr != nil {
+							_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+						}
+					}
 				}
 			}
 
@@ -221,6 +235,8 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editLabelInput, cmd = m.editLabelInput.Update(msg)
 	case editSlotIssuer:
 		m.editIssuerInput, cmd = m.editIssuerInput.Update(msg)
+	case editSlotCategory:
+		m.editCategoryInput, cmd = m.editCategoryInput.Update(msg)
 	case editSlotTags:
 		m.editTagsInput, cmd = m.editTagsInput.Update(msg)
 	}
@@ -236,6 +252,7 @@ func (m model) viewOverlayEdit() string {
 	const editLabelWidth = 10
 	lines = append(lines, fmt.Sprintf("%-*s%s", editLabelWidth, "Label:", m.editLabelInput.View()))
 	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Issuer:", m.editIssuerInput.View(), helpBarStyle.Render("(optional)")))
+	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Category:", m.editCategoryInput.View(), helpBarStyle.Render("(optional)")))
 	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Tags:", m.editTagsInput.View(), helpBarStyle.Render("(optional)")))
 
 	if m.errMsg != "" {
