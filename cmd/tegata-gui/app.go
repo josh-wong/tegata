@@ -896,13 +896,15 @@ func (a *App) startVaultWatcher() {
 					continue
 				}
 				if fi.ModTime().After(a.vaultModTime) {
-					if reloadErr := a.vault.ReloadPayload(); reloadErr == nil {
-						a.vaultModTime = fi.ModTime()
-						if a.ctx != nil {
-							wailsruntime.EventsEmit(a.ctx, "vault:updated")
+					if a.vault != nil {
+						if reloadErr := a.vault.ReloadPayload(); reloadErr == nil {
+							a.vaultModTime = fi.ModTime()
+							if a.ctx != nil {
+								wailsruntime.EventsEmit(a.ctx, "vault:updated")
+							}
+						} else {
+							slog.Warn("vault watcher reload failed", "err", reloadErr)
 						}
-					} else {
-						slog.Warn("vault watcher reload failed", "err", reloadErr)
 					}
 				}
 			}
