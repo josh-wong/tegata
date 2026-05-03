@@ -403,9 +403,7 @@ func (a *App) EditCredential(id, label, issuer string, tags []string, category s
 		cred.Label = label
 	}
 
-	if issuer != "" {
-		cred.Issuer = issuer
-	}
+	cred.Issuer = issuer
 
 	if tags != nil {
 		// Normalize tags to lowercase and validate no duplicates

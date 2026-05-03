@@ -87,9 +87,7 @@ func newEditCmd() *cobra.Command {
 				cred.Label = label
 			}
 
-			if issuer != "" {
-				cred.Issuer = issuer
-			}
+			cred.Issuer = issuer
 
 			if tags != "" {
 				// Parse tags: split by comma, trim whitespace, filter empty strings, and normalize to lowercase.

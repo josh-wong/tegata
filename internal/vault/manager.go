@@ -38,6 +38,19 @@ func zeroBytes(b []byte) {
 	}
 }
 
+// clearPayload overwrites sensitive fields in the payload with empty strings
+// before it's garbage collected. While Go strings are immutable and cannot be
+// truly zeroed in memory, this reduces the window where plaintext secrets
+// exist in the heap before garbage collection reclaims the old payload.
+func clearPayload(p *model.VaultPayload) {
+	if p == nil {
+		return
+	}
+	for i := range p.Credentials {
+		p.Credentials[i].Secret = ""
+	}
+}
+
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
@@ -542,6 +555,9 @@ func (m *Manager) ReloadPayload() error {
 	}
 	zeroBytes(plaintext)
 
+	// Clear sensitive fields from old payload before replacing to reduce
+	// the window where unencrypted secrets exist in heap memory.
+	clearPayload(m.payload)
 	m.payload = &payload
 	m.header.WriteCounter = header.WriteCounter
 	return nil
