@@ -361,8 +361,9 @@ func (a *App) RemoveCredential(id string) error {
 	return nil
 }
 
-// EditCredential updates a credential's label, issuer, and/or tags.
-// If a field is empty, it is not updated (except tags and category, which can be cleared by passing an empty slice/string).
+// EditCredential updates a credential's label, issuer, category, and/or tags.
+// Label is only updated if non-empty; issuer and category are always updated (can be cleared by passing empty strings);
+// tags are only updated if non-nil.
 func (a *App) EditCredential(id, label, issuer string, tags []string, category string) error {
 	if a.vault == nil {
 		return fmt.Errorf("vault is locked")
