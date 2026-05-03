@@ -43,6 +43,7 @@ type Credential struct {
 	Counter    uint64         `json:"counter,omitempty"`
 	Secret     string         `json:"secret"`
 	Tags       []string       `json:"tags"`
+	Category   string         `json:"category,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
 	ModifiedAt time.Time      `json:"modified_at"`
 }

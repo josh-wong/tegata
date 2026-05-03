@@ -38,6 +38,19 @@ func zeroBytes(b []byte) {
 	}
 }
 
+// clearPayload overwrites sensitive fields in the payload with empty strings
+// before it's garbage collected. While Go strings are immutable and cannot be
+// truly zeroed in memory, this reduces the window where plaintext secrets
+// exist in the heap before garbage collection reclaims the old payload.
+func clearPayload(p *model.VaultPayload) {
+	if p == nil {
+		return
+	}
+	for i := range p.Credentials {
+		p.Credentials[i].Secret = ""
+	}
+}
+
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
 // payload before performing credential operations. Always defer Close to zero
 // sensitive memory.
@@ -492,6 +505,62 @@ func (m *Manager) ListCredentials() []model.Credential {
 	result := make([]model.Credential, len(m.payload.Credentials))
 	copy(result, m.payload.Credentials)
 	return result
+}
+
+// ReloadPayload re-reads and decrypts the vault file from disk using the
+// already-unlocked DEK. This is used when an external process (e.g. the TUI)
+// may have written a newer version of the vault to disk without this process
+// knowing. The caller should check whether the file has been modified (e.g.
+// via os.Stat mtime) before calling, to avoid unnecessary I/O.
+func (m *Manager) ReloadPayload() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.dek == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+
+	data, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("reading vault: %w", err)
+	}
+	if len(data) < headerSize+4 {
+		return fmt.Errorf("vault file too small: %w", errors.ErrVaultCorrupt)
+	}
+
+	header, err := Unmarshal(data[:headerSize])
+	if err != nil {
+		return fmt.Errorf("parsing header: %w", err)
+	}
+
+	payloadLen := binary.BigEndian.Uint32(data[headerSize : headerSize+4])
+	if int(headerSize+4+payloadLen) > len(data) {
+		return fmt.Errorf("vault file truncated: %w", errors.ErrVaultCorrupt)
+	}
+	encryptedPayload := data[headerSize+4 : headerSize+4+int(payloadLen)]
+
+	dekBuf, err := m.dek.Open()
+	if err != nil {
+		return fmt.Errorf("opening DEK: %w", err)
+	}
+	plaintext, err := crypto.Open(dekBuf, header.WriteCounter, encryptedPayload, nil)
+	dekBuf.Destroy()
+	if err != nil {
+		return fmt.Errorf("decrypting payload: %w", errors.ErrVaultCorrupt)
+	}
+
+	var payload model.VaultPayload
+	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		zeroBytes(plaintext)
+		return fmt.Errorf("parsing payload: %w", errors.ErrVaultCorrupt)
+	}
+	zeroBytes(plaintext)
+
+	// Clear sensitive fields from old payload before replacing to reduce
+	// the window where unencrypted secrets exist in heap memory.
+	clearPayload(m.payload)
+	m.payload = &payload
+	m.header.WriteCounter = header.WriteCounter
+	return nil
 }
 
 // UpdateCredential replaces the credential with the matching ID and saves.

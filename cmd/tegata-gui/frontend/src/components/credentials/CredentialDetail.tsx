@@ -141,6 +141,13 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               <span className="font-medium">{formatCredentialType(credential.type)}</span>
             </div>
 
+            {credential.category && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Category</span>
+                <span className="font-medium capitalize">{credential.category}</span>
+              </div>
+            )}
+
             {credential.type === "totp" && (
               <>
                 {credential.algorithm && (

@@ -391,7 +391,8 @@ func formatVaultPathWithBoldFilename(path string) string {
 
 	boldStyle := lipgloss.NewStyle().Bold(true)
 
-	// If there's no directory (current dir or just filename), render just the bold filename.
+	// If there's no directory (current dir or just filename), render just the
+	// bold filename (no color), matching previous behavior.
 	if dir == "." || dir == "" {
 		return boldStyle.Render(filename)
 	}

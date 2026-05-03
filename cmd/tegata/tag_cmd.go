@@ -58,23 +58,33 @@ func newTagCmd() *cobra.Command {
 				return err
 			}
 
+			// Normalize add and remove tags to lowercase.
+			var normalizedAdd []string
+			for _, t := range addTags {
+				normalizedAdd = append(normalizedAdd, strings.ToLower(t))
+			}
+			var normalizedRemove []string
+			for _, t := range removeTags {
+				normalizedRemove = append(normalizedRemove, strings.ToLower(t))
+			}
+
 			// Build a set of current tags for efficient lookup.
 			tagSet := make(map[string]struct{}, len(cred.Tags))
 			for _, t := range cred.Tags {
 				tagSet[t] = struct{}{}
 			}
 
-			// Add new tags that are not already present (case-sensitive).
-			for _, t := range addTags {
+			// Add new tags that are not already present.
+			for _, t := range normalizedAdd {
 				if _, exists := tagSet[t]; !exists {
 					cred.Tags = append(cred.Tags, t)
 					tagSet[t] = struct{}{}
 				}
 			}
 
-			// Remove tags that match (case-sensitive).
-			removeSet := make(map[string]struct{}, len(removeTags))
-			for _, t := range removeTags {
+			// Remove tags that match.
+			removeSet := make(map[string]struct{}, len(normalizedRemove))
+			for _, t := range normalizedRemove {
 				removeSet[t] = struct{}{}
 			}
 			filtered := cred.Tags[:0]

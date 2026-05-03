@@ -10,6 +10,7 @@ export interface Credential {
   period: number
   counter: number
   tags: string[]
+  category: string
   notes: string
   created_at: string
   modified_at: string

@@ -3,6 +3,7 @@ import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { CredentialDetail } from "@/components/credentials/CredentialDetail"
 import { AddCredentialDialog } from "@/components/credentials/AddCredentialDialog"
+import { EditCredentialDialog } from "@/components/credentials/EditCredentialDialog"
 import { SettingsPanel } from "@/components/settings/SettingsPanel"
 import { AuditPanel } from "@/components/audit/AuditPanel"
 import { UnlockView } from "@/components/vault/UnlockView"
@@ -13,7 +14,7 @@ import { useVault } from "@/hooks/useVault"
 import { useCredentials } from "@/hooks/useCredentials"
 import { useIdleTimer } from "@/hooks/useIdleTimer"
 import { App as WailsApp } from "@/lib/wails"
-import type { UpdateInfo } from "@/lib/types"
+import type { UpdateInfo, Credential } from "@/lib/types"
 
 const SETUP_STEP_WELCOME = 1 as const
 const SETUP_STEP_OPEN_EXISTING = 6 as const
@@ -23,6 +24,8 @@ function App() {
   const creds = useCredentials()
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingCred, setEditingCred] = useState<Credential | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [auditOpen, setAuditOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
@@ -74,6 +77,11 @@ function App() {
     },
     [creds],
   )
+
+  const handleEdit = useCallback((credential: Credential) => {
+    setEditingCred(credential)
+    setEditDialogOpen(true)
+  }, [])
 
   const handleCopyCode = useCallback(async (label: string) => {
     try {
@@ -173,6 +181,7 @@ function App() {
           onAddClick={() => setAddDialogOpen(true)}
           onCopyCode={handleCopyCode}
           onCopyPassword={handleCopyPassword}
+          onEdit={handleEdit}
           onRemove={handleRemove}
         />
         <CredentialDetail
@@ -186,6 +195,16 @@ function App() {
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         onAdded={creds.refresh}
+      />
+
+      <EditCredentialDialog
+        credential={editingCred}
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false)
+          setEditingCred(null)
+        }}
+        onUpdated={creds.refresh}
       />
 
       <SettingsPanel

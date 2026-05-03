@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck } from "lucide-react"
+import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -17,6 +17,7 @@ interface SidebarProps {
   onAddClick: () => void
   onCopyCode: (label: string) => void
   onCopyPassword: (label: string) => void
+  onEdit: (credential: Credential) => void
   onRemove: (id: string) => void
 }
 
@@ -26,16 +27,13 @@ interface ContextMenuState {
   credential: Credential
 }
 
-function groupByTag(credentials: Credential[]) {
+function groupByCategory(credentials: Credential[]) {
   const groups = new Map<string, Credential[]>()
   for (const cred of credentials) {
-    const t = cred.tags ?? []
-    const tags = t.length > 0 ? t : ["[Untagged]"]
-    for (const tag of tags) {
-      const list = groups.get(tag) ?? []
-      list.push(cred)
-      groups.set(tag, list)
-    }
+    const key = cred.category?.trim() ? cred.category.trim() : "[Uncategorized]"
+    const list = groups.get(key) ?? []
+    list.push(cred)
+    groups.set(key, list)
   }
   return groups
 }
@@ -60,6 +58,7 @@ export function Sidebar({
   onAddClick,
   onCopyCode,
   onCopyPassword,
+  onEdit,
   onRemove,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -93,7 +92,7 @@ export function Sidebar({
       (c.issuer ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  const groups = groupByTag(filtered)
+  const groups = groupByCategory(filtered)
 
   function toggleGroup(tag: string) {
     setCollapsed((prev) => {
@@ -141,7 +140,15 @@ export function Sidebar({
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-2">
-          {Array.from(groups.entries()).map(([tag, creds]) => (
+          {Array.from(groups.entries())
+            .sort(([tagA], [tagB]) => {
+              // Put [Uncategorized] at the end
+              if (tagA === "[Uncategorized]") return 1
+              if (tagB === "[Uncategorized]") return -1
+              // Otherwise sort alphabetically
+              return tagA.localeCompare(tagB)
+            })
+            .map(([tag, creds]) => (
             <div key={tag} className="mb-1">
               <button
                 onClick={() => toggleGroup(tag)}
@@ -267,6 +274,12 @@ export function Sidebar({
               <Key className="h-3.5 w-3.5" /> Copy password
             </button>
           )}
+          <button
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            onClick={() => { onEdit(ctxMenu.credential); setCtxMenu(null) }}
+          >
+            <Edit className="h-3.5 w-3.5" /> Edit
+          </button>
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
             onClick={() => { setDeleteConfirmCred(ctxMenu.credential); setCtxMenu(null) }}

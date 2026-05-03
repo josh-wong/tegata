@@ -45,6 +45,7 @@ const (
 	addSlotDigits    = 5
 	addSlotPeriod    = 6
 	addSlotTags      = 7
+	addSlotCategory  = 8
 )
 
 // resetAddOverlay clears all add-overlay input fields and resets indices.
@@ -59,6 +60,8 @@ func (m *model) resetAddOverlay() {
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Reset()
 	m.addTagsInput.Blur()
+	m.addCategoryInput.Reset()
+	m.addCategoryInput.Blur()
 	m.addTypeIdx = 0
 	m.addAlgoIdx = 0
 	m.addDigitsIdx = 0
@@ -93,7 +96,7 @@ func (m model) addVisibleSlots() []int {
 	case pkgmodel.CredentialChallengeResponse:
 		slots = append(slots, addSlotAlgorithm)
 	}
-	slots = append(slots, addSlotTags)
+	slots = append(slots, addSlotTags, addSlotCategory)
 	return slots
 }
 
@@ -143,6 +146,7 @@ func (m *model) focusAddInput() {
 	m.addSecretInput.Blur()
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Blur()
+	m.addCategoryInput.Blur()
 	switch m.addFocusIdx {
 	case addSlotLabel:
 		m.addLabelInput.Focus()
@@ -154,6 +158,8 @@ func (m *model) focusAddInput() {
 		m.addPeriodInput.Focus()
 	case addSlotTags:
 		m.addTagsInput.Focus()
+	case addSlotCategory:
+		m.addCategoryInput.Focus()
 	}
 }
 
@@ -268,15 +274,18 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// Parse comma-separated tags.
+			// Parse comma-separated tags and normalize to lowercase.
 			var tags []string
 			if raw := strings.TrimSpace(m.addTagsInput.Value()); raw != "" {
 				for _, t := range strings.Split(raw, ",") {
 					if t = strings.TrimSpace(t); t != "" {
-						tags = append(tags, t)
+						tags = append(tags, strings.ToLower(t))
 					}
 				}
 			}
+
+			// Normalize category to lowercase.
+			category := strings.ToLower(strings.TrimSpace(m.addCategoryInput.Value()))
 
 			// Build credential from inputs.
 			cred := pkgmodel.Credential{
@@ -288,6 +297,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Digits:    digits,
 				Period:    period,
 				Tags:      tags,
+				Category:  category,
 			}
 
 			if m.vaultMgr == nil {
@@ -330,6 +340,8 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addPeriodInput, cmd = m.addPeriodInput.Update(msg)
 	case addSlotTags:
 		m.addTagsInput, cmd = m.addTagsInput.Update(msg)
+	case addSlotCategory:
+		m.addCategoryInput, cmd = m.addCategoryInput.Update(msg)
 	}
 	return m, cmd
 }
@@ -379,6 +391,9 @@ func (m model) viewOverlayAdd() string {
 
 	// Tags text input.
 	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Tags:", m.addTagsInput.View(), helpBarStyle.Render("(optional)")))
+
+	// Category text input.
+	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Category:", m.addCategoryInput.View(), helpBarStyle.Render("(optional)")))
 
 	if m.errMsg != "" {
 		lines = append(lines, "")
@@ -488,25 +503,75 @@ func (m model) viewOverlayRemove() string {
 }
 
 // refreshCredList rebuilds the credential list from the vault manager,
-// sorted alphabetically by label. The list selection moves to the item
-// matching selectLabel (if non-empty), or resets to the top.
+// grouped by category, with each category section alphabetically sorted.
+// The list selection moves to the item matching selectLabel (if non-empty), or resets to the top.
 func refreshCredList(m model, selectLabel ...string) model {
 	if m.vaultMgr == nil {
 		return m
 	}
 	creds := m.vaultMgr.ListCredentials()
-	sort.Slice(creds, func(i, j int) bool {
-		return strings.ToLower(creds[i].Label) < strings.ToLower(creds[j].Label)
+
+	// Group credentials by category
+	groups := make(map[string][]pkgmodel.Credential)
+	for _, c := range creds {
+		key := c.Category
+		if key == "" {
+			key = "[Uncategorized]"
+		}
+		groups[key] = append(groups[key], c)
+	}
+
+	// Sort category keys (alphabetically, with [Uncategorized] at the end)
+	var categories []string
+	for cat := range groups {
+		categories = append(categories, cat)
+	}
+	sort.Slice(categories, func(i, j int) bool {
+		if categories[i] == "[Uncategorized]" {
+			return false
+		}
+		if categories[j] == "[Uncategorized]" {
+			return true
+		}
+		return categories[i] < categories[j]
 	})
-	items := make([]list.Item, 0, len(creds))
+
+	// Build items list with category headers and sorted credentials
+	items := make([]list.Item, 0, len(creds)+len(categories))
 	selectedIdx := 0
-	for i, c := range creds {
-		items = append(items, credItem{cred: c})
-		if len(selectLabel) > 0 && c.Label == selectLabel[0] {
-			selectedIdx = i
+	itemIdx := 0
+
+	for _, cat := range categories {
+		// Add category header
+		items = append(items, categoryHeaderItem{category: cat})
+		itemIdx++
+
+		// Sort credentials within this category by label
+		catCreds := groups[cat]
+		sort.Slice(catCreds, func(i, j int) bool {
+			return strings.ToLower(catCreds[i].Label) < strings.ToLower(catCreds[j].Label)
+		})
+
+		// Add credentials
+		for _, c := range catCreds {
+			items = append(items, credItem{cred: c})
+			if len(selectLabel) > 0 && c.Label == selectLabel[0] {
+				selectedIdx = itemIdx
+			}
+			itemIdx++
 		}
 	}
+
 	m.credList.SetItems(items)
+	// If no specific label to select, find the first credItem (skip category headers)
+	if len(selectLabel) == 0 && selectedIdx == 0 {
+		for i, item := range items {
+			if _, ok := item.(credItem); ok {
+				selectedIdx = i
+				break
+			}
+		}
+	}
 	m.credList.Select(selectedIdx)
 	m.cursor = selectedIdx
 	if len(creds) == 1 {

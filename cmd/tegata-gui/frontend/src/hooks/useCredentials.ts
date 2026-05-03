@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react"
-import { App } from "@/lib/wails"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { App, EventsOn, EventsOff } from "@/lib/wails"
 import type { Credential } from "@/lib/types"
 
 // Go serializes nil slices/empty strings as null. Normalize at the boundary.
@@ -30,6 +30,13 @@ export function useCredentials() {
       setCredentials([])
     }
   }, [])
+
+  // Refresh whenever the backend detects an external write to the vault file
+  // (e.g. the TUI or CLI updated a credential in another process).
+  useEffect(() => {
+    EventsOn("vault:updated", refresh)
+    return () => EventsOff("vault:updated")
+  }, [refresh])
 
   const filteredCredentials = useMemo(() => {
     if (!searchQuery) return credentials
