@@ -24,6 +24,8 @@ func WriteAuditSection(dir string, cfg AuditConfig) error {
 }
 
 // formatAuditSection renders the [audit] TOML block from cfg.
+// Note: secret_key is omitted since it is stored encrypted in the vault,
+// not in plaintext tegata.toml.
 func formatAuditSection(cfg AuditConfig) string {
 	var buf bytes.Buffer
 	buf.WriteString("[audit]\n")
@@ -39,9 +41,6 @@ func formatAuditSection(cfg AuditConfig) string {
 	}
 	if cfg.KeyVersion > 0 {
 		buf.WriteString(fmt.Sprintf("key_version = %d\n", cfg.KeyVersion))
-	}
-	if cfg.SecretKey != "" {
-		buf.WriteString(fmt.Sprintf("secret_key = %q\n", cfg.SecretKey))
 	}
 	if cfg.Insecure {
 		buf.WriteString("insecure = true\n")

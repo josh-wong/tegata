@@ -33,6 +33,9 @@ func TestWriteAuditSection_NewFile(t *testing.T) {
 	if !strings.Contains(content, "tegata-a3f2c810") {
 		t.Error("written file does not contain entity_id value")
 	}
+	if strings.Contains(content, "secret_key") {
+		t.Error("written file should NOT contain secret_key (should be stored in vault)")
+	}
 }
 
 func TestWriteAuditSection_Append(t *testing.T) {
@@ -130,6 +133,11 @@ func TestDockerComposePath_RoundTrip(t *testing.T) {
 	if loaded.Audit.DockerComposePath != cfg.DockerComposePath {
 		t.Errorf("DockerComposePath round-trip: got %q, want %q",
 			loaded.Audit.DockerComposePath, cfg.DockerComposePath)
+	}
+	// Secret key is not persisted to tegata.toml (it's stored in the vault).
+	// After writing and reloading, it should be empty.
+	if loaded.Audit.SecretKey != "" {
+		t.Errorf("SecretKey should not persist through TOML write/load; got %q", loaded.Audit.SecretKey)
 	}
 }
 

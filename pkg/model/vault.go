@@ -65,6 +65,9 @@ type VaultPayload struct {
 	// audit record fetched within the last N months) to bound map growth for
 	// long-lived vaults with frequent credential rotation.
 	DeletedLabels map[string]string `json:"deleted_labels,omitempty"`
+	// Secrets stores auxiliary secrets such as the HMAC secret for ScalarDL Ledger.
+	// These are stored encrypted in the vault and never persisted to tegata.toml.
+	Secrets map[string]string `json:"secrets,omitempty"`
 }
 
 // VaultHeader represents the plaintext header of a vault file as specified in

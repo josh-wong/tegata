@@ -75,6 +75,7 @@ func (a *App) startup(ctx context.Context) {
 // shutdown is called by Wails when the application is closing. It locks the
 // vault to zero sensitive memory.
 func (a *App) shutdown(_ context.Context) {
+	a.deleteClientProperties()
 	a.LockVault()
 }
 
@@ -202,6 +203,24 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 	a.config = cfg
 
+	// Attempt to load HMAC secret from vault (encrypted storage).
+	secretFromVault := a.vault.GetSecret("audit.secret_key")
+	
+	// Migration: if secret is in tegata.toml but not in vault, move it to vault
+	// and clear it from memory (so it won't be rewritten to TOML on next save).
+	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
+		// Store in vault for future use.
+		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not migrate secret to vault: %v\n", vaultErr)
+		}
+		secretFromVault = a.config.Audit.SecretKey
+	}
+	
+	// Use the secret (from vault or after migration).
+	if secretFromVault != "" {
+		a.config.Audit.SecretKey = secretFromVault
+	}
+
 	// Ensure the audit stack is running before building the EventBuilder so
 	// that the first credential operation after unlock records events
 	// immediately. EnsureStack is a no-op when DockerComposePath is empty or
@@ -270,6 +289,14 @@ func (a *App) LockVault() {
 		a.idleTimer.Stop()
 	}
 	a.stopVaultWatcher()
+	
+	// Delete plaintext client.properties file when vault is locked.
+	// This ensures the HMAC secret is not accessible on disk after the app exits.
+	a.deleteClientProperties()
+	
+	// Zero the HMAC secret key from memory before closing the vault.
+	a.config.Audit.SecretKey = ""
+	
 	if a.vault != nil {
 		a.vault.Close()
 		a.vault = nil
@@ -282,6 +309,19 @@ func (a *App) LockVault() {
 
 	if a.ctx != nil {
 		wailsruntime.EventsEmit(a.ctx, "vault:locked")
+	}
+}
+
+// deleteClientProperties removes the plaintext client.properties file created
+// by the audit setup. This ensures the HMAC secret key is not persisted to
+// disk after the app closes or the vault is locked.
+func (a *App) deleteClientProperties() {
+	if a.config.Audit.DockerComposePath == "" {
+		return
+	}
+	clientPropsPath := filepath.Join(a.config.Audit.DockerComposePath, "certs", "client.properties")
+	if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties: %v\n", err)
 	}
 }
 
@@ -1129,6 +1169,14 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	onRegistered := func(auditCfg config.AuditConfig) error {
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
 			return fmt.Errorf("writing audit config: %w", writeErr)
+		}
+
+		// Store the HMAC secret in the encrypted vault instead of tegata.toml.
+		// This ensures the secret is never persisted in plaintext on disk.
+		if auditCfg.SecretKey != "" {
+			if vaultErr := a.vault.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
+				return fmt.Errorf("storing secret in vault: %w", vaultErr)
+			}
 		}
 
 		// Update in-memory config so auto-start fires on next unlock.
