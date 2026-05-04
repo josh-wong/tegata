@@ -226,10 +226,12 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 
 	// onRegistered stores the generated HMAC secret in the encrypted vault and
 	// writes the [audit] section to tegata.toml (without secret_key).
+	// The secret is stored FIRST to ensure transactional consistency: if vault
+	// storage fails, the config file is not modified.
 	onRegistered := func(auditCfg config.AuditConfig) error {
 		if auditCfg.SecretKey != "" {
 			if vaultErr := mgr.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not store secret in vault: %v\n", vaultErr)
+				return fmt.Errorf("storing HMAC secret in vault: %w", vaultErr)
 			}
 		}
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {

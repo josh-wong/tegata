@@ -207,22 +207,18 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	secretFromVault := a.vault.GetSecret("audit.secret_key")
 
 	// Migration: if the vault doesn't have the secret but tegata.toml does,
-	// store it in the vault now.
+	// store it in the vault now. Only rewrite the TOML if vault migration succeeds
+	// to maintain consistency: either both succeed or both fail.
 	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
 		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not migrate secret to vault: %v\n", vaultErr)
-		} else {
-			secretFromVault = a.config.Audit.SecretKey
+			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
 		}
-	}
+		secretFromVault = a.config.Audit.SecretKey
 
-	// Cleanup: if tegata.toml still has secret_key (from before this fix was
-	// deployed, or written by the CLI), rewrite the file to remove it.
-	// This runs whenever the TOML contains the field, regardless of whether
-	// a vault migration was needed this session.
-	if a.config.Audit.SecretKey != "" {
+		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
+		// now that it has been safely stored in the vault.
 		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not rewrite audit config to remove secret_key: %v\n", writeErr)
+			return fmt.Errorf("rewriting audit config to remove secret_key: %w", writeErr)
 		}
 	}
 
@@ -1191,17 +1187,20 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	// registered and the ledger is confirmed reachable. Persisting tegata.toml
 	// and initialising the EventBuilder here ensures audit is active even if
 	// the contract-registration container is still running in the background.
+	// The secret is stored FIRST to ensure transactional consistency: if vault
+	// storage fails, the config file is not modified.
 	onRegistered := func(auditCfg config.AuditConfig) error {
-		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-			return fmt.Errorf("writing audit config: %w", writeErr)
-		}
-
 		// Store the HMAC secret in the encrypted vault instead of tegata.toml.
 		// This ensures the secret is never persisted in plaintext on disk.
+		// This must happen BEFORE writing the config file to maintain consistency.
 		if auditCfg.SecretKey != "" {
 			if vaultErr := a.vault.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
 				return fmt.Errorf("storing secret in vault: %w", vaultErr)
 			}
+		}
+
+		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+			return fmt.Errorf("writing audit config: %w", writeErr)
 		}
 
 		// Update in-memory config so auto-start fires on next unlock.
