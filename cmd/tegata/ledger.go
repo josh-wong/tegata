@@ -99,6 +99,8 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		}
 		cfg.Audit.SecretKey = secret
 	}
+	// Zero the secret on all exit paths regardless of success or failure.
+	defer func() { cfg.Audit.SecretKey = "" }()
 
 	// Dial the ScalarDL Ledger.
 	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",

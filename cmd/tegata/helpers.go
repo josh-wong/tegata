@@ -413,23 +413,24 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 	}
 
 	// Prompt for passphrase interactively, or use environment variable if set.
-	var passphrase string
+	// Always work with a byte slice so the passphrase can be zeroed after use.
+	var passBytes []byte
 	if envPass := os.Getenv("TEGATA_VAULT_PASSPHRASE"); envPass != "" {
-		passphrase = envPass
+		passBytes = []byte(envPass)
 	} else {
 		fmt.Fprint(os.Stderr, "Enter passphrase: ")
-		passBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		var err error
+		passBytes, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			return "", fmt.Errorf("reading passphrase: %w", err)
 		}
 		fmt.Fprintln(os.Stderr) // newline after password input
-		passphrase = string(passBytes)
-		defer func() {
-			for i := range passBytes {
-				passBytes[i] = 0
-			}
-		}()
 	}
+	defer func() {
+		for i := range passBytes {
+			passBytes[i] = 0
+		}
+	}()
 
 	// Open and unlock the vault.
 	mgr, err := vault.Open(vaultPath)
@@ -438,7 +439,7 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 	}
 	defer mgr.Close()
 
-	if err := mgr.Unlock([]byte(passphrase)); err != nil {
+	if err := mgr.Unlock(passBytes); err != nil {
 		return "", fmt.Errorf("unlocking vault: %w", err)
 	}
 

@@ -211,9 +211,11 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// to maintain consistency: either both succeed or both fail.
 	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
 		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
+			a.config.Audit.SecretKey = ""
 			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
 		}
 		secretFromVault = a.config.Audit.SecretKey
+		a.config.Audit.SecretKey = ""
 
 		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 		// now that it has been safely stored in the vault.

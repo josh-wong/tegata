@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -561,5 +562,112 @@ func TestApp_SetIdleTimeoutSeconds_RejectsNegative(t *testing.T) {
 	app := NewApp()
 	if err := app.SetIdleTimeoutSeconds(-1); err == nil {
 		t.Fatal("expected error for negative idle timeout")
+	}
+}
+
+// writeTomlWithSecret writes a minimal tegata.toml containing a plaintext
+// secret_key to simulate a pre-migration config file.
+func writeTomlWithSecret(t *testing.T, dir, secret string) {
+	t.Helper()
+	content := "[audit]\nenabled = true\nsecret_key = \"" + secret + "\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0600); err != nil {
+		t.Fatalf("writing tegata.toml: %v", err)
+	}
+}
+
+// TestUnlockVault_MigratesSecretFromTOMLToVault verifies that when tegata.toml
+// contains a plaintext secret_key and the vault does not, UnlockVault migrates
+// the secret into the vault and removes it from the TOML file.
+func TestUnlockVault_MigratesSecretFromTOMLToVault(t *testing.T) {
+	vaultPath := setupTestVault(t)
+	dir := filepath.Dir(vaultPath)
+
+	const testSecret = "hmac-secret-for-migration-test"
+	writeTomlWithSecret(t, dir, testSecret)
+
+	app := NewApp()
+	if err := app.UnlockVault(vaultPath, testPassphrase); err != nil {
+		t.Fatalf("UnlockVault: %v", err)
+	}
+	defer app.LockVault()
+
+	// Secret should now be in the vault.
+	got := app.vault.GetSecret("audit.secret_key")
+	if got != testSecret {
+		t.Errorf("vault secret after migration: got %q, want %q", got, testSecret)
+	}
+
+	// Secret should be available on the in-memory config for use in this session.
+	if app.config.Audit.SecretKey != testSecret {
+		t.Errorf("in-memory SecretKey after migration: got %q, want %q", app.config.Audit.SecretKey, testSecret)
+	}
+
+	// TOML file should no longer contain secret_key.
+	data, err := os.ReadFile(filepath.Join(dir, "tegata.toml"))
+	if err != nil {
+		t.Fatalf("reading tegata.toml after migration: %v", err)
+	}
+	if strings.Contains(string(data), "secret_key") {
+		t.Error("tegata.toml still contains secret_key after migration")
+	}
+}
+
+// TestUnlockVault_MigrationIsIdempotent verifies that calling UnlockVault a
+// second time after migration succeeds and does not duplicate or corrupt data.
+func TestUnlockVault_MigrationIsIdempotent(t *testing.T) {
+	vaultPath := setupTestVault(t)
+	dir := filepath.Dir(vaultPath)
+
+	const testSecret = "hmac-secret-idempotent-test"
+	writeTomlWithSecret(t, dir, testSecret)
+
+	app := NewApp()
+
+	// First unlock triggers migration.
+	if err := app.UnlockVault(vaultPath, testPassphrase); err != nil {
+		t.Fatalf("first UnlockVault: %v", err)
+	}
+	app.LockVault()
+
+	// Second unlock should succeed without error (no secret_key in TOML now).
+	if err := app.UnlockVault(vaultPath, testPassphrase); err != nil {
+		t.Fatalf("second UnlockVault: %v", err)
+	}
+	defer app.LockVault()
+
+	// Secret should still be in the vault after the second unlock.
+	got := app.vault.GetSecret("audit.secret_key")
+	if got != testSecret {
+		t.Errorf("vault secret after second unlock: got %q, want %q", got, testSecret)
+	}
+}
+
+// TestUnlockVault_SecretZeroedAfterMigrationWriteError verifies that the
+// in-memory secret is zeroed if the TOML rewrite step of migration fails.
+func TestUnlockVault_SecretZeroedAfterMigrationWriteError(t *testing.T) {
+	vaultPath := setupTestVault(t)
+	dir := filepath.Dir(vaultPath)
+
+	const testSecret = "hmac-secret-write-error-test"
+	writeTomlWithSecret(t, dir, testSecret)
+
+	// Make the directory read-only so WriteAuditSection fails.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod dir: %v", err)
+	}
+	// Restore permissions so t.TempDir() cleanup can remove the directory.
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	app := NewApp()
+	err := app.UnlockVault(vaultPath, testPassphrase)
+	// UnlockVault must fail because the TOML rewrite cannot proceed.
+	if err == nil {
+		app.LockVault()
+		t.Fatal("expected error when TOML rewrite fails, got nil")
+	}
+
+	// The in-memory secret must be zeroed even though an error was returned.
+	if app.config.Audit.SecretKey != "" {
+		t.Errorf("SecretKey not zeroed after migration error; got %q", app.config.Audit.SecretKey)
 	}
 }
