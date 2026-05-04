@@ -52,7 +52,7 @@ type App struct {
 	config       config.Config
 	clipboard    *clipboard.Manager
 	vaultPath    string
-	vaultModTime time.Time    // mtime of vault file at last read; used to detect external writes
+	vaultModTime time.Time     // mtime of vault file at last read; used to detect external writes
 	watcherStop  chan struct{} // closed to stop the vault file watcher goroutine
 	idleTimer    *IdleTimer
 	locked       bool
@@ -75,6 +75,7 @@ func (a *App) startup(ctx context.Context) {
 // shutdown is called by Wails when the application is closing. It locks the
 // vault to zero sensitive memory.
 func (a *App) shutdown(_ context.Context) {
+	a.deleteClientProperties()
 	a.LockVault()
 }
 
@@ -202,6 +203,35 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 	a.config = cfg
 
+	// Attempt to load HMAC secret from vault (encrypted storage).
+	secretFromVault := a.vault.GetSecret("audit.secret_key")
+
+	// Migration: if the vault doesn't have the secret but tegata.toml does,
+	// store it in the vault now. Only rewrite the TOML if vault migration succeeds
+	// to maintain consistency: either both succeed or both fail.
+	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
+		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
+			a.config.Audit.SecretKey = ""
+			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
+		}
+		secretFromVault = a.config.Audit.SecretKey
+
+		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
+		// now that it has been safely stored in the vault.
+		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
+			a.config.Audit.SecretKey = ""
+			return fmt.Errorf("rewriting audit config to remove secret_key: %w", writeErr)
+		}
+
+		// Only zero the in-memory secret after both vault and TOML writes succeed.
+		a.config.Audit.SecretKey = ""
+	}
+
+	// Use the secret (from vault or after migration).
+	if secretFromVault != "" {
+		a.config.Audit.SecretKey = secretFromVault
+	}
+
 	// Ensure the audit stack is running before building the EventBuilder so
 	// that the first credential operation after unlock records events
 	// immediately. EnsureStack is a no-op when DockerComposePath is empty or
@@ -270,6 +300,14 @@ func (a *App) LockVault() {
 		a.idleTimer.Stop()
 	}
 	a.stopVaultWatcher()
+
+	// Delete plaintext client.properties file when vault is locked.
+	// This ensures the HMAC secret is not accessible on disk after the app exits.
+	a.deleteClientProperties()
+
+	// Zero the HMAC secret key from memory before closing the vault.
+	a.config.Audit.SecretKey = ""
+
 	if a.vault != nil {
 		a.vault.Close()
 		a.vault = nil
@@ -282,6 +320,34 @@ func (a *App) LockVault() {
 
 	if a.ctx != nil {
 		wailsruntime.EventsEmit(a.ctx, "vault:locked")
+	}
+}
+
+// deleteClientProperties removes the plaintext client.properties file created
+// by the audit setup. This ensures the HMAC secret key is not persisted to
+// disk after the app closes or the vault is locked.
+func (a *App) deleteClientProperties() {
+	// Try to delete from the configured Docker compose location if available.
+	// DockerComposePath is a file path (e.g. .../docker/docker-compose.yml),
+	// so use its parent directory to locate the certs/ subdirectory.
+	if a.config.Audit.DockerComposePath != "" {
+		composeDir := filepath.Dir(a.config.Audit.DockerComposePath)
+		clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
+		if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", clientPropsPath, err)
+		}
+		return
+	}
+
+	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
+	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	defaultPath := filepath.Join(homeDir, ".tegata", "docker", "certs", "client.properties")
+	if err := os.Remove(defaultPath); err != nil && !os.IsNotExist(err) {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", defaultPath, err)
 	}
 }
 
@@ -939,10 +1005,10 @@ type AuditHistoryRecord struct {
 
 // AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
 type AuditVerifyResult struct {
-	Valid       bool     `json:"valid"`
-	EventCount  int      `json:"event_count"`
-	Skipped     int      `json:"skipped,omitempty"`
-	Faults      []string `json:"faults,omitempty"`
+	Valid      bool     `json:"valid"`
+	EventCount int      `json:"event_count"`
+	Skipped    int      `json:"skipped,omitempty"`
+	Faults     []string `json:"faults,omitempty"`
 }
 
 // IsAuditEnabled returns whether audit logging is configured and enabled.
@@ -1029,10 +1095,10 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	}
 
 	return &AuditVerifyResult{
-		Valid:       result.Valid,
-		EventCount:  result.EventCount,
-		Skipped:     result.Skipped,
-		Faults:      result.Faults,
+		Valid:      result.Valid,
+		EventCount: result.EventCount,
+		Skipped:    result.Skipped,
+		Faults:     result.Faults,
 	}, nil
 }
 
@@ -1061,10 +1127,10 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	}
 
 	return &AuditVerifyResult{
-		Valid:       result.Valid,
-		EventCount:  result.EventCount,
-		Skipped:     result.Skipped,
-		Faults:      result.Faults,
+		Valid:      result.Valid,
+		EventCount: result.EventCount,
+		Skipped:    result.Skipped,
+		Faults:     result.Faults,
 	}, nil
 }
 
@@ -1126,7 +1192,18 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	// registered and the ledger is confirmed reachable. Persisting tegata.toml
 	// and initialising the EventBuilder here ensures audit is active even if
 	// the contract-registration container is still running in the background.
+	// The secret is stored FIRST to ensure transactional consistency: if vault
+	// storage fails, the config file is not modified.
 	onRegistered := func(auditCfg config.AuditConfig) error {
+		// Store the HMAC secret in the encrypted vault instead of tegata.toml.
+		// This ensures the secret is never persisted in plaintext on disk.
+		// This must happen BEFORE writing the config file to maintain consistency.
+		if auditCfg.SecretKey != "" {
+			if vaultErr := a.vault.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
+				return fmt.Errorf("storing secret in vault: %w", vaultErr)
+			}
+		}
+
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
 			return fmt.Errorf("writing audit config: %w", writeErr)
 		}

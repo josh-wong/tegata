@@ -49,6 +49,10 @@ func clearPayload(p *model.VaultPayload) {
 	for i := range p.Credentials {
 		p.Credentials[i].Secret = ""
 	}
+	for k := range p.Secrets {
+		p.Secrets[k] = ""
+		delete(p.Secrets, k)
+	}
 }
 
 // Manager provides access to an opened vault file. Call Unlock to decrypt the
@@ -982,6 +986,32 @@ func ZeroAuditHashes(m map[string]string) {
 		m[k] = ""
 		delete(m, k)
 	}
+}
+
+// GetSecret retrieves an auxiliary secret stored in the vault (e.g., HMAC key).
+// Returns an empty string if the vault is locked or the secret does not exist.
+func (m *Manager) GetSecret(key string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil || m.payload.Secrets == nil {
+		return ""
+	}
+	return m.payload.Secrets[key]
+}
+
+// SetSecret stores an auxiliary secret in the vault (e.g., HMAC key).
+// The secret is encrypted with the vault's data encryption key and persisted to disk.
+func (m *Manager) SetSecret(key, value string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+	if m.payload.Secrets == nil {
+		m.payload.Secrets = make(map[string]string)
+	}
+	m.payload.Secrets[key] = value
+	return m.saveLocked()
 }
 
 // atomicWrite writes data to path using temp-file-rename for crash safety.

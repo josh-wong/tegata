@@ -402,3 +402,53 @@ func formatVaultPathWithBoldFilename(path string) string {
 	return "Vault: " + dir + separator + boldStyle.Render(filename)
 }
 
+// unlockVaultForSecret opens a vault and returns the HMAC secret from encrypted storage.
+// It uses interactive prompts for vault path and passphrase, with opt-in environment
+// variables for automation (TEGATA_VAULT_PATH and TEGATA_VAULT_PASSPHRASE).
+func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
+	// Prompt for vault path if not provided via flag or env var.
+	vaultPath, err := resolveVaultPath(cmd)
+	if err != nil {
+		return "", err
+	}
+
+	// Prompt for passphrase interactively, or use environment variable if set.
+	// Always work with a byte slice so the passphrase can be zeroed after use.
+	var passBytes []byte
+	if envPass := os.Getenv("TEGATA_VAULT_PASSPHRASE"); envPass != "" {
+		passBytes = []byte(envPass)
+	} else {
+		fmt.Fprint(os.Stderr, "Enter passphrase: ")
+		var err error
+		passBytes, err = term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return "", fmt.Errorf("reading passphrase: %w", err)
+		}
+		fmt.Fprintln(os.Stderr) // newline after password input
+	}
+	defer func() {
+		for i := range passBytes {
+			passBytes[i] = 0
+		}
+	}()
+
+	// Open and unlock the vault.
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		return "", fmt.Errorf("opening vault: %w", err)
+	}
+	defer mgr.Close()
+
+	if err := mgr.Unlock(passBytes); err != nil {
+		return "", fmt.Errorf("unlocking vault: %w", err)
+	}
+
+	// Retrieve the secret from the vault.
+	secret := mgr.GetSecret("audit.secret_key")
+	if secret == "" {
+		return "", fmt.Errorf("HMAC secret not found in vault. Run 'tegata ledger setup' to register the secret")
+	}
+
+	return secret, nil
+}
+

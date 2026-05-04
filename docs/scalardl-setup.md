@@ -216,7 +216,6 @@ server            = "127.0.0.1:50051"
 privileged_server = "127.0.0.1:50052"
 entity_id         = "tegata-client"
 key_version       = 1
-secret_key        = "your-32-byte-hex-secret-key-here"
 insecure          = true
 auto_start        = false
 ```
@@ -230,18 +229,27 @@ server            = "scalardl.example.com:50051"
 privileged_server = "scalardl.example.com:50052"
 entity_id         = "tegata-client"
 key_version       = 1
-secret_key        = "your-32-byte-hex-secret-key-here"
 # insecure        = false  # Default; TLS is enabled. You can omit this field for remote or production servers.
 auto_start        = false
 ```
 
 Set `auto_start = false` when managing ScalarDL yourself (locally or remotely). Tegata connects to the audit server automatically when needed — `auto_start` only controls whether Tegata starts a local Docker stack on vault unlock, which applies to the bundled one-click setup only.
 
+The `secret_key` is not set in `tegata.toml`. It is stored in the encrypted vault. When you run `tegata ledger setup`, Tegata prompts for your vault passphrase and loads the secret automatically.
+
 Then run `tegata ledger setup` to register your credentials.
 
 ```bash
 tegata ledger setup --vault /path/to/vault
 ```
+
+Tegata prompts for your vault passphrase and loads the HMAC secret from encrypted vault storage. For automated environments (such as CI), you can set the passphrase via environment variable.
+
+```bash
+TEGATA_VAULT_PASSPHRASE=your-passphrase tegata ledger setup --vault /path/to/vault
+```
+
+> **Note:** Only use `TEGATA_VAULT_PASSPHRASE` in trusted automated environments. Never commit passphrases to version control.
 
 ## Troubleshooting
 
@@ -264,7 +272,7 @@ If this fails with `INVALID_SIGNATURE`, verify that the secret key in `certs/cli
 
 ### The request signature cannot be validated
 
-This error (`DL-COMMON-400003`) means the HMAC secret key used for signing does not match the secret registered with the ledger. Run `tegata config show` to check the configured `secret_key`. If you changed the secret after the initial registration, tear down the stack completely and re-run setup.
+This error (`DL-COMMON-400003`) means the HMAC secret key used for signing does not match the secret registered with the ledger. The secret is stored in your encrypted vault. If you changed the secret after the initial registration, tear down the stack completely and re-run setup.
 
 ```bash
 docker compose -f ~/.tegata/docker/docker-compose.yml down -v
