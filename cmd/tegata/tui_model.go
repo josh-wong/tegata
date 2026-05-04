@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -545,6 +546,20 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 	}
 	// Clear sensitive data from config
 	m.cfg.Audit.SecretKey = ""
+
+	// Stop Docker audit stack on exit (mirrors GUI shutdown behavior).
+	if m.cfg.Audit.DockerComposePath != "" {
+		if err := audit.StopStack(m.cfg.Audit.DockerComposePath); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not stop audit server: %v\n", err)
+		}
+		// Delete the plaintext client.properties now that the stack is stopped.
+		composeDir := filepath.Dir(m.cfg.Audit.DockerComposePath)
+		clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
+		if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties: %v\n", err)
+		}
+	}
+
 	return m, tea.Quit
 }
 
