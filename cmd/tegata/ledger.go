@@ -89,8 +89,15 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
+	// Attempt to load secret_key from tegata.toml (old behavior for backward compatibility).
+	// If not present, prompt for vault unlock and load from encrypted vault storage.
 	if cfg.Audit.SecretKey == "" {
-		return fmt.Errorf("audit.secret_key is required in tegata.toml")
+		fmt.Fprintln(os.Stderr, "Secret key not found in tegata.toml. Loading from encrypted vault...")
+		secret, err := unlockVaultForSecret(cmd)
+		if err != nil {
+			return err
+		}
+		cfg.Audit.SecretKey = secret
 	}
 
 	// Dial the ScalarDL Ledger.
