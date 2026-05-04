@@ -652,22 +652,24 @@ func TestUnlockVault_SecretZeroedAfterMigrationWriteError(t *testing.T) {
 	const testSecret = "hmac-secret-write-error-test"
 	writeTomlWithSecret(t, dir, testSecret)
 
-	// Create a subdirectory to ensure WriteAuditSection will fail when writing to tegata.toml.
-	// On Windows, directory-level Chmod doesn't reliably prevent file writes, so we make
-	// the directory itself read-only by creating it with restricted permissions.
-	// However, a more reliable cross-platform approach is to make the vault itself locked
-	// before attempting migration - but that would prevent the first SetSecret call.
-	// Instead, we skip this test on Windows where Chmod is unreliable.
+	// Make only tegata.toml read-only so that WriteAuditSection fails, while
+	// the vault file (vault.tegata) in the same directory remains writable so
+	// that SetSecret can persist the secret to the vault. This isolates the
+	// WriteAuditSection failure path in the migration logic.
+	//
+	// On Windows, file-level Chmod to read-only is supported but WriteFile
+	// behaviour on read-only files can be inconsistent across environments,
+	// so we skip there.
 	if runtime.GOOS == "windows" {
-		t.Skip("skipping test on Windows: os.Chmod on directories is not reliable")
+		t.Skip("skipping test on Windows: os.Chmod on files is not reliable")
 	}
 
-	// Make the directory read-only so WriteAuditSection fails.
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Fatalf("chmod dir: %v", err)
+	tomlPath := filepath.Join(dir, "tegata.toml")
+	if err := os.Chmod(tomlPath, 0o400); err != nil {
+		t.Fatalf("chmod tegata.toml: %v", err)
 	}
-	// Restore permissions so t.TempDir() cleanup can remove the directory.
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	// Restore permissions so t.TempDir() cleanup can remove the file.
+	t.Cleanup(func() { _ = os.Chmod(tomlPath, 0o600) })
 
 	app := NewApp()
 	err := app.UnlockVault(vaultPath, testPassphrase)

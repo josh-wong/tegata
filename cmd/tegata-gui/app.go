@@ -219,6 +219,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 		// now that it has been safely stored in the vault.
 		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
+			a.config.Audit.SecretKey = ""
 			return fmt.Errorf("rewriting audit config to remove secret_key: %w", writeErr)
 		}
 
