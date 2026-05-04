@@ -215,13 +215,18 @@ func (a *App) UnlockVault(path, passphrase string) error {
 			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
 		}
 		secretFromVault = a.config.Audit.SecretKey
-		a.config.Audit.SecretKey = ""
 
 		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 		// now that it has been safely stored in the vault.
 		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
+			// Migration failed at TOML write step; leave secretFromVault empty so
+			// the condition retries on next unlock (allowing the secret to stay in memory).
+			secretFromVault = ""
 			return fmt.Errorf("rewriting audit config to remove secret_key: %w", writeErr)
 		}
+
+		// Only zero the in-memory secret after both vault and TOML writes succeed.
+		a.config.Audit.SecretKey = ""
 	}
 
 	// Use the secret (from vault or after migration).
