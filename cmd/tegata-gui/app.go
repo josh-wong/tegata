@@ -72,10 +72,13 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// shutdown is called by Wails when the application is closing. It locks the
-// vault to zero sensitive memory.
+// shutdown is called by Wails when the application is closing. It stops the
+// Docker audit stack (if configured) and locks the vault to zero sensitive memory.
 func (a *App) shutdown(_ context.Context) {
 	a.deleteClientProperties()
+	if a.config.Audit.DockerComposePath != "" {
+		_ = audit.StopStack(a.config.Audit.DockerComposePath)
+	}
 	a.LockVault()
 }
 
