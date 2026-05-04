@@ -54,19 +54,20 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		// store it in the vault now.
 		if secretFromVault == "" && cfg.Audit.SecretKey != "" {
 			if vaultErr := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); vaultErr != nil {
-				cfg.Audit.SecretKey = ""
+				// Migration failed — keep cfg.Audit.SecretKey so audit can still
+				// function using the plaintext value from tegata.toml this session.
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: audit secret migration failed: %v\n", vaultErr)
+				secretFromVault = cfg.Audit.SecretKey
 			} else {
 				secretFromVault = cfg.Audit.SecretKey
 
 				// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 				// now that it has been safely stored in the vault.
 				if writeErr := config.WriteAuditSection(filepath.Dir(path), cfg.Audit); writeErr != nil {
-					cfg.Audit.SecretKey = ""
-				} else {
-					// Only zero the in-memory secret after both vault and TOML writes succeed.
-					cfg.Audit.SecretKey = ""
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit secret cleanup failed: %v\n", writeErr)
 				}
 			}
+			cfg.Audit.SecretKey = ""
 		}
 
 		// Use the secret (from vault or after migration).
