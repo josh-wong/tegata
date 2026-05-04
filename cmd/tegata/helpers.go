@@ -252,6 +252,14 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 	// Passes bundleFS so docker-compose.yml is synced on each run, keeping
 	// the live stack config current after binary upgrades.
 	if cfg, err := config.Load(filepath.Dir(vaultPath)); err == nil {
+		// Load HMAC secret from vault and inject into config so EnsureStack
+		// can successfully probe the ledger.
+		secretFromVault := mgr.GetSecret("audit.secret_key")
+		if secretFromVault != "" {
+			cfg.Audit.SecretKey = secretFromVault
+		}
+		defer func() { cfg.Audit.SecretKey = "" }()
+
 		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)

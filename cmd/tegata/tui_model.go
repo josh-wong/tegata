@@ -393,6 +393,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.vaultMgr.Close()
 				m.vaultMgr = nil
 			}
+			// Clear sensitive data from config
+			m.cfg.Audit.SecretKey = ""
 			// Clear messages that may contain sensitive fallback data
 			// (e.g., OTP codes shown when clipboard was unavailable).
 			m.statusMsg = ""
@@ -541,6 +543,8 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 		m.vaultMgr.Close()
 		m.vaultMgr = nil
 	}
+	// Clear sensitive data from config
+	m.cfg.Audit.SecretKey = ""
 	return m, tea.Quit
 }
 

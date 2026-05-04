@@ -36,6 +36,14 @@ func newChangePassphraseCmd() *cobra.Command {
 			// passphrase changes, the queue key (derived from the old passphrase)
 			// becomes invalid, so writing it to disk would leave an unreadable file.
 			cfg, _ := config.Load(vaultDir(vaultPath))
+
+			// Load HMAC secret from vault and inject into config.
+			secretFromVault := mgr.GetSecret("audit.secret_key")
+			if secretFromVault != "" {
+				cfg.Audit.SecretKey = secretFromVault
+			}
+			defer func() { cfg.Audit.SecretKey = "" }()
+
 			var builder *audit.EventBuilder
 			if cfg.Audit.Enabled {
 				auditClient, clientErr := audit.NewClientFromConfig(cfg.Audit)

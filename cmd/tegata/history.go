@@ -81,6 +81,13 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			}
 			defer mgr.Close()
 
+			// Load HMAC secret from vault and inject into config.
+			secretFromVault := mgr.GetSecret("audit.secret_key")
+			if secretFromVault != "" {
+				cfg.Audit.SecretKey = secretFromVault
+			}
+			defer func() { cfg.Audit.SecretKey = "" }()
+
 			// Build hash→label lookup from vault credentials.
 			creds := mgr.ListCredentials()
 			labels := make([]string, len(creds))
