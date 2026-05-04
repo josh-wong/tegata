@@ -79,6 +79,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	if secretFromVault != "" {
 		cfg.Audit.SecretKey = secretFromVault
 	}
+	defer func() { cfg.Audit.SecretKey = "" }()
 
 	hashes := mgr.AuditHashes()
 	defer vault.ZeroAuditHashes(hashes)

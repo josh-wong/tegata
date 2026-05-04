@@ -86,6 +86,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			if secretFromVault != "" {
 				cfg.Audit.SecretKey = secretFromVault
 			}
+			defer func() { cfg.Audit.SecretKey = "" }()
 
 			// Build hash→label lookup from vault credentials.
 			creds := mgr.ListCredentials()

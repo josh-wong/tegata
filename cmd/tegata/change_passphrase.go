@@ -42,6 +42,7 @@ func newChangePassphraseCmd() *cobra.Command {
 			if secretFromVault != "" {
 				cfg.Audit.SecretKey = secretFromVault
 			}
+			defer func() { cfg.Audit.SecretKey = "" }()
 
 			var builder *audit.EventBuilder
 			if cfg.Audit.Enabled {

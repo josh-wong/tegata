@@ -263,6 +263,7 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
 		}
+		cfg.Audit.SecretKey = ""
 	}
 	return mgr, nil
 }
