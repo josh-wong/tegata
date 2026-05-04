@@ -258,12 +258,12 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 		if secretFromVault != "" {
 			cfg.Audit.SecretKey = secretFromVault
 		}
+		defer func() { cfg.Audit.SecretKey = "" }()
 
 		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
 		}
-		cfg.Audit.SecretKey = ""
 	}
 	return mgr, nil
 }
