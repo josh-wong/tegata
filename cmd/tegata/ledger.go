@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
@@ -145,6 +147,38 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, "certs/client.properties is on a single unbroken line with no line breaks in the value.")
 		return fmt.Errorf("contract verification failed: %w", err)
 	}
+
+	// Store the secret in the vault's encrypted storage so the GUI can retrieve it on unlock.
+	// This ensures that even after ledger database resets, the secret persists in the vault.
+	fmt.Fprintln(os.Stderr, "Storing secret in vault...")
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		return fmt.Errorf("opening vault to store secret: %w", err)
+	}
+	defer mgr.Close()
+
+	if err := mgr.Unlock([]byte(os.Getenv("TEGATA_VAULT_PASSPHRASE"))); err != nil {
+		// If TEGATA_VAULT_PASSPHRASE is not set, prompt the user.
+		fmt.Fprint(os.Stderr, "Enter passphrase to save secret in vault: ")
+		passBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return fmt.Errorf("reading passphrase: %w", err)
+		}
+		fmt.Fprintln(os.Stderr)
+		defer func() {
+			for i := range passBytes {
+				passBytes[i] = 0
+			}
+		}()
+		if err := mgr.Unlock(passBytes); err != nil {
+			return fmt.Errorf("unlocking vault: %w", err)
+		}
+	}
+
+	if err := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); err != nil {
+		return fmt.Errorf("storing secret in vault: %w", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "Generic contracts verified. Audit setup complete.")
 	return nil
 }
