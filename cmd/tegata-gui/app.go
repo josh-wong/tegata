@@ -253,7 +253,8 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	}
 
 	// Build EventBuilder while passphrase is available (AUDT-02).
-	builder, builderErr := a.buildEventBuilder(cfg, path, passBytes)
+	// Use a.config (not cfg) so the SecretKey loaded from the vault is included.
+	builder, builderErr := a.buildEventBuilder(a.config, path, passBytes)
 	if builderErr != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit unavailable: %v\n", builderErr)
 	}
