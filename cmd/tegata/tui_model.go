@@ -390,6 +390,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				_ = m.builder.Close()
 				m.builder = nil
 			}
+			// Delete plaintext client.properties on idle lock to ensure the
+			// HMAC secret is not accessible on disk while the vault is locked.
+			m.deleteClientProperties()
 			if m.vaultMgr != nil {
 				m.vaultMgr.Close()
 				m.vaultMgr = nil
@@ -552,15 +555,39 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 		if err := audit.StopStack(m.cfg.Audit.DockerComposePath); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not stop audit server: %v\n", err)
 		}
-		// Delete the plaintext client.properties now that the stack is stopped.
+	}
+	// Delete the plaintext client.properties now that the stack is stopped.
+	m.deleteClientProperties()
+
+	return m, tea.Quit
+}
+
+// deleteClientProperties removes the plaintext client.properties file created
+// by the audit setup. This ensures the HMAC secret key is not persisted to
+// disk after the vault is locked or the app closes.
+func (m model) deleteClientProperties() {
+	// Try to delete from the configured Docker compose location if available.
+	// DockerComposePath is a file path (e.g. .../docker/docker-compose.yml),
+	// so use its parent directory to locate the certs/ subdirectory.
+	if m.cfg.Audit.DockerComposePath != "" {
 		composeDir := filepath.Dir(m.cfg.Audit.DockerComposePath)
 		clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
 		if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", clientPropsPath, err)
 		}
+		return
 	}
 
-	return m, tea.Quit
+	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
+	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	defaultPath := filepath.Join(homeDir, ".tegata", "docker", "certs", "client.properties")
+	if err := os.Remove(defaultPath); err != nil && !os.IsNotExist(err) {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", defaultPath, err)
+	}
 }
 
 // isInputFocused returns true when a text input sub-model currently has focus,
