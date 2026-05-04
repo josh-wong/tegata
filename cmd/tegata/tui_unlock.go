@@ -47,6 +47,33 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		// Build EventBuilder while passphrase is available (AUDT-02).
 		cfg, _ := config.Load(filepath.Dir(path))
 
+		// Load HMAC secret from vault (encrypted storage) and inject into config.
+		secretFromVault := mgr.GetSecret("audit.secret_key")
+
+		// Migration: if the vault doesn't have the secret but tegata.toml does,
+		// store it in the vault now.
+		if secretFromVault == "" && cfg.Audit.SecretKey != "" {
+			if vaultErr := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); vaultErr != nil {
+				cfg.Audit.SecretKey = ""
+			} else {
+				secretFromVault = cfg.Audit.SecretKey
+
+				// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
+				// now that it has been safely stored in the vault.
+				if writeErr := config.WriteAuditSection(filepath.Dir(path), cfg.Audit); writeErr != nil {
+					cfg.Audit.SecretKey = ""
+				} else {
+					// Only zero the in-memory secret after both vault and TOML writes succeed.
+					cfg.Audit.SecretKey = ""
+				}
+			}
+		}
+
+		// Use the secret (from vault or after migration).
+		if secretFromVault != "" {
+			cfg.Audit.SecretKey = secretFromVault
+		}
+
 		// Auto-start Docker audit stack if configured (D-09, D-10).
 		// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
 		// Runs asynchronously — vault unlock is never blocked (D-10).
@@ -75,6 +102,13 @@ func loadCredentials(m model) model {
 
 	// Load config from vault directory; fall back to defaults on error.
 	if cfg, err := config.Load(filepath.Dir(m.vaultPath)); err == nil {
+		// Load HMAC secret from vault (encrypted storage) and inject into config.
+		if m.vaultMgr != nil {
+			secretFromVault := m.vaultMgr.GetSecret("audit.secret_key")
+			if secretFromVault != "" {
+				cfg.Audit.SecretKey = secretFromVault
+			}
+		}
 		m.cfg = cfg
 		m.idleTimeout = cfg.IdleTimeout
 	}
