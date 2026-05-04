@@ -74,6 +74,12 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	}
 	defer mgr.Close()
 
+	// Load HMAC secret from vault and inject into config.
+	secretFromVault := mgr.GetSecret("audit.secret_key")
+	if secretFromVault != "" {
+		cfg.Audit.SecretKey = secretFromVault
+	}
+
 	hashes := mgr.AuditHashes()
 	defer vault.ZeroAuditHashes(hashes)
 
