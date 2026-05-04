@@ -179,11 +179,6 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("storing secret in vault: %w", err)
 	}
 
-	// Persist the secret to disk
-	if err := mgr.Save(); err != nil {
-		return fmt.Errorf("saving vault after storing secret: %w", err)
-	}
-
 	fmt.Fprintln(os.Stderr, "Generic contracts verified. Audit setup complete.")
 	return nil
 }
