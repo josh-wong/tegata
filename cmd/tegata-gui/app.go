@@ -205,17 +205,27 @@ func (a *App) UnlockVault(path, passphrase string) error {
 
 	// Attempt to load HMAC secret from vault (encrypted storage).
 	secretFromVault := a.vault.GetSecret("audit.secret_key")
-	
-	// Migration: if secret is in tegata.toml but not in vault, move it to vault
-	// and clear it from memory (so it won't be rewritten to TOML on next save).
+
+	// Migration: if the vault doesn't have the secret but tegata.toml does,
+	// store it in the vault now.
 	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
-		// Store in vault for future use.
 		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not migrate secret to vault: %v\n", vaultErr)
+		} else {
+			secretFromVault = a.config.Audit.SecretKey
 		}
-		secretFromVault = a.config.Audit.SecretKey
 	}
-	
+
+	// Cleanup: if tegata.toml still has secret_key (from before this fix was
+	// deployed, or written by the CLI), rewrite the file to remove it.
+	// This runs whenever the TOML contains the field, regardless of whether
+	// a vault migration was needed this session.
+	if a.config.Audit.SecretKey != "" {
+		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not rewrite audit config to remove secret_key: %v\n", writeErr)
+		}
+	}
+
 	// Use the secret (from vault or after migration).
 	if secretFromVault != "" {
 		a.config.Audit.SecretKey = secretFromVault
@@ -316,12 +326,27 @@ func (a *App) LockVault() {
 // by the audit setup. This ensures the HMAC secret key is not persisted to
 // disk after the app closes or the vault is locked.
 func (a *App) deleteClientProperties() {
-	if a.config.Audit.DockerComposePath == "" {
+	// Try to delete from the configured Docker compose location if available.
+	// DockerComposePath is a file path (e.g. .../docker/docker-compose.yml),
+	// so use its parent directory to locate the certs/ subdirectory.
+	if a.config.Audit.DockerComposePath != "" {
+		composeDir := filepath.Dir(a.config.Audit.DockerComposePath)
+		clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
+		if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", clientPropsPath, err)
+		}
 		return
 	}
-	clientPropsPath := filepath.Join(a.config.Audit.DockerComposePath, "certs", "client.properties")
-	if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
-		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties: %v\n", err)
+	
+	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
+	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	defaultPath := filepath.Join(homeDir, ".tegata", "docker", "certs", "client.properties")
+	if err := os.Remove(defaultPath); err != nil && !os.IsNotExist(err) {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", defaultPath, err)
 	}
 }
 
