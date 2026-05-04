@@ -52,7 +52,7 @@ type App struct {
 	config       config.Config
 	clipboard    *clipboard.Manager
 	vaultPath    string
-	vaultModTime time.Time    // mtime of vault file at last read; used to detect external writes
+	vaultModTime time.Time     // mtime of vault file at last read; used to detect external writes
 	watcherStop  chan struct{} // closed to stop the vault file watcher goroutine
 	idleTimer    *IdleTimer
 	locked       bool
@@ -219,9 +219,6 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 		// now that it has been safely stored in the vault.
 		if writeErr := config.WriteAuditSection(vaultDir(path), a.config.Audit); writeErr != nil {
-			// Migration failed at TOML write step; leave secretFromVault empty so
-			// the condition retries on next unlock (allowing the secret to stay in memory).
-			secretFromVault = ""
 			return fmt.Errorf("rewriting audit config to remove secret_key: %w", writeErr)
 		}
 
@@ -302,14 +299,14 @@ func (a *App) LockVault() {
 		a.idleTimer.Stop()
 	}
 	a.stopVaultWatcher()
-	
+
 	// Delete plaintext client.properties file when vault is locked.
 	// This ensures the HMAC secret is not accessible on disk after the app exits.
 	a.deleteClientProperties()
-	
+
 	// Zero the HMAC secret key from memory before closing the vault.
 	a.config.Audit.SecretKey = ""
-	
+
 	if a.vault != nil {
 		a.vault.Close()
 		a.vault = nil
@@ -340,7 +337,7 @@ func (a *App) deleteClientProperties() {
 		}
 		return
 	}
-	
+
 	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
 	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
 	homeDir, err := os.UserHomeDir()
@@ -1007,10 +1004,10 @@ type AuditHistoryRecord struct {
 
 // AuditVerifyResult is the JSON-serializable shape returned by VerifyAuditLog.
 type AuditVerifyResult struct {
-	Valid       bool     `json:"valid"`
-	EventCount  int      `json:"event_count"`
-	Skipped     int      `json:"skipped,omitempty"`
-	Faults      []string `json:"faults,omitempty"`
+	Valid      bool     `json:"valid"`
+	EventCount int      `json:"event_count"`
+	Skipped    int      `json:"skipped,omitempty"`
+	Faults     []string `json:"faults,omitempty"`
 }
 
 // IsAuditEnabled returns whether audit logging is configured and enabled.
@@ -1097,10 +1094,10 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 	}
 
 	return &AuditVerifyResult{
-		Valid:       result.Valid,
-		EventCount:  result.EventCount,
-		Skipped:     result.Skipped,
-		Faults:      result.Faults,
+		Valid:      result.Valid,
+		EventCount: result.EventCount,
+		Skipped:    result.Skipped,
+		Faults:     result.Faults,
 	}, nil
 }
 
@@ -1129,10 +1126,10 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 	}
 
 	return &AuditVerifyResult{
-		Valid:       result.Valid,
-		EventCount:  result.EventCount,
-		Skipped:     result.Skipped,
-		Faults:      result.Faults,
+		Valid:      result.Valid,
+		EventCount: result.EventCount,
+		Skipped:    result.Skipped,
+		Faults:     result.Faults,
 	}, nil
 }
 
