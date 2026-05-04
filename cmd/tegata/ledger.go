@@ -17,14 +17,14 @@ import (
 )
 
 // auditTOMLExample is the canonical inline TOML block shown in help text and
-// error output. Defined once so both surfaces stay in sync.
+// error output. Defined once so both surfaces stay in sync. secret_key is
+// intentionally omitted — it is stored in the encrypted vault, not in tegata.toml.
 const auditTOMLExample = `  [audit]
   enabled           = true
   server            = "127.0.0.1:50051"
   privileged_server = "127.0.0.1:50052"
   entity_id         = "tegata-client"
   key_version       = 1
-  secret_key        = "your-secret-key"
   insecure          = true  # set to false for remote or production servers`
 
 // newLedgerCmd returns the 'tegata ledger' command with its subcommands.
@@ -185,8 +185,8 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	}
 	dir := filepath.Dir(vaultPath)
 
-	// Get vault VaultID for entity ID derivation.
-	// We must open and unlock the vault to read the VaultID from the payload.
+	// Open and unlock the vault. Keep it open through SetupStack so we can
+	// store the generated HMAC secret in encrypted vault storage.
 	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
 	if err != nil {
 		return fmt.Errorf("reading passphrase: %w", err)
@@ -201,9 +201,9 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		mgr.Close()
 		return fmt.Errorf("unlocking vault: %w", err)
 	}
-	vaultID := mgr.VaultID()
 	zeroBytes(passphraseBytes)
-	mgr.Close()
+	vaultID := mgr.VaultID()
+	defer mgr.Close()
 
 	// Resolve compose directory: ~/.tegata/docker/
 	u, err := user.Current()
@@ -224,14 +224,22 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, msg)
 	}
 
-	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, nil)
-	if err != nil {
-		return err
+	// onRegistered stores the generated HMAC secret in the encrypted vault and
+	// writes the [audit] section to tegata.toml (without secret_key).
+	onRegistered := func(auditCfg config.AuditConfig) error {
+		if auditCfg.SecretKey != "" {
+			if vaultErr := mgr.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not store secret in vault: %v\n", vaultErr)
+			}
+		}
+		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+			return fmt.Errorf("writing audit config: %w", writeErr)
+		}
+		return nil
 	}
 
-	// Write [audit] section to tegata.toml. Per D-03 step 8.
-	if err := config.WriteAuditSection(dir, auditCfg); err != nil {
-		return fmt.Errorf("writing audit config: %w", err)
+	if _, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, onRegistered); err != nil {
+		return err
 	}
 
 	fmt.Fprintln(os.Stderr, "Ledger server started. Audit logging is now active.")
@@ -291,6 +299,14 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	if err := audit.StopStack(cfg.Audit.DockerComposePath); err != nil {
 		return err
 	}
+
+	// Delete the plaintext client.properties now that the stack is stopped.
+	composeDir := filepath.Dir(cfg.Audit.DockerComposePath)
+	clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
+	if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
+		_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties: %v\n", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
 	return nil
 }
