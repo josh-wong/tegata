@@ -291,10 +291,9 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	// runSQL executes a SQL statement directly in the ScalarDL PostgreSQL
-	// container via docker exec. The container name is always
-	// tegata-ledger-postgres-1 because the compose project name is fixed to
-	// "tegata-ledger" in docker-compose.yml (see the `name:` field at the top
-	// of that file). If the compose project name changes, update this string.
+	// container via docker exec. The container name is derived from the compose
+	// project name (<projectName>-postgres-1) so it stays correct regardless of
+	// which vault slug was used during SetupStack.
 	//
 	// All callers issue UPDATE statements targeting a single row. runSQL asserts
 	// that psql reports "UPDATE 1" so that a silent zero-row update (e.g. due to
@@ -302,10 +301,11 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 	// than letting assertTampering fail with a confusing Valid=true. The id value
 	// interpolated into each SQL string is always a UUID from evt.EventID (hex
 	// digits and hyphens only), so fmt.Sprintf is safe here.
+	postgresContainer := cfg.DockerProjectName + "-postgres-1"
 	runSQL := func(t *testing.T, sql string) {
 		t.Helper()
 		out, err := exec.Command(
-			"docker", "exec", "tegata-ledger-postgres-1",
+			"docker", "exec", postgresContainer,
 			"psql", "-U", "scalardl", "-d", "scalardl", "-c", sql,
 		).CombinedOutput()
 		if err != nil {
