@@ -360,11 +360,8 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, err
 	}
 
-	// Step 3 (preliminary): Derive entity ID now so it can be used when
-	// extracting compose files with per-vault volume name rewriting.
+	// Step 2: Derive entity ID and extract compose files with per-vault volume name.
 	entityID := entityIDFromVaultID(vaultID)
-
-	// Step 2: Extract compose files with per-vault volume name.
 	progress(progressFn, "Extracting compose files to "+composeDir+"...")
 	if err := os.MkdirAll(composeDir, 0700); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("creating compose directory: %w", err)
@@ -373,7 +370,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, fmt.Errorf("extracting compose files: %w", err)
 	}
 
-	// Step 3: Generate secret key (entity ID already derived above).
+	// Step 3: Generate secret key.
 	secretKey, err := generateSecretKey()
 	if err != nil {
 		return config.AuditConfig{}, err
