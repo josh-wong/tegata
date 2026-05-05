@@ -57,7 +57,7 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 		Label:     "GitHub",
 		Issuer:    "GitHub",
 		Type:      pkgmodel.CredentialTOTP,
-		Algorithm: "SHA1",
+		Algorithm: "SHA256",
 		Digits:    6,
 		Period:    30,
 		Secret:    "JBSWY3DPEHPK3PXP",
@@ -72,7 +72,7 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 		Label:     "AWS",
 		Issuer:    "Amazon",
 		Type:      pkgmodel.CredentialHOTP,
-		Algorithm: "SHA1",
+		Algorithm: "SHA256",
 		Digits:    6,
 		Counter:   0,
 		Secret:    "GEZDGNBVGY3TQOJQ",
@@ -309,7 +309,7 @@ func TestIntegration_HOTPCounterPersistence(t *testing.T) {
 	hotp := pkgmodel.Credential{
 		Label:     "HOTPService",
 		Type:      pkgmodel.CredentialHOTP,
-		Algorithm: "SHA1",
+		Algorithm: "SHA256",
 		Digits:    6,
 		Counter:   0,
 		Secret:    "GEZDGNBVGY3TQOJQ",
@@ -394,7 +394,7 @@ func TestIntegration_Sign(t *testing.T) {
 	cr := pkgmodel.Credential{
 		Label:     "mykey",
 		Type:      pkgmodel.CredentialChallengeResponse,
-		Algorithm: "SHA1",
+		Algorithm: "SHA256",
 		Secret:    "JBSWY3DPEHPK3PXP",
 	}
 	if _, err := mgr.AddCredential(cr); err != nil {
@@ -427,9 +427,9 @@ func TestIntegration_Sign(t *testing.T) {
 		t.Fatalf("SignChallenge: %v", err)
 	}
 
-	// Result must be a 40-character lowercase hex string (SHA1 output).
-	if len(result) != 40 {
-		t.Errorf("sign output length: got %d, want 40", len(result))
+	// Result must be a 64-character lowercase hex string (SHA256 output).
+	if len(result) != 64 {
+		t.Errorf("sign output length: got %d, want 64", len(result))
 	}
 	for i, c := range result {
 		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
@@ -736,7 +736,7 @@ func TestIntegration_AuditWiring(t *testing.T) {
 		Label:     "github",
 		Issuer:    "GitHub",
 		Type:      pkgmodel.CredentialTOTP,
-		Algorithm: "SHA1",
+		Algorithm: "SHA256",
 		Digits:    6,
 		Period:    30,
 		Secret:    "JBSWY3DPEHPK3PXP",
