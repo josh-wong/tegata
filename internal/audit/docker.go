@@ -75,7 +75,10 @@ func checkPortsAvailable() error {
 // inject arbitrary ports without touching system-reserved port numbers.
 func checkPorts(ports []int) error {
 	for _, port := range ports {
-		addr := fmt.Sprintf("localhost:%d", port)
+		// Use 127.0.0.1 explicitly — on macOS, "localhost" may resolve to ::1
+		// (IPv6) while Docker Desktop binds ports to 127.0.0.1 (IPv4) only,
+		// causing a false "port free" result on a live container.
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
 			_ = conn.Close()
