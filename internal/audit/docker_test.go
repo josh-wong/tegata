@@ -59,7 +59,7 @@ func TestExtractComposeFiles(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := extractComposeFiles(fsys, dir); err != nil {
+	if err := extractComposeFiles(fsys, dir, ""); err != nil {
 		t.Fatalf("extractComposeFiles: %v", err)
 	}
 

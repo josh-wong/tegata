@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -201,18 +202,24 @@ func generateSecretKey() (string, error) {
 // composePath on disk, keeping the live file in sync with the embedded bundle.
 // Called by EnsureStack and MaybeAutoStart so that binary upgrades
 // automatically update the running compose configuration without requiring
-// the user to re-run `tegata ledger start`.
-func syncDockerCompose(fsys fs.FS, composePath string) error {
+// the user to re-run `tegata ledger start`. When entityID is non-empty the
+// global volume name is rewritten to a per-vault name before writing.
+func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
 	data, err := fs.ReadFile(fsys, "docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
+	}
+	if entityID != "" {
+		data = rewriteComposeVolume(data, entityID)
 	}
 	return os.WriteFile(composePath, data, 0600)
 }
 
 // extractComposeFiles walks the provided fs.FS and writes each file to
-// targetDir, preserving the directory structure.
-func extractComposeFiles(fsys fs.FS, targetDir string) error {
+// targetDir, preserving the directory structure. When entityID is non-empty,
+// docker-compose.yml is rewritten with a per-vault volume name so each vault's
+// PostgreSQL data is stored in an isolated Docker named volume.
+func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
 	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -230,6 +237,10 @@ func extractComposeFiles(fsys fs.FS, targetDir string) error {
 		data, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return fmt.Errorf("reading embedded file %s: %w", path, err)
+		}
+
+		if entityID != "" && path == "docker-compose.yml" {
+			data = rewriteComposeVolume(data, entityID)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
@@ -271,10 +282,33 @@ scalar.dl.client.entity.identity.hmac.secret_key_version=1
 	return os.WriteFile(filepath.Join(certsDir, "bootstrap.properties"), []byte(props("scalardl-ledger")), 0600)
 }
 
+// ComposeDirForVault returns the per-vault Docker Compose directory path.
+// Directory is named after the vault's entity ID so the correspondence is
+// explicit: ~/.tegata/docker/tegata-<slug>/
+func ComposeDirForVault(homeDir, vaultID string) string {
+	return filepath.Join(homeDir, ".tegata", "docker", entityIDFromVaultID(vaultID))
+}
+
+// rewriteComposeVolume replaces the global volume name in docker-compose.yml
+// content with a per-vault name. This ensures each vault's PostgreSQL data is
+// stored in an isolated Docker named volume. entityID must be non-empty.
+func rewriteComposeVolume(data []byte, entityID string) []byte {
+	return bytes.ReplaceAll(data,
+		[]byte("name: tegata-scalardl-data"),
+		[]byte("name: "+entityID+"-scalardl-data"),
+	)
+}
+
 // runDockerCompose executes a docker compose command with the given compose
-// file path and arguments. Returns an error with stdout+stderr on failure.
-func runDockerCompose(composePath string, args ...string) error {
-	cmdArgs := append([]string{"compose", "-f", composePath}, args...)
+// file path, optional project name, and arguments. Returns an error with
+// stdout+stderr on failure. When projectName is non-empty, --project-name is
+// passed to override the name: directive in the compose file.
+func runDockerCompose(composePath, projectName string, args ...string) error {
+	cmdArgs := []string{"compose", "-f", composePath}
+	if projectName != "" {
+		cmdArgs = append(cmdArgs, "--project-name", projectName)
+	}
+	cmdArgs = append(cmdArgs, args...)
 	cmd := dockerCmd(cmdArgs...)
 
 	output, err := cmd.CombinedOutput()
@@ -326,17 +360,20 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, err
 	}
 
-	// Step 2: Extract compose files.
+	// Step 3 (preliminary): Derive entity ID now so it can be used when
+	// extracting compose files with per-vault volume name rewriting.
+	entityID := entityIDFromVaultID(vaultID)
+
+	// Step 2: Extract compose files with per-vault volume name.
 	progress(progressFn, "Extracting compose files to "+composeDir+"...")
 	if err := os.MkdirAll(composeDir, 0700); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("creating compose directory: %w", err)
 	}
-	if err := extractComposeFiles(fsys, composeDir); err != nil {
+	if err := extractComposeFiles(fsys, composeDir, entityID); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("extracting compose files: %w", err)
 	}
 
-	// Step 3: Generate entity ID and secret key.
-	entityID := entityIDFromVaultID(vaultID)
+	// Step 3: Generate secret key (entity ID already derived above).
 	secretKey, err := generateSecretKey()
 	if err != nil {
 		return config.AuditConfig{}, err
@@ -355,11 +392,11 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 	// contracts registered via scalardl-hashstore bootstrap).
 	composePath := filepath.Join(composeDir, "docker-compose.yml")
 	progress(progressFn, "Starting Docker stack...")
-	if err := StartStack(composePath); err != nil {
+	if err := StartStack(composePath, entityID); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("starting Docker stack: %w", err)
 	}
 	progress(progressFn, "Registering contracts for entity...")
-	if err := runDockerCompose(composePath, "up", "-d", "--force-recreate", "scalardl-contract-registration"); err != nil {
+	if err := runDockerCompose(composePath, entityID, "up", "-d", "--force-recreate", "scalardl-contract-registration"); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("restarting contract registration: %w", err)
 	}
 
@@ -374,6 +411,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		KeyVersion:        1,
 		Insecure:          true,
 		DockerComposePath: composePath,
+		DockerProjectName: entityID,
 	}
 
 	if err := waitForLedger(cfg); err != nil {
@@ -469,22 +507,25 @@ func waitForLedger(cfg config.AuditConfig) error {
 }
 
 // StartStack runs `docker compose -f composePath up -d` synchronously.
-// Returns an error with Docker stdout+stderr on non-zero exit.
-func StartStack(composePath string) error {
-	return runDockerCompose(composePath, "up", "-d")
+// projectName, when non-empty, is passed as --project-name to scope containers
+// and volumes to this vault's stack. Returns an error with Docker stdout+stderr
+// on non-zero exit.
+func StartStack(composePath, projectName string) error {
+	return runDockerCompose(composePath, projectName, "up", "-d")
 }
 
 // StopStack runs `docker compose -f composePath stop`, preserving the named
-// volume so audit history is retained.
-func StopStack(composePath string) error {
-	return runDockerCompose(composePath, "stop")
+// volume so audit history is retained. projectName scopes the command to the
+// correct stack when non-empty.
+func StopStack(composePath, projectName string) error {
+	return runDockerCompose(composePath, projectName, "stop")
 }
 
 // TeardownStack runs `docker compose -f composePath down -v`, removing
 // containers and the named volume. Use this only in integration tests for
 // post-test cleanup — it permanently deletes all audit history.
-func TeardownStack(composePath string) error {
-	return runDockerCompose(composePath, "down", "-v")
+func TeardownStack(composePath, projectName string) error {
+	return runDockerCompose(composePath, projectName, "down", "-v")
 }
 
 // EnsureStack starts the Docker audit stack synchronously, suitable for
@@ -510,7 +551,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	// Sync docker-compose.yml from the embedded bundle so binary upgrades
 	// (e.g. ScalarDL version bumps) take effect automatically.
 	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath); err != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
@@ -531,7 +572,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
-	if err := StartStack(cfg.DockerComposePath); err != nil {
+	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
 		return fmt.Errorf("starting audit stack: %w", err)
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: waiting for ledger to become ready...")
@@ -540,6 +581,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		return fmt.Errorf("ledger did not become ready: %w", err)
 	}
 	progress(progressFn, "Audit server ready.")
+	_, _ = fmt.Fprintln(os.Stderr, "tegata: ledger stack started. Run 'tegata ledger stop' to shut it down when finished.")
 	return nil
 }
 
@@ -557,7 +599,7 @@ func MaybeAutoStart(cfg config.AuditConfig, fsys fs.FS) {
 	}
 	go func() {
 		if fsys != nil {
-			if err := syncDockerCompose(fsys, cfg.DockerComposePath); err != nil {
+			if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 			}
 		}
@@ -565,7 +607,7 @@ func MaybeAutoStart(cfg config.AuditConfig, fsys fs.FS) {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: Docker daemon not ready: %v\n", err)
 			return
 		}
-		if err := StartStack(cfg.DockerComposePath); err != nil {
+		if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start failed: %v\n", err)
 			return
 		}

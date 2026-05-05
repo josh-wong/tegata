@@ -451,7 +451,7 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 		if err != nil {
 			return auditStartMsg{err: fmt.Errorf("resolving home directory: %w", err)}
 		}
-		composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+		composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 		bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 		if err != nil {

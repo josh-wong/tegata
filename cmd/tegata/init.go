@@ -116,7 +116,7 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
 		return
 	}
-	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 	if err != nil {

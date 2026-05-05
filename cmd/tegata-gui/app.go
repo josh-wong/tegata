@@ -77,7 +77,7 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(_ context.Context) {
 	a.deleteClientProperties()
 	if a.config.Audit.DockerComposePath != "" {
-		_ = audit.StopStack(a.config.Audit.DockerComposePath)
+		_ = audit.StopStack(a.config.Audit.DockerComposePath, a.config.Audit.DockerProjectName)
 	}
 	a.LockVault()
 }
@@ -343,15 +343,17 @@ func (a *App) deleteClientProperties() {
 		return
 	}
 
-	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
-	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
+	// Fallback: scan all per-vault compose directories for client.properties.
+	// This handles shutdown before any vault was unlocked (DockerComposePath empty).
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return
 	}
-	defaultPath := filepath.Join(homeDir, ".tegata", "docker", "certs", "client.properties")
-	if err := os.Remove(defaultPath); err != nil && !os.IsNotExist(err) {
-		_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", defaultPath, err)
+	matches, _ := filepath.Glob(filepath.Join(homeDir, ".tegata", "docker", "*", "certs", "client.properties"))
+	for _, p := range matches {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: warning: could not delete client.properties at %s: %v\n", p, err)
+		}
 	}
 }
 
@@ -1154,7 +1156,7 @@ func (a *App) RestartAuditServer() error {
 	if a.config.Audit.DockerComposePath == "" {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
-	return audit.StartStack(a.config.Audit.DockerComposePath)
+	return audit.StartStack(a.config.Audit.DockerComposePath, a.config.Audit.DockerProjectName)
 }
 
 // StartAuditServer runs the full Docker audit setup sequence. It calls
@@ -1176,7 +1178,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolving home directory: %w", err)
 	}
-	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 	// Strip the docker-bundle/ prefix from the embed.FS.
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
@@ -1249,7 +1251,7 @@ func (a *App) StopAuditServer() error {
 		return fmt.Errorf("audit Docker setup not found. Run StartAuditServer first")
 	}
 
-	return audit.StopStack(a.config.Audit.DockerComposePath)
+	return audit.StopStack(a.config.Audit.DockerComposePath, a.config.Audit.DockerProjectName)
 }
 
 // IsAuditConfigured returns whether audit logging has been enabled by the user.

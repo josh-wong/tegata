@@ -91,7 +91,7 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 	// Register cleanup: tear down the stack (removes containers and volume).
 	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
 	t.Cleanup(func() {
-		_ = audit.TeardownStack(composePath)
+		_ = audit.TeardownStack(composePath, cfg.DockerProjectName)
 	})
 
 	// Verify returned AuditConfig has expected values.
@@ -106,6 +106,9 @@ func TestIntegration_SetupStack_HappyPath(t *testing.T) {
 	}
 	if cfg.EntityID == "" || len(cfg.EntityID) < 7 {
 		t.Errorf("cfg.EntityID = %q, want non-empty starting with tegata-", cfg.EntityID)
+	}
+	if cfg.DockerProjectName != cfg.EntityID {
+		t.Errorf("cfg.DockerProjectName = %q, want %q (same as EntityID)", cfg.DockerProjectName, cfg.EntityID)
 	}
 	if !cfg.Enabled {
 		t.Error("cfg.Enabled = false, want true")
@@ -156,10 +159,10 @@ func TestIntegration_MaybeAutoStart(t *testing.T) {
 	}
 
 	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
-	t.Cleanup(func() { _ = audit.TeardownStack(composePath) })
+	t.Cleanup(func() { _ = audit.TeardownStack(composePath, cfg.DockerProjectName) })
 
 	// Stop without removing the volume to simulate "stack exists but is stopped".
-	if err := audit.StopStack(composePath); err != nil {
+	if err := audit.StopStack(composePath, cfg.DockerProjectName); err != nil {
 		t.Fatalf("stopping Docker stack: %v", err)
 	}
 	t.Log("Docker stack stopped")
@@ -237,7 +240,7 @@ func TestIntegration_StopStack_NonExistentCompose(t *testing.T) {
 	requireDocker(t)
 
 	// Attempt to stop a compose stack at a non-existent path.
-	err := audit.StopStack("/nonexistent/path/docker-compose.yml")
+	err := audit.StopStack("/nonexistent/path/docker-compose.yml", "")
 	if err == nil {
 		t.Fatal("StopStack: expected error for non-existent path, got nil")
 	}
@@ -279,7 +282,7 @@ func TestIntegration_TamperingDetection(t *testing.T) {
 		t.Fatalf("SetupStack: %v", err)
 	}
 	composePath := filepath.Join(composeWorkDir, "docker-compose.yml")
-	t.Cleanup(func() { _ = audit.TeardownStack(composePath) })
+	t.Cleanup(func() { _ = audit.TeardownStack(composePath, cfg.DockerProjectName) })
 
 	client, err := audit.NewClientFromConfig(cfg)
 	if err != nil {
