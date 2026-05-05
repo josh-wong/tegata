@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,6 +57,32 @@ var knownDockerPaths = []string{
 	"/usr/bin/docker",
 	"/Applications/Docker.app/Contents/Resources/bin/docker",
 	"/opt/homebrew/bin/docker",
+}
+
+// auditPorts lists the TCP ports required by the Docker audit stack.
+// Checked before starting to detect conflicts with another vault's running stack.
+var auditPorts = []int{5432, 50051, 50052}
+
+// checkPortsAvailable returns an error if any of the required audit ports are
+// already bound. A port conflict means another vault's audit stack is already
+// running; the error message tells the user how to resolve it.
+func checkPortsAvailable() error {
+	return checkPorts(auditPorts)
+}
+
+// checkPorts dials each port in the list and returns an error on the first one
+// that is already bound. Separated from checkPortsAvailable to allow tests to
+// inject arbitrary ports without touching system-reserved port numbers.
+func checkPorts(ports []int) error {
+	for _, port := range ports {
+		addr := fmt.Sprintf("localhost:%d", port)
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		if err == nil {
+			_ = conn.Close()
+			return fmt.Errorf("port %d is already in use. Stop the current vault's audit stack with 'tegata ledger stop' before starting another", port)
+		}
+	}
+	return nil
 }
 
 // DockerBinPath returns the absolute path to the docker binary. It first
@@ -516,9 +543,12 @@ func waitForLedger(cfg config.AuditConfig) error {
 
 // StartStack runs `docker compose -f composePath up -d` synchronously.
 // projectName, when non-empty, is passed as --project-name to scope containers
-// and volumes to this vault's stack. Returns an error with Docker stdout+stderr
-// on non-zero exit.
+// and volumes to this vault's stack. Returns a descriptive error if any
+// required port is already occupied, or if Docker fails on non-zero exit.
 func StartStack(composePath, projectName string) error {
+	if err := checkPortsAvailable(); err != nil {
+		return err
+	}
 	return runDockerCompose(composePath, projectName, "up", "-d")
 }
 
