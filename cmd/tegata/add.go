@@ -86,6 +86,8 @@ func newAddCmd() *cobra.Command {
 						credType, errors.ErrInvalidInput)
 				}
 
+				algorithm = resolveAlgorithm(ct, cmd.Flags().Changed("algorithm"), algorithm)
+
 				var secretPrompt string
 				switch ct {
 				case pkgmodel.CredentialStatic:
@@ -153,4 +155,15 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g. --tag work --tag totp)")
 
 	return cmd
+}
+
+// resolveAlgorithm returns the effective algorithm for a new credential.
+// Challenge-response defaults to SHA256 when the user has not explicitly set
+// --algorithm. All other types use flagValue (flag default is SHA1 per RFC
+// 6238/4226). flagChanged must be the result of cmd.Flags().Changed("algorithm").
+func resolveAlgorithm(ct pkgmodel.CredentialType, flagChanged bool, flagValue string) string {
+	if ct == pkgmodel.CredentialChallengeResponse && !flagChanged {
+		return "SHA256"
+	}
+	return flagValue
 }

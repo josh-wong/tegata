@@ -14,9 +14,9 @@ import (
 // SignChallenge computes an HMAC over the raw challenge bytes using the secret
 // bytes decoded from cred's stored secret. The algorithm is taken from
 // cred.Algorithm: "SHA256" produces a 64-character lowercase hex string using
-// HMAC-SHA256; anything else (including empty) defaults to HMAC-SHA1 producing
-// a 40-character lowercase hex string. This default matches the SHA1 fallback
-// in hashFuncFromAlgorithm used by the OTP engines.
+// HMAC-SHA256; anything else (including empty) falls back to HMAC-SHA1 producing
+// a 40-character lowercase hex string for backward compatibility with credentials
+// stored before SHA256 became the default.
 //
 // The challenge is treated as raw bytes — no hex decoding is applied. The
 // caller defines the encoding of the challenge string (typically raw ASCII or
@@ -39,8 +39,9 @@ func SignChallenge(cred *model.Credential, secret, challenge []byte) (string, er
 		h.Write(challenge)
 		mac = h.Sum(nil)
 	default:
-		// Default to SHA1, matching the hashFuncFromAlgorithm convention in otp.go
-		// where an empty or unrecognized algorithm falls back to SHA-1.
+		// Fall back to SHA1 for backward compatibility with credentials stored
+		// before SHA256 became the CLI default, matching the hashFuncFromAlgorithm
+		// convention in otp.go where an empty or unrecognized algorithm uses SHA-1.
 		h := hmac.New(sha1.New, secret)
 		h.Write(challenge)
 		mac = h.Sum(nil)

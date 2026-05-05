@@ -38,7 +38,7 @@ Add a credential to the vault. Supports TOTP, HOTP, static password, and challen
 | `--scan`      | bool   | false   | Paste an otpauth:// URI instead of entering fields manually    |
 | `--type`      | string | totp    | Credential type (totp, hotp, static, challenge-response)       |
 | `--issuer`    | string | (none)  | Credential issuer name                                         |
-| `--algorithm` | string | SHA1    | HMAC algorithm (SHA1, SHA256, SHA512)                          |
+| `--algorithm` | string | SHA1    | HMAC algorithm (SHA1, SHA256, SHA512); challenge-response defaults to SHA256 |
 | `--digits`    | int    | 6       | Number of digits in generated code (1-10)                      |
 | `--period`    | int    | 30      | TOTP period in seconds (15-120)                                |
 | `--tag`       | string | (none)  | Tag to apply (repeatable, e.g. `--tag work --tag totp`)        |
