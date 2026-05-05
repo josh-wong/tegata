@@ -151,7 +151,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&scan, "scan", false, "paste an otpauth:// URI")
 	cmd.Flags().StringVar(&credType, "type", "totp", "credential type (totp, hotp, static, challenge-response)")
 	cmd.Flags().StringVar(&issuer, "issuer", "", "credential issuer")
-	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
+	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA256", "HMAC algorithm (SHA1, SHA256, SHA512)")
 	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
 	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g. --tag work --tag totp)")

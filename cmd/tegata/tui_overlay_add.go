@@ -63,7 +63,7 @@ func (m *model) resetAddOverlay() {
 	m.addCategoryInput.Reset()
 	m.addCategoryInput.Blur()
 	m.addTypeIdx = 0
-	m.addAlgoIdx = 0
+	m.addAlgoIdx = 1 // default to SHA256
 	m.addDigitsIdx = 0
 	m.addFocusIdx = 0
 	m.errMsg = ""
