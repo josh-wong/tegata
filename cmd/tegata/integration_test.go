@@ -999,6 +999,118 @@ func TestHistory_SortRecords(t *testing.T) {
 	})
 }
 
+func TestResolveAlgorithm(t *testing.T) {
+	tests := []struct {
+		name        string
+		ct          pkgmodel.CredentialType
+		flagChanged bool
+		flagValue   string
+		want        string
+	}{
+		{
+			name:        "challenge-response without explicit flag defaults to SHA256",
+			ct:          pkgmodel.CredentialChallengeResponse,
+			flagChanged: false,
+			flagValue:   "SHA1",
+			want:        "SHA256",
+		},
+		{
+			name:        "challenge-response with explicit SHA1 flag keeps SHA1",
+			ct:          pkgmodel.CredentialChallengeResponse,
+			flagChanged: true,
+			flagValue:   "SHA1",
+			want:        "SHA1",
+		},
+		{
+			name:        "challenge-response with explicit SHA512 flag keeps SHA512",
+			ct:          pkgmodel.CredentialChallengeResponse,
+			flagChanged: true,
+			flagValue:   "SHA512",
+			want:        "SHA512",
+		},
+		{
+			name:        "TOTP without explicit flag keeps SHA1",
+			ct:          pkgmodel.CredentialTOTP,
+			flagChanged: false,
+			flagValue:   "SHA1",
+			want:        "SHA1",
+		},
+		{
+			name:        "HOTP without explicit flag keeps SHA1",
+			ct:          pkgmodel.CredentialHOTP,
+			flagChanged: false,
+			flagValue:   "SHA1",
+			want:        "SHA1",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveAlgorithm(tc.ct, tc.flagChanged, tc.flagValue)
+			if got != tc.want {
+				t.Errorf("resolveAlgorithm(%v, flagChanged=%v, %q) = %q, want %q",
+					tc.ct, tc.flagChanged, tc.flagValue, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIntegration_Sign_SHA1BackwardCompat(t *testing.T) {
+	path, _ := createIntegrationVault(t)
+
+	mgr, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := mgr.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+	// Simulate a credential stored before the SHA256 default change.
+	cr := pkgmodel.Credential{
+		Label:     "legacy-key",
+		Type:      pkgmodel.CredentialChallengeResponse,
+		Algorithm: "SHA1",
+		Secret:    "JBSWY3DPEHPK3PXP",
+	}
+	if _, err := mgr.AddCredential(cr); err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	mgr.Close()
+
+	mgr2, err := vault.Open(path)
+	if err != nil {
+		t.Fatalf("Open for sign: %v", err)
+	}
+	defer mgr2.Close()
+	if err := mgr2.Unlock([]byte("integration-test-passphrase")); err != nil {
+		t.Fatalf("Unlock for sign: %v", err)
+	}
+
+	cred, err := mgr2.GetCredential("legacy-key")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	secretBytes, err := decodeBase32Secret(cred.Secret)
+	if err != nil {
+		t.Fatalf("decodeBase32Secret: %v", err)
+	}
+
+	result, err := auth.SignChallenge(cred, secretBytes, []byte("abc123"))
+	if err != nil {
+		t.Fatalf("SignChallenge: %v", err)
+	}
+
+	// SHA1 output is 40 hex chars (20 bytes).
+	if len(result) != 40 {
+		t.Errorf("sign output length: got %d, want 40 (SHA1)", len(result))
+	}
+	for i, c := range result {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			t.Errorf("non-lowercase-hex char %q at position %d in result %q", c, i, result)
+			break
+		}
+	}
+}
+
 func TestIntegration_StaticBinaryBuild(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping build test in short mode")

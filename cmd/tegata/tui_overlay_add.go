@@ -34,6 +34,16 @@ var addAlgoValues = []string{"SHA1", "SHA256", "SHA512"}
 // addDigitValues maps addDigitsIdx to digit counts.
 var addDigitValues = []int{6, 8}
 
+// algoIndexOf returns the index of algo in addAlgoValues, or 0 (SHA1) if not found.
+func algoIndexOf(algo string) int {
+	for i, a := range addAlgoValues {
+		if a == algo {
+			return i
+		}
+	}
+	return 0
+}
+
 // Focus slot constants for the add overlay's unified focus model. Tab cycles
 // through visible slots; selector slots respond to Left/Right arrows.
 const (
@@ -191,10 +201,14 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.addFocusIdx {
 			case addSlotType:
 				m.addTypeIdx = (m.addTypeIdx + delta + len(credTypeNames)) % len(credTypeNames)
+				// Reset the algo selector to the type-appropriate default whenever
+				// the user cycles the type. Any explicit algo choice made while on a
+				// different type is intentionally discarded — defaults are per-type
+				// and a stale selection from another type would silently mislead.
 				if credTypeNames[m.addTypeIdx].ctype == pkgmodel.CredentialChallengeResponse {
-					m.addAlgoIdx = 1 // SHA256 default for challenge-response
+					m.addAlgoIdx = algoIndexOf("SHA256")
 				} else {
-					m.addAlgoIdx = 0 // SHA1 default for TOTP/HOTP (per RFC)
+					m.addAlgoIdx = algoIndexOf("SHA1") // RFC 6238/4226 default
 				}
 				m.updateSecretPlaceholder()
 				m.clampAddFocus()
