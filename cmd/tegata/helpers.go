@@ -317,6 +317,7 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	if secret := mgr.GetSecret("audit.secret_key"); secret != "" {
 		cfg.Audit.SecretKey = secret
 	}
+	defer func() { cfg.Audit.SecretKey = "" }()
 	builder, err := newEventBuilder(cfg, dir, passphrase)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "Warning: Audit unavailable: %v\n", err)
