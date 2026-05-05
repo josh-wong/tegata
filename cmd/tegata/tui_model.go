@@ -552,7 +552,7 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 
 	// Stop Docker audit stack on exit (mirrors GUI shutdown behavior).
 	if m.cfg.Audit.DockerComposePath != "" {
-		if err := audit.StopStack(m.cfg.Audit.DockerComposePath); err != nil {
+		if err := audit.StopStack(m.cfg.Audit.DockerComposePath, m.cfg.Audit.DockerProjectName); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not stop audit server: %v\n", err)
 		}
 	}
@@ -578,15 +578,17 @@ func (m model) deleteClientProperties() {
 		return
 	}
 
-	// Fallback: check the default ~/.tegata/docker/certs/client.properties location
-	// in case DockerComposePath is not set (e.g., shutdown before any unlock).
+	// Fallback: scan all per-vault compose directories for client.properties.
+	// This handles shutdown before any vault was unlocked (DockerComposePath empty).
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return
 	}
-	defaultPath := filepath.Join(homeDir, ".tegata", "docker", "certs", "client.properties")
-	if err := os.Remove(defaultPath); err != nil && !os.IsNotExist(err) {
-		_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", defaultPath, err)
+	matches, _ := filepath.Glob(filepath.Join(homeDir, ".tegata", "docker", "*", "certs", "client.properties")) // Glob only errors on malformed patterns, not missing paths
+	for _, p := range matches {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", p, err)
+		}
 	}
 }
 

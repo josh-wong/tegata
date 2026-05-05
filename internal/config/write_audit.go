@@ -48,6 +48,9 @@ func formatAuditSection(cfg AuditConfig) string {
 	if cfg.DockerComposePath != "" {
 		buf.WriteString(fmt.Sprintf("docker_compose_path = %q\n", cfg.DockerComposePath))
 	}
+	if cfg.DockerProjectName != "" {
+		buf.WriteString(fmt.Sprintf("docker_project_name = %q\n", cfg.DockerProjectName))
+	}
 	buf.WriteString(fmt.Sprintf("auto_start = %t\n", cfg.AutoStart))
 	return buf.String()
 }

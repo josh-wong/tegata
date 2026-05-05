@@ -241,12 +241,12 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	vaultID := mgr.VaultID()
 	defer mgr.Close()
 
-	// Resolve compose directory: ~/.tegata/docker/
+	// Resolve per-vault compose directory: ~/.tegata/docker/<entityID>/
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("resolving home directory: %w", err)
 	}
-	composeDir := filepath.Join(u.HomeDir, ".tegata", "docker")
+	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 	// Strip the docker-bundle/ prefix from the embed.FS so SetupStack
 	// receives an FS rooted at the docker-compose.yml level.
@@ -334,7 +334,7 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("audit Docker setup not found. Run 'tegata ledger start' first")
 	}
 
-	if err := audit.StopStack(cfg.Audit.DockerComposePath); err != nil {
+	if err := audit.StopStack(cfg.Audit.DockerComposePath, cfg.Audit.DockerProjectName); err != nil {
 		return err
 	}
 

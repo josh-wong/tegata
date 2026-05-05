@@ -53,6 +53,10 @@ type AuditConfig struct {
 	// one-click audit setup. When set, auto-start behavior is enabled on
 	// vault unlock (D-06, D-09).
 	DockerComposePath string
+	// DockerProjectName is the Docker Compose project name for the per-vault
+	// stack (e.g. "tegata-abc12345"). Used with --project-name to isolate
+	// containers and volumes per vault. Empty for legacy single-directory setups.
+	DockerProjectName string
 	// AutoStart controls whether MaybeAutoStart fires on vault unlock.
 	// Defaults to true when DockerComposePath is set and auto_start is absent
 	// from config (D-06 backwards compatibility). Defaults to false otherwise.
@@ -74,6 +78,7 @@ type tomlAuditConfig struct {
 	QueueMaxEvents    *int    `toml:"queue_max_events"`
 	Insecure          *bool   `toml:"insecure"`
 	DockerComposePath *string `toml:"docker_compose_path"`
+	DockerProjectName *string `toml:"docker_project_name"`
 	AutoStart         *bool   `toml:"auto_start"`
 }
 
@@ -175,6 +180,9 @@ func Load(dir string) (Config, error) {
 	}
 	if a.DockerComposePath != nil {
 		cfg.Audit.DockerComposePath = *a.DockerComposePath
+	}
+	if a.DockerProjectName != nil {
+		cfg.Audit.DockerProjectName = *a.DockerProjectName
 	}
 	if a.AutoStart != nil {
 		cfg.Audit.AutoStart = *a.AutoStart

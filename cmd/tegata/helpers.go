@@ -314,6 +314,10 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 // (e.g. tegata add → vault-unlock + credential-add).
 func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Manager) *audit.EventBuilder {
 	cfg, _ := config.Load(dir)
+	if secret := mgr.GetSecret("audit.secret_key"); secret != "" {
+		cfg.Audit.SecretKey = secret
+	}
+	defer func() { cfg.Audit.SecretKey = "" }()
 	builder, err := newEventBuilder(cfg, dir, passphrase)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "Warning: Audit unavailable: %v\n", err)

@@ -141,6 +141,25 @@ func TestDockerComposePath_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestDockerProjectName_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfg := AuditConfig{
+		Enabled:           true,
+		DockerComposePath: "/home/user/.tegata/docker/tegata-abc12345/docker-compose.yml",
+		DockerProjectName: "tegata-abc12345",
+		AutoStart:         true,
+	}
+	_ = WriteAuditSection(dir, cfg)
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.Audit.DockerProjectName != cfg.DockerProjectName {
+		t.Errorf("DockerProjectName round-trip: got %q, want %q",
+			loaded.Audit.DockerProjectName, cfg.DockerProjectName)
+	}
+}
+
 func TestWriteAuditSection_AutoStartTrue(t *testing.T) {
 	cfg := AuditConfig{AutoStart: true}
 	out := formatAuditSection(cfg)
