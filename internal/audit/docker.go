@@ -210,7 +210,11 @@ func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
 	}
 	if entityID != "" {
-		data = rewriteComposeVolume(data, entityID)
+		rewritten, ok := rewriteComposeVolume(data, entityID)
+		if !ok {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+		}
+		data = rewritten
 	}
 	return os.WriteFile(composePath, data, 0600)
 }
@@ -240,7 +244,11 @@ func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
 		}
 
 		if entityID != "" && path == "docker-compose.yml" {
-			data = rewriteComposeVolume(data, entityID)
+			rewritten, ok := rewriteComposeVolume(data, entityID)
+			if !ok {
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+			}
+			data = rewritten
 		}
 
 		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
@@ -290,13 +298,16 @@ func ComposeDirForVault(homeDir, vaultID string) string {
 }
 
 // rewriteComposeVolume replaces the global volume name in docker-compose.yml
-// content with a per-vault name. This ensures each vault's PostgreSQL data is
-// stored in an isolated Docker named volume. entityID must be non-empty.
-func rewriteComposeVolume(data []byte, entityID string) []byte {
-	return bytes.ReplaceAll(data,
-		[]byte("name: tegata-scalardl-data"),
-		[]byte("name: "+entityID+"-scalardl-data"),
-	)
+// content with a per-vault name. Returns the rewritten data and true if the
+// substitution was made, or the original data and false if the target string
+// was not found (compose file format may have drifted from expectations).
+// entityID must be non-empty.
+func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
+	target := []byte("name: tegata-scalardl-data")
+	if !bytes.Contains(data, target) {
+		return data, false
+	}
+	return bytes.ReplaceAll(data, target, []byte("name: "+entityID+"-scalardl-data")), true
 }
 
 // runDockerCompose executes a docker compose command with the given compose
