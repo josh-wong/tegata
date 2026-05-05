@@ -253,7 +253,7 @@ func TestCheckPorts_PortInUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	err = checkPorts([]int{port})
@@ -284,12 +284,12 @@ func TestCheckPorts_FirstConflictReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen ln1: %v", err)
 	}
-	defer ln1.Close()
+	defer func() { _ = ln1.Close() }()
 	ln2, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen ln2: %v", err)
 	}
-	defer ln2.Close()
+	defer func() { _ = ln2.Close() }()
 
 	port1 := ln1.Addr().(*net.TCPAddr).Port
 	port2 := ln2.Addr().(*net.TCPAddr).Port
