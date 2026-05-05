@@ -84,6 +84,9 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	hashes := mgr.AuditHashes()
 	defer vault.ZeroAuditHashes(hashes)
 
+	if err := audit.CheckLedgerAvailability(cfg.Audit); err != nil {
+		return err
+	}
 	client, err := audit.NewClientFromConfig(cfg.Audit)
 	if err != nil {
 		return fmt.Errorf("%w: connecting to ledger: %s", tegerrors.ErrNetworkFailed, err)

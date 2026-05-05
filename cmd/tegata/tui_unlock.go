@@ -15,14 +15,33 @@ import (
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
+// auditAutoStartMsg is returned by maybeAutoStartCmd when the background
+// auto-start attempt finishes. err is nil when the stack started successfully
+// or when auto-start is not configured; non-nil on failure.
+type auditAutoStartMsg struct{ err error }
+
+// maybeAutoStartCmd runs the Docker audit stack auto-start as a tea.Cmd so
+// errors route through the TUI message loop instead of being written directly
+// to stderr, which would corrupt the alt-screen renderer while the TUI is active.
+func maybeAutoStartCmd(cfg config.AuditConfig) tea.Cmd {
+	return func() tea.Msg {
+		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
+		err := audit.RunAutoStart(cfg, bundleFS)
+		return auditAutoStartMsg{err: err}
+	}
+}
+
 // unlockResultMsg is returned by unlockVaultCmd when the async vault unlock
 // goroutine completes. On success, mgr is non-nil. On failure, err is set.
 // The builder field carries the EventBuilder constructed while the passphrase
 // was still available; it may be nil when audit is disabled or unavailable.
+// auditCfg is populated when auto-start is configured so handleUnlockResult
+// can kick off maybeAutoStartCmd without re-reading the passphrase.
 type unlockResultMsg struct {
-	mgr     *vault.Manager
-	err     error
-	builder *audit.EventBuilder
+	mgr      *vault.Manager
+	err      error
+	builder  *audit.EventBuilder
+	auditCfg config.AuditConfig
 }
 
 // unlockVaultCmd spawns an async tea.Cmd that opens and unlocks the vault.
@@ -75,14 +94,10 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 			cfg.Audit.SecretKey = secretFromVault
 		}
 
-		// Auto-start Docker audit stack if configured (D-09, D-10).
-		// MaybeAutoStart is a no-op when DockerComposePath is empty (D-11).
-		// Runs asynchronously — vault unlock is never blocked (D-10).
-		// On failure, MaybeAutoStart logs to stderr and queues events (D-13).
-		// Passes bundleFS so docker-compose.yml is synced on each run, keeping
-		// the live stack config current after binary upgrades.
-		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
-		audit.MaybeAutoStart(cfg.Audit, bundleFS)
+		// Auto-start is deferred to a tea.Cmd (maybeAutoStartCmd) issued by
+		// handleUnlockResult so any error routes through the TUI message loop
+		// instead of being written to stderr, which corrupts the alt-screen
+		// renderer. auditCfg is carried in the result for that purpose.
 
 		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
 		if builderErr != nil {
@@ -91,7 +106,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		}
 
 		zeroBytes(passphrase)
-		return unlockResultMsg{mgr: mgr, builder: builder}
+		return unlockResultMsg{mgr: mgr, builder: builder, auditCfg: cfg.Audit}
 	}
 }
 
@@ -153,7 +168,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	m.prevState = stateMainView
 	m.errMsg = ""
 	m.lastActivity = time.Now()
-	return m, tickCmd()
+	return m, tea.Batch(tickCmd(), maybeAutoStartCmd(msg.auditCfg))
 }
 
 // updateUnlock handles key events in stateUnlock and stateLockedIdle.

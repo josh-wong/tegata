@@ -97,6 +97,9 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 			labelMap := audit.BuildLabelMap(labels)
 			deletedMap := mgr.DeletedLabels()
 
+			if err := audit.CheckLedgerAvailability(cfg.Audit); err != nil {
+				return err
+			}
 			client, err := audit.NewClientFromConfig(cfg.Audit)
 			if err != nil {
 				return fmt.Errorf("%w: %s", tegerrors.ErrNetworkFailed, err)

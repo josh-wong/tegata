@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,6 +57,73 @@ var knownDockerPaths = []string{
 	"/usr/bin/docker",
 	"/Applications/Docker.app/Contents/Resources/bin/docker",
 	"/opt/homebrew/bin/docker",
+}
+
+// auditPorts lists the TCP ports required by the Docker audit stack.
+// Checked before starting to detect conflicts with another vault's running stack.
+var auditPorts = []int{5432, 50051, 50052}
+
+// checkPortsAvailable returns an error if any of the required audit ports are
+// already bound. A port conflict means another vault's audit stack is already
+// running; the error message tells the user how to resolve it.
+func checkPortsAvailable() error {
+	return checkPorts(auditPorts)
+}
+
+// checkPorts dials each port in the list and returns an error on the first one
+// that is already bound. Separated from checkPortsAvailable to allow tests to
+// inject arbitrary ports without touching system-reserved port numbers.
+func checkPorts(ports []int) error {
+	for _, port := range ports {
+		// Use 127.0.0.1 explicitly — on macOS, "localhost" may resolve to ::1
+		// (IPv6) while Docker Desktop binds ports to 127.0.0.1 (IPv4) only,
+		// causing a false "port free" result on a live container.
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		if err == nil {
+			_ = conn.Close()
+			return fmt.Errorf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
+		}
+	}
+	return nil
+}
+
+// isDockerProjectRunning returns true when at least one container for the
+// given Docker Compose project is currently running. It queries Docker
+// directly using the com.docker.compose.project label rather than parsing
+// compose output, so it works across Docker Compose v2 versions. Returns
+// false when composePath doesn't exist, projectName is empty, or Docker is
+// not available — all safe defaults that let callers fall through to startup.
+func isDockerProjectRunning(composePath, projectName string) bool {
+	if composePath == "" || projectName == "" {
+		return false
+	}
+	if _, err := os.Stat(composePath); err != nil {
+		return false
+	}
+	label := "com.docker.compose.project=" + projectName
+	out, err := dockerCmd("ps", "--filter", "label="+label, "--quiet").Output()
+	return err == nil && len(strings.TrimSpace(string(out))) > 0
+}
+
+// CheckLedgerAvailability verifies that the audit ledger is accessible for
+// the given config before a query is made. When DockerComposePath is set,
+// it checks whether this vault's Docker project is actually running (not a
+// different vault's stack that happens to occupy the same ports). Returns a
+// descriptive error if the stack is absent or a port conflict is detected.
+// When DockerComposePath is empty the ledger is assumed to be externally
+// managed and no Docker check is performed.
+func CheckLedgerAvailability(cfg config.AuditConfig) error {
+	if cfg.DockerComposePath == "" {
+		return nil
+	}
+	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+		return nil
+	}
+	if portErr := checkPortsAvailable(); portErr != nil {
+		return portErr
+	}
+	return fmt.Errorf("Audit stack is not running. Start it with \"tegata ledger start\".") //nolint:staticcheck // user-facing message requires sentence punctuation
 }
 
 // DockerBinPath returns the absolute path to the docker binary. It first
@@ -516,9 +584,12 @@ func waitForLedger(cfg config.AuditConfig) error {
 
 // StartStack runs `docker compose -f composePath up -d` synchronously.
 // projectName, when non-empty, is passed as --project-name to scope containers
-// and volumes to this vault's stack. Returns an error with Docker stdout+stderr
-// on non-zero exit.
+// and volumes to this vault's stack. Returns a descriptive error if any
+// required port is already occupied, or if Docker fails on non-zero exit.
 func StartStack(composePath, projectName string) error {
+	if err := checkPortsAvailable(); err != nil {
+		return err
+	}
 	return runDockerCompose(composePath, projectName, "up", "-d")
 }
 
@@ -564,14 +635,19 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		}
 	}
 
-	// Quick probe: ledger already reachable — nothing to do.
-	if client, err := NewClientFromConfig(cfg); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		pingErr := client.Ping(ctx)
-		cancel()
-		_ = client.Close()
-		if pingErr == nil {
-			return nil
+	// Quick probe: only skip startup when THIS vault's Docker project is
+	// confirmed running. Without the project check, the ping could succeed
+	// against a different vault's stack on the same ports, causing subsequent
+	// queries to silently target the wrong entity and return no events.
+	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+		if client, err := NewClientFromConfig(cfg); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr := client.Ping(ctx)
+			cancel()
+			_ = client.Close()
+			if pingErr == nil {
+				return nil
+			}
 		}
 	}
 
@@ -593,48 +669,58 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	return nil
 }
 
+// RunAutoStart performs the Docker audit stack auto-start synchronously.
+// It syncs docker-compose.yml from fsys (when non-nil), starts the stack,
+// and waits for the ledger to become reachable. Returns an error on failure
+// so callers can route it through their own error channel rather than writing
+// to stderr. A nil return means the ledger is ready.
+// When cfg.DockerComposePath is empty or cfg.AutoStart is false, it is a no-op.
+func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
+	if cfg.DockerComposePath == "" || !cfg.AutoStart {
+		return nil
+	}
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+		}
+	}
+	if err := ensureDockerDaemon(); err != nil {
+		return fmt.Errorf("docker daemon not ready: %w", err)
+	}
+	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+		return err
+	}
+	for i := 0; i < autoStartRetries; i++ {
+		client, err := NewClientFromConfig(cfg)
+		if err != nil {
+			time.Sleep(autoStartInterval)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
+		}
+		time.Sleep(autoStartInterval)
+	}
+	return fmt.Errorf("ledger did not become ready after %d attempts", autoStartRetries)
+}
+
 // MaybeAutoStart fires in a background goroutine when cfg.DockerComposePath
-// is non-empty. It runs docker compose up -d then retries Ping up to
-// autoStartRetries times. Non-blocking -- never panics, logs to stderr on
-// failure. Suitable for long-lived processes (TUI, GUI) where the goroutine
-// can complete after the unlock call returns. For short-lived CLI processes
-// use EnsureStack instead. Per D-10 and D-13.
-// fsys should be the embedded docker bundle FS (after fs.Sub). When non-nil,
-// docker-compose.yml is synced from the bundle before starting.
+// is non-empty. Non-blocking — never panics, logs to stderr on failure.
+// Suitable for non-TUI contexts (GUI, background CLI) where stderr output
+// is acceptable. For TUI processes use RunAutoStart via a tea.Cmd instead
+// so errors route through the message loop rather than corrupting the renderer.
+// Per D-10 and D-13.
 func MaybeAutoStart(cfg config.AuditConfig, fsys fs.FS) {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return
 	}
 	go func() {
-		if fsys != nil {
-			if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
-			}
-		}
-		if err := ensureDockerDaemon(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: Docker daemon not ready: %v\n", err)
-			return
-		}
-		if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+		if err := RunAutoStart(cfg, fsys); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start failed: %v\n", err)
-			return
 		}
-		// Retry ping up to autoStartRetries times.
-		for i := 0; i < autoStartRetries; i++ {
-			client, err := NewClientFromConfig(cfg)
-			if err != nil {
-				time.Sleep(autoStartInterval)
-				continue
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			pingErr := client.Ping(ctx)
-			cancel()
-			_ = client.Close()
-			if pingErr == nil {
-				return
-			}
-			time.Sleep(autoStartInterval)
-		}
-		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger did not become ready after auto-start\n")
 	}()
 }
