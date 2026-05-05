@@ -584,7 +584,7 @@ func (m model) deleteClientProperties() {
 	if err != nil {
 		return
 	}
-	matches, _ := filepath.Glob(filepath.Join(homeDir, ".tegata", "docker", "*", "certs", "client.properties"))
+	matches, _ := filepath.Glob(filepath.Join(homeDir, ".tegata", "docker", "*", "certs", "client.properties")) // Glob only errors on malformed patterns, not missing paths
 	for _, p := range matches {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", p, err)
