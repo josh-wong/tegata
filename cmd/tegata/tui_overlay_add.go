@@ -191,6 +191,11 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.addFocusIdx {
 			case addSlotType:
 				m.addTypeIdx = (m.addTypeIdx + delta + len(credTypeNames)) % len(credTypeNames)
+				if credTypeNames[m.addTypeIdx].ctype == pkgmodel.CredentialChallengeResponse {
+					m.addAlgoIdx = 1 // SHA256 default for challenge-response
+				} else {
+					m.addAlgoIdx = 0 // SHA1 default for TOTP/HOTP (per RFC)
+				}
 				m.updateSecretPlaceholder()
 				m.clampAddFocus()
 				return m, nil

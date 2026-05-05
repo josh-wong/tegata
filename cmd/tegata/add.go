@@ -86,6 +86,10 @@ func newAddCmd() *cobra.Command {
 						credType, errors.ErrInvalidInput)
 				}
 
+				if ct == pkgmodel.CredentialChallengeResponse && !cmd.Flags().Changed("algorithm") {
+					algorithm = "SHA256"
+				}
+
 				var secretPrompt string
 				switch ct {
 				case pkgmodel.CredentialStatic:
