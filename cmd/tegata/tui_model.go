@@ -421,6 +421,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case unlockResultMsg:
 		return m.handleUnlockResult(msg)
 
+	case auditAutoStartMsg:
+		if msg.err != nil {
+			m.statusMsg = "Audit auto-start failed: " + msg.err.Error()
+		}
+		return m, nil
+
 	case auditHistoryMsg:
 		m.auditLoading = false
 		if msg.err != nil {

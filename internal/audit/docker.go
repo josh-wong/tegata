@@ -623,48 +623,58 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	return nil
 }
 
+// RunAutoStart performs the Docker audit stack auto-start synchronously.
+// It syncs docker-compose.yml from fsys (when non-nil), starts the stack,
+// and waits for the ledger to become reachable. Returns an error on failure
+// so callers can route it through their own error channel rather than writing
+// to stderr. A nil return means the ledger is ready.
+// When cfg.DockerComposePath is empty or cfg.AutoStart is false, it is a no-op.
+func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
+	if cfg.DockerComposePath == "" || !cfg.AutoStart {
+		return nil
+	}
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+		}
+	}
+	if err := ensureDockerDaemon(); err != nil {
+		return fmt.Errorf("docker daemon not ready: %w", err)
+	}
+	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+		return err
+	}
+	for i := 0; i < autoStartRetries; i++ {
+		client, err := NewClientFromConfig(cfg)
+		if err != nil {
+			time.Sleep(autoStartInterval)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
+		}
+		time.Sleep(autoStartInterval)
+	}
+	return fmt.Errorf("ledger did not become ready after %d attempts", autoStartRetries)
+}
+
 // MaybeAutoStart fires in a background goroutine when cfg.DockerComposePath
-// is non-empty. It runs docker compose up -d then retries Ping up to
-// autoStartRetries times. Non-blocking -- never panics, logs to stderr on
-// failure. Suitable for long-lived processes (TUI, GUI) where the goroutine
-// can complete after the unlock call returns. For short-lived CLI processes
-// use EnsureStack instead. Per D-10 and D-13.
-// fsys should be the embedded docker bundle FS (after fs.Sub). When non-nil,
-// docker-compose.yml is synced from the bundle before starting.
+// is non-empty. Non-blocking — never panics, logs to stderr on failure.
+// Suitable for non-TUI contexts (GUI, background CLI) where stderr output
+// is acceptable. For TUI processes use RunAutoStart via a tea.Cmd instead
+// so errors route through the message loop rather than corrupting the renderer.
+// Per D-10 and D-13.
 func MaybeAutoStart(cfg config.AuditConfig, fsys fs.FS) {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return
 	}
 	go func() {
-		if fsys != nil {
-			if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
-			}
-		}
-		if err := ensureDockerDaemon(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: Docker daemon not ready: %v\n", err)
-			return
-		}
-		if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+		if err := RunAutoStart(cfg, fsys); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start failed: %v\n", err)
-			return
 		}
-		// Retry ping up to autoStartRetries times.
-		for i := 0; i < autoStartRetries; i++ {
-			client, err := NewClientFromConfig(cfg)
-			if err != nil {
-				time.Sleep(autoStartInterval)
-				continue
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			pingErr := client.Ping(ctx)
-			cancel()
-			_ = client.Close()
-			if pingErr == nil {
-				return
-			}
-			time.Sleep(autoStartInterval)
-		}
-		_, _ = fmt.Fprintf(os.Stderr, "tegata: audit ledger did not become ready after auto-start\n")
 	}()
 }
