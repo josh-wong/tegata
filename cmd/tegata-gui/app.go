@@ -1033,6 +1033,9 @@ func (a *App) GetAuditHistory() ([]AuditHistoryRecord, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
+	if err := audit.CheckLedgerAvailability(a.config.Audit); err != nil {
+		return nil, err
+	}
 	client, err := a.newAuditClient()
 	if err != nil {
 		return nil, err
@@ -1082,6 +1085,9 @@ func (a *App) VerifyCredentialAuditLog(label string) (*AuditVerifyResult, error)
 		return nil, fmt.Errorf("vault is locked")
 	}
 
+	if err := audit.CheckLedgerAvailability(a.config.Audit); err != nil {
+		return nil, err
+	}
 	client, err := a.newAuditClient()
 	if err != nil {
 		return nil, err
@@ -1115,6 +1121,9 @@ func (a *App) VerifyAuditLog() (*AuditVerifyResult, error) {
 		return nil, fmt.Errorf("vault is locked")
 	}
 
+	if err := audit.CheckLedgerAvailability(a.config.Audit); err != nil {
+		return nil, err
+	}
 	client, err := a.newAuditClient()
 	if err != nil {
 		return nil, err
