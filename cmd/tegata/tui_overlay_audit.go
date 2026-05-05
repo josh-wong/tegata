@@ -44,6 +44,9 @@ type auditStartMsg struct {
 // auditHistoryCmd creates a tea.Cmd that fetches audit history asynchronously.
 func auditHistoryCmd(cfg config.AuditConfig) tea.Cmd {
 	return func() tea.Msg {
+		if err := audit.CheckLedgerAvailability(cfg); err != nil {
+			return auditHistoryMsg{err: err}
+		}
 		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return auditHistoryMsg{err: err}
@@ -79,6 +82,9 @@ func auditVerifyCmd(cfg config.AuditConfig, vaultHashes map[string]string) tea.C
 	return func() tea.Msg {
 		defer vault.ZeroAuditHashes(vaultHashes)
 
+		if err := audit.CheckLedgerAvailability(cfg); err != nil {
+			return auditVerifyMsg{err: err}
+		}
 		client, err := audit.NewClientFromConfig(cfg)
 		if err != nil {
 			return auditVerifyMsg{err: err}

@@ -218,6 +218,34 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 	})
 }
 
+// TestIsDockerProjectRunning_NoComposeFile verifies that isDockerProjectRunning
+// returns false when the compose file does not exist (project was never set up).
+func TestIsDockerProjectRunning_NoComposeFile(t *testing.T) {
+	if isDockerProjectRunning("/nonexistent/docker-compose.yml", "some-project") {
+		t.Error("isDockerProjectRunning: expected false for nonexistent compose file, got true")
+	}
+}
+
+// TestIsDockerProjectRunning_EmptyArgs verifies that isDockerProjectRunning
+// returns false when composePath or projectName is empty.
+func TestIsDockerProjectRunning_EmptyArgs(t *testing.T) {
+	if isDockerProjectRunning("", "project") {
+		t.Error("isDockerProjectRunning: expected false for empty composePath")
+	}
+	if isDockerProjectRunning("/some/path", "") {
+		t.Error("isDockerProjectRunning: expected false for empty projectName")
+	}
+}
+
+// TestCheckLedgerAvailability_NoDockerPath verifies that CheckLedgerAvailability
+// is a no-op when DockerComposePath is empty (externally managed ledger).
+func TestCheckLedgerAvailability_NoDockerPath(t *testing.T) {
+	cfg := config.AuditConfig{DockerComposePath: ""}
+	if err := CheckLedgerAvailability(cfg); err != nil {
+		t.Errorf("CheckLedgerAvailability with no compose path: unexpected error: %v", err)
+	}
+}
+
 // TestCheckPorts_PortInUse verifies that checkPorts returns a descriptive error
 // when a port is already bound.
 func TestCheckPorts_PortInUse(t *testing.T) {

@@ -85,6 +85,44 @@ func checkPorts(ports []int) error {
 	return nil
 }
 
+// isDockerProjectRunning returns true when at least one container for the
+// given Docker Compose project is currently running. It queries Docker
+// directly using the com.docker.compose.project label rather than parsing
+// compose output, so it works across Docker Compose v2 versions. Returns
+// false when composePath doesn't exist, projectName is empty, or Docker is
+// not available — all safe defaults that let callers fall through to startup.
+func isDockerProjectRunning(composePath, projectName string) bool {
+	if composePath == "" || projectName == "" {
+		return false
+	}
+	if _, err := os.Stat(composePath); err != nil {
+		return false
+	}
+	label := "com.docker.compose.project=" + projectName
+	out, err := dockerCmd("ps", "--filter", "label="+label, "--quiet").Output()
+	return err == nil && len(strings.TrimSpace(string(out))) > 0
+}
+
+// CheckLedgerAvailability verifies that the audit ledger is accessible for
+// the given config before a query is made. When DockerComposePath is set,
+// it checks whether this vault's Docker project is actually running (not a
+// different vault's stack that happens to occupy the same ports). Returns a
+// descriptive error if the stack is absent or a port conflict is detected.
+// When DockerComposePath is empty the ledger is assumed to be externally
+// managed and no Docker check is performed.
+func CheckLedgerAvailability(cfg config.AuditConfig) error {
+	if cfg.DockerComposePath == "" {
+		return nil
+	}
+	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+		return nil
+	}
+	if portErr := checkPortsAvailable(); portErr != nil {
+		return portErr
+	}
+	return fmt.Errorf("audit stack is not running. Start it with 'tegata ledger start'")
+}
+
 // DockerBinPath returns the absolute path to the docker binary. It first
 // checks PATH (via LookPath), then falls back to known macOS and Linux
 // locations. Returns an empty string if docker cannot be found. Exported
@@ -594,14 +632,19 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		}
 	}
 
-	// Quick probe: ledger already reachable — nothing to do.
-	if client, err := NewClientFromConfig(cfg); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		pingErr := client.Ping(ctx)
-		cancel()
-		_ = client.Close()
-		if pingErr == nil {
-			return nil
+	// Quick probe: only skip startup when THIS vault's Docker project is
+	// confirmed running. Without the project check, the ping could succeed
+	// against a different vault's stack on the same ports, causing subsequent
+	// queries to silently target the wrong entity and return no events.
+	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+		if client, err := NewClientFromConfig(cfg); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr := client.Ping(ctx)
+			cancel()
+			_ = client.Close()
+			if pingErr == nil {
+				return nil
+			}
 		}
 	}
 
