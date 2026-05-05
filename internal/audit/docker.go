@@ -82,7 +82,7 @@ func checkPorts(ports []int) error {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
 			_ = conn.Close()
-			return fmt.Errorf("port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port)
+			return fmt.Errorf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port)
 		}
 	}
 	return nil
@@ -123,7 +123,7 @@ func CheckLedgerAvailability(cfg config.AuditConfig) error {
 	if portErr := checkPortsAvailable(); portErr != nil {
 		return portErr
 	}
-	return fmt.Errorf("audit stack is not running. Start it with \"tegata ledger start\".")
+	return fmt.Errorf("Audit stack is not running. Start it with \"tegata ledger start\".")
 }
 
 // DockerBinPath returns the absolute path to the docker binary. It first

@@ -249,7 +249,7 @@ func TestCheckLedgerAvailability_NoDockerPath(t *testing.T) {
 // TestCheckPorts_PortInUse verifies that checkPorts returns a descriptive error
 // when a port is already bound.
 func TestCheckPorts_PortInUse(t *testing.T) {
-	ln, err := net.Listen("tcp", "localhost:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestCheckPorts_PortInUse(t *testing.T) {
 	if err == nil {
 		t.Fatal("checkPorts: expected error when port is in use, got nil")
 	}
-	want := fmt.Sprintf("port %d is already in use", port)
+	want := fmt.Sprintf("Port %d is already in use", port)
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("checkPorts error = %q, want to contain %q", err.Error(), want)
 	}
@@ -280,12 +280,12 @@ func TestCheckPorts_PortFree(t *testing.T) {
 // TestCheckPorts_FirstConflictReported verifies that checkPorts reports the
 // first conflicting port, not a later one, so the error is deterministic.
 func TestCheckPorts_FirstConflictReported(t *testing.T) {
-	ln1, err := net.Listen("tcp", "localhost:0")
+	ln1, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen ln1: %v", err)
 	}
 	defer ln1.Close()
-	ln2, err := net.Listen("tcp", "localhost:0")
+	ln2, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen ln2: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestCheckPorts_FirstConflictReported(t *testing.T) {
 	if err == nil {
 		t.Fatal("checkPorts: expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), fmt.Sprintf("port %d", port1)) {
+	if !strings.Contains(err.Error(), fmt.Sprintf("Port %d", port1)) {
 		t.Errorf("checkPorts error = %q, want to mention first port %d", err.Error(), port1)
 	}
 }
