@@ -28,7 +28,7 @@ docker compose ps
 
 ## Registering a client certificate
 
-The ScalarDL `LedgerPrivileged` service listens on port 50052. After generating a certificate (see `docs/scalardl-setup.md`), run:
+The ScalarDL `LedgerPrivileged` service listens on port 50052. After generating a certificate (see `site/docs/scalardl-setup.mdx`), run:
 
 ```bash
 tegata ledger setup --vault /path/to/vault

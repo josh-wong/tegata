@@ -79,7 +79,7 @@ Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full 
 
 Tegata is a software authenticator with portable key storage, not a hardware security key replacement. Keys are encrypted at rest with AES-256-GCM and decrypted in host memory during use. Sensitive memory is zeroed immediately after use via memguard. Rate limiting with exponential backoff protects against brute-force passphrase attempts.
 
-For a detailed review of the cryptographic implementation, memory handling, vault format, and input validation, see the [security audit](docs/SECURITY-AUDIT.md).
+For end-user hardening guidance, see [security best practices](site/docs/security-best-practices.mdx).
 
 ## Documentation
 
@@ -87,8 +87,8 @@ For a detailed review of the cryptographic implementation, memory handling, vaul
 |--------------------------------------------------------|---------------------------------------------------|
 | [Getting started](docs/getting-started.md)             | Installation, quickstart, and daily use            |
 | [CLI command reference](docs/cli-reference.md)         | Complete documentation of all CLI commands          |
-| [ScalarDL setup](docs/scalardl-setup.md)               | Configure optional tamper-evident audit logging    |
-| [Security audit](docs/SECURITY-AUDIT.md)               | Self-audit of cryptographic and security practices |
+| [ScalarDL setup](site/docs/scalardl-setup.mdx)         | Configure optional tamper-evident audit logging    |
+| [Security best practices](site/docs/security-best-practices.mdx) | User-facing security and operational guidance |
 | [Design document](docs/v1-design-doc.md)               | Technical architecture and component specifications |
 | [Product requirements](docs/v1-product-requirements-doc.md) | Requirements, use cases, and release plan     |
 | [Contributing](CONTRIBUTING.md)                        | Development setup, coding standards, and PR process |
