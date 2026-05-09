@@ -7,7 +7,7 @@ description: Windows, macOS, and Linux setup instructions for Tegata, including 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Tegata runs on Windows 10+, macOS 12+, and Linux (amd64) without any runtime dependencies. This page covers platform-specific configuration that goes beyond the [Getting started](getting-started.mdx) guide — USB drive formatting, permission issues, auto-start behavior, and known platform quirks.
+Tegata runs on Windows 10+, macOS 12+, and Linux (amd64) without any runtime dependencies. This page covers platform-specific configuration that goes beyond the [Getting started](getting-started.mdx) guide—USB drive formatting, permission issues, auto-start behavior, and known platform quirks.
 
 ## Windows
 
@@ -21,14 +21,14 @@ To format in File Explorer: right-click the drive → **Format** → set File sy
 
 ### Running the binary
 
-PowerShell does not search the current directory for executables. Prefix the command with `.\` or add the drive root to your `PATH`.
+PowerShell does not search the current directory for executables. Prefix the command with `.\` or add the drive root to your `PATH`, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive.
 
 ```powershell
 # Run directly
 .\tegata.exe version
 
 # Or add the USB drive to the session PATH
-$env:PATH += ";E:\"
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
 tegata version
 ```
 
@@ -74,26 +74,25 @@ If the output is `enabled`, interop is active. If not, enable it in `/etc/wsl.co
 enabled=true
 ```
 
----
-
 ## macOS
 
 macOS adds security attributes to downloaded binaries and requires specific setup for ad-hoc signed applications. This section covers clearing quarantine flags, choosing the right binary for your architecture, and setting up Docker for audit logging.
 
 ### Clearing the quarantine flag
 
-macOS adds a quarantine flag to files downloaded from the internet. Running a quarantined binary shows an error like "cannot be opened because the developer cannot be verified."
+macOS adds a quarantine flag to files downloaded from the Internet. Running a quarantined binary shows an error like "cannot be opened because the developer cannot be verified."
 
-Clear the flag with:
+If you receive this error, clear the flag by running the following command in Terminal:
 
 ```bash
-xattr -d com.apple.quarantine tegata-darwin-arm64
+xattr -d com.apple.quarantine tegata-darwin-arm64 # For Macs with Apple Silicon processors
+xattr -d com.apple.quarantine tegata-darwin-amd64 # For Macs with Intel processors
 ```
 
-If the binary is already on your USB drive:
+If the binary is already on your USB drive, run the following command, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
 
 ```bash
-xattr -d com.apple.quarantine /Volumes/MyUSB/tegata
+xattr -d com.apple.quarantine /Volumes/<USB_DRIVE_NAME>/tegata
 ```
 
 For the GUI app:
@@ -102,17 +101,13 @@ For the GUI app:
 xattr -r -d com.apple.quarantine /Applications/Tegata.app
 ```
 
-:::note Code signing
-The Tegata binaries are ad-hoc signed but not notarized with Apple's notarization service. The [macOS code signing doc](macos-code-signing.md) explains the current signing status and plans for full notarization.
-:::
-
 ### Apple Silicon vs Intel
 
 Download the correct binary for your Mac.
 
 | Binary | Chip |
 |--------|------|
-| `tegata-darwin-arm64` | Apple Silicon (M1, M2, M3, M4) |
+| `tegata-darwin-arm64` | Apple Silicon |
 | `tegata-darwin-amd64` | Intel |
 
 The desktop GUI is distributed as a **universal binary** (`tegata-gui-darwin-universal.dmg`) that runs natively on both architectures.
@@ -127,43 +122,49 @@ macOS can read and write exFAT and FAT32 natively. Format your USB drive as exFA
 4. Click **Erase**.
 
 :::tip APFS is not recommended for cross-platform USB drives
+
 APFS is the native macOS filesystem but is not readable on Windows or Linux without third-party software. Use exFAT if you move the drive between machines.
+
 :::
 
 ### Setting TEGATA_VAULT persistently
 
-Add the export to your shell profile so you do not have to type `--vault` on every command:
+Add the export to your shell profile so you do not have to type `--vault` on every command by running the following command, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
 
 ```bash
 # For zsh (default on macOS 10.15+)
-echo 'export TEGATA_VAULT=/Volumes/MyUSB' >> ~/.zshrc
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.zshrc
 source ~/.zshrc
 
 # For bash
-echo 'export TEGATA_VAULT=/Volumes/MyUSB' >> ~/.bash_profile
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.bash_profile
 source ~/.bash_profile
 ```
 
 ### Docker for audit logging
 
-The audit logging feature requires Docker Desktop for Mac. Install it from the [Docker website](https://www.docker.com/products/docker-desktop/). After installation, Tegata can start Docker automatically when you unlock the vault — you do not need to open Docker Desktop manually.
-
----
+The audit logging feature requires Docker Desktop for Mac. Install it from the [Docker website](https://www.docker.com/products/docker-desktop/). After installation, Tegata can start Docker automatically when you unlock the vault—you do not need to open Docker Desktop manually.
 
 ## Linux
+
+:::note Linux support
+
+Linux has not been manually tested. The steps on this page are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
+
+:::
 
 Linux setup requires configuring USB drive mounting, installing clipboard tools appropriate for your desktop environment, and ensuring Docker has the correct permissions. WSL2 users should configure interop for clipboard access.
 
 ### USB drive mounting
 
-Most desktop Linux distributions auto-mount USB drives to `/media/$USER/<drive-name>`. On minimal or server systems, mount manually:
+Most desktop Linux distributions auto-mount USB drives to `/media/$USER/<drive-name>`. On minimal or server systems, mount manually, replacing `/dev/path/to/device` and `/mnt/path/to/usb` with the correct values:
 
 ```bash
-sudo mkdir -p /mnt/usb
-sudo mount /dev/sdb1 /mnt/usb
+sudo mkdir -p /mnt/path/to/usb
+sudo mount /dev/path/to/device /mnt/path/to/usb
 ```
 
-Replace `/dev/sdb1` with the correct device node. Use `lsblk` to identify the device:
+Use `lsblk` to identify the device:
 
 ```bash
 lsblk -f
@@ -211,7 +212,7 @@ sudo pacman -S wl-clipboard
 
 If neither tool is available, Tegata prints the code to stdout and logs a warning that clipboard copy was skipped. Run `tegata code <label> --clip=false` to suppress the warning.
 
-### Headless / SSH sessions
+### Headless/SSH sessions
 
 Clipboard operations require a display. On headless servers or SSH sessions without X11 forwarding, use `--clip=false` to skip clipboard copy:
 
@@ -256,7 +257,7 @@ sudo pacman -S gtk3 webkit2gtk
 
 ### Docker for audit logging
 
-Tegata's audit logging requires Docker Engine 24+ with Compose v2. Install Docker Engine following the [official Docker docs](https://docs.docker.com/engine/install/). After installation, add your user to the `docker` group so Tegata can start containers without `sudo`:
+Audit logging in Tegata requires Docker Engine 24+ with Compose v2. Install Docker Engine following the [official Docker docs](https://docs.docker.com/engine/install/). After installation, add your user to the `docker` group so Tegata can start containers without `sudo`:
 
 ```bash
 sudo usermod -aG docker $USER
@@ -269,8 +270,8 @@ Format your USB drive as exFAT for cross-platform compatibility:
 
 ```bash
 # Install exfatprogs if needed
-sudo apt install exfatprogs       # Debian/Ubuntu
-sudo dnf install exfatprogs       # Fedora
+sudo apt install exfatprogs # Debian/Ubuntu
+sudo dnf install exfatprogs # Fedora
 
 # Format the drive (replace /dev/sdb1 with your device)
 sudo mkfs.exfat -n MyUSB /dev/sdb1
@@ -279,8 +280,6 @@ sudo mkfs.exfat -n MyUSB /dev/sdb1
 ### AppArmor / SELinux
 
 On systems with mandatory access control enabled, the Tegata binary may be blocked from accessing USB drives or clipboard tools. If you see permission errors, check your audit log (`journalctl -f`) for AppArmor or SELinux denials and add the appropriate policy exception.
-
----
 
 ## Environment variables reference
 

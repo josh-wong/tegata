@@ -28,7 +28,7 @@ const (
 )
 
 // SetupTestObjectID is a fixed well-known key used during setup and by
-// `tegata ledger setup` to verify that the generic contracts are registered.
+// `tegata ledger setup` to verify that the predefined HashStore contracts are registered.
 // Using a constant avoids accumulating unique orphan objects on every run.
 const SetupTestObjectID = "tegata-setup-probe"
 
@@ -40,7 +40,7 @@ const (
 )
 
 // contractRetries and contractRetryInterval control how long waitForContracts
-// polls for the generic ScalarDL contracts to become reachable. The
+// polls for predefined HashStore contracts to become reachable. The
 // scalardl-contract-registration container runs `apk add curl unzip`,
 // downloads the ~50 MB HashStore SDK from GitHub, starts the JVM, and calls
 // `scalardl-hashstore bootstrap` — which can exceed 2 minutes on first run.
@@ -422,7 +422,7 @@ func progress(fn func(string), msg string) {
 // modify any config. tegata.toml is only written by the caller on success.
 // SetupStack runs the full Docker audit setup sequence. It starts Docker, extracts
 // compose files, generates entity credentials, starts the stack, waits for the
-// ledger, registers the entity secret, and then waits for the generic contracts
+// ledger, registers the entity secret, and then waits for the predefined HashStore contracts
 // to be reachable (up to 5 minutes). After the entity is registered and the
 // ledger is reachable, onRegistered is called with the populated AuditConfig —
 // the caller should write tegata.toml at that point so config is persisted even
@@ -522,10 +522,10 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		}
 	}
 
-	// Step 8: Wait for generic contracts to become reachable (up to 5 minutes).
+	// Step 8: Wait for predefined HashStore contracts to become reachable (up to 5 minutes).
 	// The scalardl-contract-registration container downloads ~50 MB and runs the
 	// bootstrap tool; this is the slow part on first run.
-	progress(progressFn, "Waiting for generic contracts to become ready (up to 5 minutes on first run)...")
+	progress(progressFn, "Waiting for predefined HashStore contracts to become ready (up to 5 minutes on first run)...")
 	if err := waitForContracts(client, progressFn); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("waiting for contracts: %w", err)
 	}
@@ -533,7 +533,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 	return cfg, nil
 }
 
-// waitForContracts polls client.Put until the generic ScalarDL contracts are
+// waitForContracts polls client.Put until the predefined HashStore contracts are
 // reachable, reporting elapsed time via progressFn on each failed attempt.
 // Must be called after RegisterSecret so the entity is authenticated.
 // Each attempt uses a fresh 5-second context; total wait is up to 5 minutes.

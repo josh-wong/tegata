@@ -134,14 +134,14 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Verify that the generic contracts are registered by attempting a test Put.
-	fmt.Fprintln(os.Stderr, "Verifying generic contracts are registered...")
+	// Verify that the predefined HashStore contracts are registered by attempting a test Put.
+	fmt.Fprintln(os.Stderr, "Verifying predefined HashStore contracts are registered...")
 	if err := verifyContracts(ctx, client); err != nil {
 		composeDir := "~/.tegata/docker"
 		if u, err := user.Current(); err == nil {
 			composeDir = filepath.Join(u.HomeDir, ".tegata", "docker")
 		}
-		fmt.Fprintln(os.Stderr, "Generic contracts are NOT registered on this ScalarDL instance.")
+		fmt.Fprintln(os.Stderr, "Predefined HashStore contracts are NOT registered on this ScalarDL instance.")
 		fmt.Fprintf(os.Stderr, "Run from %s: docker compose run --rm scalardl-contract-registration\n", composeDir)
 		fmt.Fprintln(os.Stderr, "If registration fails with INVALID_SIGNATURE, confirm that the secret key in")
 		fmt.Fprintln(os.Stderr, "certs/client.properties is on a single unbroken line with no line breaks in the value.")
@@ -179,12 +179,12 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("storing secret in vault: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "Generic contracts verified. Audit setup complete.")
+	fmt.Fprintln(os.Stderr, "Predefined HashStore contracts verified. Audit setup complete.")
 	return nil
 }
 
-// verifyContracts attempts a test Put to confirm that the generic contracts
-// are registered on the ScalarDL instance.
+// verifyContracts attempts a test Put to confirm that the predefined HashStore
+// contracts are registered on the ScalarDL instance.
 func verifyContracts(ctx context.Context, client audit.Client) error {
 	return client.Put(ctx, audit.SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
 }

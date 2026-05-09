@@ -62,7 +62,7 @@ func (m *mockAuditClient) CollectionGet(_ context.Context, _ string) ([]string, 
 }
 
 // TestLedgerSetup_ContractVerification tests the verifyContracts function
-// that checks whether generic contracts are registered on the ledger.
+// that checks whether predefined HashStore contracts are registered on the ledger.
 func TestLedgerSetup_ContractVerification(t *testing.T) {
 	t.Run("succeeds when Put succeeds", func(t *testing.T) {
 		mock := &mockAuditClient{putErr: nil}

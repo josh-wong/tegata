@@ -29,7 +29,7 @@ The following terms are used throughout this document.
 | **Recovery key**  | A randomly generated key stored offline that can decrypt the vault if the passphrase is lost          |
 | **DEK**           | Data encryption key – the AES-256 key derived from the passphrase via Argon2id                       |
 | **Event**         | A single authentication operation record submitted to ScalarDL Ledger                                |
-| **HashStore**     | ScalarDL's built-in generic contract abstraction for storing and validating hash-chained records      |
+| **HashStore**     | ScalarDL's built-in predefined contracts for storing and validating hash-chained records              |
 | **Offline queue** | An encrypted local buffer that stores audit events when the ScalarDL Ledger instance is unreachable   |
 
 ### 1.3 Key decisions

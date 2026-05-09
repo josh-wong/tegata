@@ -232,7 +232,7 @@ func TestIntegration_SignatureByteLayout(t *testing.T) {
 	t.Log("SignatureByteLayout test passed — byte layout accepted by the server")
 }
 
-// TestIntegration_RegisterContracts verifies that the generic HashStore
+// TestIntegration_RegisterContracts verifies that the predefined HashStore
 // contracts (object.Put, object.Get, object.Validate) are registered on the
 // live ScalarDL instance. If any contract is missing, the corresponding RPC
 // will fail with CONTRACT_NOT_FOUND.
@@ -245,14 +245,14 @@ func TestIntegration_RegisterContracts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Verify generic contracts are registered by attempting a Put.
+	// Verify predefined HashStore contracts are registered by attempting a Put.
 	// If contracts are not registered, Put will fail with a CONTRACT_NOT_FOUND error.
 	testObjID := fmt.Sprintf("contract-reg-test-%d", time.Now().UnixNano())
 	testHash := "0000000000000000000000000000000000000000000000000000000000000000"
 	if err := client.Put(ctx, testObjID, testHash); err != nil {
-		t.Fatalf("Put failed — generic contracts may not be registered: %v", err)
+		t.Fatalf("Put failed — predefined HashStore contracts may not be registered: %v", err)
 	}
-	t.Log("Generic contracts are registered: Put succeeded")
+	t.Log("Predefined HashStore contracts are registered: Put succeeded")
 
 	// Verify Get also works (object.Get contract registered).
 	records, err := client.Get(ctx, testObjID)

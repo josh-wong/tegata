@@ -417,7 +417,7 @@ ScalarDL Ledger is **not bundled** with Tegata. Users who want audit logging mus
 
 ### 9.4 Contract strategy
 
-Tegata will use **HashStore** (generic contracts) in ScalarDL 3.13 rather than custom contracts:
+Tegata will use **HashStore** (predefined contracts) in ScalarDL 3.13 rather than custom contracts:
 
 - `object.Put`. Store a hash of each authentication event.
 - `object.Get`. Retrieve event records.

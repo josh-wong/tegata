@@ -1,7 +1,7 @@
 ---
 title: Desktop GUI guide
 sidebar_position: 4
-description: A walkthrough of Tegata's desktop GUI — installation, vault setup, credential management, and the audit panel.
+description: A walkthrough of Tegata's desktop GUI – Installation, vault setup, credential management, and the audit panel.
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,7 +10,9 @@ import TabItem from '@theme/TabItem';
 The Tegata desktop GUI provides the same vault management and credential operations as the CLI and TUI with a graphical interface. It includes a setup wizard, live TOTP countdown timers, a settings panel, and an audit panel.
 
 :::note The GUI stays on your host machine
+
 Unlike the CLI binary, which is designed to travel on the USB drive alongside your vault, the GUI is installed on your host machine. The vault file itself always lives on your USB drive or microSD card.
+
 :::
 
 ## Install the GUI
@@ -33,6 +35,12 @@ xattr -r -d com.apple.quarantine /Applications/Tegata.app
 
   </TabItem>
   <TabItem value="linux" label="Linux">
+
+:::note Linux support
+
+Linux has not been manually tested. These steps are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
+
+:::
 
 Download the package for your distribution from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page.
 
@@ -63,13 +71,15 @@ When you open Tegata for the first time, it prompts you to locate or create a va
 
 The setup wizard guides you through:
 
-1. **Choose vault location** — select the USB drive or microSD card directory where the vault will be created.
-2. **Create a passphrase** — enter and confirm a passphrase. A strength indicator shows the estimated security level.
-3. **Save your recovery key** — the recovery key is displayed once. Copy it and store it somewhere physically separate from the USB drive.
-4. **Add your first credential** — optionally add a credential immediately after setup, or skip this step.
+1. **Choose vault location.** Select the USB drive or microSD card directory where the vault will be created.
+2. **Create a passphrase.** Enter and confirm a passphrase. A strength indicator shows the estimated security level.
+3. **Save your recovery key.** The recovery key is displayed once. Copy it and store it somewhere physically separate from the USB drive.
+4. **Add your first credential.** Optionally add a credential immediately after setup, or skip this step.
 
 :::danger Save your recovery key before clicking Continue
+
 The recovery key screen will not appear again. If you lose your passphrase without this key, the vault cannot be recovered.
+
 :::
 
 ## Main window
@@ -79,7 +89,7 @@ After unlocking, the main window shows your credential list with live TOTP count
 <!-- Screenshot placeholder: main window with credential list, TOTP countdown timers, light theme -->
 <!-- Image: docs/images/gui-main-light.png -->
 
-The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over — you do not need to click.
+The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to click.
 
 ### Generate a code
 
@@ -109,9 +119,9 @@ You can also add a credential by pasting an `otpauth://` URI directly. Click **S
 
 Right-click a credential in the list to access options:
 
-- **Edit tags** — add or remove tags for organizing credentials
-- **Copy code** — same as single-clicking
-- **Remove** — shows a confirmation dialog before deleting
+- **Edit tags.** Add or remove tags for organizing credentials
+- **Copy code.** Same as single-clicking
+- **Remove.** Shows a confirmation dialog before deleting
 
 ## Settings panel
 
@@ -138,7 +148,7 @@ The audit panel is available after enabling audit logging with `tegata ledger st
 
 The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Click **Verify integrity** to run `tegata verify` and check the entire audit chain.
 
-Events for removed credentials show as **(deleted)** in the label column. This is expected — the label hash is preserved in the ledger but the plaintext label is no longer in the vault.
+Events for removed credentials show as **(deleted)** in the label column. This is expected because the label hash is preserved in the ledger but the plaintext label is no longer in the vault.
 
 ## Vault management
 
@@ -154,9 +164,7 @@ Access vault management options from the **File** menu.
 
 ## Known limitations
 
-- **Passphrase in WebView heap** — the passphrase is briefly held as a JavaScript string in the underlying WebView process. JavaScript strings are immutable and garbage-collected non-deterministically, so the passphrase may persist in the V8 heap for a short time after the Go side zeroes its copy. This is a known limitation of the WebView architecture. See the [security audit](SECURITY-AUDIT.md) for details.
-- **No cross-compilation** — the GUI binary requires a native build for each platform because it depends on the system WebView (WebView2 on Windows, WKWebView on macOS, WebKit2GTK on Linux). Pre-built binaries for all platforms are available on the releases page.
-
----
+- **Passphrase in WebView heap.** The passphrase is briefly held as a JavaScript string in the underlying WebView process. JavaScript strings are immutable and garbage-collected non-deterministically, so the passphrase may persist in the V8 heap for a short time after the Go side zeroes its copy. This is a known limitation of the WebView architecture. For guidance, see [security best practices](security-best-practices.mdx#key-material-handling).
+- **No cross-compilation.** The GUI binary requires a native build for each platform because it depends on the system WebView (WebView2 on Windows, WKWebView on macOS, WebKit2GTK on Linux). Pre-built binaries for all platforms are available on the releases page.
 
 For a keyboard-driven terminal experience without the overhead of a graphical application, see the [TUI guide](tui-guide.mdx).

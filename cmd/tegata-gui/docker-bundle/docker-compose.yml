@@ -85,11 +85,11 @@ services:
       - "50051:50051"
       - "50052:50052"
 
-  # Register the generic contracts (object.Put, object.Get, object.Validate)
+  # Register the predefined HashStore contracts (object.Put, object.Get, object.Validate)
   # on the ScalarDL Ledger. Must complete before any tegata audit commands.
   # Uses the public HashStore SDK from GitHub releases. Idempotent — safe to
   # run multiple times. The bootstrap command registers the HMAC secret and
-  # all generic contracts in one step.
+  # all predefined contracts in one step.
   scalardl-contract-registration:
     image: eclipse-temurin:17-jre-alpine
     depends_on:
@@ -117,7 +117,7 @@ services:
         done
         scalardl-hashstore-java-client-sdk-3.13.0/bin/scalardl-hashstore bootstrap \
           --properties /certs/bootstrap.properties
-        echo "Generic contracts registered."
+        echo "Predefined HashStore contracts registered."
     restart: on-failure:3
 
 volumes:
