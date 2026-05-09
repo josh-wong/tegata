@@ -1,12 +1,17 @@
-.PHONY: build test lint cross check-size clean gui gui-dev release-cli checksums
+.PHONY: build install test lint cross check-size clean gui gui-dev release-cli checksums
 
 BINARY_NAME := tegata
 BUILD_DIR := bin
+PREFIX ?= /usr/local
 LDFLAGS := -s -w
 MAX_SIZE := 20971520
 
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/tegata/
+
+install: build
+	install -d $(PREFIX)/bin
+	install -m 755 $(BUILD_DIR)/$(BINARY_NAME) $(PREFIX)/bin/$(BINARY_NAME)
 
 test:
 	go test -race -count=1 ./...

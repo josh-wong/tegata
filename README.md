@@ -45,6 +45,18 @@ make build
 
 The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the vault.
 
+> [!NOTE]
+> 
+> On Windows, run `.\bin\tegata.exe` from the repository root, or copy `bin\tegata.exe` to a directory on your user `PATH` (for example, `%USERPROFILE%\bin`) and add that directory to `PATH`.
+>
+> On macOS and Linux, install the binary to a directory on your `PATH` to run `tegata` directly by running the following command:
+>
+> ```bash
+> sudo make install
+> ```
+>
+> By default this installs to `/usr/local/bin/tegata`. You can use a user-local path instead with `make install PREFIX=$HOME/.local`.
+
 ## Quickstart
 
 Three steps to start generating authentication codes.
