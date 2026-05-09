@@ -72,7 +72,7 @@ vault directory; otherwise the current directory is used.`,
 			}
 
 			fmt.Printf("Vault created: %s\n\n", vaultPath)
-			fmt.Println("Recovery key (store this somewhere safe -- you cannot see it again):")
+			fmt.Println("Recovery key (store this somewhere safe--you will not see it again):")
 			fmt.Printf("\n    %s\n\n", recoveryKey)
 			fmt.Println("If you forget your passphrase, this key is the only way to recover your vault.")
 
