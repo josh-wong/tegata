@@ -1,0 +1,192 @@
+---
+title: Security best practices
+sidebar_position: 6
+description: USB drive selection, passphrase strength, backup strategies, audit log interpretation, and credential organization for Tegata.
+---
+
+Tegata is designed with security as the top constraint. This guide helps you get the most out of that design — choosing durable hardware, creating a strong passphrase, protecting your recovery key, and understanding what the audit log does and does not prove.
+
+## Choosing a USB drive or microSD card
+
+Physical media quality matters. A failing USB drive can corrupt your vault file, and a slow drive makes key derivation feel sluggish.
+
+**Look for these characteristics:**
+
+- **Reputable brand** — use drives from established manufacturers. Counterfeit drives are common on online marketplaces and often misreport their capacity or fail prematurely.
+- **Write endurance** — consumer USB flash drives and microSD cards have a finite write cycle count (typically 3,000–10,000 cycles for TLC NAND). Tegata only writes to the vault on credential changes, not on every read, so endurance is rarely a practical concern — but avoid very cheap drives marketed for bulk storage.
+- **Physical durability** — a metal-cased drive survives being carried on a keychain. Plastic caps crack and expose the connector. Consider a drive with a retractable connector or a protective cap that attaches.
+- **Capacity** — even the smallest USB drive (1 GB) is far more than enough. The vault file for hundreds of credentials is under 1 MB.
+
+**What to avoid:**
+
+- Drives with auto-run software or U3 launch pads (older drives). These execute code when inserted and cannot be easily disabled.
+- Drives from unverified sellers on auction sites. Clones and counterfeits are widespread.
+- Drives that report abnormally high capacity for their price. This is a common sign of a counterfeit.
+
+:::tip Keep a spare
+Store a second copy of your vault on a separate USB drive and update it whenever you add or remove credentials. Use `tegata export` to create an encrypted backup. See [Backups and recovery](#backups-and-recovery) below.
+:::
+
+## Passphrase strength
+
+Your passphrase is the primary protection for your vault. Tegata uses Argon2id to derive the encryption key, which makes brute-force attacks expensive — but a weak passphrase is still vulnerable if the drive is lost.
+
+**Good passphrases:**
+
+- **Use a passphrase, not a password** — a sequence of four or more random words (a "diceware" passphrase) is both highly memorable and extremely difficult to crack. For example: `correct-horse-battery-staple`.
+- **Aim for at least 4 random words** — this gives approximately 51 bits of entropy with a standard word list, which is beyond the practical reach of offline cracking with current hardware even against Argon2id's cheaper parameter configurations.
+- **Avoid personal information** — names, birthdays, addresses, and song lyrics are among the first candidates in targeted attacks.
+- **Avoid keyboard walks** — patterns like `qwerty`, `123456`, or `zxcvbnm` are trivially guessed.
+
+**Tegata's strength indicator:**
+
+When you create or change a passphrase, Tegata displays a strength meter:
+
+| Rating | Minimum length |
+|--------|----------------|
+| Weak | 8–11 characters |
+| Fair | 12–19 characters |
+| Strong | 20+ characters |
+
+The strength meter uses character count as a proxy. A 20-character passphrase of random words is far stronger than a 20-character keyboard walk with leetspeak substitutions. Use the meter as a floor, not a ceiling.
+
+## Protecting your recovery key
+
+The recovery key is a randomly generated 32-byte key displayed once when you create a vault. It provides a passphrase-independent way to recover your vault if you forget your passphrase.
+
+:::danger The recovery key is shown only once
+Tegata cannot display the recovery key again after vault creation. If you lose both your passphrase and your recovery key, your vault cannot be recovered — not by you, not by anyone.
+:::
+
+**Store the recovery key in at least two of these locations:**
+
+- Printed on paper, stored in a physically secure location (a safe, a locked drawer, or a trusted person's custody)
+- In a password manager on a separate device (not on the same USB drive as the vault)
+- In a sealed envelope stored with important documents
+
+**Do not store the recovery key:**
+
+- On the same USB drive as the vault — if the drive is lost, both are compromised
+- In an email or cloud note service without encryption
+- In a text file on your main computer in a world-readable location
+
+To verify that your stored recovery key is still valid without recovering the vault, run:
+
+```bash
+tegata verify-recovery
+```
+
+This checks the key's hash against the value stored in the vault header without modifying any vault data.
+
+## Backups and recovery
+
+The vault file is small and can be backed up easily. Build a backup routine before you need it.
+
+### Create an encrypted backup
+
+```bash
+tegata export --out ~/backups/vault.tegata-backup
+```
+
+Tegata prompts for your vault passphrase and then asks you to set an independent backup passphrase. Store the backup passphrase separately from the vault passphrase — if they are identical and an attacker learns one, they have both.
+
+### Restore from backup
+
+```bash
+tegata import ~/backups/vault.tegata-backup
+```
+
+Tegata merges credentials from the backup into the current vault. Credentials whose label already exists are skipped to avoid overwrites.
+
+### Backup frequency
+
+A reasonable schedule is to export a backup whenever you add a new credential. Since `tegata add` is an infrequent operation for most users, this keeps backups current without becoming a burden.
+
+## Credential organization
+
+Organizing credentials with tags makes `tegata list` and the TUI credential browser easier to navigate as your vault grows.
+
+**Recommended tagging conventions:**
+
+- Use context tags (`work`, `personal`, `homelab`) to separate credentials by environment
+- Use type tags (`totp`, `hotp`, `static`, `cr`) if you want to filter by authentication type
+- Use service tags for groups of related credentials (`google`, `aws`, `banking`)
+
+Add tags when you add a credential:
+
+```bash
+tegata add Google --type totp --issuer Google --tag personal --tag totp
+```
+
+Tags can be added or changed later:
+
+```bash
+tegata tag Google --add personal --add totp
+tegata tag OldService --remove work --add archive
+```
+
+:::tip An "archive" tag for inactive credentials
+Rather than removing credentials for services you no longer actively use, tag them as `archive`. They remain accessible if you ever need the code again, and `tegata list --tag work` keeps them out of your everyday view.
+:::
+
+## Audit log security and privacy
+
+The optional audit log records every authentication operation in a ScalarDL Ledger. Understanding what it does and does not record is important for interpreting results and setting expectations.
+
+### What the audit log records
+
+Each event record stores the following fields.
+
+- **Operation type** — `totp`, `hotp`, `challenge-response`, or `static`
+- **Label hash** — a SHA-256 hash of the credential label, not the plaintext label
+- **Timestamp** — Unix seconds (UTC)
+- **Event hash** — HMAC-SHA256 of the event data, chained to the previous event
+
+Plaintext credential names, secrets, generated codes, and vault passphrases are never written to the audit log.
+
+### What `tegata verify` proves
+
+`tegata verify` retrieves all events from the ledger and validates each event's hash against the stored value. A successful run means:
+
+- No event records have been modified since they were written
+- No event records have been deleted from the ledger since they were written
+- The hash chain is intact
+
+A successful run does **not** prove that the events were written by an authorized party, or that the timing of events was not manipulated before they were logged. The audit log is a record of operations performed through the Tegata binary on a correctly configured vault — it is not a fraud detection system.
+
+### Interpreting audit results
+
+```bash
+tegata history --from 2026-01-01 --to 2026-03-31
+```
+
+The history view shows four columns: operation type, truncated label hash, timestamp (UTC), and truncated event hash. Tegata resolves hashes to human-readable credential labels by reading the vault (you are prompted for your passphrase). If a credential has been removed from the vault since the event was recorded, the label displays as `(deleted)`.
+
+Use `--json` to pipe the output to `jq` or log aggregation tools:
+
+```bash
+tegata history --json | jq '.[] | select(.operation == "totp")'
+```
+
+## Key material handling
+
+Tegata zeros sensitive memory immediately after use. You do not need to take special steps to protect key material in RAM during normal use. These are the relevant behaviors to be aware of.
+
+- The vault passphrase is zeroed as soon as the data encryption key is derived
+- The data encryption key is sealed in an encrypted in-memory enclave and only briefly decrypted when an operation requires it
+- Generated TOTP/HOTP codes are not retained in memory after being displayed or copied
+- The clipboard is automatically cleared after 45 seconds (configurable in `tegata.toml`)
+
+**One known limitation:** In the desktop GUI, the passphrase is briefly held as a JavaScript string in the WebView process. JavaScript strings are immutable and garbage-collected non-deterministically, so the passphrase may persist in the V8 heap for a short period after the Go side zeroes its copy. This is an inherent limitation of the WebView architecture and is documented as a known limitation.
+
+## Securing the USB drive itself
+
+Physical security of the USB drive is ultimately your responsibility. A few recommendations:
+
+- Keep the drive on your person (keychain, lanyard) when not in use rather than leaving it plugged into a computer
+- Consider a drive with a write-protect switch if you want hardware enforcement against vault modification on untrusted machines
+- Never leave the drive plugged into a computer you do not control — Tegata's encrypted vault is protected from offline access, but a running Tegata session on a compromised machine is not
+
+---
+
+For details on the underlying cryptographic design, see the [security audit](security-audit.mdx).

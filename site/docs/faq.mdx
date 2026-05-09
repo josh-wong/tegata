@@ -1,0 +1,173 @@
+---
+title: Frequently asked questions
+sidebar_position: 8
+description: Answers to common questions about vault recovery, multi-device use, credential backups, migrating from other apps, and audit log privacy.
+---
+
+## Vault and recovery
+
+### What happens if I lose my USB drive?
+
+Your vault is AES-256-GCM encrypted with a key derived from your passphrase using Argon2id. An attacker who finds the drive cannot access your credentials without your passphrase and would face significant time and computational cost trying to guess it with a strong passphrase.
+
+To recover your credentials, restore your most recent backup onto a new USB drive:
+
+```bash
+tegata init /mnt/new-usb                         # create a fresh vault
+tegata import ~/backups/vault.tegata-backup      # restore from backup
+```
+
+If you do not have a backup, your credentials are lost. Set up regular backups with `tegata export` so you are not in this position. See [Security best practices — Backups and recovery](security-best-practices.mdx#backups-and-recovery).
+
+### What happens if I forget my passphrase?
+
+Your recovery key is the only way to recover the vault without the passphrase. Run:
+
+```bash
+tegata verify-recovery
+```
+
+Enter your recovery key when prompted. If the key is valid, it will unlock the vault.
+
+If you have lost both your passphrase and your recovery key, the vault cannot be recovered. The encryption is intentionally designed to have no backdoor or master key.
+
+### Can I change my passphrase?
+
+Yes. Use the CLI:
+
+```bash
+tegata change-passphrase
+```
+
+Or use the **File → Change passphrase** option in the GUI. Tegata prompts for your current passphrase, then prompts for and confirms the new one. The operation re-wraps the data encryption key without re-encrypting the credential payload, making it fast regardless of vault size.
+
+### What does the recovery key look like?
+
+The recovery key is a 32-byte random value displayed as a hyphen-separated base32 string during `tegata init`:
+
+```
+ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567
+```
+
+Store it exactly as shown. `tegata verify-recovery` accepts the key with or without hyphens and is tolerant of common typos (for example, `0` confused with `O`).
+
+---
+
+## Multi-device and multi-vault
+
+### Can I use Tegata on multiple computers?
+
+Yes. The vault lives on the USB drive, not on a specific machine. Plug the drive into any computer where Tegata is installed and unlock the vault normally. Since the CLI binary can also live on the drive, you can carry everything you need on one USB drive and run it on any machine without installation.
+
+### Can I share a vault between multiple USB drives?
+
+You can copy `vault.tegata` and `tegata.toml` to additional USB drives. Each copy is an independent vault file — changes made to one are not automatically synchronized to the others. To keep them in sync, run `tegata export` on the primary drive and `tegata import` on the others after each change.
+
+For a lightweight backup routine, keep one primary drive and one backup drive. Update the backup after adding or removing credentials.
+
+### Can I run Tegata on multiple operating systems with the same vault?
+
+Yes. The vault format is platform-independent. You can unlock the same vault file from Windows, macOS, and Linux without conversion.
+
+---
+
+## Credential management
+
+### Can I migrate credentials from Google Authenticator, Authy, or 1Password?
+
+There is no automatic import from other apps in the current release. However, most services that support TOTP allow you to re-enroll by generating a new secret. To migrate:
+
+1. Log into the service and navigate to the two-factor authentication settings.
+2. Remove the existing authenticator entry.
+3. Set up a new authenticator — the service will display a new QR code or `otpauth://` URI.
+4. Add it to Tegata with `tegata add <label> --scan`.
+
+This process revokes the old secret from your previous app, so do it one service at a time and verify that Tegata generates valid codes before moving on.
+
+### What is the difference between TOTP and HOTP?
+
+Both are one-time password algorithms defined in IETF standards.
+
+- **TOTP (RFC 6238)** — time-based. A new code is generated every 30 seconds (by default) based on the current time. Most services use TOTP.
+- **HOTP (RFC 4226)** — counter-based. A new code is generated each time you request one, and the counter increments. The service and the authenticator must stay in sync. HOTP is less common but useful for hardware tokens and devices without a reliable clock.
+
+If you are unsure which type a service uses, it is almost certainly TOTP. The `otpauth://` URI specifies the type — `otpauth://totp/...` or `otpauth://hotp/...`.
+
+### What is a challenge-response credential?
+
+A challenge-response credential stores an HMAC secret. When you run `tegata sign <label> --challenge <string>`, Tegata computes an HMAC-SHA256 (or HMAC-SHA1) of the challenge string using the stored secret and returns the signature. This is used by services that verify authentication by issuing a unique challenge and expecting a specific signed response. It is less common in consumer services but appears in enterprise and embedded security systems.
+
+### Can I add static passwords to Tegata?
+
+Yes. Use `--type static` when adding a credential:
+
+```bash
+tegata add my-api-key --type static
+```
+
+Tegata prompts for the password (hidden input). Retrieve it later with `tegata get my-api-key` (copies to clipboard) or `tegata get my-api-key --show` (also displays in the terminal).
+
+---
+
+## Audit logging
+
+### Is audit logging required?
+
+No. Audit logging is entirely optional. All authentication operations — TOTP, HOTP, challenge-response, static password — work fully without it. Audit logging requires Docker and adds setup complexity. Enable it only if you need a tamper-evident record of authentication events.
+
+### What data does the audit log contain?
+
+Each audit event record contains:
+
+- **Operation type** — `totp`, `hotp`, `challenge-response`, or `static`
+- **Label hash** — a SHA-256 hash of the credential label (not the plaintext name)
+- **Timestamp** — Unix seconds (UTC)
+- **Event hash** — HMAC-SHA256 of the event data, chained to the previous event
+
+Plaintext credential names, secrets, generated codes, and passphrases are **never** written to the audit log.
+
+### Who can read the audit log?
+
+The audit log is stored in your local ScalarDL Ledger instance (a Docker container running on your machine). Only someone with access to your machine or the vault can read it. Tegata does not send audit data to any external server. There is no telemetry, no cloud sync, and no user account.
+
+### Can audit log data be exported?
+
+Use `tegata history --json` to export all events as a JSON array:
+
+```bash
+tegata history --json > audit-export.json
+```
+
+This can be piped to `jq` for filtering or loaded into a log aggregation tool.
+
+### What happens to queued events if Docker is offline?
+
+If the ScalarDL Docker stack is not reachable when you perform an authentication operation, the event is written to an encrypted local queue file (`vault.queue`). Queued events are submitted to the ledger the next time the Docker stack is reachable. No events are lost.
+
+---
+
+## Privacy and data handling
+
+### Does Tegata send any data to external servers?
+
+No. All authentication operations happen locally on your device. The only network activity is optional gRPC communication between Tegata and a ScalarDL Ledger instance running in Docker on your machine. If you have not enabled audit logging, there is no network activity at all.
+
+### Is there any telemetry or analytics?
+
+No. Tegata contains no telemetry, no update checks, and no analytics. The binary does not make any outbound connections during normal use.
+
+---
+
+## Contributing and community
+
+### How do I report a bug?
+
+[File a GitHub issue](https://github.com/josh-wong/tegata/issues/new) with your platform, Tegata version (`tegata version`), steps to reproduce, and relevant output from `--verbose`.
+
+### How do I contribute code?
+
+See [CONTRIBUTING.md](https://github.com/josh-wong/tegata/blob/main/CONTRIBUTING.md) for the development setup, coding standards, and pull request process. The short version: fork the repo, create a `feature/` or `fix/` branch, write tests, and open a PR against `main`.
+
+### Where can I find the API stability guarantees?
+
+Stable commands and the breaking-change policy are documented in [STABILITY.md](https://github.com/josh-wong/tegata/blob/main/STABILITY.md). Commands marked as stable will not have breaking changes without a major version bump.

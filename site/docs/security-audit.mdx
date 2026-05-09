@@ -1,0 +1,149 @@
+---
+title: Security audit
+sidebar_position: 10
+description: Structured self-audit of Tegata's security implementation covering cryptography, memory handling, vault integrity, input validation, and audit privacy.
+---
+
+This document is a structured self-audit of Tegata's security implementation. It covers five areas: cryptographic implementation, memory handling, vault format and integrity, input validation, and audit privacy. Each finding is classified as **PASS** (meets requirements), **NOTE** (informational observation), or **FINDING** (issue requiring attention).
+
+**Review date:** May 2026  
+**Codebase version:** v1.0  
+**Scope:** Core authenticator (CLI, TUI, GUI adapter), vault encryption, key derivation, audit layer
+
+:::note Self-review
+This audit was conducted as a self-review of the Tegata codebase. It is not an independent third-party audit. The review covers all security-sensitive code paths by examining Go source files directly and verifying that the implementation matches the design specifications.
+:::
+
+## Area 1: Cryptographic implementation
+
+This section reviews the cryptographic primitives, key derivation, and authentication protocols.
+
+**[PASS] Key derivation: Argon2id with OWASP-recommended parameters.**  
+Tegata uses Argon2id via `golang.org/x/crypto/argon2` with parameters time=3, memory=64 MiB, parallelism=4, keyLen=32 (`internal/crypto/kdf.go`, `DefaultParams`). These parameters meet the OWASP recommendation of Argon2id with a minimum 19 MiB memory and 2 iterations. The `DeriveKey` function returns a `*guard.SecretBuffer`, ensuring derived keys are stored in guarded memory. Salt generation uses `crypto/rand` (32 bytes).
+
+**[PASS] Encryption: AES-256-GCM with counter-derived nonces.**  
+Vault encryption uses AES-256-GCM (`internal/crypto/aead.go`) via the Go standard library `crypto/aes` and `crypto/cipher` packages. Nonces are derived deterministically as `counter_be8 || zeros4` (12 bytes total) from a monotonic write counter. This avoids random nonce collision risk while remaining safe because each counter value is used at most once with a given key. No custom cryptographic primitives are implemented.
+
+**[PASS] TOTP/HOTP: RFC 6238 and RFC 4226 compliant.**  
+TOTP (`internal/auth/totp.go`) and HOTP (`internal/auth/hotp.go`) implementations follow RFC 6238 and RFC 4226 respectively. The shared `computeHOTP` function in `internal/auth/otp.go` implements dynamic truncation per RFC 4226 section 5.4 using big-endian counter encoding and correct offset extraction from the last nibble. SHA-1 is the default HMAC algorithm per RFC specification; SHA-256 and SHA-512 are supported. SHA-1 usage in the HMAC context is not a weakness because HMAC-SHA1 security depends on the pseudorandom function properties of SHA-1, not its collision resistance.
+
+**[PASS] Challenge-response: HMAC-SHA256/SHA1 with no logging.**  
+Challenge-response signing (`internal/auth/cr.go`) uses `crypto/hmac` with either `sha256.New` or `sha1.New` depending on the credential's algorithm field. Neither the challenge nor the response is passed to any logger or audit event at any log level.
+
+**[PASS] No custom cryptographic primitives.**  
+All cryptographic operations use the Go standard library (`crypto/aes`, `crypto/cipher`, `crypto/hmac`, `crypto/sha256`), `golang.org/x/crypto/argon2`, and `github.com/awnumar/memguard`. No custom ciphers, PRNGs, or hash functions are implemented.
+
+**[NOTE] Counter reuse safety in key wrapping.**  
+Both vault creation and passphrase change use counter=1 for wrapping the DEK (`internal/vault/manager.go`). This is safe because each wrapping operation uses a freshly generated random 32-byte salt, producing a unique derived key. The (key, nonce) pair is therefore unique despite the fixed counter value.
+
+## Area 2: Memory handling
+
+This section reviews how sensitive data (passphrases, keys, plaintext credentials) is managed in memory.
+
+**[PASS] memguard isolation: single import point.**  
+The `memguard` package is imported only in `internal/crypto/guard/guard.go`. All other packages use the `guard.SecretBuffer` and `guard.KeyEnclave` wrapper types and have no direct dependency on memguard internals.
+
+**[PASS] NewSecretBuffer zeros the input slice after copying.**  
+`guard.NewSecretBuffer` (`internal/crypto/guard/guard.go`, lines 33–35) explicitly zeroes the input byte slice after copying it into guarded memory, ensuring the caller's original allocation does not retain key material.
+
+**[PASS] DEK storage in encrypted enclave.**  
+After vault unlock, the data encryption key is sealed into a `guard.KeyEnclave`, which encrypts the key at rest in memory without consuming mlock quota. The enclave is only briefly opened to a `SecretBuffer` during active encryption/decryption operations and destroyed immediately afterward.
+
+**[PASS] Passphrase zeroing in CLI commands.**  
+All CLI command handlers use `defer zeroBytes(passphrase)` immediately after obtaining the passphrase from `promptPassphrase`. The `promptNewPassphrase` function zeroes confirmation copies and the original on mismatch before returning an error.
+
+**[PASS] Passphrase zeroing in GUI adapter.**  
+The GUI adapter (`cmd/tegata-gui/app.go`) converts string passphrases from JavaScript to byte slices and uses `defer zeroBytes(passBytes)` consistently across all vault operations. The passphrase is zeroed after the EventBuilder is constructed so the full unlock-and-setup flow completes before the sensitive bytes are cleared.
+
+**[PASS] Plaintext JSON zeroing.**  
+After marshaling vault payloads to JSON for encryption, the plaintext JSON byte slice is zeroed immediately via `zeroBytes(payloadJSON)` in both `vault.Create` and `vault.Save` (`internal/vault/manager.go`). The same pattern is applied in `ExportCredentials`.
+
+**[FINDING — Low] JavaScript string immutability in GUI.**  
+The Wails GUI receives passphrases as JavaScript strings from the React frontend. JavaScript strings are immutable and garbage-collected non-deterministically, meaning the passphrase may persist in the V8 heap after the Go adapter zeroes its byte slice copy. The React frontend clears state immediately, but there is no mechanism to force zeroing of the original JS string in the runtime heap.
+
+**Status:** Accepted. The Go side zeroes its copy immediately. Mitigating the JS heap limitation would require a fundamentally different architecture (such as a native GUI without WebView). This is documented as a known limitation.
+
+## Area 3: Vault format and integrity
+
+This section reviews the vault file format, header serialization, rate limiting, key architecture, and crash safety.
+
+**[PASS] Header serialization: explicit byte offsets.**  
+`internal/vault/header.go` uses explicit byte offsets for marshaling and unmarshaling the vault header. This avoids struct padding issues. An offset assertion (`off != headerSize`) guards against serialization drift.
+
+**[PASS] Magic bytes and version validation.**  
+The vault file begins with an 8-byte magic signature (`TEGATA\0\0`) and a 2-byte version field. `Unmarshal` rejects files with incorrect magic bytes or unsupported versions with `ErrVaultCorrupt`.
+
+**[PASS] Argon2id parameter validation on open.**  
+When opening a vault file, `vault.Open` validates the Argon2id parameters from the header against reasonable bounds: time 1–100, memory 8 KiB–4 GiB, parallelism ≥ 1. This prevents denial-of-service from crafted vault files that set unreasonable memory or iteration counts.
+
+**[PASS] Rate limiting with exponential backoff and overflow protection.**  
+Failed passphrase attempts are tracked in the vault header and persist across sessions. `CheckRateLimit` implements exponential backoff: `2^(attempts-1)` seconds, capped at 300 seconds. The shift count is explicitly capped at 8 before the bit shift, preventing integer overflow when the attempt counter exceeds 9. The attempt counter saturates at 255 rather than wrapping.
+
+**[PASS] DEK architecture: dual key wrapping.**  
+The vault uses a random 32-byte DEK that is independently wrapped by both the passphrase-derived key and the recovery-derived key using separate random salts. Passphrase rotation re-wraps only the DEK without re-encrypting the credential payload.
+
+**[PASS] Atomic writes via temp-file-rename with backup zeroing.**  
+`vault.atomicWrite` writes to a `.tmp` file, renames the existing vault to `.bak`, then renames `.tmp` to the final path. If the rename fails, the backup is restored. The backup file contents are overwritten with zeros before deletion to prevent encrypted bytes from persisting in unallocated disk blocks.
+
+**[NOTE] FAT32 atomic write limitation on Windows.**  
+FAT32 does not provide true atomic rename guarantees. A power failure during the rename operation could theoretically leave the vault in an inconsistent state. The `.bak` file provides recovery in most scenarios. This edge case requires integration testing with a real FAT32 disk image.
+
+## Area 4: Input validation and error handling
+
+**[PASS] Vault path resolution.**  
+`resolveVaultPath` in `cmd/tegata/helpers.go` uses a strict resolution order (flag → env var → current directory) and returns a clear error message with remediation advice when no vault is found.
+
+**[PASS] Passphrase strength enforcement.**  
+`promptNewPassphrase` enforces a minimum length of 8 characters and displays a strength meter (Weak/Fair/Strong based on length and character class diversity). Confirmation is required for interactive use. The `TEGATA_PASSPHRASE` environment variable is accepted for scripting but triggers a warning on stderr.
+
+**[PASS] Base32 secret validation.**  
+`decodeBase32Secret` in `cmd/tegata/helpers.go` tolerates common formatting variations (spaces, hyphens, lowercase, missing padding) and corrects common digit lookalikes (0→O, 1→L, 8→B). Invalid base32 input produces a clear error message.
+
+**[PASS] Credential type validation.**  
+`ParseOTPAuthURI` validates the `otpauth://` URI type field and rejects unknown types with a descriptive error. Digits are validated in the range 6–8 per standard, and the period must be positive.
+
+**[PASS] GUI adapter input validation.**  
+The GUI adapter validates all inputs before delegating to internal packages: passphrase minimum length, vault existence check, parent directory permissions, and type assertions on all deserialized data.
+
+## Area 5: Audit privacy and queue integrity
+
+**[PASS] Credential names hashed before storage.**  
+`internal/audit/event.go` (`NewAuthEvent`) applies SHA-256 hashing to all identifying fields — label, service name, and host — before constructing the event record. Plaintext credential names are never written to the audit log or queue. Label resolution to human-readable names happens client-side by reading the encrypted vault.
+
+**[PASS] Offline queue encryption.**  
+The offline event queue uses AES-256-GCM with a fresh random 12-byte nonce per entry. The queue encryption key is derived from the vault passphrase via Argon2id. The entire queue is re-encrypted with fresh nonces on every save.
+
+**[PASS] Queue hash-chain integrity.**  
+Each queue entry stores the SHA-256 hash of the previous entry's JSON. `VerifyChain` validates the chain on load and returns `ErrIntegrityViolation` on mismatch.
+
+**[PASS] Challenge and response never logged.**  
+Grep of all audit-related call sites confirms that challenge strings and HMAC responses are never passed to `LogEvent`, any `slog` function, or any audit record field.
+
+## Dependency inventory
+
+Direct dependencies as of v1.0:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `github.com/BurntSushi/toml` | v1.6.0 | Configuration parsing |
+| `github.com/atotto/clipboard` | v0.1.4 | Cross-platform clipboard |
+| `github.com/awnumar/memguard` | v0.23.0 | Guarded memory |
+| `github.com/charmbracelet/bubbles` | v1.0.0 | TUI widgets |
+| `github.com/charmbracelet/bubbletea` | v1.3.10 | TUI framework |
+| `github.com/charmbracelet/lipgloss` | v1.1.0 | TUI styling |
+| `github.com/google/uuid` | v1.6.0 | UUID generation |
+| `github.com/spf13/cobra` | v1.9.0 | CLI framework |
+| `github.com/wailsapp/wails/v2` | v2.12.0 | GUI framework |
+| `golang.org/x/crypto` | v0.49.0 | Argon2id, x/term |
+| `google.golang.org/grpc` | v1.71.1 | Audit gRPC transport |
+| `google.golang.org/protobuf` | v1.36.11 | Audit protobuf encoding |
+
+No known vulnerabilities in direct dependencies. Automated vulnerability scanning via `govulncheck` runs on every CI push and pull request. See the [CI workflow](https://github.com/josh-wong/tegata/blob/main/.github/workflows/ci.yml) for details.
+
+## Known limitations
+
+| ID | Area | Description | Status |
+|----|------|-------------|--------|
+| F-1 | GUI memory | JavaScript string immutability prevents deterministic zeroing of passphrases in the WebView V8 heap | Accepted — architectural limitation of WebView-based GUIs |
+| N-1 | Vault format | Counter=1 reuse in DEK wrapping operations; safe because each uses a fresh random salt | Informational — no action required |
+| N-2 | Vault format | FAT32 does not guarantee atomic rename; `.bak` mitigates most failure scenarios | Informational — requires integration testing with FAT32 disk image |

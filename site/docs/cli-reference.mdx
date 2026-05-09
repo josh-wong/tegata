@@ -1,0 +1,520 @@
+---
+title: CLI reference
+sidebar_position: 5
+description: Complete reference for every Tegata CLI command—flags, examples, exit codes, and environment variables.
+---
+
+This page describes every Tegata CLI command with its flags, defaults, and usage examples. Commands are listed alphabetically.
+
+## Vault resolution
+
+All commands that access the vault use the following resolution order.
+
+1. `--vault` flag (directory or file path—highest priority)
+2. `TEGATA_VAULT` environment variable
+3. `./vault.tegata` in the current working directory
+
+If a directory is given, Tegata appends `vault.tegata` automatically.
+
+## Global flags
+
+These flags are available on every command.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--vault` | string | (none) | Path to vault file or directory |
+| `--verbose` | bool | false | Enable debug logging to stderr |
+
+## Commands
+
+### tegata add
+
+Add a credential to the vault. Supports TOTP, HOTP, static password, and challenge-response credential types.
+
+**Usage:** `tegata add <label> [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--scan` | bool | false | Paste an `otpauth://` URI instead of entering fields manually |
+| `--type` | string | `totp` | Credential type: `totp`, `hotp`, `static`, `challenge-response` |
+| `--issuer` | string | (none) | Credential issuer name |
+| `--algorithm` | string | `SHA1` | HMAC algorithm: `SHA1`, `SHA256`, `SHA512`; challenge-response defaults to `SHA256` |
+| `--digits` | int | `6` | Number of digits in generated code (1–10) |
+| `--period` | int | `30` | TOTP period in seconds (15–120) |
+| `--tag` | string | (none) | Tag to apply (repeatable: `--tag work --tag totp`) |
+
+**Examples:**
+
+```bash title="Add TOTP with manual secret entry"
+tegata add GitHub --type totp --issuer GitHub
+```
+
+```bash title="Add from an otpauth:// URI"
+tegata add GitHub --scan
+```
+
+```bash title="Add with tags"
+tegata add GitHub --type totp --issuer GitHub --tag work --tag totp
+```
+
+The secret is always prompted interactively with hidden input. When using `--scan`, the type, issuer, algorithm, digits, and period are parsed from the URI automatically.
+
+---
+
+### tegata bench
+
+Benchmark Argon2id key derivation performance on the current machine. Runs 3 iterations with the default parameters (time=3, memory=64 MiB, parallelism=4) and reports the average unlock time.
+
+**Usage:** `tegata bench`
+
+```bash
+tegata bench
+```
+
+Output includes per-run timings and whether the result is within the 3-second target. Use this on new hardware to verify that key derivation completes in an acceptable time.
+
+:::note Experimental
+`tegata bench` is an experimental command. Its flags and output format may change without notice.
+:::
+
+---
+
+### tegata change-passphrase
+
+Rotate the vault passphrase without re-encrypting the credential payload. Only the passphrase-wrapped data encryption key and header salt are replaced.
+
+**Usage:** `tegata change-passphrase`
+
+```bash
+tegata change-passphrase
+```
+
+Tegata prompts for the current passphrase, then prompts for and confirms the new passphrase. The operation is fast regardless of vault size.
+
+---
+
+### tegata code
+
+Generate a TOTP or HOTP code for a credential. The code is displayed in the terminal and copied to the clipboard by default.
+
+**Usage:** `tegata code <label> [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--clip` | bool | `true` | Copy code to clipboard |
+| `--show` | bool | `true` | Display code in terminal |
+
+**Examples:**
+
+```bash title="Generate a TOTP code (display and copy to clipboard)"
+tegata code GitHub
+```
+
+```bash title="Generate without clipboard copy"
+tegata code GitHub --clip=false
+```
+
+For TOTP credentials, the output includes the remaining seconds until the code expires. For HOTP credentials, the counter is incremented and saved before displaying the code.
+
+---
+
+### tegata config set
+
+Set a configuration value in `tegata.toml`.
+
+**Usage:** `tegata config set <key> <value>`
+
+**Supported keys:**
+
+| Key | Values | Description |
+|-----|--------|-------------|
+| `audit.auto_start` | `true` / `false` | Auto-start the Docker audit stack on vault unlock |
+
+**Examples:**
+
+```bash title="Disable audit auto-start"
+tegata config set audit.auto_start false
+```
+
+```bash title="Re-enable audit auto-start"
+tegata config set audit.auto_start true
+```
+
+---
+
+### tegata config show
+
+Display the effective configuration, including values from `tegata.toml` or their defaults.
+
+**Usage:** `tegata config show`
+
+```bash
+tegata config show
+```
+
+---
+
+### tegata export
+
+Export all credentials to an encrypted `.tegata-backup` file. The backup is protected by a separate export passphrase that you choose at export time.
+
+**Usage:** `tegata export [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--out` | string | `vault.tegata-backup` in the vault directory | Output path for the backup file |
+
+```bash title="Export to a specific location"
+tegata export --out ~/backups/vault.tegata-backup
+```
+
+Tegata prompts for the vault passphrase, then prompts for and confirms a new export passphrase (minimum 8 characters). The export passphrase is independent of the vault passphrase.
+
+:::tip Set a different export passphrase
+Using a different passphrase for the backup adds defense in depth—an attacker who learns one passphrase does not automatically have both.
+:::
+
+---
+
+### tegata get
+
+Retrieve a static password credential. The password is copied to the clipboard by default and optionally displayed in the terminal.
+
+**Usage:** `tegata get <label> [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--show` | bool | `false` | Display password in terminal |
+
+**Examples:**
+
+```bash title="Retrieve and copy to clipboard"
+tegata get backup-key
+```
+
+```bash title="Retrieve and display in terminal"
+tegata get backup-key --show
+```
+
+---
+
+### tegata history
+
+View authentication event history from the ScalarDL Ledger. Requires audit logging to be enabled in `tegata.toml`.
+
+Tegata prompts for the vault passphrase to resolve label hashes to human-readable credential names. If a credential has been removed since the event was recorded, the label displays as `(deleted)`.
+
+**Usage:** `tegata history [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--from` | string | (none) | Start date filter (`YYYY-MM-DD`) |
+| `--to` | string | (none) | End date filter (`YYYY-MM-DD`) |
+| `--json` | bool | `false` | Output as JSON array |
+
+**Table output columns:** Operation, Label (resolved from hash), Timestamp (UTC), Hash (truncated).
+
+**JSON fields per record:** `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), `hash_value`.
+
+**Examples:**
+
+```bash title="View all history"
+tegata history
+```
+
+```bash title="Filter by date range"
+tegata history --from 2026-01-01 --to 2026-03-31
+```
+
+```bash title="JSON output for scripting"
+tegata history --json | jq '.[] | select(.operation == "totp")'
+```
+
+---
+
+### tegata import
+
+Import credentials from an encrypted `.tegata-backup` file into the current vault. Credentials whose label already exists in the vault are skipped.
+
+**Usage:** `tegata import <backup-file>`
+
+```bash
+tegata import ~/backups/vault.tegata-backup
+```
+
+Tegata prompts for the vault passphrase and then the backup passphrase. For scripted restore flows, the backup passphrase can be provided via the `TEGATA_BACKUP_PASSPHRASE` environment variable.
+
+---
+
+### tegata init
+
+Create a new encrypted vault. If a path argument is provided, it is used as the vault directory. Otherwise the current directory is used.
+
+**Usage:** `tegata init [path]`
+
+**Examples:**
+
+```bash title="Initialize vault on a USB drive"
+tegata init /mnt/usb
+```
+
+```bash title="Initialize in current directory"
+tegata init
+```
+
+Tegata prompts for and confirms a passphrase (minimum 8 characters), creates the vault file, writes a default `tegata.toml` configuration, and displays a recovery key. Store the recovery key in a separate secure location before proceeding.
+
+---
+
+### tegata ledger start
+
+One-click setup that starts the ScalarDL Ledger Docker stack and configures audit logging. Run this once after initializing a vault to enable the audit layer.
+
+**Usage:** `tegata ledger start [flags]`
+
+**Examples:**
+
+```bash title="Start with vault from TEGATA_VAULT or current directory"
+tegata ledger start
+```
+
+```bash title="Start with explicit vault path"
+tegata ledger start --vault /media/usb
+```
+
+Tegata runs the full setup sequence: checks for Docker, extracts bundled compose files to `~/.tegata/docker/`, generates a unique entity ID and secret key, starts the Docker stack, waits for the ledger to become ready, registers credentials, and writes the `[audit]` section to `tegata.toml`. The process takes 3–7 minutes on first run (the HashStore SDK download is the slow part).
+
+After setup, every vault unlock automatically starts the Docker stack in the background.
+
+See the [ScalarDL setup guide](scalardl-setup.md) for full details.
+
+:::note Experimental
+Ledger commands are experimental. Their flags and behavior may change in future releases.
+:::
+
+---
+
+### tegata ledger stop
+
+Stop the ScalarDL Ledger Docker containers. Audit history is preserved on disk.
+
+**Usage:** `tegata ledger stop [flags]`
+
+```bash
+tegata ledger stop
+tegata ledger stop --vault /media/usb
+```
+
+---
+
+### tegata ledger setup
+
+Register the HMAC secret key with ScalarDL and verify connectivity. This is the manual alternative to `tegata ledger start` for users running their own ScalarDL instance rather than the bundled Docker stack.
+
+**Usage:** `tegata ledger setup`
+
+```bash
+tegata ledger setup
+```
+
+Reads the `[audit]` section from `tegata.toml` and registers the configured secret key. See the [ScalarDL setup guide](scalardl-setup.md) for configuration steps.
+
+---
+
+### tegata list
+
+List all credentials in the vault, grouped by tag. Untagged credentials appear under `[untagged]`.
+
+**Usage:** `tegata list [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--tag` | string | (none) | Filter credentials by tag (case-sensitive exact match) |
+
+**Examples:**
+
+```bash title="List all credentials"
+tegata list
+```
+
+```bash title="Filter by tag"
+tegata list --tag work
+```
+
+---
+
+### tegata remove
+
+Remove a credential from the vault. Tegata prompts for confirmation before removing.
+
+**Usage:** `tegata remove <label>`
+
+```bash
+tegata remove old-service
+```
+
+---
+
+### tegata resync
+
+Resynchronize an HOTP counter after it has drifted out of sync. Provide two consecutive codes from the server or another authenticator. Tegata scans a look-ahead window of 100 counters to find the matching position.
+
+**Usage:** `tegata resync <label>`
+
+```bash
+tegata resync my-hotp-service
+```
+
+Tegata prompts for two consecutive codes interactively.
+
+---
+
+### tegata sign
+
+Sign a challenge string using a stored HMAC secret (challenge-response credential). The algorithm is determined by the credential's algorithm field: `SHA256` produces HMAC-SHA256, anything else defaults to HMAC-SHA1.
+
+**Usage:** `tegata sign <label> [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--challenge` | string | (none) | Challenge string to sign (required) |
+| `--clip` | bool | `false` | Copy signed response to clipboard instead of printing |
+
+**Examples:**
+
+```bash title="Sign and print to stdout"
+tegata sign github --challenge abc123
+```
+
+```bash title="Sign and copy to clipboard"
+tegata sign github --challenge abc123 --clip
+```
+
+---
+
+### tegata tag
+
+Add or remove tags on an existing credential. At least one of `--add` or `--remove` must be provided.
+
+**Usage:** `tegata tag <label> [flags]`
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--add` | string | (none) | Tag to add (repeatable) |
+| `--remove` | string | (none) | Tag to remove (repeatable) |
+
+**Examples:**
+
+```bash title="Add tags"
+tegata tag github --add work --add totp
+```
+
+```bash title="Remove a tag"
+tegata tag github --remove personal
+```
+
+---
+
+### tegata ui
+
+Launch the interactive terminal user interface. If no vault is found, the TUI starts a setup wizard. See the [TUI guide](tui-guide.mdx) for a complete walkthrough.
+
+**Usage:** `tegata ui`
+
+```bash
+tegata ui
+```
+
+---
+
+### tegata verify
+
+Verify the integrity of the audit log stored in ScalarDL Ledger. Retrieves all event IDs from the entity's collection and validates each event against its stored hash. Reports the total number of events verified and lists per-event faults if any are detected.
+
+Events logged before audit hashes were stored independently are reported as pre-existing and skipped.
+
+**Usage:** `tegata verify [flags]`
+
+**Exit codes:** `0` on success, `9` on integrity violation, `8` on network failure.
+
+**Examples:**
+
+```bash title="Verify vault in current directory"
+tegata verify
+```
+
+```bash title="Verify vault at explicit path"
+tegata verify --vault /media/usb/vault.tegata
+```
+
+---
+
+### tegata verify-recovery
+
+Verify a recovery key against the vault by checking its SHA-256 hash against the value stored at vault creation time.
+
+**Usage:** `tegata verify-recovery`
+
+```bash
+tegata verify-recovery
+```
+
+Tegata prompts for the vault passphrase and then the recovery key string. Run this periodically to confirm that your stored recovery key is still valid.
+
+---
+
+### tegata version
+
+Print version information.
+
+**Usage:** `tegata version`
+
+```bash
+tegata version
+```
+
+---
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `TEGATA_VAULT` | Default vault path when `--vault` is not provided |
+| `TEGATA_PASSPHRASE` | Vault passphrase for non-interactive use (warning printed to stderr) |
+| `TEGATA_BACKUP_PASSPHRASE` | Backup passphrase for scripted `tegata import` |
+| `NO_COLOR` | Disable ANSI color output (any non-empty value activates this) |
+
+`TEGATA_PASSPHRASE` is intended for CI and scripting environments. A warning is printed to stderr whenever it is used. The `tegata export` command never reads from this variable—an interactive prompt is always required when setting a new backup passphrase.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error (invalid input, missing file) |
+| `2` | Authentication error (wrong passphrase) |
+| `3` | Vault error (corrupted, missing, locked) |
+| `4` | Network error (ScalarDL unreachable) |
+| `5` | Integrity error (audit chain broken) |
+| `8` | Network failure during `tegata verify` |
+| `9` | Integrity violation detected by `tegata verify` |
+
+## Stability guarantees
+
+Commands and their flags are classified as stable or experimental. Stable commands will not have breaking changes without a major version bump. See [STABILITY.md](https://github.com/josh-wong/tegata/blob/main/STABILITY.md) for the full list.

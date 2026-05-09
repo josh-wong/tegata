@@ -1,0 +1,262 @@
+---
+title: Getting started
+sidebar_position: 1
+description: Install Tegata, create your first vault, and generate your first 2FA code.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Tegata is a portable authenticator that stores encrypted credentials on a USB drive or microSD card. This guide walks you through installation, vault creation, and generating your first TOTP code. By the end, you will have a working vault and a complete picture of the daily workflow.
+
+## Prerequisites
+
+Before you begin, you need the following.
+
+- A USB drive or microSD card formatted as FAT32 or exFAT
+- Go 1.25 or later — only if you plan to build from source
+- A TOTP-compatible account, such as GitHub or Google, that provides a base32 secret or an `otpauth://` URI
+
+## Install Tegata
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows">
+
+Download `tegata-windows-amd64.exe` from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page. Rename it to `tegata.exe` and copy it to your USB drive.
+
+PowerShell does not search the current directory for executables. Run the binary by prefixing it with `.\`:
+
+```powershell
+.\tegata.exe version
+```
+
+To run `tegata` from any directory, add the USB drive letter to your `PATH`:
+
+```powershell
+$env:PATH += ";E:\"
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+Download the binary for your Mac from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page.
+
+- `tegata-darwin-arm64` for Apple Silicon (M1 and later)
+- `tegata-darwin-amd64` for Intel
+
+Mark the binary as executable and copy it to your USB drive:
+
+```bash
+chmod +x tegata-darwin-arm64
+cp tegata-darwin-arm64 /Volumes/MyUSB/tegata
+```
+
+:::caution macOS Gatekeeper
+macOS will block the binary the first time you run it because it is not notarized. See the [macOS setup guide](platform-setup.mdx#macos) for the exact steps to clear the quarantine flag.
+:::
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+Download `tegata-linux-amd64` from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page. Mark it executable and copy it to your USB drive:
+
+```bash
+chmod +x tegata-linux-amd64
+cp tegata-linux-amd64 /media/$USER/MyUSB/tegata
+```
+
+  </TabItem>
+</Tabs>
+
+### Install the desktop GUI
+
+A graphical interface is available separately and is installed on your host machine rather than carried on the USB drive.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows">
+
+Download and run `tegata-gui-windows-amd64-setup.exe`. The NSIS installer places the binary in `Program Files` and creates a Start Menu entry.
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+Download `tegata-gui-darwin-universal.dmg`. Open the disk image and drag Tegata to your Applications folder.
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+Download the package for your distribution.
+
+- `.deb` for Debian, Ubuntu, and derivatives: `sudo dpkg -i tegata-gui-linux-amd64.deb`
+- `.rpm` for Fedora, RHEL, and derivatives: `sudo rpm -i tegata-gui-linux-amd64.rpm`
+
+  </TabItem>
+</Tabs>
+
+### Build from source
+
+If you prefer to build the CLI from source:
+
+```bash
+git clone https://github.com/josh-wong/tegata.git
+cd tegata
+make build
+```
+
+The binary is placed at `bin/tegata`. Copy it to your USB drive alongside the vault.
+
+## Create your vault
+
+Run `tegata init` with the path to your USB drive. Replace `/mnt/usb` with the actual mount point.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows">
+
+```powershell
+.\tegata.exe init E:\
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+```bash
+tegata init /Volumes/MyUSB
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+```bash
+tegata init /media/$USER/MyUSB
+```
+
+  </TabItem>
+</Tabs>
+
+Tegata prompts you to create a passphrase (minimum 8 characters) and then displays your recovery key:
+
+```
+Vault created: /mnt/usb/vault.tegata
+
+Recovery key (store this somewhere safe — you cannot see it again):
+
+    ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567
+```
+
+:::danger Save your recovery key
+Write your recovery key down and store it somewhere physically separate from your USB drive — a printed copy in a safe, a trusted password manager, or a locked drawer. If you forget your passphrase, this key is the only way to recover your vault. It cannot be retrieved after this screen.
+:::
+
+## Add a credential
+
+Tegata supports two methods for adding credentials: scanning an `otpauth://` URI and entering the secret manually.
+
+<Tabs groupId="add-method">
+  <TabItem value="scan" label="Scan URI (recommended)">
+
+When a service shows you a QR code, most services also offer a "copy link" option or display the `otpauth://` URI as text. Paste it directly:
+
+```bash
+tegata add GitHub --scan --vault /mnt/usb
+```
+
+Tegata prompts you to paste the URI (input is hidden). The credential type, issuer, algorithm, digits, and period are parsed automatically from the URI.
+
+  </TabItem>
+  <TabItem value="manual" label="Manual entry">
+
+If you only have the base32 secret:
+
+```bash
+tegata add GitHub --type totp --issuer GitHub --vault /mnt/usb
+```
+
+Tegata prompts you to enter the secret (input is hidden).
+
+  </TabItem>
+</Tabs>
+
+## Generate your first code
+
+```bash
+tegata code GitHub --vault /mnt/usb
+```
+
+Output:
+
+```
+482901
+Expires in 18s
+Copied to clipboard (auto-clear in 45s)
+```
+
+The code is displayed in the terminal and copied to your clipboard. The clipboard is automatically cleared after 45 seconds.
+
+:::tip Avoid typing the vault path every time
+Set the `TEGATA_VAULT` environment variable to your USB drive path. All commands will find the vault automatically.
+
+```bash
+export TEGATA_VAULT=/mnt/usb
+```
+
+On Windows (PowerShell):
+
+```powershell
+$env:TEGATA_VAULT = "E:\"
+```
+:::
+
+## Daily workflow
+
+The typical workflow is straightforward.
+
+1. Plug in your USB drive.
+2. Run `tegata code <label>` to generate and copy a code.
+3. Paste the code where needed.
+4. The clipboard clears automatically in 45 seconds.
+
+To list all credentials in your vault:
+
+```bash
+tegata list
+```
+
+Credentials are grouped by tag. Untagged credentials appear under `[untagged]`.
+
+### Vault resolution order
+
+When you do not specify `--vault`, Tegata looks for the vault in this order:
+
+1. `--vault` flag
+2. `TEGATA_VAULT` environment variable
+3. `./vault.tegata` in the current working directory
+
+### Prefer the TUI
+
+If you prefer a visual interface in the terminal, run:
+
+```bash
+tegata ui
+```
+
+The TUI shows live TOTP countdown timers, a credential list you can navigate with the keyboard, and an overlay form for adding credentials. If no vault is found, it launches a setup wizard. See the [TUI guide](tui-guide.mdx) for a complete walkthrough.
+
+## Optional: enable audit logging
+
+Tegata can record every authentication event in a tamper-evident audit log backed by ScalarDL Ledger. Audit logging is disabled by default and requires Docker.
+
+Enable it once after creating your vault:
+
+```bash
+tegata ledger start --vault /mnt/usb
+```
+
+After setup, every vault unlock automatically starts the Docker stack in the background. See the [ScalarDL setup guide](scalardl-setup.md) for full details.
+
+## Next steps
+
+- [Platform-specific setup](platform-setup.mdx) — USB formatting, Gatekeeper, Linux udev rules
+- [CLI reference](cli-reference.mdx) — every command, flag, and environment variable
+- [TUI guide](tui-guide.mdx) — keyboard shortcuts and workflows
+- [Security best practices](security-best-practices.mdx) — passphrases, backups, and USB drive selection
+- [FAQ](faq.mdx) — vault recovery, multi-device use, migrating from other apps
