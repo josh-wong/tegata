@@ -110,25 +110,38 @@ Download the package format that matches your Linux system from the [Releases](h
 
 ### Build from source
 
-If you prefer to build the CLI from the source code, run the following commands:
+If you prefer to build the CLI from the source code, clone the repository and build for your platform.
 
 ```bash
 git clone https://github.com/josh-wong/tegata.git
 cd tegata
+```
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+`make build` on Windows requires cmd.exe and GNU Make. Instead, in PowerShell, build directly by running the following commands from the repository root:
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
+```
+
+The binary is placed in `bin\tegata.exe`. Copy it to your USB drive alongside the vault.
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+In Terminal, run the following command from the repository root:
+
+```bash
 make build
 ```
 
-:::note
+The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the vault.
 
-For Windows, if your `make` setup is unavailable or behaves differently, run the following command in PowerShell from the repository root:
-
-```powershell
-go build -ldflags "-s -w" -o bin/tegata.exe ./cmd/tegata/
-```
-
-:::
-
-The binary is placed in `bin/tegata` on macOS/Linux and `bin\tegata.exe` on Windows. Copy it to your USB drive alongside the vault.
+  </TabItem>
+</Tabs>
 
 :::tip
 

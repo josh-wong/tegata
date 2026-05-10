@@ -39,17 +39,6 @@ const (
 	daemonPollInterval = 2 * time.Second
 )
 
-// contractRetries and contractRetryInterval control how long waitForContracts
-// polls for predefined HashStore contracts to become reachable. The
-// scalardl-contract-registration container runs `apk add curl unzip`,
-// downloads the ~50 MB HashStore SDK from GitHub, starts the JVM, and calls
-// `scalardl-hashstore bootstrap` — which can exceed 2 minutes on first run.
-// 30 retries x 10s = 5 minutes total.
-const (
-	contractRetries       = 30
-	contractRetryInterval = 10 * time.Second
-)
-
 // knownDockerPaths lists well-known Docker binary locations that may not be
 // in the PATH of a GUI app launched from Finder or Spotlight on macOS.
 var knownDockerPaths = []string{
@@ -82,7 +71,11 @@ func checkPorts(ports []int) error {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
 			_ = conn.Close()
-			return fmt.Errorf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
+			msg := fmt.Sprintf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
+			if runtime.GOOS == "windows" {
+				msg += fmt.Sprintf("\nIf no vault is running, PostgreSQL inside WSL2 may be using this port. To stop it, run:\n  wsl -- sudo service postgresql stop")
+			}
+			return fmt.Errorf("%s", msg) //nolint:staticcheck,govet // user-facing message
 		}
 	}
 	return nil
@@ -409,10 +402,10 @@ func progress(fn func(string), msg string) {
 //  2. extractComposeFiles(fsys, composeDir)
 //  3. entityID from vaultID, generate secretKey
 //  4. write client.properties to composeDir/certs/
-//  5. docker compose -f composeDir/docker-compose.yml up -d
+//  5. start infrastructure services (postgres, schema-loader, coordinator, ledger)
 //  6. wait for ledger (up to 30s)
-//  7. RegisterSecret + Ping + verifyContracts (reuses audit.NewClientFromConfig)
-//  8. returns populated AuditConfig -- caller writes tegata.toml
+//  7. RegisterSecret + Ping
+//  8. start scalardl-contract-registration, wait for it to exit via `docker compose wait` (up to 10 minutes)
 //
 // progressFn receives one-line status strings as each step completes; it may be
 // nil (no progress reporting). fsys must contain docker-compose.yml and
@@ -461,19 +454,25 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, fmt.Errorf("writing client properties: %w", err)
 	}
 
-	// Step 5: Start Docker stack and ensure contract registration runs with
-	// the current entity's credentials. Force-recreate the registration
-	// container so bootstrap runs even when the stack is already up (e.g.
-	// when setting up audit for a second vault — each entity needs its own
-	// contracts registered via scalardl-hashstore bootstrap).
+	// Step 5: Start infrastructure services only — do NOT start
+	// scalardl-contract-registration yet. The bootstrap tool inside that
+	// container downloads ~50 MB, then calls scalardl-hashstore bootstrap
+	// which needs (a) the ledger to be fully ready and (b) the entity secret
+	// to be registered. On Windows, the full startup chain (postgres
+	// healthcheck → schema-loader → coordinator schema → ledger JVM init)
+	// can exceed the container's internal 60-second nc wait loop, causing
+	// bootstrap to fail and exhaust its on-failure:3 restart budget before
+	// contracts are ever registered. By starting contract-registration only
+	// after the Go code confirms the ledger is ready and the entity is
+	// registered, bootstrap succeeds on the first attempt.
 	composePath := filepath.Join(composeDir, "docker-compose.yml")
 	progress(progressFn, "Starting Docker stack...")
-	if err := StartStack(composePath, entityID); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("starting Docker stack: %w", err)
+	if err := checkPortsAvailable(); err != nil {
+		return config.AuditConfig{}, err
 	}
-	progress(progressFn, "Registering contracts for entity...")
-	if err := runDockerCompose(composePath, entityID, "up", "-d", "--force-recreate", "scalardl-contract-registration"); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("restarting contract registration: %w", err)
+	if err := runDockerCompose(composePath, entityID, "up", "-d",
+		"postgres", "scalardl-schema-loader", "scalardl-coordinator-schema", "scalardl-ledger"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("starting Docker stack: %w", err)
 	}
 
 	// Step 6: Wait for ledger to become ready.
@@ -513,6 +512,15 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, fmt.Errorf("ping after registration: %w", err)
 	}
 
+	// Step 8a: Now that the ledger is fully ready and the entity secret is
+	// registered, start the contract-registration container. Bootstrap will
+	// find the ledger immediately reachable and the entity already registered,
+	// so it succeeds on the first attempt without exhausting its retry budget.
+	progress(progressFn, "Registering contracts for entity...")
+	if err := runDockerCompose(composePath, entityID, "up", "-d", "scalardl-contract-registration"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("starting contract registration: %w", err)
+	}
+
 	// Notify the caller that credentials are registered and the config is ready.
 	// The caller should persist tegata.toml here so audit is configured even if
 	// contract registration below is still in progress.
@@ -522,39 +530,56 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		}
 	}
 
-	// Step 8: Wait for predefined HashStore contracts to become reachable (up to 5 minutes).
-	// The scalardl-contract-registration container downloads ~50 MB and runs the
-	// bootstrap tool; this is the slow part on first run.
-	progress(progressFn, "Waiting for predefined HashStore contracts to become ready (up to 5 minutes on first run)...")
-	if err := waitForContracts(client, progressFn); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("waiting for contracts: %w", err)
+	// Step 8b: Wait for the contract-registration container to finish.
+	// `docker compose wait` blocks until the service exits and reflects its exit
+	// code, so we know exactly when bootstrap completed and whether it succeeded.
+	// On Windows, package installation + 50 MB SDK download from GitHub + JVM
+	// startup can exceed 5 minutes, which caused the previous polling approach
+	// (30 × 10s = 5 min) to time out while bootstrap was still running.
+	progress(progressFn, "Waiting for contract registration to complete (up to 10 minutes on first run)...")
+	if err := waitForBootstrap(composePath, entityID, 10*time.Minute); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("contract registration: %w", err)
+	}
+
+	// Verify contracts are reachable with a single Put call.
+	ctxVerify, cancelVerify := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelVerify()
+	if err := client.Put(ctxVerify, SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("contract verification: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// waitForContracts polls client.Put until the predefined HashStore contracts are
-// reachable, reporting elapsed time via progressFn on each failed attempt.
-// Must be called after RegisterSecret so the entity is authenticated.
-// Each attempt uses a fresh 5-second context; total wait is up to 5 minutes.
-func waitForContracts(c *LedgerClient, progressFn func(string)) error {
-	var lastErr error
-	for i := 0; i < contractRetries; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.Put(ctx, SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
-		cancel()
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		if i < contractRetries-1 {
-			elapsed := time.Duration(i+1) * contractRetryInterval
-			progress(progressFn, fmt.Sprintf("  still waiting... (%ds elapsed) — %v", int(elapsed.Seconds()), err))
-			time.Sleep(contractRetryInterval)
-		}
+// waitForBootstrap waits for the scalardl-contract-registration service to exit
+// successfully using `docker compose wait` (requires Docker Compose v2.4+,
+// included in Docker Desktop 4.9+ released April 2022). This is more reliable
+// than polling client.Put because it directly observes whether the bootstrap
+// script completed rather than inferring readiness from RPC call results.
+// Returns an error if the container exits non-zero or the timeout is reached.
+func waitForBootstrap(composePath, projectName string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmdArgs := []string{"compose", "-f", composePath}
+	if projectName != "" {
+		cmdArgs = append(cmdArgs, "--project-name", projectName)
 	}
-	total := time.Duration(contractRetries) * contractRetryInterval
-	return fmt.Errorf("contracts not ready after %v: %w", total, lastErr)
+	cmdArgs = append(cmdArgs, "wait", "scalardl-contract-registration")
+
+	bin := dockerBin()
+	if bin == "" {
+		bin = "docker"
+	}
+	cmd := exec.CommandContext(ctx, bin, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("timed out after %v; to diagnose, run: docker logs %s-scalardl-contract-registration-1", timeout, projectName)
+		}
+		return fmt.Errorf("bootstrap container exited with error: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // waitForLedger retries connecting to the ledger up to autoStartRetries times

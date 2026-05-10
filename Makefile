@@ -7,12 +7,14 @@ LDFLAGS := -s -w
 MAX_SIZE := 20971520
 
 ifeq ($(OS),Windows_NT)
+BINARY_SUFFIX := .exe
 ENV_CGO_DISABLED := set "CGO_ENABLED=0" &&
 ENV_WIN_AMD64 := set "CGO_ENABLED=0" && set "GOOS=windows" && set "GOARCH=amd64" &&
 ENV_DARWIN_ARM64 := set "CGO_ENABLED=0" && set "GOOS=darwin" && set "GOARCH=arm64" &&
 ENV_DARWIN_AMD64 := set "CGO_ENABLED=0" && set "GOOS=darwin" && set "GOARCH=amd64" &&
 ENV_LINUX_AMD64 := set "CGO_ENABLED=0" && set "GOOS=linux" && set "GOARCH=amd64" &&
 else
+BINARY_SUFFIX :=
 ENV_CGO_DISABLED := CGO_ENABLED=0
 ENV_WIN_AMD64 := CGO_ENABLED=0 GOOS=windows GOARCH=amd64
 ENV_DARWIN_ARM64 := CGO_ENABLED=0 GOOS=darwin GOARCH=arm64
@@ -21,11 +23,11 @@ ENV_LINUX_AMD64 := CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 endif
 
 build:
-	$(ENV_CGO_DISABLED) go build -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/tegata/
+	$(ENV_CGO_DISABLED) go build -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX) ./cmd/tegata/
 
 install: build
 	install -d $(PREFIX)/bin
-	install -m 755 $(BUILD_DIR)/$(BINARY_NAME) $(PREFIX)/bin/$(BINARY_NAME)
+	install -m 755 $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX) $(PREFIX)/bin/$(BINARY_NAME)
 
 test:
 	go test -race -count=1 ./...
