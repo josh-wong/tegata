@@ -279,17 +279,20 @@ func generateSecretKey() (string, error) {
 // composePath on disk, keeping the live file in sync with the embedded bundle.
 // Called by EnsureStack and MaybeAutoStart so that binary upgrades
 // automatically update the running compose configuration without requiring
-// the user to re-run `tegata ledger start`. When entityID is non-empty the
-// global volume name is rewritten to a per-vault name before writing.
+// the user to re-run `tegata ledger start`. When entityID is non-empty, the
+// Compose project name and Docker volume name are rewritten to per-vault values
+// before writing, ensuring the correct project name is embedded in the file
+// rather than relying solely on --project-name (which Docker Desktop for
+// Windows does not always honour when a top-level name: directive is present).
 func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
 	data, err := fs.ReadFile(fsys, "docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
 	}
 	if entityID != "" {
-		rewritten, ok := rewriteComposeVolume(data, entityID)
+		rewritten, ok := rewriteComposeFile(data, entityID)
 		if !ok {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 		}
 		data = rewritten
 	}
@@ -321,9 +324,9 @@ func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
 		}
 
 		if entityID != "" && path == "docker-compose.yml" {
-			rewritten, ok := rewriteComposeVolume(data, entityID)
+			rewritten, ok := rewriteComposeFile(data, entityID)
 			if !ok {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 			}
 			data = rewritten
 		}
@@ -374,17 +377,39 @@ func ComposeDirForVault(homeDir, vaultID string) string {
 	return filepath.Join(homeDir, ".tegata", "docker", entityIDFromVaultID(vaultID))
 }
 
-// rewriteComposeVolume replaces the global volume name in docker-compose.yml
-// content with a per-vault name. Returns the rewritten data and true if the
-// substitution was made, or the original data and false if the target string
-// was not found (compose file format may have drifted from expectations).
+// rewriteComposeFile rewrites the Docker Compose file content so that both the
+// project name and the named volume are scoped to the given entityID. This
+// ensures the correct project name is embedded in the file itself rather than
+// relying solely on --project-name, which Docker Desktop for Windows does not
+// always honour when a top-level name: directive is present.
+//
+// Two substitutions are performed:
+//   - "name: tegata-ledger"       → "name: entityID"
+//   - "name: tegata-scalardl-data" → "name: entityID-scalardl-data"
+//
+// Returns the rewritten data and true if at least the volume name substitution
+// was found (the project-name substitution is best-effort). Returns the
+// original data and false if neither target was found (compose file format may
+// have drifted from expectations).
 // entityID must be non-empty.
-func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
-	target := []byte("name: tegata-scalardl-data")
-	if !bytes.Contains(data, target) {
+func rewriteComposeFile(data []byte, entityID string) ([]byte, bool) {
+	// Rewrite the top-level Compose project name.
+	projectTarget := []byte("name: tegata-ledger")
+	data = bytes.ReplaceAll(data, projectTarget, []byte("name: "+entityID))
+
+	// Rewrite the Docker named volume so each vault's PostgreSQL data is
+	// stored in an isolated volume.
+	volumeTarget := []byte("name: tegata-scalardl-data")
+	if !bytes.Contains(data, volumeTarget) {
 		return data, false
 	}
-	return bytes.ReplaceAll(data, target, []byte("name: "+entityID+"-scalardl-data")), true
+	return bytes.ReplaceAll(data, volumeTarget, []byte("name: "+entityID+"-scalardl-data")), true
+}
+
+// rewriteComposeVolume is a backward-compatible alias for rewriteComposeFile
+// retained for test compatibility. New callers should use rewriteComposeFile.
+func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
+	return rewriteComposeFile(data, entityID)
 }
 
 // runDockerCompose executes a docker compose command with the given compose

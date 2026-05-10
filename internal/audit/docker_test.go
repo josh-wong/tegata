@@ -132,8 +132,24 @@ func TestComposeDirForVault(t *testing.T) {
 	}
 }
 
-// TestRewriteComposeVolume verifies the volume name substitution logic.
+// TestRewriteComposeVolume verifies backward-compatible alias delegates to rewriteComposeFile.
 func TestRewriteComposeVolume(t *testing.T) {
+	input := "name: tegata-ledger\nvolumes:\n  scalardl-data:\n    name: tegata-scalardl-data\n"
+	got, ok := rewriteComposeVolume([]byte(input), "tegata-abc12345")
+	if !ok {
+		t.Error("rewriteComposeVolume: expected ok=true")
+	}
+	if bytes.Contains(got, []byte("name: tegata-ledger")) {
+		t.Errorf("rewriteComposeVolume: project name not rewritten: %s", got)
+	}
+	if !bytes.Contains(got, []byte("name: tegata-abc12345-scalardl-data")) {
+		t.Errorf("rewriteComposeVolume: volume name not rewritten: %s", got)
+	}
+}
+
+// TestRewriteComposeFile verifies that both the Compose project name and the
+// Docker named volume are rewritten to per-vault values.
+func TestRewriteComposeFile(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
@@ -142,49 +158,50 @@ func TestRewriteComposeVolume(t *testing.T) {
 		wantMatch bool
 	}{
 		{
-			name:      "rewrites matching volume name",
-			input:     "volumes:\n  scalardl-data:\n    name: tegata-scalardl-data\n",
+			name:      "rewrites project name and volume name",
+			input:     "name: tegata-ledger\nvolumes:\n  scalardl-data:\n    name: tegata-scalardl-data\n",
 			entityID:  "tegata-abc12345",
-			want:      "volumes:\n  scalardl-data:\n    name: tegata-abc12345-scalardl-data\n",
+			want:      "name: tegata-abc12345\nvolumes:\n  scalardl-data:\n    name: tegata-abc12345-scalardl-data\n",
 			wantMatch: true,
 		},
 		{
-			name:      "no match leaves data unchanged",
-			input:     "volumes:\n  other:\n    name: something-else\n",
+			name:      "no volume name returns false but still rewrites project name",
+			input:     "name: tegata-ledger\nservices: {}\n",
 			entityID:  "tegata-abc12345",
-			want:      "volumes:\n  other:\n    name: something-else\n",
+			want:      "name: tegata-abc12345\nservices: {}\n",
 			wantMatch: false,
 		},
 		{
-			name:      "replaces all occurrences",
-			input:     "name: tegata-scalardl-data\nname: tegata-scalardl-data\n",
-			entityID:  "tegata-def67890",
-			want:      "name: tegata-def67890-scalardl-data\nname: tegata-def67890-scalardl-data\n",
-			wantMatch: true,
+			name:      "no matching names returns false and leaves data unchanged",
+			input:     "services: {}\n",
+			entityID:  "tegata-abc12345",
+			want:      "services: {}\n",
+			wantMatch: false,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := rewriteComposeVolume([]byte(tc.input), tc.entityID)
+			got, ok := rewriteComposeFile([]byte(tc.input), tc.entityID)
 			if string(got) != tc.want {
-				t.Errorf("rewriteComposeVolume data = %q, want %q", got, tc.want)
+				t.Errorf("rewriteComposeFile data = %q, want %q", got, tc.want)
 			}
 			if ok != tc.wantMatch {
-				t.Errorf("rewriteComposeVolume ok = %v, want %v", ok, tc.wantMatch)
+				t.Errorf("rewriteComposeFile ok = %v, want %v", ok, tc.wantMatch)
 			}
 		})
 	}
 }
 
 // TestSyncDockerCompose_RewritesVolume verifies that syncDockerCompose rewrites
-// the volume name when entityID is non-empty and leaves it unchanged when empty.
+// the project name and volume name when entityID is non-empty, and leaves them
+// unchanged when empty.
 func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
-	const composeContent = "volumes:\n  scalardl-data:\n    name: tegata-scalardl-data\n"
+	const composeContent = "name: tegata-ledger\nvolumes:\n  scalardl-data:\n    name: tegata-scalardl-data\n"
 	fsys := fstest.MapFS{
 		"docker-compose.yml": &fstest.MapFile{Data: []byte(composeContent)},
 	}
 
-	t.Run("rewrites volume with entityID", func(t *testing.T) {
+	t.Run("rewrites project name and volume with entityID", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
 		if err := syncDockerCompose(fsys, composePath, "tegata-abc12345"); err != nil {
@@ -194,6 +211,12 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading file: %v", err)
 		}
+		if bytes.Contains(got, []byte("name: tegata-ledger")) {
+			t.Errorf("original project name still present in output: %s", got)
+		}
+		if !bytes.Contains(got, []byte("name: tegata-abc12345\n")) {
+			t.Errorf("rewritten project name not found in output: %s", got)
+		}
 		if !bytes.Contains(got, []byte("name: tegata-abc12345-scalardl-data")) {
 			t.Errorf("rewritten volume name not found in output: %s", got)
 		}
@@ -202,7 +225,7 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 		}
 	})
 
-	t.Run("leaves volume unchanged when entityID empty", func(t *testing.T) {
+	t.Run("leaves names unchanged when entityID empty", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
 		if err := syncDockerCompose(fsys, composePath, ""); err != nil {
@@ -211,6 +234,9 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 		got, err := os.ReadFile(composePath)
 		if err != nil {
 			t.Fatalf("reading file: %v", err)
+		}
+		if !bytes.Contains(got, []byte("name: tegata-ledger")) {
+			t.Errorf("expected original project name in output: %s", got)
 		}
 		if !bytes.Contains(got, []byte("name: tegata-scalardl-data")) {
 			t.Errorf("expected original volume name in output: %s", got)
