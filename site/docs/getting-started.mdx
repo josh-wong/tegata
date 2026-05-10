@@ -118,7 +118,17 @@ cd tegata
 make build
 ```
 
-The binary is placed in the `bin/tegata` directory. Copy it to your USB drive alongside the vault.
+:::note
+
+For Windows, if your `make` setup is unavailable or behaves differently, run the following command in PowerShell from the repository root:
+
+```powershell
+go build -ldflags "-s -w" -o bin/tegata.exe ./cmd/tegata/
+```
+
+:::
+
+The binary is placed in `bin/tegata` on macOS/Linux and `bin\tegata.exe` on Windows. Copy it to your USB drive alongside the vault.
 
 :::tip
 
