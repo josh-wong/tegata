@@ -59,6 +59,22 @@ func checkPortsAvailable() error {
 	return checkPorts(auditPorts)
 }
 
+// effectiveProjectName returns the Docker Compose project name to use for
+// label-based container queries. When projectName is non-empty it is returned
+// as-is. When it is empty (config written by an older binary that did not
+// record docker_project_name), the compose file's parent directory name is
+// used instead — this is the default project name Docker Compose v2 assigns
+// when --project-name is omitted.
+func effectiveProjectName(projectName, composePath string) string {
+	if projectName != "" {
+		return projectName
+	}
+	if composePath != "" {
+		return filepath.Base(filepath.Dir(composePath))
+	}
+	return ""
+}
+
 // checkPorts dials each port in the list and returns an error on the first one
 // that is already bound. Separated from checkPortsAvailable to allow tests to
 // inject arbitrary ports without touching system-reserved port numbers.
@@ -664,7 +680,10 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	// confirmed running. Without the project check, the ping could succeed
 	// against a different vault's stack on the same ports, causing subsequent
 	// queries to silently target the wrong entity and return no events.
-	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+	// effectiveProjectName falls back to the compose directory name for configs
+	// written by older binaries that did not record docker_project_name.
+	projectName := effectiveProjectName(cfg.DockerProjectName, cfg.DockerComposePath)
+	if isDockerProjectRunning(cfg.DockerComposePath, projectName) {
 		if client, err := NewClientFromConfig(cfg); err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			pingErr := client.Ping(ctx)
@@ -709,6 +728,24 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
+
+	// Quick probe: skip startup if THIS vault's project is already running and
+	// the ledger is reachable. Uses effectiveProjectName so configs written by
+	// older binaries (no docker_project_name field) resolve the project via the
+	// compose directory name.
+	projectName := effectiveProjectName(cfg.DockerProjectName, cfg.DockerComposePath)
+	if isDockerProjectRunning(cfg.DockerComposePath, projectName) {
+		if client, err := NewClientFromConfig(cfg); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr := client.Ping(ctx)
+			cancel()
+			_ = client.Close()
+			if pingErr == nil {
+				return nil
+			}
+		}
+	}
+
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
