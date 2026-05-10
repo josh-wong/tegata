@@ -270,6 +270,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 				return fmt.Errorf("storing HMAC secret in vault: %w", vaultErr)
 			}
 		}
+		auditCfg.AutoStart = true
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
 			return fmt.Errorf("writing audit config: %w", writeErr)
 		}

@@ -473,6 +473,7 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 		if err != nil {
 			return auditStartMsg{steps: steps, err: err}
 		}
+		newCfg.AutoStart = true
 
 		if writeErr := config.WriteAuditSection(vaultDir, newCfg); writeErr != nil {
 			return auditStartMsg{steps: steps, err: fmt.Errorf("writing audit config: %w", writeErr)}
