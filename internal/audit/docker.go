@@ -73,7 +73,7 @@ func checkPorts(ports []int) error {
 			_ = conn.Close()
 			msg := fmt.Sprintf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
 			if runtime.GOOS == "windows" {
-				msg += fmt.Sprintf("\nIf no vault is running, PostgreSQL inside WSL2 may be using this port. To stop it, run:\n  wsl -- sudo service postgresql stop")
+				msg += "\nIf no vault is running, PostgreSQL inside WSL2 may be using this port. To stop it, run:\n  wsl -- sudo service postgresql stop"
 			}
 			return fmt.Errorf("%s", msg) //nolint:staticcheck,govet // user-facing message
 		}
