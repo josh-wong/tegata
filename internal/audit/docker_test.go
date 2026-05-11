@@ -341,39 +341,50 @@ func TestMaybeAutoStart_NoPath(t *testing.T) {
 }
 
 // TestEffectiveProjectName verifies that effectiveProjectName returns the
-// configured project name when set, and falls back to the compose directory
-// name for configs written by older binaries that omitted docker_project_name.
+// configured project name when set, and falls back to the entity ID for
+// configs written by older binaries that omitted docker_project_name.
 func TestEffectiveProjectName(t *testing.T) {
 	tests := []struct {
 		name        string
 		projectName string
+		entityID    string
 		composePath string
 		want        string
 	}{
 		{
 			name:        "explicit project name is returned as-is",
 			projectName: "tegata-abc12345",
+			entityID:    "tegata-abc12345",
 			composePath: "/home/user/.tegata/docker/tegata-abc12345/docker-compose.yml",
 			want:        "tegata-abc12345",
 		},
 		{
-			name:        "empty project name falls back to compose directory name",
+			name:        "old config: empty project name falls back to entity ID not directory",
 			projectName: "",
+			entityID:    "tegata-abc12345",
+			composePath: "/home/user/.tegata/docker/docker-compose.yml",
+			want:        "tegata-abc12345",
+		},
+		{
+			name:        "empty project name and empty entity ID falls back to compose directory name",
+			projectName: "",
+			entityID:    "",
 			composePath: "/home/user/.tegata/docker/tegata-abc12345/docker-compose.yml",
 			want:        "tegata-abc12345",
 		},
 		{
-			name:        "empty project name and empty compose path returns empty string",
+			name:        "all empty returns empty string",
 			projectName: "",
+			entityID:    "",
 			composePath: "",
 			want:        "",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := effectiveProjectName(tc.projectName, tc.composePath)
+			got := effectiveProjectName(tc.projectName, tc.entityID, tc.composePath)
 			if got != tc.want {
-				t.Errorf("effectiveProjectName(%q, %q) = %q, want %q", tc.projectName, tc.composePath, got, tc.want)
+				t.Errorf("effectiveProjectName(%q, %q, %q) = %q, want %q", tc.projectName, tc.entityID, tc.composePath, got, tc.want)
 			}
 		})
 	}
