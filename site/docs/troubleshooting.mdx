@@ -246,10 +246,15 @@ If this command fails with `INVALID_SIGNATURE`, check `~/.tegata/docker/certs/cl
 
 Tegata runs a port check before starting Docker and reports which process is holding the conflicting port. Common conflicts:
 
+- **Port 5432:** PostgreSQL (often a local PostgreSQL installation or, on Windows, a PostgreSQL instance running inside a WSL2 distribution)
 - **Port 50051:** gRPC server (sometimes used by other gRPC services or Kubernetes local proxies)
 - **Port 50052:** ScalarDL privileged port
 
-Stop the conflicting service or configure it to use a different port, then retry `tegata ledger start`.
+Stop the conflicting service and retry `tegata ledger start`. On Windows, if no vault stack is running and port 5432 is in use, a PostgreSQL server inside WSL2 is the likely cause. Stop it by running the following command:
+
+```powershell
+wsl -- sudo service postgresql stop
+```
 
 ### Audit history shows `(deleted)` labels
 
@@ -317,10 +322,17 @@ xattr -r -d com.apple.quarantine /Applications/Tegata.app
 
 ### Build fails: `cgo: C compiler not found`
 
-The CLI binary is built with `CGO_ENABLED=0` and does not require a C compiler. If you see CGO errors, confirm that you are building the CLI target:
+The CLI binary is built with `CGO_ENABLED=0` and does not require a C compiler. If you see CGO errors when building from macOS or Linux, confirm that you are building the CLI target:
 
 ```bash
-make build # builds bin/tegata (CLI, no CGO)
+make build # builds bin/tegata
+```
+
+On Windows, `make build` requires cmd.exe and GNU Make. Instead, in PowerShell, build directly by running the following commands from the repository root:
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
 ```
 
 The GUI requires CGO because it depends on the system WebView. To build the GUI, install Xcode Command Line Tools on macOS, `build-essential` on Linux, or MSVC on Windows, then use:

@@ -31,11 +31,10 @@ Tegata prompts for your vault passphrase, then runs the full setup sequence.
 1. Checks that Docker is installed and starts the Docker daemon if it is not running.
 2. Extracts the bundled `docker-compose.yml` to `~/.tegata/docker/`.
 3. Generates a unique entity ID and secret key from your vault.
-4. Starts the Docker stack (`docker compose up -d`).
+4. Starts the infrastructure containers (PostgreSQL, schema loaders, ScalarDL Ledger).
 5. Waits for the ledger to become ready (up to 30 seconds).
-6. Waits for the HashStore contracts to be registered (up to 5 minutes on first run—the JVM and ~50 MB SDK download are the slow parts).
-7. Registers your audit credentials with the ledger.
-8. Writes the `[audit]` section to `tegata.toml`.
+6. Registers your audit credentials with the ledger and writes the `[audit]` section to `tegata.toml`.
+7. Starts the contract-registration container and waits for HashStore contracts to be registered (up to 10 minutes on first run—the JVM startup and ~50 MB SDK download are the slow parts).
 
 When setup completes you should see:
 

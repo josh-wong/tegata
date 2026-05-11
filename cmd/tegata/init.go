@@ -131,6 +131,7 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
 		return
 	}
+	auditCfg.AutoStart = true
 
 	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not save audit config: %v\n", writeErr)

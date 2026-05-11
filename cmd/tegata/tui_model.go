@@ -470,6 +470,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.auditMsg = "Setup failed: " + msg.err.Error()
 		} else {
 			m.auditMsg = "Ledger server started. Audit logging is now active."
+			// Persist the HMAC secret in the vault so it survives restarts.
+			// The secret is NOT written to tegata.toml (WriteAuditSection omits
+			// it) — the vault is the only persistent store for this value.
+			if m.vaultMgr != nil && msg.newCfg.SecretKey != "" {
+				if secretErr := m.vaultMgr.SetSecret("audit.secret_key", msg.newCfg.SecretKey); secretErr != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "tegata: failed to persist audit secret in vault: %v\n", secretErr)
+				}
+			}
 			// Update in-memory config so the rest of the session sees audit enabled.
 			m.cfg.Audit = msg.newCfg
 			// Rebuild EventBuilder so auth events are logged in this session.
