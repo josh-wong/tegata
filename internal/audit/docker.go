@@ -62,12 +62,15 @@ func checkPortsAvailable() error {
 // effectiveProjectName returns the Docker Compose project name to use for
 // label-based container queries. When projectName is non-empty it is returned
 // as-is. When it is empty (config written by an older binary that did not
-// record docker_project_name), the compose file's parent directory name is
-// used instead — this is the default project name Docker Compose v2 assigns
-// when --project-name is omitted.
-func effectiveProjectName(projectName, composePath string) string {
+// record docker_project_name), entityID is used as the fallback because it
+// equals the project name assigned by all new binaries. The compose
+// directory name is a last resort for configs that also lack entity_id.
+func effectiveProjectName(projectName, entityID, composePath string) string {
 	if projectName != "" {
 		return projectName
+	}
+	if entityID != "" {
+		return entityID
 	}
 	if composePath != "" {
 		return filepath.Base(filepath.Dir(composePath))
@@ -126,7 +129,8 @@ func CheckLedgerAvailability(cfg config.AuditConfig) error {
 	if cfg.DockerComposePath == "" {
 		return nil
 	}
-	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
+	projName := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+	if isDockerProjectRunning(cfg.DockerComposePath, projName) {
 		return nil
 	}
 	if portErr := checkPortsAvailable(); portErr != nil {
@@ -693,30 +697,32 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		return nil
 	}
 
-	// Sync docker-compose.yml from the embedded bundle so binary upgrades
-	// (e.g. ScalarDL version bumps) take effect automatically.
-	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+	// Resolve the effective Docker Compose project name. Prefers the explicit
+	// docker_project_name field, then falls back to entity ID (correct for all
+	// new configs), then to the compose directory name (last resort).
+	effProject := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+
+	// Ping the ledger first. If it responds, it is already running — return
+	// immediately regardless of which Docker project name it was started under.
+	// This handles configs from older binaries whose containers ran under
+	// "tegata-ledger" rather than the per-vault entity ID project name.
+	if client, err := NewClientFromConfig(cfg); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
 		}
 	}
 
-	// Quick probe: only skip startup when THIS vault's Docker project is
-	// confirmed running. Without the project check, the ping could succeed
-	// against a different vault's stack on the same ports, causing subsequent
-	// queries to silently target the wrong entity and return no events.
-	// effectiveProjectName falls back to the compose directory name for configs
-	// written by older binaries that did not record docker_project_name.
-	projectName := effectiveProjectName(cfg.DockerProjectName, cfg.DockerComposePath)
-	if isDockerProjectRunning(cfg.DockerComposePath, projectName) {
-		if client, err := NewClientFromConfig(cfg); err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			pingErr := client.Ping(ctx)
-			cancel()
-			_ = client.Close()
-			if pingErr == nil {
-				return nil
-			}
+	// Sync docker-compose.yml from the embedded bundle so binary upgrades
+	// (e.g. ScalarDL version bumps) take effect automatically. Use effProject
+	// so the per-vault project name is embedded in the file even when
+	// docker_project_name was absent from the config (old binary).
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
 
@@ -725,7 +731,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
-	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
 		return fmt.Errorf("starting audit stack: %w", err)
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: waiting for ledger to become ready...")
@@ -748,33 +754,31 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return nil
 	}
-	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+	// Resolve the effective Docker Compose project name.
+	effProject := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+
+	// Ping the ledger first. If it responds, it is already running — return
+	// immediately regardless of which Docker project name it was started under.
+	if client, err := NewClientFromConfig(cfg); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
 		}
 	}
 
-	// Quick probe: skip startup if THIS vault's project is already running and
-	// the ledger is reachable. Uses effectiveProjectName so configs written by
-	// older binaries (no docker_project_name field) resolve the project via the
-	// compose directory name.
-	projectName := effectiveProjectName(cfg.DockerProjectName, cfg.DockerComposePath)
-	if isDockerProjectRunning(cfg.DockerComposePath, projectName) {
-		if client, err := NewClientFromConfig(cfg); err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			pingErr := client.Ping(ctx)
-			cancel()
-			_ = client.Close()
-			if pingErr == nil {
-				return nil
-			}
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
 
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
-	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
 		return err
 	}
 	for i := 0; i < autoStartRetries; i++ {

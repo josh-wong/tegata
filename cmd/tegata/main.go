@@ -6,9 +6,23 @@ import (
 	"log/slog"
 	"os"
 
+	runewidth "github.com/mattn/go-runewidth"
 	"github.com/josh-wong/tegata/internal/errors"
 	"github.com/spf13/cobra"
 )
+
+func init() {
+	// Force narrow (1-column) East Asian Width for Unicode ambiguous-width
+	// characters such as ─ (U+2500) and ▸ (U+25B8). On Windows systems with
+	// a CJK locale (e.g., Japanese Shift-JIS code page 932), go-runewidth's
+	// platform init sets EastAsianWidth=true, which causes these characters to
+	// measure as 2 display columns. Lipgloss uses go-runewidth for all string
+	// width calculations, so the TUI table separator and cursor indicator render
+	// at double their intended width, misaligning every column in the audit
+	// history view. Setting EastAsianWidth=false here runs after go-runewidth's
+	// own init and forces consistent 1-column measurement on all platforms.
+	runewidth.DefaultCondition.EastAsianWidth = false
+}
 
 // version is set via -ldflags "-X main.version=..." at build time.
 var version = "dev"

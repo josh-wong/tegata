@@ -328,7 +328,7 @@ func (m model) viewAuditMenu() string {
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
-			menu.WriteString(tipStyle.Render("▸ " + item))
+			menu.WriteString(tipStyle.Render("> " + item))
 		} else {
 			menu.WriteString("  " + item)
 		}
@@ -366,7 +366,7 @@ func (m model) viewAuditHistory(boxW int) string {
 	if hashW < 10 {
 		hashW = 10
 	}
-	lineW := prefixW + opW + 1 + labelW + 1 + tsW + 1 + hashW
+	lineW := prefixW + opW + 1 + labelW + 1 + tsW + 3 + hashW
 
 	// Build hash→label lookup from loaded credentials and deleted labels.
 	labelMap := m.buildLabelMap()
@@ -375,7 +375,7 @@ func (m model) viewAuditHistory(boxW int) string {
 	var body strings.Builder
 	if len(m.auditFiltered) > 0 {
 		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
-		body.WriteString(strings.Repeat("─", lineW) + "\n")
+		body.WriteString(strings.Repeat("-", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
 		if end > len(m.auditFiltered) {
@@ -398,7 +398,7 @@ func (m model) viewAuditHistory(boxW int) string {
 			}
 			line := fmt.Sprintf("%-*s %-*s %-*s   %s", opW, op, labelW, label, tsW, ts, hash)
 			if idx == m.auditCursor {
-				body.WriteString(tipStyle.Render("▸ " + line))
+				body.WriteString(tipStyle.Render("> " + line))
 			} else {
 				body.WriteString("  " + line)
 			}
