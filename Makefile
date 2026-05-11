@@ -42,7 +42,7 @@ cross:
 	$(ENV_LINUX_AMD64) go build -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/tegata/
 
 check-size: build
-	@SIZE=$$(wc -c < $(BUILD_DIR)/$(BINARY_NAME)); \
+	@SIZE=$$(wc -c < $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)); \
 	echo "Binary size: $$SIZE bytes"; \
 	if [ "$$SIZE" -gt "$(MAX_SIZE)" ]; then \
 		echo "ERROR: Binary exceeds 20MB limit"; \
