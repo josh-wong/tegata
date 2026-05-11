@@ -131,7 +131,19 @@ func CheckLedgerAvailability(cfg config.AuditConfig) error {
 	}
 	projName := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
 	if isDockerProjectRunning(cfg.DockerComposePath, projName) {
-		return nil
+		// Containers are running — verify the ledger gRPC port is actually
+		// accepting connections. The ScalarDL JVM can take ~30s to start after
+		// the container is created, so containers running ≠ ledger ready.
+		if client, err := NewClientFromConfig(cfg); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr := client.Ping(ctx)
+			cancel()
+			_ = client.Close()
+			if pingErr == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("Ledger is starting up. Please wait a moment and try again.") //nolint:staticcheck // user-facing message
 	}
 	if portErr := checkPortsAvailable(); portErr != nil {
 		return portErr

@@ -16,6 +16,7 @@ Before you begin, you need the following:
 - A USB drive or microSD card formatted as FAT32 or exFAT
 - A TOTP-compatible account, such as GitHub or Microsoft, that provides a base32 secret or an `otpauth://` URI
 - Go 1.25 or later (optional – only if you plan to build from source)
+- [Node.js](https://nodejs.org/) 20 or later and [Wails](https://wails.io/) v2 (optional – only if you plan to build the desktop GUI from source)
 - [Docker](https://www.docker.com/products/docker-desktop/) (optional – only if you want to enable audit logging)
 
 ## Install Tegata
@@ -108,7 +109,7 @@ Download the package format that matches your Linux system from the [Releases](h
   </TabItem>
 </Tabs>
 
-### Build from source
+### Build the CLI and TUI from source
 
 If you prefer to build the CLI from the source code, clone the repository and build for your platform.
 
@@ -143,9 +144,7 @@ The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the va
   </TabItem>
 </Tabs>
 
-:::tip
-
-Choose your platform to make `tegata` runnable from anywhere:
+:::tip Make the CLI runnable from anywhere
 
 <Tabs groupId="source-install-os">
   <TabItem value="windows" label="Windows" default>
@@ -184,6 +183,40 @@ This installs `tegata` to `/usr/local/bin/tegata` by default. For a user-local p
 </Tabs>
 
 :::
+
+### Build the desktop GUI from source
+
+Building the GUI requires the [Wails CLI](https://wails.io/docs/gettingstarted/installation), Go 1.25 or later, and Node.js 20 or later. Install the Wails CLI by running the following command:
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+`make gui` on Windows uses `mv`, which is not available in PowerShell. Instead, run the following commands from the repository root:
+
+```powershell
+cd cmd\tegata-gui
+wails build -clean
+```
+
+The binary is placed in `cmd\tegata-gui\build\bin\tegata-gui.exe`.
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+In Terminal, run the following command from the repository root:
+
+```bash
+make gui
+```
+
+On macOS, the app bundle is placed in `cmd/tegata-gui/build/bin/Tegata.app`. On Linux, the binary is placed in `cmd/tegata-gui/build/bin/tegata-gui`.
+
+  </TabItem>
+</Tabs>
 
 ## Create your vault
 
