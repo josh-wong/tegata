@@ -28,4 +28,12 @@
   --ifm-color-primary-lightest: #F7A39D;
   --docusaurus-highlighted-code-line-bg: rgba(227, 66, 52, 0.3);
 }
+
+/* Allow card descriptions to show up to 2 lines instead of being clipped to 1. */
+.theme-doc-card-description {
+  white-space: normal !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
