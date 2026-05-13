@@ -10,9 +10,9 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
-  favicon: 'img/favicon.ico',
+  title: 'Tegata Documentation',
+  tagline: 'Your authentication history. Integrity checked.',
+  favicon: 'img/favicon.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -20,15 +20,15 @@ const config = {
   },
 
   // Set the production url of your site here
-  url: 'https://your-docusaurus-site.example.com',
+  url: 'https://tegata.080f53.com',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  organizationName: 'josh-wong', // Usually your GitHub org/user name.
+  projectName: 'tegata', // Usually your repo name.
 
   onBrokenLinks: 'throw',
 
@@ -50,22 +50,7 @@ const config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-        },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
+            'https://github.com/josh-wong/tegata/tree/main/',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -78,26 +63,30 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/tegata-social-card.jpg',
       colorMode: {
         respectPrefersColorScheme: true,
       },
+      docs: {
+        sidebar: {
+          autoCollapseCategories: true,
+        },
+      },
       navbar: {
-        title: 'My Site',
+        title: 'Tegata',
         logo: {
-          alt: 'My Site Logo',
+          alt: 'Tegata logo',
           src: 'img/logo.svg',
         },
         items: [
-          {
+          /* {
             type: 'docSidebar',
             sidebarId: 'tutorialSidebar',
             position: 'left',
-            label: 'Tutorial',
-          },
-          {to: '/blog', label: 'Blog', position: 'left'},
+            label: 'Docs',
+          }, */
           {
-            href: 'https://github.com/facebook/docusaurus',
+            href: 'https://github.com/josh-wong/tegata',
             label: 'GitHub',
             position: 'right',
           },
@@ -105,30 +94,21 @@ const config = {
       },
       footer: {
         style: 'dark',
-        links: [
+        /* links: [
           {
             title: 'Docs',
             items: [
               {
-                label: 'Tutorial',
-                to: '/docs/intro',
-              },
-            ],
-          },
-          {
-            title: 'Community',
-            items: [
-              {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+                label: 'Getting started',
+                to: '/docs/getting-started',
               },
               {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                label: 'CLI reference',
+                to: '/docs/cli-reference',
               },
               {
-                label: 'X',
-                href: 'https://x.com/docusaurus',
+                label: 'Security best practices',
+                to: '/docs/security-best-practices',
               },
             ],
           },
@@ -136,17 +116,17 @@ const config = {
             title: 'More',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
+                label: 'GitHub',
+                href: 'https://github.com/josh-wong/tegata',
               },
               {
-                label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                label: 'Releases',
+                href: 'https://github.com/josh-wong/tegata/releases',
               },
             ],
           },
-        ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        ], */
+        copyright: `Copyright © ${new Date().getFullYear()} Josh Wong. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,
