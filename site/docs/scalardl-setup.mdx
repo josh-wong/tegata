@@ -169,7 +169,7 @@ Integrity violation detected. <error details>
 
 The command exits with code `9`. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
 
-:::note Tampered records are permanent
+:::note[Tampered records are permanent]
 
 The audit log is append-only by design—there is no way to delete entries through Tegata. If you want a clean ledger after testing, tear down the stack and re-run setup by running the following commands, replacing `path/to/vault` with your vault path:
 
@@ -219,7 +219,7 @@ If your server uses a self-signed certificate, set `ca_cert_path` to the path of
   </TabItem>
 </Tabs>
 
-:::note `auto_start` for self-hosted setups
+:::note[`auto_start` for self-hosted setups]
 
 Set `auto_start = false` when managing ScalarDL yourself. `auto_start` only controls whether Tegata starts the local Docker stack on vault unlock; it does not affect connectivity to a remote or manually managed instance.
 

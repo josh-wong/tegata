@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 The Tegata desktop GUI provides the same vault management and credential operations as the CLI and TUI with a graphical interface. It includes a setup wizard, live TOTP countdown timers, a settings panel, and an audit panel.
 
-:::note The GUI stays on your host machine
+:::note[The GUI stays on your host machine]
 
 Unlike the CLI binary, which is designed to travel on the USB drive alongside your vault, the GUI is installed on your host machine. The vault file itself always lives on your USB drive or microSD card.
 
@@ -36,7 +36,7 @@ xattr -r -d com.apple.quarantine /Applications/Tegata.app
   </TabItem>
   <TabItem value="linux" label="Linux">
 
-:::note Linux support
+:::note[Linux support]
 
 Linux has not been manually tested. These steps are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
 
@@ -76,7 +76,7 @@ The setup wizard guides you through:
 3. **Save your recovery key.** The recovery key is displayed once. Copy it and store it somewhere physically separate from the USB drive.
 4. **Add your first credential.** Optionally add a credential immediately after setup, or skip this step.
 
-:::danger Save your recovery key before clicking Continue
+:::danger[Save your recovery key before clicking Continue]
 
 The recovery key screen will not appear again. If you lose your passphrase without this key, the vault cannot be recovered.
 
@@ -86,8 +86,8 @@ The recovery key screen will not appear again. If you lose your passphrase witho
 
 After unlocking, the main window shows your credential list with live TOTP countdowns.
 
-<!-- Screenshot placeholder: main window with credential list, TOTP countdown timers, light theme -->
-<!-- Image: docs/images/gui-main-light.png -->
+// Screenshot placeholder: main window with credential list, TOTP countdown timers, light theme
+// Image: docs/images/gui-main-light.png
 
 The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to click.
 
@@ -99,8 +99,8 @@ For static password credentials, clicking **Copy** retrieves the password withou
 
 ### Dark and light themes
 
-<!-- Screenshot placeholder: main window, dark theme -->
-<!-- Image: docs/images/gui-main-dark.png -->
+// Screenshot placeholder: main window, dark theme
+// Image: docs/images/gui-main-dark.png
 
 The GUI respects your system appearance preference and switches between light and dark themes automatically. You can override this in the Settings panel.
 
@@ -108,8 +108,8 @@ The GUI respects your system appearance preference and switches between light an
 
 Click the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
 
-<!-- Screenshot placeholder: add credential dialog, TOTP tab selected -->
-<!-- Image: docs/images/gui-add-credential.png -->
+// Screenshot placeholder: add credential dialog, TOTP tab selected
+// Image: docs/images/gui-add-credential.png
 
 The dialog has four tabs corresponding to the four credential types: **TOTP**, **HOTP**, **Challenge-response**, and **Static password**. Fill in the required fields and click **Add**.
 
@@ -127,8 +127,8 @@ Right-click a credential in the list to access options:
 
 Click the gear icon or open **Settings** from the application menu to access the settings panel.
 
-<!-- Screenshot placeholder: settings panel -->
-<!-- Image: docs/images/gui-settings.png -->
+// Screenshot placeholder: settings panel
+// Image: docs/images/gui-settings.png
 
 Available settings:
 
@@ -143,8 +143,8 @@ Available settings:
 
 The audit panel is available after enabling audit logging with `tegata ledger start` (CLI) or through the Settings panel in the GUI.
 
-<!-- Screenshot placeholder: audit panel showing event history table -->
-<!-- Image: docs/images/gui-audit-panel.png -->
+// Screenshot placeholder: audit panel showing event history table
+// Image: docs/images/gui-audit-panel.png
 
 The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Click **Verify integrity** to run `tegata verify` and check the entire audit chain.
 

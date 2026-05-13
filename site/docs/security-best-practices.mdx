@@ -62,7 +62,7 @@ The strength meter uses character count as a proxy. A 20-character passphrase of
 
 The recovery key is a randomly generated 32-byte key displayed once when you create a vault. It provides a passphrase-independent way to recover your vault if you forget your passphrase.
 
-:::danger The recovery key is shown only once
+:::danger[The recovery key is shown only once]
 
 Tegata cannot display the recovery key again after vault creation. If you lose both your passphrase and your recovery key, your vault cannot be recovered—not by you, not by anyone.
 
@@ -199,7 +199,7 @@ Tegata zeros sensitive memory immediately after use. You do not need to take spe
 - Generated TOTP/HOTP codes are not retained in memory after being displayed or copied.
 - The clipboard is automatically cleared after 45 seconds (configurable in `tegata.toml`).
 
-:::warning One known limitation
+:::warning[One known limitation]
 
 In the desktop GUI, the passphrase is briefly held as a JavaScript string in the WebView process. JavaScript strings are immutable and garbage-collected non-deterministically, so the passphrase may persist in the V8 heap for a short period after the Go side zeroes its copy. This is an inherent limitation of the WebView architecture and is documented as a known limitation.
 

@@ -35,7 +35,7 @@ tegata verify-recovery
 
 This verifies the key is valid.
 
-:::warning Recovery key is not a passphrase
+:::warning[Recovery key is not a passphrase]
 
 The recovery key is a separate 32-byte random value generated during vault initialization. It is not derived from your passphrase and cannot be used as one. If you have the recovery key but not the passphrase, run `tegata verify-recovery` to unlock the vault and then use `tegata change-passphrase` to set a new passphrase.
 

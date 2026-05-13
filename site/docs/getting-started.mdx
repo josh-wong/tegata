@@ -53,7 +53,7 @@ chmod +x tegata-darwin-arm64 # or chmod +x tegata-darwin-amd64 for Macs with Int
 cp tegata-darwin-arm64 /Volumes/<USB_DRIVE_NAME>/tegata # or cp tegata-darwin-amd64 /Volumes/<USB_DRIVE_NAME>/tegata for Macs with Intel processors
 ```
 
-:::warning macOS Gatekeeper
+:::warning[macOS Gatekeeper]
 
 macOS might block the binary the first time you run it. For the exact steps to clear the quarantine flag, see the [macOS setup guide](platform-setup.mdx#macos).
 
@@ -62,7 +62,7 @@ macOS might block the binary the first time you run it. For the exact steps to c
   </TabItem>
   <TabItem value="linux" label="Linux">
 
-:::note Linux support
+:::note[Linux support]
 
 Linux has not been manually tested. These steps are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
 
@@ -95,7 +95,7 @@ Download `tegata-gui-darwin-universal.dmg`. Open the disk image and drag Tegata 
   </TabItem>
   <TabItem value="linux" label="Linux">
 
-:::note Linux support
+:::note[Linux support]
 
 Linux has not been manually tested. These steps are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
 
@@ -106,7 +106,7 @@ Download the package format that matches your Linux system from the [Releases](h
 - `.deb` for Debian, Ubuntu, and derivatives: `sudo dpkg -i tegata-gui-linux-amd64.deb`
 - `.rpm` for Fedora, RHEL, and derivatives: `sudo rpm -i tegata-gui-linux-amd64.rpm`
 
-  </TabItem>
+</TabItem>
 </Tabs>
 
 ### Build the CLI and TUI from source
@@ -144,7 +144,7 @@ The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the va
   </TabItem>
 </Tabs>
 
-:::tip Make the CLI runnable from anywhere
+:::tip[Make the CLI runnable from anywhere]
 
 <Tabs groupId="source-install-os">
   <TabItem value="windows" label="Windows" default>
@@ -262,7 +262,7 @@ Recovery key (store this somewhere safe—you will not see it again):
     ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567
 ```
 
-:::danger Save your recovery key
+:::danger[Save your recovery key]
 
 Write your recovery key down and store it somewhere physically separate from your USB drive—a printed copy in a safe, a trusted password manager, or a locked drawer. If you forget your passphrase, this key is the only way to recover your vault. It cannot be retrieved after moving on from this screen.
 
@@ -315,7 +315,7 @@ Copied to clipboard (auto-clear in 45s)
 
 The code is displayed in the terminal and copied to your clipboard. The clipboard is automatically cleared after 45 seconds.
 
-:::tip Avoid typing the vault path every time
+:::tip[Avoid typing the vault path every time]
 
 Set the `TEGATA_VAULT` environment variable to your USB drive path by running the following command, replacing `/path/to/vault` with your vault path. All commands will find the vault automatically.
 
