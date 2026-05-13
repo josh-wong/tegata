@@ -99,8 +99,8 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Getting started',
-                to: '/docs/getting-started',
+                label: 'Quickstart',
+                to: '/docs/quickstart',
               },
               {
                 label: 'CLI reference',

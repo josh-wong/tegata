@@ -81,7 +81,7 @@ Three steps to start generating authentication codes.
    tegata code GitHub --vault /mnt/usb
    ```
 
-Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full walkthrough, see the [getting started guide](docs/getting-started.md).
+Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full walkthrough, see the [getting started guide](docs/quick-start.md).
 
 ## Screenshots
 
@@ -97,7 +97,7 @@ For end-user hardening guidance, see [security best practices](site/docs/securit
 
 | Document                                               | Description                                       |
 |--------------------------------------------------------|---------------------------------------------------|
-| [Getting started](docs/getting-started.md)             | Installation, quickstart, and daily use            |
+| [Quickstart](docs/quickstart.md)                      | Installation, quickstart, and daily use            |
 | [CLI command reference](docs/cli-reference.md)         | Complete documentation of all CLI commands          |
 | [ScalarDL setup](site/docs/scalardl-setup.mdx)         | Configure optional tamper-evident audit logging    |
 | [Security best practices](site/docs/security-best-practices.mdx) | User-facing security and operational guidance |

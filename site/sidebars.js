@@ -14,7 +14,7 @@ const sidebars = {
         type: 'generated-index',
         description: 'Learn what Tegata is and get your vault set up.',
       },
-      items: ['getting-started', 'platform-setup'],
+      items: ['quickstart', 'platform-setup'],
     },
     {
       type: 'category',
