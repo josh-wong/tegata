@@ -280,7 +280,7 @@ Tegata runs the full setup sequence: checks for Docker, extracts bundled compose
 
 After setup, every vault unlock automatically starts the Docker stack in the background.
 
-For more details, see the [ScalarDL setup guide](scalardl-setup.mdx).
+For more details, see the [Enable audit logging](scalardl-setup.mdx) guide.
 
 ### `tegata ledger stop`
 
@@ -303,7 +303,7 @@ Register the HMAC secret key with ScalarDL and verify connectivity. This is the 
 tegata ledger setup
 ```
 
-Reads the `[audit]` section from `tegata.toml` and registers the configured secret key. See the [ScalarDL setup guide](scalardl-setup.mdx) for configuration steps.
+Reads the `[audit]` section from `tegata.toml` and registers the configured secret key. For configuration steps, see the [Enable audit logging](scalardl-setup.mdx) guide.
 
 ### `tegata list`
 
@@ -397,7 +397,7 @@ tegata tag github --remove personal
 
 ### `tegata ui`
 
-Launch the interactive terminal user interface. If no vault is found, the TUI starts a setup wizard. See the [TUI guide](tui-guide.mdx) for a complete walkthrough.
+Launch the interactive terminal user interface. If no vault is found, the TUI starts a setup wizard. For a complete walkthrough, see the [Using the TUI](tui-guide.mdx) guide.
 
 **Usage:** `tegata ui`
 

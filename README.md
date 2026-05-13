@@ -99,7 +99,7 @@ For end-user hardening guidance, see [security best practices](site/docs/securit
 |--------------------------------------------------------|---------------------------------------------------|
 | [Quickstart](docs/quickstart.md)                      | Installation, quickstart, and daily use            |
 | [CLI command reference](docs/cli-reference.md)         | Complete documentation of all CLI commands          |
-| [ScalarDL setup](site/docs/scalardl-setup.mdx)         | Configure optional tamper-evident audit logging    |
+| [Enable audit logging](site/docs/scalardl-setup.mdx)   | Configure optional tamper-evident audit logging    |
 | [Security best practices](site/docs/security-best-practices.mdx) | User-facing security and operational guidance |
 | [Design document](docs/v1-design-doc.md)               | Technical architecture and component specifications |
 | [Product requirements](docs/v1-product-requirements-doc.md) | Requirements, use cases, and release plan     |

@@ -167,4 +167,4 @@ Access vault management options from the **File** menu.
 - **Passphrase in WebView heap.** The passphrase is briefly held as a JavaScript string in the underlying WebView process. JavaScript strings are immutable and garbage-collected non-deterministically, so the passphrase may persist in the V8 heap for a short time after the Go side zeroes its copy. This is a known limitation of the WebView architecture. For guidance, see [security best practices](security-best-practices.mdx#key-material-handling).
 - **No cross-compilation.** The GUI binary requires a native build for each platform because it depends on the system WebView (WebView2 on Windows, WKWebView on macOS, WebKit2GTK on Linux). Pre-built binaries for all platforms are available on the releases page.
 
-For a keyboard-driven terminal experience without the overhead of a graphical application, see the [TUI guide](tui-guide.mdx).
+For a keyboard-driven terminal experience without the overhead of a graphical application, see the [Using the TUI](tui-guide.mdx) guide.
