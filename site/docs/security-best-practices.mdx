@@ -29,7 +29,7 @@ Physical media quality matters. A failing USB drive can corrupt your vault file,
 - Drives from unverified sellers on auction sites. Clones and counterfeits are widespread.
 - Drives that report abnormally high capacity for their price. This is a common sign of a counterfeit.
 
-:::tip Keep a backup
+:::tip[Keep a backup]
 
 Store a second copy of your vault on a separate USB drive and update it whenever you add or remove credentials. Use `tegata export` to create an encrypted backup. For details on how to backup a vault, see [Backup and recovery](#backup-and-recovery).
 
@@ -145,7 +145,7 @@ The following example removes the `work` tag from the `GitHub` credential and ad
 tegata tag GitHub --remove work --add archive
 ```
 
-:::tip An "archive" tag for inactive credentials
+:::tip[An "archive" tag for inactive credentials]
 
 Rather than removing credentials for services you no longer actively use, tag them as `archive`. They remain accessible if you ever need the code again, and `tegata list --tag work` keeps them out of your everyday view.
 
