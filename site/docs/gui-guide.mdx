@@ -1,5 +1,5 @@
 ---
-title: Desktop GUI guide
+title: Using the desktop GUI
 sidebar_position: 3
 description: A walkthrough of the Tegata desktop GUI – Installation, vault setup, credential management, and the audit panel.
 ---
@@ -67,7 +67,7 @@ sudo apt install libwebkit2gtk-4.0-dev
 
 ## First launch and setup wizard
 
-When you open Tegata for the first time, it prompts you to locate or create a vault. If your USB drive is already connected, click **Open existing vault** and navigate to the vault file. If you have not created a vault yet, click **Create new vault**.
+When you open Tegata for the first time, it prompts you to locate or create a vault. If your USB drive is already connected, select **Open existing vault** and navigate to the vault file. If you have not created a vault yet, select **Create new vault**.
 
 The setup wizard guides you through:
 
@@ -76,7 +76,7 @@ The setup wizard guides you through:
 3. **Save your recovery key.** The recovery key is displayed once. Copy it and store it somewhere physically separate from the USB drive.
 4. **Add your first credential.** Optionally add a credential immediately after setup, or skip this step.
 
-:::danger[Save your recovery key before clicking Continue]
+:::danger[Save your recovery key before selecting Continue]
 
 The recovery key screen will not appear again. If you lose your passphrase without this key, the vault cannot be recovered.
 
@@ -89,13 +89,13 @@ After unlocking, the main window shows your credential list with live TOTP count
 // Screenshot placeholder: main window with credential list, TOTP countdown timers, light theme
 // Image: docs/images/gui-main-light.png
 
-The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to click.
+The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to select it.
 
 ### Generate a code
 
-Click any credential in the list to select it. The code and countdown appear in the detail panel on the right. Click **Copy** to copy the code to your clipboard. The clipboard is cleared automatically after 45 seconds.
+Select any credential in the list to select it. The code and countdown appear in the detail panel on the right. Select **Copy** to copy the code to your clipboard. The clipboard is cleared automatically after 45 seconds.
 
-For static password credentials, clicking **Copy** retrieves the password without displaying it in the UI. To display the password, click the eye icon next to the field.
+For static password credentials, selecting **Copy** retrieves the password without displaying it in the UI. To display the password, select the eye icon next to the field.
 
 ### Dark and light themes
 
@@ -106,14 +106,14 @@ The GUI respects your system appearance preference and switches between light an
 
 ## Adding a credential
 
-Click the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
+Select the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
 
 // Screenshot placeholder: add credential dialog, TOTP tab selected
 // Image: docs/images/gui-add-credential.png
 
-The dialog has four tabs corresponding to the four credential types: **TOTP**, **HOTP**, **Challenge-response**, and **Static password**. Fill in the required fields and click **Add**.
+The dialog has four tabs corresponding to the four credential types: **TOTP**, **HOTP**, **Challenge-response**, and **Static password**. Fill in the required fields and select **Add**.
 
-You can also add a credential by pasting an `otpauth://` URI directly. Click **Scan URI** and paste the URI into the input field. The type, label, issuer, algorithm, digits, and period are populated automatically.
+You can also add a credential by pasting an `otpauth://` URI directly. Select **Scan URI** and paste the URI into the input field. The type, label, issuer, algorithm, digits, and period are populated automatically.
 
 ## Editing and removing credentials
 
@@ -125,7 +125,7 @@ Right-click a credential in the list to access options:
 
 ## Settings panel
 
-Click the gear icon or open **Settings** from the application menu to access the settings panel.
+Select the gear icon or open **Settings** from the application menu to access the settings panel.
 
 // Screenshot placeholder: settings panel
 // Image: docs/images/gui-settings.png
@@ -146,7 +146,7 @@ The audit panel is available after enabling audit logging with `tegata ledger st
 // Screenshot placeholder: audit panel showing event history table
 // Image: docs/images/gui-audit-panel.png
 
-The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Click **Verify integrity** to run `tegata verify` and check the entire audit chain.
+The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Select **Verify integrity** to run `tegata verify` and check the entire audit chain.
 
 Events for removed credentials show as **(deleted)** in the label column. This is expected because the label hash is preserved in the ledger but the plaintext label is no longer in the vault.
 

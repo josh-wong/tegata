@@ -1,5 +1,5 @@
 ---
-title: ScalarDL audit setup
+title: Enable audit logging
 sidebar_position: 6
 description: Set up and test the optional tamper-evident audit layer (backed by ScalarDL Ledger) in Tegata, including one-click setup, manual configuration, and tamper-detection demos.
 ---
@@ -13,12 +13,16 @@ If you do not need tamper-evident logging, skip this guide and continue using Te
 
 ## Prerequisites
 
-- Docker Desktop (Windows, macOS) or Docker Engine 24+ with Compose v2 (Linux)
-- A Tegata vault initialized with `tegata init`
+- Docker Desktop (Windows and macOS) or Docker Engine 24+ with Compose v2 (Linux)
+- A Tegata vault initialized
 
 No certificates or key pairs are needed. Tegata uses ScalarDL's HMAC authentication mode with a secret key generated automatically during setup.
 
-## One-click setup
+## Set up via the GUI
+
+The desktop GUI includes a setup wizard for the audit layer. After initializing your vault, your first vault unlock prompts you to enable audit logging. Follow the prompts to complete setup with no command-line interaction.
+
+## Set up with one command via the terminal
 
 Run `tegata ledger start` once after initializing your vault, replacing `path/to/vault` with the path to your vault file:
 
@@ -26,7 +30,7 @@ Run `tegata ledger start` once after initializing your vault, replacing `path/to
 tegata ledger start --vault /path/to/vault
 ```
 
-Tegata prompts for your vault passphrase, then runs the full setup sequence.
+Tegata prompts for your vault passphrase, then runs the following full setup sequence:
 
 1. Checks that Docker is installed and starts the Docker daemon if it is not running.
 2. Extracts the bundled `docker-compose.yml` to `~/.tegata/docker/`.
@@ -44,7 +48,7 @@ Ledger server started. Audit logging is now active.
 
 From this point forward, every vault unlock automatically starts the Docker stack—including the Docker daemon if it is not running—in the background with no extra steps required.
 
-## Auto-start behavior
+## Configure auto-start behavior
 
 After setup, every vault unlock starts the Docker audit stack automatically.
 
@@ -67,11 +71,11 @@ To re-enable it:
 tegata config set audit.auto_start true
 ```
 
-## Testing the audit layer
+## Test the audit layer
 
 Test that events are recorded and integrity verification works as expected.
 
-### CLI
+### Test via the CLI
 
 Generate a TOTP code to trigger an audit event by running the following command, replacing `path/to/vault` with your vault path:
 
@@ -99,7 +103,7 @@ Audit log integrity verified. 3 events checked.
 
 `tegata verify` exits with code `9` on an integrity violation or `8` if the ledger is unreachable.
 
-### TUI
+### Test via the TUI
 
 Launch the TUI and unlock your vault by running the following command, replacing `path/to/vault` with your vault path:
 
@@ -114,16 +118,22 @@ Press `v` to open the audit overlay, then use `↑`/`j` and `↓`/`k` to select 
 
 Press **Esc** to close the overlay.
 
-### GUI
+### Test via the GUI
 
-Unlock your vault. The Docker audit stack starts in the background automatically. Click the shield icon in the header bar to open the audit panel.
+Unlock your vault. The Docker audit stack starts in the background automatically. Select the shield icon in the header bar to open the audit panel.
 
 - **View history.** Fetches and displays a table of audit events.
 - **Verify integrity.** Runs the hash-chain check; a green banner indicates a valid log, a red "TAMPER DETECTED" banner appears if the log has been modified.
 
-## Demonstrating tamper detection
+## Demonstrate tamper detection
 
 This procedure intentionally corrupts an audit record to verify that ScalarDL detects the modification.
+
+:::warning[Tampered records are permanent]
+
+Running the commands in this section modifies the audit log irreversibly. Do not run these commands on a vault you use for real authentication. Use a test vault or back up your vault file before proceeding.
+
+:::
 
 First, confirm the audit log is currently intact by running the following command, replacing `path/to/vault` with your vault path:
 
@@ -169,7 +179,7 @@ Integrity violation detected. <error details>
 
 The command exits with code `9`. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
 
-:::note[Tampered records are permanent]
+:::note[Clean the ledger after testing]
 
 The audit log is append-only by design—there is no way to delete entries through Tegata. If you want a clean ledger after testing, tear down the stack and re-run setup by running the following commands, replacing `path/to/vault` with your vault path:
 
@@ -180,7 +190,7 @@ tegata ledger start --vault /path/to/vault
 
 :::
 
-## Manual setup (advanced)
+## Set up the audit log manually (advanced)
 
 If you are running your own ScalarDL instance rather than the bundled Docker stack, skip `tegata ledger start` and configure `tegata.toml` manually.
 
