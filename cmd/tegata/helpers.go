@@ -311,7 +311,7 @@ func newEventBuilder(cfg config.Config, vaultDir string, passphrase []byte) (*au
 // by the operation-specific event. This is intentional: each invocation
 // decrypts the vault from scratch, so vault-unlock accurately reflects that a
 // session was started. Audit consumers will see one vault-unlock per command
-// (e.g. tegata add → vault-unlock + credential-add).
+// (e.g., tegata add → vault-unlock + credential-add).
 func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Manager) *audit.EventBuilder {
 	cfg, _ := config.Load(dir)
 	if secret := mgr.GetSecret("audit.secret_key"); secret != "" {

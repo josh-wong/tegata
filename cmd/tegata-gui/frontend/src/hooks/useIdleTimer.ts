@@ -31,7 +31,7 @@ export function useIdleTimer(timeoutMs: number, onIdle: () => void) {
       const now = Date.now()
       if (now - lastActivity.current >= timeoutMs) {
         // Reset the baseline so the timer cannot re-fire before the caller
-        // disables it (e.g. while an async lock transition is in flight).
+        // disables it (e.g., while an async lock transition is in flight).
         lastActivity.current = now
         onIdle()
       } else if (

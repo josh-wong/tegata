@@ -152,7 +152,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
 	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
 	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
-	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g. --tag work --tag totp)")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g., --tag work --tag totp)")
 
 	return cmd
 }

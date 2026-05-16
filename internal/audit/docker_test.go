@@ -103,7 +103,7 @@ func TestExtractComposeFiles_RewritesVolume(t *testing.T) {
 
 // TestDetectDocker_NotFound verifies the error message when Docker is absent.
 // This test temporarily modifies PATH to simulate Docker being absent.
-// It skips when Docker is found at a known fallback location (e.g. during
+// It skips when Docker is found at a known fallback location (e.g., during
 // local development on macOS where /usr/local/bin/docker exists) because
 // dockerBin() now checks known locations beyond PATH for GUI-app compatibility.
 func TestDetectDocker_NotFound(t *testing.T) {

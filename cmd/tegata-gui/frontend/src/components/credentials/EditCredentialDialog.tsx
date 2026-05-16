@@ -96,7 +96,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. GitHub"
+              placeholder="e.g., GitHub"
               disabled={loading}
               autoFocus
             />
@@ -108,7 +108,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               type="text"
               value={issuer}
               onChange={(e) => setIssuer(e.target.value)}
-              placeholder="e.g. GitHub Inc"
+              placeholder="e.g., GitHub Inc"
               disabled={loading}
             />
           </div>
@@ -119,7 +119,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. work"
+              placeholder="e.g., work"
               disabled={loading}
             />
           </div>
@@ -130,7 +130,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="e.g. work, personal, 2fa"
+              placeholder="e.g., work, personal, 2fa"
               disabled={loading}
             />
           </div>

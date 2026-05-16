@@ -581,7 +581,7 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 // disk after the vault is locked or the app closes.
 func (m model) deleteClientProperties() {
 	// Try to delete from the configured Docker compose location if available.
-	// DockerComposePath is a file path (e.g. .../docker/docker-compose.yml),
+	// DockerComposePath is a file path (e.g., .../docker/docker-compose.yml),
 	// so use its parent directory to locate the certs/ subdirectory.
 	if m.cfg.Audit.DockerComposePath != "" {
 		composeDir := filepath.Dir(m.cfg.Audit.DockerComposePath)

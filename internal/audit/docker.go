@@ -729,7 +729,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	}
 
 	// Sync docker-compose.yml from the embedded bundle so binary upgrades
-	// (e.g. ScalarDL version bumps) take effect automatically. Use effProject
+	// (e.g., ScalarDL version bumps) take effect automatically. Use effProject
 	// so the per-vault project name is embedded in the file even when
 	// docker_project_name was absent from the config (old binary).
 	if fsys != nil {

@@ -20,7 +20,7 @@ import (
 type auditHistoryMsg struct {
 	records []historyRecord
 	err     error
-	warning string // non-fatal issues (e.g. some events couldn't be fetched)
+	warning string // non-fatal issues (e.g., some events couldn't be fetched)
 }
 
 // auditVerifyMsg carries the result of an async verify call.

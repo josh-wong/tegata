@@ -53,7 +53,7 @@ var panelStyle = lipgloss.NewStyle().
 var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 
 // renderErrMsg renders msg with errorStyle, wrapping at terminal width minus
-// padding so long error strings (e.g. file paths) do not overflow narrow
+// padding so long error strings (e.g., file paths) do not overflow narrow
 // terminals. Subtracts 4 columns for left/right margin, with a minimum of 40
 // to ensure readability even on very narrow terminals (< 44 columns).
 func renderErrMsg(msg string, termWidth int) string {

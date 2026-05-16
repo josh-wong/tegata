@@ -9,7 +9,7 @@ import (
 )
 
 // WriteClipboardVaultSections writes or replaces the [clipboard] and [vault]
-// sections in tegata.toml located in dir. Any other sections (e.g. [audit])
+// sections in tegata.toml located in dir. Any other sections (e.g., [audit])
 // are preserved unchanged. If tegata.toml does not exist, it is created. If a
 // section already exists, it is replaced in place; otherwise it is appended.
 func WriteClipboardVaultSections(dir string, clipboardTimeout, idleTimeout int) error {
@@ -48,7 +48,7 @@ func rewriteSection(existing []byte, name, newBlock string) string {
 	// Find the start of the section header.
 	start := bytes.Index(existing, header)
 	if start > 0 && existing[start-1] != '\n' {
-		// The first match was mid-line (e.g. a value containing "[name]").
+		// The first match was mid-line (e.g., a value containing "[name]").
 		// Find the newline-prefixed occurrence instead.
 		idx := bytes.Index(existing[1:], append([]byte("\n"), header...))
 		if idx >= 0 {
