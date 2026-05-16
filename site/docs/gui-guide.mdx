@@ -86,8 +86,7 @@ The recovery key screen will not appear again. If you lose your passphrase witho
 
 After unlocking, the main window shows your credential list with live TOTP countdowns.
 
-// Screenshot placeholder: main window with credential list, TOTP countdown timers, light theme
-// Image: docs/images/gui-main-light.png
+![Main window in light theme with credential list and TOTP countdown timer](./images/gui-main-light.png)
 
 The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to select it.
 
@@ -96,11 +95,10 @@ The left sidebar lists all credentials. Each TOTP credential shows a circular co
 Select any credential in the list to select it. The code and countdown appear in the detail panel on the right. Select **Copy** to copy the code to your clipboard. The clipboard is cleared automatically after 45 seconds.
 
 For static password credentials, selecting **Copy** retrieves the password without displaying it in the UI. To display the password, select the eye icon next to the field.
+![Add credential dialog with manual entry options](./images/gui-add-credential.png)
 
 ### Dark and light themes
 
-// Screenshot placeholder: main window, dark theme
-// Image: docs/images/gui-main-dark.png
 
 The GUI respects your system appearance preference and switches between light and dark themes automatically. You can override this in the Settings panel.
 
@@ -108,8 +106,6 @@ The GUI respects your system appearance preference and switches between light an
 
 Select the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
 
-// Screenshot placeholder: add credential dialog, TOTP tab selected
-// Image: docs/images/gui-add-credential.png
 
 The dialog has four tabs corresponding to the four credential types: **TOTP**, **HOTP**, **Challenge-response**, and **Static password**. Fill in the required fields and select **Add**.
 
@@ -127,8 +123,7 @@ Right-click a credential in the list to access options:
 
 Select the gear icon or open **Settings** from the application menu to access the settings panel.
 
-// Screenshot placeholder: settings panel
-// Image: docs/images/gui-settings.png
+![Settings panel with theme, auto-lock, and clipboard controls](./images/gui-settings.png)
 
 Available settings:
 
@@ -143,8 +138,7 @@ Available settings:
 
 The audit panel is available after enabling audit logging with `tegata ledger start` (CLI) or through the Settings panel in the GUI.
 
-// Screenshot placeholder: audit panel showing event history table
-// Image: docs/images/gui-audit-panel.png
+![Audit panel showing event history table and integrity controls](./images/gui-audit-panel.png)
 
 The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Select **Verify integrity** to run `tegata verify` and check the entire audit chain.
 
