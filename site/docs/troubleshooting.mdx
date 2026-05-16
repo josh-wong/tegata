@@ -15,7 +15,7 @@ Use this page for symptom-driven fixes. For deeper security rationale and policy
 
 This section describes how to troubleshoot common problems with vault access, corruption, and passphrase recovery.
 
-### Cannot unlock the vault – Wrong passphrase
+### I can't unlock my vault because my passphrase is wrong
 
 **Symptom:** `tegata code` or `tegata ui` reports "Incorrect passphrase."
 
@@ -25,9 +25,9 @@ This section describes how to troubleshoot common problems with vault access, co
 - Check for Caps Lock. Passphrases are case-sensitive.
 - If you recently ran `tegata change-passphrase`, make sure you are using the new passphrase.
 
-**Rate limiting:** After several failed attempts, Tegata applies exponential backoff. The error message includes the number of remaining attempts. Wait for the indicated delay before trying again. Rate-limit state persists across sessions because it is stored in the vault header.
+**Rate limiting:** After several failed attempts, Tegata applies exponential backoff. The error message includes the number of remaining attempts. Wait for the indicated delay before trying again. Rate-limit state persists across sessions because it is stored in your vault header.
 
-**Vault recovery:** If you have forgotten your passphrase, you can unlock the vault with your recovery key:
+**Vault recovery:** If you have forgotten your passphrase, you can unlock your vault with your recovery key:
 
 ```bash
 tegata verify-recovery
@@ -37,23 +37,23 @@ This verifies the key is valid.
 
 :::warning[Recovery key is not a passphrase]
 
-The recovery key is a separate 32-byte random value generated during vault initialization. It is not derived from your passphrase and cannot be used as one. If you have the recovery key but not the passphrase, run `tegata verify-recovery` to unlock the vault and then use `tegata change-passphrase` to set a new passphrase.
+The recovery key is a separate 32-byte random value generated during vault creation. It is not derived from your passphrase and cannot be used as one. If you have the recovery key but not the passphrase, run `tegata verify-recovery` to unlock your vault and then use `tegata change-passphrase` to set a new passphrase.
 
 For recovery key storage and unrecoverable-loss guidance, see [Protecting your recovery key](security-best-practices.mdx#protecting-your-recovery-key).
 
 :::
 
-### Cannot find vault file
+### I can't find my vault file
 
-**Symptom:** `Error: no vault found. Use --vault, set TEGATA_VAULT, or run from the vault directory.`
+**Symptom:** `Error: no vault found. Use --vault, set TEGATA_VAULT, or run from your vault directory.`
 
-Tegata searches for the vault in this order:
+Tegata searches for your vault in this order:
 
 1. `--vault` flag
 2. `TEGATA_VAULT` environment variable
 3. `./vault.tegata` in the current directory
 
-**Fix:** Specify the vault path explicitly, replacing `/path/to/vault` with the actual path to your vault:
+**Fix:** Specify your vault path explicitly, replacing `/path/to/vault` with the actual path to your vault:
 
 ```bash
 tegata code GitHub --vault /path/to/vault
@@ -71,13 +71,13 @@ In PowerShell on Windows, set the environment variable by running the following 
 $env:TEGATA_VAULT = "<USB_DRIVE_LETTER>:\"
 ```
 
-### Vault appears corrupted
+### My vault appears corrupted
 
 **Symptom:** `Error: vault corrupt or invalid magic bytes.`
 
-This usually means either the wrong file was specified or the vault was damaged (power loss during write, filesystem error).
+This usually means either the wrong file was specified or your vault was damaged (power loss during write, filesystem error).
 
-**Try the backup first:** Tegata creates a `.bak` file in the vault directory before every write. If `vault.tegata.bak` exists, try renaming it to `vault.tegata`:
+**Try the backup first:** Tegata creates a `.bak` file in your vault directory before every write. If `vault.tegata.bak` exists, try renaming it to `vault.tegata`:
 
 <Tabs groupId="os">
   <TabItem value="windows" label="Windows" default>
@@ -107,7 +107,7 @@ tegata init /path/to/vault # Create fresh vault
 tegata import /path/to/backup/vault.tegata-backup # Restore credentials
 ```
 
-### Vault locked after idle timeout
+### My vault locked after the idle timeout
 
 **Symptom:** The TUI or GUI shows a lock screen or session expired message.
 
@@ -117,7 +117,7 @@ The vault auto-locks after 5 minutes of inactivity (default). Re-enter your pass
 
 This section describes how to troubleshoot common problems with clipboard operations, such as codes not copying or auto-clear firing too quickly.
 
-### Clipboard auto-clear fires too quickly (or too slowly)
+### The clipboard auto-clear fires too quickly (or too slowly)
 
 The default clipboard clear delay is 45 seconds. Adjust it in `tegata.toml`:
 
@@ -126,7 +126,7 @@ The default clipboard clear delay is 45 seconds. Adjust it in `tegata.toml`:
 clear_delay = 90 # seconds; 0 disables auto-clear
 ```
 
-### Code is not copied to clipboard on Linux
+### Codes are not copied to the clipboard on Linux
 
 **Symptom:** The output shows `Copied to clipboard` but pasting produces nothing.
 
@@ -162,7 +162,7 @@ If you are in a headless or SSH session without X11 forwarding, clipboard operat
 tegata code GitHub --clip=false
 ```
 
-### Clipboard does not work on WSL2
+### The clipboard doesn't work on WSL2
 
 WSL2 uses `clip.exe` from the Windows host. Verify that WSL interop is enabled:
 
@@ -215,7 +215,7 @@ sudo usermod -aG docker $USER
   </TabItem>
 </Tabs>
 
-### Ledger setup hangs at "waiting for HashStore contracts"
+### The ledger setup hangs at "waiting for HashStore contracts"
 
 **Symptom:** The setup progress stalls at the HashStore registration step for more than 10 minutes.
 
@@ -240,7 +240,7 @@ docker compose run --rm scalardl-contract-registration
 
 If this command fails with `INVALID_SIGNATURE`, check `~/.tegata/docker/certs/client.properties` and verify that the `scalar.db.storage.secret_key` value is on a single line with no embedded line breaks.
 
-### Port conflict with ScalarDL
+### There's a port conflict with ScalarDL
 
 **Symptom:** Docker fails to start the ledger containers with a port already in use error.
 
@@ -256,9 +256,9 @@ Stop the conflicting service and retry `tegata ledger start`. On Windows, if no 
 wsl -- sudo service postgresql stop
 ```
 
-### Audit history shows `(deleted)` labels
+### The audit history shows `(deleted)` labels
 
-When a credential is removed with `tegata remove`, the label is no longer in the vault. Events logged before removal are preserved in the ledger but Tegata cannot resolve the label hash to a name. The history output shows `(deleted)` for these events. This is expected behavior.
+When a credential is removed with `tegata remove`, the label is no longer in your vault. Events logged before removal are preserved in the ledger but Tegata cannot resolve the label hash to a name. The history output shows `(deleted)` for these events. This is expected behavior.
 
 ### `tegata verify` reports integrity violations
 
@@ -325,7 +325,7 @@ xattr -r -d com.apple.quarantine /Applications/Tegata.app
 The CLI binary is built with `CGO_ENABLED=0` and does not require a C compiler. If you see CGO errors when building from macOS or Linux, confirm that you are building the CLI target:
 
 ```bash
-make build # builds bin/tegata
+make build # Builds bin/tegata
 ```
 
 On Windows, `make build` requires cmd.exe and GNU Make. Instead, in PowerShell, build directly by running the following commands from the repository root:
@@ -338,7 +338,7 @@ go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
 The GUI requires CGO because it depends on the system WebView. To build the GUI, install Xcode Command Line Tools on macOS, `build-essential` on Linux, or MSVC on Windows, then use:
 
 ```bash
-wails build # builds the GUI binary
+wails build # Builds the GUI binary
 ```
 
 ## TOTP/HOTP issues
@@ -383,7 +383,7 @@ sudo timedatectl set-ntp true
 
 If the clock is correct but codes are still rejected, verify that you added the correct secret during `tegata add`. You may need to remove the credential and re-add it.
 
-### HOTP counter is out of sync
+### The HOTP counter is out of sync
 
 If you have generated codes elsewhere (in another authenticator app, on the service's test page) without using Tegata, the counters may be desynchronized.
 

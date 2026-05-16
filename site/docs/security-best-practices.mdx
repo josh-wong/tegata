@@ -19,7 +19,7 @@ Physical media quality matters. A failing USB drive can corrupt your vault file,
 ### Look for these characteristics
 
 - **Reputable brand.** Use drives from established manufacturers. Counterfeit drives are common on online marketplaces and often misreport their capacity or fail prematurely.
-- **Write endurance.** Consumer USB flash drives and microSD cards have a finite write cycle count (typically 3,000–10,000 cycles for TLC NAND). Tegata only writes to the vault on credential changes, not on every read, so endurance is rarely a practical concern. However, avoid very cheap drives marketed for bulk storage.
+- **Write endurance.** Consumer USB flash drives and microSD cards have a finite write cycle count (typically 3,000–10,000 cycles for TLC NAND). Tegata only writes to your vault on credential changes, not on every read, so endurance is rarely a practical concern. However, avoid very cheap drives marketed for bulk storage.
 - **Physical durability.** A metal-cased drive survives being carried on a keychain. Plastic caps crack and expose the connector. Consider a drive with a retractable connector or a protective cap that attaches.
 - **Capacity.** Even a small USB drive (1 GB) is far more than enough. The vault file for hundreds of credentials is under 1 MB.
 
@@ -31,7 +31,7 @@ Physical media quality matters. A failing USB drive can corrupt your vault file,
 
 :::tip[Keep a backup]
 
-Store a second copy of your vault on a separate USB drive and update it whenever you add or remove credentials. Use `tegata export` to create an encrypted backup. For details on how to backup a vault, see [Backup and recovery](#backup-and-recovery).
+Store a second copy of your vault on a separate USB drive and update it whenever you add or remove credentials. Use `tegata export` to create an encrypted backup. For details on how to backup your vault, see [Backup and recovery](#backup-and-recovery).
 
 :::
 
@@ -71,21 +71,21 @@ Tegata cannot display the recovery key again after vault creation. If you lose b
 **Store the recovery key in at least one of these locations:**
 
 - Printed on paper, stored in a physically secure location (a safe, a locked drawer, a sealed envelope with important documents, or a trusted person's custody)
-- In a password manager on a separate device (not on the same USB drive as the vault)
+- In a password manager on a separate device (not on the same USB drive as your vault)
 
 **Do not store the recovery key:**
 
-- On the same USB drive as the vault. If the drive is lost, both are compromised.
+- On the same USB drive as your vault. If the drive is lost, both are compromised.
 - In an email or cloud note service without encryption.
 - In a text file on your main computer in a world-readable location.
 
-To verify that your stored recovery key is still valid without recovering the vault, run:
+To verify that your stored recovery key is still valid without recovering your vault, run:
 
 ```bash
 tegata verify-recovery
 ```
 
-This checks the key's hash against the value stored in the vault header without modifying any vault data.
+This checks the key's hash against the value stored in your vault header without modifying any vault data.
 
 ## Backup and recovery
 
@@ -99,11 +99,11 @@ To create an encrypted backup of your vault, run the following command, replacin
 tegata export --out /path/to/backup/vault.tegata-backup
 ```
 
-Tegata prompts for your vault passphrase and then asks you to set an independent backup passphrase. Store the backup passphrase separately from the vault passphrase; if they are identical and an attacker learns one, they have both.
+Tegata prompts for your vault passphrase and then asks you to set an independent backup passphrase. Store the backup passphrase separately from your vault passphrase; if they are identical and an attacker learns one, they have both.
 
 ### Restore from backup
 
-To restore a vault from a backup file, run the following command, replacing the path with your backup file:
+To restore your vault from a backup file, run the following command, replacing the path with your backup file:
 
 ```bash
 tegata import /path/to/backup/vault.tegata-backup
@@ -182,7 +182,7 @@ A successful run does **not** prove that the events were written by an authorize
 tegata history --from 2026-01-01 --to 2026-03-31
 ```
 
-The history view shows four columns: operation type, truncated label hash, timestamp (UTC), and truncated event hash. Tegata resolves hashes to human-readable credential labels by reading the vault (you are prompted for your passphrase). If a credential has been removed from the vault since the event was recorded, the label displays as `(deleted)`.
+The history view shows four columns: operation type, truncated label hash, timestamp (UTC), and truncated event hash. Tegata resolves hashes to human-readable credential labels by reading your vault (you are prompted for your passphrase). If a credential has been removed from your vault since the event was recorded, the label displays as `(deleted)`.
 
 Use `--json` to pipe the output to `jq` or log aggregation tools:
 

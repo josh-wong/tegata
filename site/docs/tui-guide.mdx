@@ -4,7 +4,7 @@ sidebar_position: 4
 description: A complete walkthrough of the interactive terminal user interface of Tegata – Navigation, credential management, and keyboard shortcuts.
 ---
 
-Tegata includes an interactive terminal user interface (TUI) for users who prefer a keyboard-driven, visual experience over individual CLI commands. The TUI maintains a session with an idle timeout-based auto-lock, so you unlock the vault once and generate codes throughout your session.
+Tegata includes an interactive terminal user interface (TUI) for users who prefer a keyboard-driven, visual experience over individual CLI commands. The TUI maintains a session with an idle timeout-based auto-lock, so you unlock your vault once and generate codes throughout your session.
 
 Launch the TUI by running the following command in your terminal:
 
@@ -14,7 +14,7 @@ tegata ui
 
 ## First launch and setup wizard
 
-If no vault exists at the resolved vault path, the TUI launches a setup wizard. The wizard guides you through the same steps as `tegata init`—choosing a passphrase, creating the vault, and displaying your recovery key.
+If no vault exists at the resolved vault path, the TUI launches a setup wizard. The wizard guides you through the same steps as `tegata init`—choosing a passphrase, creating your vault, and displaying your recovery key.
 
 :::danger[Save your recovery key]
 
@@ -24,7 +24,7 @@ The recovery key is displayed once at the end of the wizard. Write it down and s
 
 After setup completes, the wizard transitions automatically to the main view.
 
-## Unlocking the vault
+## Unlocking your vault
 
 If a vault already exists, the TUI presents an unlock prompt on launch:
 
@@ -73,7 +73,7 @@ Use these keys to move through your credential list and manage your session.
 | `↓` or `j` | Move selection down |
 | `↑` or `k` | Move selection up |
 | `Enter` | Copy code or password for the selected credential |
-| `q` | Quit (the vault auto-locks) |
+| `q` | Quit (your vault auto-locks) |
 
 Selection wraps around: pressing `↑`/`k` on the first credential moves to the last, and pressing `↓`/`j` on the last credential moves to the first.
 
@@ -180,7 +180,7 @@ The sidebar scrolls independently of the detail panel. Use `↑`/`j` and `↓`/`
 ## Tips for daily use
 
 - **Leave the TUI running.** Keep a terminal window open with `tegata ui` throughout your work session. The vault stays unlocked (subject to the idle timeout) and you can generate codes with a single `Enter` keypress.
-- **No vault path needed.** If you set `TEGATA_VAULT`, the TUI finds the vault automatically. Otherwise, run `tegata ui --vault /path/to/vault`, replacing `/path/to/vault` with the actual path to your vault.
+- **No vault path needed.** If you set `TEGATA_VAULT`, the TUI finds your vault automatically. Otherwise, run `tegata ui --vault /path/to/vault`, replacing `/path/to/vault` with the actual path to your vault.
 - **Prefer `tegata code` for scripting.** The TUI is for interactive use. For automation or shell aliases, use the CLI directly.
 
 For full CLI command documentation, see the [CLI reference](cli-reference.mdx).

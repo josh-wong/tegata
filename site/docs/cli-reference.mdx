@@ -8,7 +8,7 @@ This page describes every Tegata CLI command with its flags, defaults, and usage
 
 ## Vault resolution
 
-All commands that access the vault use the following resolution order.
+All commands that access your vault use the following resolution order.
 
 1. `--vault` flag (directory or file path—highest priority)
 2. `TEGATA_VAULT` environment variable
@@ -31,7 +31,7 @@ This section lists all CLI commands in alphabetical order. For a quickstart guid
 
 ### `tegata add`
 
-Add a credential to the vault. Supports TOTP, HOTP, static password, and challenge-response credential types.
+Add a credential to your vault. Supports TOTP, HOTP, static password, and challenge-response credential types.
 
 **Usage:** `tegata add <LABEL> [FLAGS]`
 
@@ -77,7 +77,7 @@ Output includes per-run timings and whether the result is within the 3-second ta
 
 ### `tegata change-passphrase`
 
-Rotate the vault passphrase without re-encrypting the credential payload. Only the passphrase-wrapped data encryption key and header salt are replaced.
+Rotate your vault passphrase without re-encrypting the credential payload. Only the passphrase-wrapped data encryption key and header salt are replaced.
 
 **Usage:** `tegata change-passphrase`
 
@@ -154,13 +154,13 @@ Export all credentials to an encrypted `.tegata-backup` file. The backup is prot
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--out` | string | `vault.tegata-backup` in the vault directory | Output path for the backup file. |
+| `--out` | string | `vault.tegata-backup` in your vault directory | Output path for the backup file. |
 
 ```bash title="Export to a specific location"
 tegata export --out ~/backups/vault.tegata-backup
 ```
 
-Tegata prompts for the vault passphrase, then prompts for and confirms a new export passphrase (minimum 8 characters). The export passphrase is independent of the vault passphrase.
+Tegata prompts for your vault passphrase, then prompts for and confirms a new export passphrase (minimum 8 characters). The export passphrase is independent of your vault passphrase.
 
 :::tip[Set a different export passphrase]
 
@@ -194,7 +194,7 @@ tegata get backup-key --show
 
 View authentication event history from the ScalarDL Ledger. Requires audit logging to be enabled in `tegata.toml`.
 
-Tegata prompts for the vault passphrase to resolve label hashes to human-readable credential names. If a credential has been removed since the event was recorded, the label displays as `(deleted)`.
+Tegata prompts for your vault passphrase to resolve label hashes to human-readable credential names. If a credential has been removed since the event was recorded, the label displays as `(deleted)`.
 
 **Usage:** `tegata history [FLAGS]`
 
@@ -226,7 +226,7 @@ tegata history --json | jq '.[] | select(.operation == "totp")'
 
 ### `tegata import`
 
-Import credentials from an encrypted `.tegata-backup` file into the current vault. Credentials whose label already exists in the vault are skipped.
+Import credentials from an encrypted `.tegata-backup` file into the current vault. Credentials whose label already exists in your vault are skipped.
 
 **Usage:** `tegata import <BACKUP-FILE>`
 
@@ -236,33 +236,33 @@ Import credentials from an encrypted `.tegata-backup` file into the current vaul
 tegata import ~/backups/vault.tegata-backup
 ```
 
-Tegata prompts for the vault passphrase and then the backup passphrase. For scripted restore flows, the backup passphrase can be provided via the `TEGATA_BACKUP_PASSPHRASE` environment variable.
+Tegata prompts for your vault passphrase and then the backup passphrase. For scripted restore flows, the backup passphrase can be provided via the `TEGATA_BACKUP_PASSPHRASE` environment variable.
 
 ### `tegata init`
 
-Create a new encrypted vault. If a path argument is provided, it is used as the vault directory. Otherwise the current directory is used.
+Create a new encrypted vault. If a path argument is provided, it is used as your vault directory. Otherwise the current directory is used.
 
 **Usage:** `tegata init [path]`
 
 **Examples:**
 
-To initialize a vault on a USB drive, run the following command, replacing `/path/to/usb` with your drive path:
+To create a vault on a USB drive, run the following command, replacing `/path/to/usb` with your drive path:
 
 ```bash title="Initialize vault on a USB drive"
 tegata init /path/to/usb
 ```
 
-To initialize a vault in the current directory, run the following command:
+To create a vault in the current directory, run the following command:
 
 ```bash title="Initialize in current directory"
 tegata init
 ```
 
-Tegata prompts for and confirms a passphrase (minimum 8 characters), creates the vault file, writes a default `tegata.toml` configuration, and displays a recovery key. Store the recovery key in a separate secure location before proceeding.
+Tegata prompts for and confirms a passphrase (minimum 8 characters), creates your vault file, writes a default `tegata.toml` configuration, and displays a recovery key. Store the recovery key in a separate secure location before proceeding.
 
 ### `tegata ledger start`
 
-One-click setup that starts the ScalarDL Ledger Docker stack and configures audit logging. Run this once after initializing a vault to enable the audit layer.
+One-click setup that starts the ScalarDL Ledger Docker stack and configures audit logging. Run this once after creating your vault to enable the audit layer.
 
 **Usage:** `tegata ledger start [flags]`
 
@@ -307,7 +307,7 @@ Reads the `[audit]` section from `tegata.toml` and registers the configured secr
 
 ### `tegata list`
 
-List all credentials in the vault, grouped by tag. Untagged credentials appear under `[untagged]`.
+List all credentials in your vault, grouped by tag. Untagged credentials appear under `[untagged]`.
 
 **Usage:** `tegata list [flags]`
 
@@ -329,7 +329,7 @@ tegata list --tag work
 
 ### `tegata remove`
 
-Remove a credential from the vault. Tegata prompts for confirmation before removing.
+Remove a credential from your vault. Tegata prompts for confirmation before removing.
 
 **Usage:** `tegata remove <LABEL>`
 
@@ -427,7 +427,7 @@ tegata verify --vault /media/usb/vault.tegata
 
 ### `tegata verify-recovery`
 
-Verify a recovery key against the vault by checking its SHA-256 hash against the value stored at vault creation time.
+Verify a recovery key against your vault by checking its SHA-256 hash against the value stored at vault creation time.
 
 **Usage:** `tegata verify-recovery`
 
@@ -435,7 +435,7 @@ Verify a recovery key against the vault by checking its SHA-256 hash against the
 tegata verify-recovery
 ```
 
-Tegata prompts for the vault passphrase and then the recovery key string. Run this periodically to confirm that your stored recovery key is still valid.
+Tegata prompts for your vault passphrase and then the recovery key string. Run this periodically to confirm that your stored recovery key is still valid.
 
 ### `tegata version`
 

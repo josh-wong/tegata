@@ -7,7 +7,7 @@ description: Install Tegata, create your first vault, and generate your first 2F
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This guide walks you through installing Tegata, creating your first vault, and generating your first TOTP code. By the end, you will have a working vault and a complete picture of the workflow. If you are new to Tegata, see the [Introduction](introduction.mdx) first.
+This guide walks you through installing Tegata, creating your first vault, and running your first credential workflow, using TOTP as an example. By the end, you will have a working vault and a complete picture of the workflow. If you are new to Tegata, see the [Introduction](introduction.mdx) first.
 
 ## Prerequisites
 
@@ -128,7 +128,7 @@ $env:CGO_ENABLED = "0"
 go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
 ```
 
-The binary is placed in `bin\tegata.exe`. Copy it to your USB drive alongside the vault.
+The binary is placed in `bin\tegata.exe`. Copy it to your USB drive alongside your vault.
 
   </TabItem>
   <TabItem value="macos-linux" label="macOS/Linux">
@@ -139,7 +139,7 @@ In Terminal, run the following command from the repository root:
 make build
 ```
 
-The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the vault.
+The binary is placed in `bin/tegata`. Copy it to your USB drive alongside your vault.
 
   </TabItem>
 </Tabs>
@@ -218,7 +218,7 @@ On macOS, the app bundle is placed in `cmd/tegata-gui/build/bin/Tegata.app`. On 
   </TabItem>
 </Tabs>
 
-## Create your vault
+## Create a vault
 
 To create a vault, choose your platform and run the corresponding command.
 
@@ -315,9 +315,9 @@ Copied to clipboard (auto-clear in 45s)
 
 The code is displayed in the terminal and copied to your clipboard. The clipboard is automatically cleared after 45 seconds.
 
-:::tip[Avoid typing the vault path every time]
+:::tip[Avoid typing your vault path every time]
 
-Set the `TEGATA_VAULT` environment variable to your USB drive path by running the following command, replacing `/path/to/vault` with your vault path. All commands will find the vault automatically.
+Set the `TEGATA_VAULT` environment variable to your USB drive path by running the following command, replacing `/path/to/vault` with your vault path. All commands will find your vault automatically.
 
 ```bash
 export TEGATA_VAULT=/path/to/vault
@@ -350,7 +350,7 @@ Credentials are grouped by tag. Untagged credentials appear under `[untagged]`.
 
 ### Vault resolution order
 
-When you do not specify `--vault`, Tegata looks for the vault in this order:
+When you do not specify `--vault`, Tegata looks for your vault in this order:
 
 1. `--vault` flag
 2. `TEGATA_VAULT` environment variable

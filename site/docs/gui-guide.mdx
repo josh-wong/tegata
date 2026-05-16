@@ -7,7 +7,7 @@ description: A walkthrough of the Tegata desktop GUI – Installation, vault set
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The Tegata desktop GUI provides the same vault management and credential operations as the CLI and TUI with a graphical interface. It includes a setup wizard, live TOTP countdown timers, a settings panel, and an audit panel.
+The Tegata desktop GUI provides the same vault management and credential operations as the CLI and TUI with a graphical interface. It includes a setup wizard, type-specific credential actions (for example, TOTP countdown timers), a settings panel, and an audit panel.
 
 :::note[The GUI stays on your host machine]
 
@@ -65,61 +65,63 @@ sudo apt install libwebkit2gtk-4.0-dev
   </TabItem>
 </Tabs>
 
-## First launch and setup wizard
+## Launch the setup wizard to create a vault
 
-When you open Tegata for the first time, it prompts you to locate or create a vault. If your USB drive is already connected, select **Open existing vault** and navigate to the vault file. If you have not created a vault yet, select **Create new vault**.
+When you open Tegata for the first time, it prompts you to locate or create a vault. If your USB drive is already connected, select **Open existing vault** and navigate to your vault file. If you have not created a vault yet, select **Create new vault**.
 
 The setup wizard guides you through:
 
-1. **Choose vault location.** Select the USB drive or microSD card directory where the vault will be created.
+1. **Choose vault location.** Select the USB drive or microSD card directory where your vault will be created.
 2. **Create a passphrase.** Enter and confirm a passphrase. A strength indicator shows the estimated security level.
 3. **Save your recovery key.** The recovery key is displayed once. Copy it and store it somewhere physically separate from the USB drive.
 4. **Add your first credential.** Optionally add a credential immediately after setup, or skip this step.
 
 :::danger[Save your recovery key before selecting Continue]
 
-The recovery key screen will not appear again. If you lose your passphrase without this key, the vault cannot be recovered.
+The recovery key screen will not appear again. If you lose your passphrase without this key, your vault cannot be recovered.
 
 :::
 
-## Main window
+## Unlock your vault
 
-After unlocking, the main window shows your credential list with live TOTP countdowns.
+After unlocking your vault, the left sidebar shows your list of credentials.
 
 ![Main window in light theme with credential list and TOTP countdown timer](./images/gui-main-light.png)
 
-The left sidebar lists all credentials. Each TOTP credential shows a circular countdown indicator that depletes as the current code window expires. The code refreshes automatically when the window rolls over—you do not need to select it.
-
-### Generate a code
-
-Select any credential in the list to select it. The code and countdown appear in the detail panel on the right. Select **Copy** to copy the code to your clipboard. The clipboard is cleared automatically after 45 seconds.
-
-For static password credentials, selecting **Copy** retrieves the password without displaying it in the UI. To display the password, select the eye icon next to the field.
-![Add credential dialog with manual entry options](./images/gui-add-credential.png)
-
-### Dark and light themes
-
-
-The GUI respects your system appearance preference and switches between light and dark themes automatically. You can override this in the Settings panel.
-
-## Adding a credential
+## Add a credential
 
 Select the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
 
+![Add credential dialog with manual entry options](./images/gui-add-credential.png)
 
 The dialog has four tabs corresponding to the four credential types: **TOTP**, **HOTP**, **Challenge-response**, and **Static password**. Fill in the required fields and select **Add**.
 
 You can also add a credential by pasting an `otpauth://` URI directly. Select **Scan URI** and paste the URI into the input field. The type, label, issuer, algorithm, digits, and period are populated automatically.
 
-## Editing and removing credentials
+## Use a credential
+
+Select any credential in the list. The detail panel on the right updates based on credential type:
+
+- **TOTP:** Select **Copy** to copy the current output to your clipboard. A countdown timer shows the time until the next code.
+- **HOTP:** Select **Generate code** to copy the current output to your clipboard. The clipboard is cleared automatically after 45 seconds by default (configurable in Settings).
+- **Challenge-response:** Enter a challenge string and select **Sign**. A signature will be generated. Select **Copy** to copy it to your clipboard.
+- **Static password:** Select **Copy to clipboard** to copy the password. The password is not displayed in the UI. This is a security measure to prevent shoulder surfing and accidental exposure when using static passwords.
+
+:::note[Clipboard auto-clear]
+
+The clipboard is cleared automatically after 45 seconds by default (configurable in Settings). This is a security measure to minimize the risk of sensitive data lingering in the clipboard if you forget to clear it manually.
+
+:::
+
+## Edit or remove a credential
 
 Right-click a credential in the list to access options:
 
-- **Edit tags.** Add or remove tags for organizing credentials
-- **Copy code.** Same as single-clicking
-- **Remove.** Shows a confirmation dialog before deleting
+- **Edit tags.** Add or remove tags for organizing credentials.
+- **Copy code.** For OTP and static-password credentials, this is the same as single-clicking.
+- **Remove.** Shows a confirmation dialog before deleting.
 
-## Settings panel
+## Configure the app settings
 
 Select the gear icon or open **Settings** from the application menu to access the settings panel.
 
@@ -130,11 +132,11 @@ Available settings:
 | Setting | Description | Default |
 |---------|-------------|---------|
 | Clipboard clear delay | Seconds before the clipboard is cleared after copying | 45 |
-| Idle timeout | Minutes before the vault auto-locks | 5 |
+| Idle timeout | Minutes before your vault auto-locks | 5 |
 | Theme | Light, Dark, or System | System |
 | Audit auto-start | Start Docker audit stack automatically on unlock | On (after `tegata ledger start`) |
 
-## Audit panel
+## View events in the audit panel
 
 The audit panel is available after enabling audit logging with `tegata ledger start` (CLI) or through the Settings panel in the GUI.
 
@@ -142,9 +144,9 @@ The audit panel is available after enabling audit logging with `tegata ledger st
 
 The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Select **Verify integrity** to run `tegata verify` and check the entire audit chain.
 
-Events for removed credentials show as **(deleted)** in the label column. This is expected because the label hash is preserved in the ledger but the plaintext label is no longer in the vault.
+Events for removed credentials show as **(deleted)** in the label column. This is expected because the label hash is preserved in the ledger but the plaintext label is no longer in your vault.
 
-## Vault management
+## Manage your vault
 
 Access vault management options from the **File** menu.
 
@@ -152,9 +154,9 @@ Access vault management options from the **File** menu.
 |--------|-------------|
 | **Export backup** | Create an encrypted `.tegata-backup` file with an independent export passphrase |
 | **Import backup** | Merge credentials from a `.tegata-backup` file into the current vault |
-| **Change passphrase** | Rotate the vault passphrase |
+| **Change passphrase** | Rotate your vault passphrase |
 | **Verify recovery key** | Confirm that your stored recovery key is still valid |
-| **Lock vault** | Lock the vault immediately without quitting |
+| **Lock vault** | Lock your vault immediately without quitting |
 
 ## Known limitations
 

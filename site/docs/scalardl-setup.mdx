@@ -14,17 +14,18 @@ If you do not need tamper-evident logging, skip this guide and continue using Te
 ## Prerequisites
 
 - Docker Desktop (Windows and macOS) or Docker Engine 24+ with Compose v2 (Linux)
-- A Tegata vault initialized
+- A Tegata vault already set up with credentials
+  - See [Quickstart](quickstart.mdx) if you need to create a vault.
 
 No certificates or key pairs are needed. Tegata uses ScalarDL's HMAC authentication mode with a secret key generated automatically during setup.
 
 ## Set up via the GUI
 
-The desktop GUI includes a setup wizard for the audit layer. After initializing your vault, your first vault unlock prompts you to enable audit logging. Follow the prompts to complete setup with no command-line interaction.
+The desktop GUI includes a setup wizard for the audit layer. After creating your vault, your first vault unlock prompts you to enable audit logging. Follow the prompts to complete setup with no command-line interaction.
 
 ## Set up with one command via the terminal
 
-Run `tegata ledger start` once after initializing your vault, replacing `path/to/vault` with the path to your vault file:
+Run `tegata ledger start` once after creating your vault, replacing `path/to/vault` with the path to your vault file:
 
 ```bash
 tegata ledger start --vault /path/to/vault
@@ -131,7 +132,7 @@ This procedure intentionally corrupts an audit record to verify that ScalarDL de
 
 :::warning[Tampered records are permanent]
 
-Running the commands in this section modifies the audit log irreversibly. Do not run these commands on a vault you use for real authentication. Use a test vault or back up your vault file before proceeding.
+Running the commands in this section modifies the audit log irreversibly. Do not run these commands on a vault that you use for real authentication. Use a test vault or back up your vault file before proceeding.
 
 :::
 
@@ -241,7 +242,7 @@ The `secret_key` is not stored in `tegata.toml`; instead, it is stored in the en
 tegata ledger setup --vault /path/to/vault
 ```
 
-Tegata prompts for your vault passphrase and loads the HMAC secret from the vault automatically.
+Tegata prompts for your vault passphrase and loads the HMAC secret from your vault automatically.
 
 ## Troubleshooting
 
