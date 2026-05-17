@@ -27,6 +27,12 @@ Tegata provides a low-cost alternative to hardware security keys with portable e
 - **Optional ScalarDL Ledger integration** for tamper-evident audit logging with hash-chain verification
 - **Offline event queue** stores audit events when the ledger is unreachable
 
+OTP algorithm standards in Tegata follow the RFCs and common provisioning behavior:
+
+- **HOTP** uses **SHA-1 only** (RFC 4226).
+- **TOTP** supports **SHA-1, SHA-256, and SHA-512** (RFC 6238).
+- For manual TOTP entry, default to **SHA-1** unless your provider's `otpauth://` URI explicitly specifies a different algorithm.
+
 ## Installation
 
 Tegata can be installed using pre-built binaries or built from source.

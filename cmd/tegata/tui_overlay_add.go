@@ -67,6 +67,7 @@ func (m *model) resetAddOverlay() {
 	m.addSecretInput.Reset()
 	m.addSecretInput.Blur()
 	m.addPeriodInput.Reset()
+	m.addPeriodInput.SetValue("30")
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Reset()
 	m.addTagsInput.Blur()
@@ -102,7 +103,7 @@ func (m model) addVisibleSlots() []int {
 	case pkgmodel.CredentialTOTP:
 		slots = append(slots, addSlotAlgorithm, addSlotDigits, addSlotPeriod)
 	case pkgmodel.CredentialHOTP:
-		slots = append(slots, addSlotAlgorithm, addSlotDigits)
+		slots = append(slots, addSlotDigits)
 	case pkgmodel.CredentialChallengeResponse:
 		slots = append(slots, addSlotAlgorithm)
 	}
@@ -278,6 +279,9 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Read algorithm and digits from selectors.
 			algo := addAlgoValues[m.addAlgoIdx]
+			if ct.ctype == pkgmodel.CredentialHOTP {
+				algo = "SHA1"
+			}
 			digits := addDigitValues[m.addDigitsIdx]
 
 			// Parse period for TOTP credentials.
@@ -365,12 +369,31 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// addLabelWidth is the column width for field labels in the add overlay.
-const addLabelWidth = 13
+// addLabelWidthForType returns the column width for field labels in the add
+// overlay based on the currently selected credential type.
+func addLabelWidthForType(ct pkgmodel.CredentialType) int {
+	labels := []string{"Label:", "Issuer:", "Type:", "Secret:", "Algorithm:", "Digits:", "Period:", "Tags:", "Category:"}
+	switch ct {
+	case pkgmodel.CredentialStatic:
+		labels[3] = "Password:"
+	case pkgmodel.CredentialChallengeResponse:
+		labels[3] = "Shared secret key:"
+	}
+
+	max := 0
+	for _, l := range labels {
+		if len(l) > max {
+			max = len(l)
+		}
+	}
+	// Keep one space between the label column and the field content.
+	return max + 1
+}
 
 // viewOverlayAdd renders the add-credential overlay.
 func (m model) viewOverlayAdd() string {
 	ct := credTypeNames[m.addTypeIdx]
+	addLabelWidth := addLabelWidthForType(ct.ctype)
 	var lines []string
 	lines = append(lines, titleStyle.Render("Add Credential"))
 	lines = append(lines, "")
@@ -379,7 +402,7 @@ func (m model) viewOverlayAdd() string {
 	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Issuer:", m.addIssuerInput.View(), helpBarStyle.Render("(optional)")))
 
 	// Type selector row.
-	lines = append(lines, renderAddSelector("Type:", addSlotType, m.addFocusIdx, m.addTypeIdx, credTypeDisplayLabels()))
+	lines = append(lines, renderAddSelector(addLabelWidth, "Type:", addSlotType, m.addFocusIdx, m.addTypeIdx, credTypeDisplayLabels()))
 
 	// Secret row with type-dependent label.
 	var secretLabel string
@@ -393,19 +416,24 @@ func (m model) viewOverlayAdd() string {
 	}
 	lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, secretLabel, m.addSecretInput.View()))
 
-	// Algorithm selector — hidden for Static.
-	if ct.ctype != pkgmodel.CredentialStatic {
-		lines = append(lines, renderAddSelector("Algorithm:", addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoLabels))
+	// Algorithm selector — shown only for TOTP and challenge-response.
+	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialChallengeResponse {
+		lines = append(lines, renderAddSelector(addLabelWidth, "Algorithm:", addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoLabels))
+		if ct.ctype == pkgmodel.CredentialTOTP {
+			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("Default SHA-1. If your provider URI specifies")))
+			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("SHA256/SHA512, use that value.")))
+		}
 	}
 
 	// Digits selector — TOTP and HOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialHOTP {
-		lines = append(lines, renderAddSelector("Digits:", addSlotDigits, m.addFocusIdx, m.addDigitsIdx, []string{"6", "8"}))
+		lines = append(lines, renderAddSelector(addLabelWidth, "Digits:", addSlotDigits, m.addFocusIdx, m.addDigitsIdx, []string{"6", "8"}))
 	}
 
 	// Period text input — TOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP {
-		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", m.addPeriodInput.View(), helpBarStyle.Render("seconds")))
+		periodView := strings.TrimRight(m.addPeriodInput.View(), " ")
+		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", periodView, helpBarStyle.Render("seconds")))
 	}
 
 	// Tags text input.
@@ -439,7 +467,7 @@ func credTypeDisplayLabels() []string {
 // renderAddSelector renders a label + selectable options row. The selected
 // option is highlighted in green. When the selector has focus, left/right
 // arrows flank the selected option.
-func renderAddSelector(label string, slot, focusIdx, selectedIdx int, options []string) string {
+func renderAddSelector(addLabelWidth int, label string, slot, focusIdx, selectedIdx int, options []string) string {
 	focused := focusIdx == slot
 	var parts []string
 	for i, opt := range options {

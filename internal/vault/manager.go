@@ -25,8 +25,8 @@ import (
 // It contains only the credentials array, not the vault header, DEK, or
 // rate-limit state, so the backup is fully self-contained and portable.
 type exportEnvelope struct {
-	Version     int               `json:"version"`
-	ExportedAt  time.Time         `json:"exported_at"`
+	Version     int                `json:"version"`
+	ExportedAt  time.Time          `json:"exported_at"`
 	Credentials []model.Credential `json:"credentials"`
 }
 
@@ -424,6 +424,10 @@ func (m *Manager) Close() {
 func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.addCredentialLocked(cred, false)
+}
+
+func (m *Manager) addCredentialLocked(cred model.Credential, allowLegacyHOTP bool) (string, error) {
 	if m.payload == nil {
 		return "", fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
 	}
@@ -431,6 +435,9 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 		if strings.EqualFold(existing.Label, cred.Label) {
 			return "", fmt.Errorf("credential %q already exists: %w", cred.Label, errors.ErrInvalidInput)
 		}
+	}
+	if err := normalizeCredentialForStorage(&cred, nil, allowLegacyHOTP); err != nil {
+		return "", err
 	}
 	cred.ID = uuid.New().String()
 	now := time.Now().UTC()
@@ -445,6 +452,12 @@ func (m *Manager) AddCredential(cred model.Credential) (string, error) {
 		return "", err
 	}
 	return cred.ID, nil
+}
+
+func (m *Manager) addCredentialForImport(cred model.Credential) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.addCredentialLocked(cred, true)
 }
 
 // RemoveCredential removes a credential by ID and saves. The credential's
@@ -576,6 +589,10 @@ func (m *Manager) UpdateCredential(cred *model.Credential) error {
 	}
 	for i := range m.payload.Credentials {
 		if m.payload.Credentials[i].ID == cred.ID {
+			existing := m.payload.Credentials[i]
+			if err := normalizeCredentialForStorage(cred, &existing, false); err != nil {
+				return err
+			}
 			cred.ModifiedAt = time.Now().UTC()
 			m.payload.Credentials[i] = *cred
 			m.payload.ModifiedAt = cred.ModifiedAt
@@ -583,6 +600,62 @@ func (m *Manager) UpdateCredential(cred *model.Credential) error {
 		}
 	}
 	return fmt.Errorf("credential %q: %w", cred.ID, errors.ErrNotFound)
+}
+
+// normalizeCredentialForStorage applies algorithm defaults/validation before a
+// credential is persisted.
+//
+// Security and compatibility rules:
+//   - HOTP is SHA1-only for new credentials (RFC 4226).
+//   - Existing legacy HOTP credentials with SHA256/SHA512 are preserved when
+//     updating unchanged records.
+//   - Import paths may preserve legacy HOTP algorithms when explicitly allowed.
+//   - TOTP accepts SHA1/SHA256/SHA512 and defaults to SHA1 (RFC 6238).
+func normalizeCredentialForStorage(cred *model.Credential, existing *model.Credential, allowLegacyHOTP bool) error {
+	cred.Algorithm = strings.ToUpper(strings.TrimSpace(cred.Algorithm))
+
+	switch cred.Type {
+	case model.CredentialTOTP:
+		if cred.Algorithm == "" {
+			cred.Algorithm = "SHA1"
+		}
+		if !isSupportedOTPAlgorithm(cred.Algorithm) {
+			return fmt.Errorf("invalid TOTP algorithm %q (use SHA1, SHA256, or SHA512): %w", cred.Algorithm, errors.ErrInvalidInput)
+		}
+
+	case model.CredentialHOTP:
+		if existing != nil && existing.Type == model.CredentialHOTP {
+			existingAlgo := strings.ToUpper(strings.TrimSpace(existing.Algorithm))
+			if existingAlgo != "" && existingAlgo != "SHA1" {
+				if cred.Algorithm == "" || cred.Algorithm == existingAlgo {
+					cred.Algorithm = existingAlgo
+					return nil
+				}
+			}
+		}
+
+		if cred.Algorithm == "" {
+			cred.Algorithm = "SHA1"
+		}
+		if cred.Algorithm == "SHA1" {
+			return nil
+		}
+		if allowLegacyHOTP && isSupportedOTPAlgorithm(cred.Algorithm) {
+			return nil
+		}
+		return fmt.Errorf("HOTP algorithm must be SHA1 per RFC 4226: %w", errors.ErrInvalidInput)
+	}
+
+	return nil
+}
+
+func isSupportedOTPAlgorithm(algo string) bool {
+	switch algo {
+	case "SHA1", "SHA256", "SHA512":
+		return true
+	default:
+		return false
+	}
 }
 
 // VaultID returns the stable unique identifier for this vault, set at
@@ -830,7 +903,7 @@ func (m *Manager) ImportCredentials(data, importPassphrase []byte) (imported, sk
 		if cred.Tags == nil {
 			cred.Tags = []string{}
 		}
-		if _, aerr := m.AddCredential(cred); aerr != nil {
+		if _, aerr := m.addCredentialForImport(cred); aerr != nil {
 			return imported, skipped, fmt.Errorf("importing credential %q: %w", cred.Label, aerr)
 		}
 		imported++

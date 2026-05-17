@@ -239,6 +239,7 @@ func initialModel(vaultPath string) model {
 
 	addPeriod := textinput.New()
 	addPeriod.Placeholder = "30"
+	addPeriod.SetValue("30")
 	addPeriod.EchoMode = textinput.EchoNormal
 
 	addTags := textinput.New()

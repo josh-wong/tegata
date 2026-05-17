@@ -72,6 +72,31 @@ describe("AddCredentialDialog", () => {
     })
   })
 
+  it("HOTP hides hash algorithm selector and submits SHA1", async () => {
+    const user = userEvent.setup()
+    render(<AddCredentialDialog {...defaultProps} />)
+
+    await user.selectOptions(screen.getByDisplayValue("TOTP"), "hotp")
+    expect(screen.getByText("Advanced options")).toBeInTheDocument()
+    await user.click(screen.getByText("Advanced options"))
+    expect(screen.queryByText("Hash algorithm")).not.toBeInTheDocument()
+    expect(screen.getByText("Code length")).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText("Label (required)"), "hotp-cred")
+    const secretInput = screen.getByPlaceholderText("Secret (required)")
+    await user.type(secretInput, "GEZDGNBVGY3TQOJQ")
+
+    await user.click(screen.getByText("Add"))
+
+    await waitFor(() => {
+      expect(App.AddCredential).toHaveBeenCalledTimes(1)
+    })
+
+    const call = vi.mocked(App.AddCredential).mock.calls[0]
+    expect(call[2]).toBe("hotp")
+    expect(call[4]).toBe("SHA1")
+  })
+
   it("URI tab submits via App.AddCredentialFromURI", async () => {
     const user = userEvent.setup()
     render(<AddCredentialDialog {...defaultProps} />)

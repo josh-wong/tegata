@@ -120,6 +120,60 @@ func TestAdapter_AddAndListCredentials(t *testing.T) {
 	app.LockVault()
 }
 
+func TestAdapter_AddCredential_HOTPRejectsNonSHA1(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	_, err = app.AddCredential("hotp-bad", "Issuer", "hotp", "GEZDGNBVGY3TQOJQ", "SHA256", 6, 30, nil, "")
+	if err == nil {
+		t.Fatal("expected error for HOTP SHA256, got nil")
+	}
+
+	app.LockVault()
+}
+
+func TestAdapter_AddCredential_HOTPDefaultsToSHA1(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	_, err = app.AddCredential("hotp-default", "Issuer", "hotp", "GEZDGNBVGY3TQOJQ", "", 6, 30, nil, "")
+	if err != nil {
+		t.Fatalf("adding HOTP with empty algorithm: %v", err)
+	}
+
+	cred, err := app.GetCredential("hotp-default")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	if cred.Algorithm != "SHA1" {
+		t.Errorf("algorithm = %q, want SHA1", cred.Algorithm)
+	}
+
+	app.LockVault()
+}
+
 func TestAdapter_RemoveCredential(t *testing.T) {
 	vaultPath := setupTestVault(t)
 

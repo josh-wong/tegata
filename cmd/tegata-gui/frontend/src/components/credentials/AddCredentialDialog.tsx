@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useEffect, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +33,14 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
 
   // URI state
   const [uri, setUri] = useState("")
+
+  useEffect(() => {
+    if (credType === "challenge-response") {
+      setAlgorithm("SHA256")
+      return
+    }
+    setAlgorithm("SHA1")
+  }, [credType])
 
   if (!open) return null
 
@@ -74,12 +82,17 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
     setLoading(true)
     setError("")
     try {
+      const effectiveAlgorithm =
+        credType === "hotp"
+          ? "SHA1"
+          : algorithm
+
       const tagList = tags
         .split(",")
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean)
       const normalizedCategory = category.trim().toLowerCase()
-      await App.AddCredential(label, issuer, credType, secret, algorithm, digits, period, tagList, normalizedCategory)
+      await App.AddCredential(label, issuer, credType, secret, effectiveAlgorithm, digits, period, tagList, normalizedCategory)
       reset()
       onAdded()
       onClose()
@@ -179,18 +192,25 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                   </button>
                   {showAdvanced && (
                     <div className="space-y-2 rounded-md border border-border p-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Hash algorithm</label>
-                        <select
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={algorithm}
-                          onChange={(e) => setAlgorithm(e.target.value)}
-                        >
-                          <option value="SHA1">SHA-1 (default)</option>
-                          <option value="SHA256">SHA-256</option>
-                          <option value="SHA512">SHA-512</option>
-                        </select>
-                      </div>
+                      {(credType === "totp" || credType === "challenge-response") && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Hash algorithm</label>
+                          <select
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={algorithm}
+                            onChange={(e) => setAlgorithm(e.target.value)}
+                          >
+                            <option value="SHA1">SHA-1 (default)</option>
+                            <option value="SHA256">SHA-256</option>
+                            <option value="SHA512">SHA-512</option>
+                          </select>
+                          {credType === "totp" && (
+                            <p className="text-xs text-muted-foreground">
+                              Default is SHA-1. If your provider&apos;s otpauth URI specifies SHA256 or SHA512, use that value.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {credType !== "challenge-response" && (
                         <div className="space-y-1">
                           <label className="text-xs text-muted-foreground">Code length</label>
@@ -219,6 +239,11 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                     </div>
                   )}
                 </div>
+              )}
+              {credType === "hotp" && (
+                <p className="text-xs text-muted-foreground">
+                  HOTP uses SHA-1 (RFC 4226).
+                </p>
               )}
               <Input
                 placeholder="Tags (comma-separated)"

@@ -86,7 +86,11 @@ func newAddCmd() *cobra.Command {
 						credType, errors.ErrInvalidInput)
 				}
 
+				requestedAlgorithm := algorithm
 				algorithm = resolveAlgorithm(ct, cmd.Flags().Changed("algorithm"), algorithm)
+				if ct == pkgmodel.CredentialHOTP && cmd.Flags().Changed("algorithm") && !strings.EqualFold(requestedAlgorithm, "SHA1") {
+					return fmt.Errorf("HOTP algorithm must be SHA1 per RFC 4226: %w", errors.ErrInvalidInput)
+				}
 
 				var secretPrompt string
 				switch ct {
@@ -149,7 +153,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&scan, "scan", false, "paste an otpauth:// URI")
 	cmd.Flags().StringVar(&credType, "type", "totp", "credential type (totp, hotp, static, challenge-response)")
 	cmd.Flags().StringVar(&issuer, "issuer", "", "credential issuer")
-	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (SHA1, SHA256, SHA512)")
+	cmd.Flags().StringVar(&algorithm, "algorithm", "SHA1", "HMAC algorithm (TOTP: SHA1/SHA256/SHA512; HOTP: SHA1 only)")
 	cmd.Flags().IntVar(&digits, "digits", 6, "number of digits in generated code")
 	cmd.Flags().IntVar(&period, "period", 30, "TOTP period in seconds")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "tag to apply (repeatable, e.g., --tag work --tag totp)")
@@ -159,9 +163,13 @@ func newAddCmd() *cobra.Command {
 
 // resolveAlgorithm returns the effective algorithm for a new credential.
 // Challenge-response defaults to SHA256 when the user has not explicitly set
-// --algorithm. All other types use flagValue (flag default is SHA1 per RFC
-// 6238/4226). flagChanged must be the result of cmd.Flags().Changed("algorithm").
+// --algorithm. HOTP is always SHA1 per RFC 4226. All other types use
+// flagValue (flag default is SHA1 per RFC 6238/4226). flagChanged must be the
+// result of cmd.Flags().Changed("algorithm").
 func resolveAlgorithm(ct pkgmodel.CredentialType, flagChanged bool, flagValue string) string {
+	if ct == pkgmodel.CredentialHOTP {
+		return "SHA1"
+	}
 	if ct == pkgmodel.CredentialChallengeResponse && !flagChanged {
 		return "SHA256"
 	}

@@ -368,6 +368,54 @@ func TestOverlayAdd(t *testing.T) {
 	}
 }
 
+// TestOverlayAddHOTPNoAlgorithmRow verifies HOTP add form does not show an
+// algorithm row in the TUI.
+func TestOverlayAddHOTPNoAlgorithmRow(t *testing.T) {
+	m := initialModel("")
+	m.state = stateOverlayAdd
+	m.addTypeIdx = 1 // HOTP
+	view := m.viewOverlayAdd()
+
+	if strings.Contains(view, "Algorithm:") {
+		t.Fatal("expected HOTP add form to hide algorithm row")
+	}
+}
+
+// TestOverlayAddTOTPShowsAlgorithmRow verifies TOTP add form still exposes
+// algorithm selection.
+func TestOverlayAddTOTPShowsAlgorithmRow(t *testing.T) {
+	m := initialModel("")
+	m.state = stateOverlayAdd
+	m.addTypeIdx = 0 // TOTP
+	view := m.viewOverlayAdd()
+
+	if !strings.Contains(view, "Algorithm:") {
+		t.Fatal("expected TOTP add form to show algorithm row")
+	}
+	if !strings.Contains(view, "Period:") {
+		t.Fatal("expected TOTP add form to show period row")
+	}
+	if !strings.Contains(view, "Default SHA-1. If your provider URI specifies") {
+		t.Fatal("expected TOTP add form to show SHA guidance text")
+	}
+	if !strings.Contains(view, "SHA256/SHA512, use that value.") {
+		t.Fatal("expected TOTP add form to show second line of SHA guidance text")
+	}
+	if !strings.Contains(view, "30") {
+		t.Fatal("expected TOTP add form to show default period 30 seconds")
+	}
+
+	algIdx := strings.Index(view, "Algorithm:")
+	helpIdx := strings.Index(view, "Default SHA-1. If your provider URI specifies")
+	periodIdx := strings.Index(view, "Period:")
+	if algIdx == -1 || helpIdx == -1 || periodIdx == -1 {
+		t.Fatal("expected algorithm/help/period sections to be present")
+	}
+    if algIdx >= helpIdx || helpIdx >= periodIdx {
+        t.Fatal("expected SHA guidance text to appear under Algorithm and above Period")
+    }
+}
+
 // TestOverlayRemove asserts that pressing 'r' from stateMainView transitions
 // to stateOverlayRemove; 'y' removes the selected credential and 'n' cancels.
 func TestOverlayRemove(t *testing.T) {
