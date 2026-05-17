@@ -560,6 +560,9 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 	if _, err := rand.Read(ledgerVolumeKey); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("generating ledger volume key: %w", err)
 	}
+	// Zero the key on all exit paths. On the success path onRegistered zeros it
+	// first; this defer is a no-op in that case but handles all early error returns.
+	defer zeroSlice(ledgerVolumeKey)
 
 	ledgerDataDir := LedgerVolumeDataDir(composeDir)
 
@@ -836,6 +839,9 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
 	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
+		// Re-encrypt the plaintext data dir so it is not left on disk unprotected
+		// when Docker fails to start. Best-effort: ignore the re-lock error.
+		_ = LockLedgerVolume(cfg)
 		return fmt.Errorf("starting audit stack: %w", err)
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: waiting for ledger to become ready...")
@@ -893,6 +899,9 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
 	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
+		// Re-encrypt the plaintext data dir so it is not left on disk unprotected
+		// when Docker fails to start. Best-effort: ignore the re-lock error.
+		_ = LockLedgerVolume(cfg)
 		return err
 	}
 	for i := 0; i < autoStartRetries; i++ {
