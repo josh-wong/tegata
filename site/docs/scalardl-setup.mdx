@@ -72,6 +72,58 @@ To re-enable it:
 tegata config set audit.auto_start true
 ```
 
+
+## Encrypted ledger data volume
+
+When you run `tegata ledger start`, Tegata automatically encrypts the PostgreSQL data directory at rest using AES-256-GCM encryption with a unique key for each vault.
+
+### How it works
+
+On setup, Tegata generates a random 32-byte encryption key and stores it securely in your encrypted vault file. The PostgreSQL data directory is never written to disk in plaintext at this stage.
+
+When you unlock your vault (via CLI, TUI, or GUI), Tegata automatically decrypts the PostgreSQL data volume to a temporary plaintext directory and mounts it to the PostgreSQL container before starting the Docker stack. When you lock your vault or close the application, Tegata stops the container, re-encrypts the plaintext directory into a compressed archive, deletes the plaintext directory, and zeroes the encryption key from memory.
+
+### Storage location
+
+The encrypted volume archive is stored at:
+
+```
+~/.tegata/docker/<entity-id>/ledger-data.enc
+```
+
+The plaintext data directory exists only while the vault is unlocked, at:
+
+```
+~/.tegata/docker/<entity-id>/ledger-data/
+```
+
+### Key protection
+
+The encryption key is stored inside your encrypted vault file and is never written to disk in plaintext. It is only accessible when your vault is unlocked with your passphrase, and is zeroed from memory when the vault is locked. Tegata uses pure Go AES-256-GCM encryption with no external tool dependencies.
+
+### Threat model
+
+This table summarizes what the encrypted volume protects against.
+
+| Scenario                                | Protected |
+|------------------------------------------|-----------|
+| Machine powered off or storage stolen    | Yes       |
+| Machine on, Tegata closed                | Yes       |
+| Machine on, Tegata running               | No — PostgreSQL needs plaintext access |
+| Privileged attacker on running system    | No — kernel memory reads are out of scope |
+
+Encrypted volumes are suitable for protecting data at rest against physical theft or unauthorized storage access. They are not designed to protect against an attacker with active privileged access to a running system.
+
+### Backward compatibility
+
+Existing vaults set up before encrypted volumes were supported continue to use named Docker volumes (unencrypted). Encryption only activates for new setups. To enable encryption on an existing setup, tear down the stack and re-run setup by running the following commands, replacing `path/to/vault` with your vault path:
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+
 ## Test the audit layer
 
 Test that events are recorded and integrity verification works as expected.

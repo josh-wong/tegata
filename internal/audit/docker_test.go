@@ -63,7 +63,7 @@ func TestExtractComposeFiles(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := extractComposeFiles(fsys, dir, ""); err != nil {
+	if err := extractComposeFiles(fsys, dir, "", ""); err != nil {
 		t.Fatalf("extractComposeFiles: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestExtractComposeFiles_RewritesVolume(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := extractComposeFiles(fsys, dir, "tegata-abc12345"); err != nil {
+	if err := extractComposeFiles(fsys, dir, "tegata-abc12345", ""); err != nil {
 		t.Fatalf("extractComposeFiles: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestRewriteComposeFile(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := rewriteComposeFile([]byte(tc.input), tc.entityID)
+			got, ok := rewriteComposeFile([]byte(tc.input), tc.entityID, "")
 			if string(got) != tc.want {
 				t.Errorf("rewriteComposeFile data = %q, want %q", got, tc.want)
 			}
@@ -189,6 +189,44 @@ func TestRewriteComposeFile(t *testing.T) {
 				t.Errorf("rewriteComposeFile ok = %v, want %v", ok, tc.wantMatch)
 			}
 		})
+	}
+}
+
+// TestRewriteComposeFile_WithBindMount verifies that rewriteComposeFile substitutes
+// named volumes with bind mounts when ledgerDataDir is provided.
+func TestRewriteComposeFile_WithBindMount(t *testing.T) {
+	const input = `version: '3.8'
+services:
+  postgres:
+    volumes:
+      - tegata-scalardl-data:/var/lib/postgresql/data
+volumes:
+  scalardl-data:
+    name: tegata-scalardl-data
+`
+	const entityID = "tegata-abc12345"
+	const ledgerDataDir = "/home/user/.tegata/docker/tegata-abc12345/ledger-data"
+
+	got, ok := rewriteComposeFile([]byte(input), entityID, ledgerDataDir)
+
+	// Should have rewritten the project/volume names
+	if !bytes.Contains(got, []byte("name: tegata-abc12345-scalardl-data")) {
+		t.Errorf("volume name not rewritten correctly: %s", got)
+	}
+
+	// Should have substituted the mount with bind mount
+	if !bytes.Contains(got, []byte("- /home/user/.tegata/docker/tegata-abc12345/ledger-data:/var/lib/postgresql/data")) {
+		t.Errorf("named volume mount not replaced with bind mount: %s", got)
+	}
+
+	// Original named volume mount should be gone
+	if bytes.Contains(got, []byte("- tegata-scalardl-data:/var/lib/postgresql/data")) {
+		t.Errorf("original named volume mount still present: %s", got)
+	}
+
+	// Should have indicated volume name was found
+	if !ok {
+		t.Errorf("rewriteComposeFile ok = false, want true")
 	}
 }
 
@@ -204,7 +242,7 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 	t.Run("rewrites project name and volume with entityID", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
-		if err := syncDockerCompose(fsys, composePath, "tegata-abc12345"); err != nil {
+		if err := syncDockerCompose(fsys, composePath, "tegata-abc12345", ""); err != nil {
 			t.Fatalf("syncDockerCompose: %v", err)
 		}
 		got, err := os.ReadFile(composePath)
@@ -228,7 +266,7 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 	t.Run("leaves names unchanged when entityID empty", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
-		if err := syncDockerCompose(fsys, composePath, ""); err != nil {
+		if err := syncDockerCompose(fsys, composePath, "", ""); err != nil {
 			t.Fatalf("syncDockerCompose: %v", err)
 		}
 		got, err := os.ReadFile(composePath)

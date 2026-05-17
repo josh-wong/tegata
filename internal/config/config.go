@@ -61,6 +61,13 @@ type AuditConfig struct {
 	// Defaults to true when DockerComposePath is set and auto_start is absent
 	// from config (D-06 backwards compatibility). Defaults to false otherwise.
 	AutoStart bool
+	// LedgerVolumeKey is the 32-byte AES-256 key used to encrypt and decrypt
+	// the ScalarDL postgres data directory. It is generated once during
+	// `tegata ledger start`, stored in the vault's encrypted key storage as
+	// "audit.ledger_volume_key", and loaded into memory on every vault unlock.
+	// It is never written to tegata.toml or any disk location in plaintext.
+	// Zero-length when ledger volume encryption is not initialized.
+	LedgerVolumeKey []byte `toml:"-"`
 }
 
 // tomlAuditConfig is the TOML deserialization intermediate for [audit].

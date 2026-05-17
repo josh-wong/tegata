@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -70,6 +70,19 @@ export function Sidebar({
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [bulkDeleteInput, setBulkDeleteInput] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Flip the context menu upward / leftward if it would overflow the viewport.
+  useLayoutEffect(() => {
+    if (!ctxMenu || !menuRef.current) return
+    const menu = menuRef.current
+    const rect = menu.getBoundingClientRect()
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${ctxMenu.y - rect.height}px`
+    }
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${ctxMenu.x - rect.width}px`
+    }
+  }, [ctxMenu])
 
   // Close context menu on outside click or Escape.
   useEffect(() => {

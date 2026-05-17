@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base32"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -259,6 +260,16 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 			cfg.Audit.SecretKey = secretFromVault
 		}
 		defer func() { cfg.Audit.SecretKey = "" }()
+
+		// Load the ledger volume key from vault so the encrypted data directory
+		// can be decrypted and mounted for postgres to access.
+		volumeKeyHex := mgr.GetSecret("audit.ledger_volume_key")
+		if volumeKeyHex != "" {
+			if volumeKey, err := hex.DecodeString(volumeKeyHex); err == nil {
+				cfg.Audit.LedgerVolumeKey = volumeKey
+				defer zeroBytes(volumeKey)
+			}
+		}
 
 		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {

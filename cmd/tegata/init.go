@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -93,8 +94,10 @@ vault directory; otherwise the current directory is used.`,
 
 // runInitAudit runs the full Docker audit setup immediately after vault
 // creation. It opens and unlocks the vault to derive the stable entity ID,
-// then calls audit.SetupStack. Errors are printed to stderr and the user is
-// directed to run 'tegata ledger start' to retry.
+// then calls audit.SetupStack. The vault manager is kept open so that the
+// HMAC secret key and ledger volume key can be stored via the onRegistered
+// callback before SetupStack returns. Errors are printed to stderr and the
+// user is directed to run 'tegata ledger start' to retry.
 func runInitAudit(vaultPath, dir string, passphrase []byte) {
 	fmt.Fprintln(os.Stderr, "Setting up audit ledger (this may take several minutes)...")
 
@@ -108,8 +111,8 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
 		return
 	}
+	defer mgr.Close()
 	vaultID := mgr.VaultID()
-	mgr.Close()
 
 	u, err := user.Current()
 	if err != nil {
@@ -126,15 +129,28 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 
 	progressFn := func(msg string) { fmt.Fprintln(os.Stderr, msg) }
 
-	auditCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
-		return
+	onRegistered := func(auditCfg config.AuditConfig) error {
+		if auditCfg.SecretKey != "" {
+			if vaultErr := mgr.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
+				return fmt.Errorf("storing HMAC secret in vault: %w", vaultErr)
+			}
+		}
+		if len(auditCfg.LedgerVolumeKey) > 0 {
+			hexKey := hex.EncodeToString(auditCfg.LedgerVolumeKey)
+			if vaultErr := mgr.SetSecret("audit.ledger_volume_key", hexKey); vaultErr != nil {
+				return fmt.Errorf("storing ledger volume key in vault: %w", vaultErr)
+			}
+			zeroBytes(auditCfg.LedgerVolumeKey)
+		}
+		auditCfg.AutoStart = true
+		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
+			return fmt.Errorf("writing audit config: %w", writeErr)
+		}
+		return nil
 	}
-	auditCfg.AutoStart = true
 
-	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Could not save audit config: %v\n", writeErr)
+	if _, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, onRegistered); err != nil {
+		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
 		return
 	}
 

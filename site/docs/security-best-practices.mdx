@@ -198,6 +198,7 @@ Tegata zeros sensitive memory immediately after use. You do not need to take spe
 - The data encryption key is sealed in an encrypted in-memory enclave and only briefly decrypted when an operation requires it.
 - Generated TOTP/HOTP codes are not retained in memory after being displayed or copied.
 - The clipboard is automatically cleared after 45 seconds (configurable in `tegata.toml`).
+- The ScalarDL ledger volume encryption key is held in memory for the session duration and is zeroed immediately when the vault is locked.
 
 :::warning[One known limitation]
 

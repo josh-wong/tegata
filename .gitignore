@@ -64,6 +64,8 @@ tegata.toml
 
 # Docker volumes and data
 docker/data/
+docker/*/ledger-data/
+docker/*/ledger-data.enc
 postgres_data/
 
 # Environment files with secrets

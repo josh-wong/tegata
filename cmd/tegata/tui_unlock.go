@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -94,6 +95,15 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 			cfg.Audit.SecretKey = secretFromVault
 		}
 
+		// Load the ledger volume key from vault (encrypted storage) so the
+		// encrypted data directory can be decrypted and mounted for postgres.
+		volumeKeyHex := mgr.GetSecret("audit.ledger_volume_key")
+		if volumeKeyHex != "" {
+			if volumeKey, hexErr := hex.DecodeString(volumeKeyHex); hexErr == nil {
+				cfg.Audit.LedgerVolumeKey = volumeKey
+			}
+		}
+
 		// Auto-start is deferred to a tea.Cmd (maybeAutoStartCmd) issued by
 		// handleUnlockResult so any error routes through the TUI message loop
 		// instead of being written to stderr, which corrupts the alt-screen
@@ -118,11 +128,17 @@ func loadCredentials(m model) model {
 
 	// Load config from vault directory; fall back to defaults on error.
 	if cfg, err := config.Load(filepath.Dir(m.vaultPath)); err == nil {
-		// Load HMAC secret from vault (encrypted storage) and inject into config.
+		// Load HMAC secret and ledger volume key from vault (encrypted storage)
+		// and inject into config.
 		if m.vaultMgr != nil {
 			secretFromVault := m.vaultMgr.GetSecret("audit.secret_key")
 			if secretFromVault != "" {
 				cfg.Audit.SecretKey = secretFromVault
+			}
+			if volumeKeyHex := m.vaultMgr.GetSecret("audit.ledger_volume_key"); volumeKeyHex != "" {
+				if volumeKey, hexErr := hex.DecodeString(volumeKeyHex); hexErr == nil {
+					cfg.Audit.LedgerVolumeKey = volumeKey
+				}
 			}
 		}
 		m.cfg = cfg
