@@ -1,6 +1,6 @@
-# macOS code signing setup
+# Set up macOS code signing
 
-This guide walks through setting up code signing for Tegata's macOS binaries and GUI app. The release workflow automatically signs and notarizes binaries when you push a version tag, but the initial setup requires several one-time steps in Apple Developer Account and GitHub.
+This guide walks through setting up code signing for the macOS binaries and GUI app for Tegata. The release workflow automatically signs and notarizes binaries when you push a version tag, but the initial setup requires several one-time steps in Apple Developer Account and GitHub.
 
 ## Initial setup
 

@@ -35,7 +35,24 @@ Tegata can be installed using pre-built binaries or built from source.
 
 Download the binary for your platform from the [Releases](https://github.com/josh-wong/tegata/releases) page. On macOS and Linux, mark the binary as executable with `chmod +x`.
 
+For GUI downloads, use the platform-specific release artifacts on the same page:
+
+- Windows: `tegata-gui-windows-amd64-setup.exe`
+- macOS: `tegata-gui-darwin-universal.dmg`
+- Linux: `tegata-gui-linux-amd64.deb` or `tegata-gui-linux-amd64.rpm`
+
+If you are a maintainer creating release artifacts, see [Build and release artifacts](admin/build-and-release.md) for the full cross-platform build, packaging, signing, and publishing runbook.
+
 ### Build from source
+
+For source builds, the minimum prerequisites are:
+
+- Go 1.25 or later for CLI/TUI builds
+- Node.js 20 or later and Wails v2 for GUI builds
+
+For full platform-specific prerequisites and step-by-step instructions, see [Build the CLI and TUI from source](https://josh-wong.github.io/tegata/docs/quickstart/#build-the-cli-and-tui-from-source) or [Build the desktop GUI from source](https://josh-wong.github.io/tegata/docs/quickstart/#build-the-desktop-gui-from-source).
+
+To build from source, clone the repository and run `make build`:
 
 ```bash
 git clone https://github.com/josh-wong/tegata.git
