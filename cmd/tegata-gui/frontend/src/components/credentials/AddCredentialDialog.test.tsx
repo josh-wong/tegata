@@ -77,7 +77,10 @@ describe("AddCredentialDialog", () => {
     render(<AddCredentialDialog {...defaultProps} />)
 
     await user.selectOptions(screen.getByDisplayValue("TOTP"), "hotp")
+    expect(screen.getByText("Advanced options")).toBeInTheDocument()
+    await user.click(screen.getByText("Advanced options"))
     expect(screen.queryByText("Hash algorithm")).not.toBeInTheDocument()
+    expect(screen.getByText("Code length")).toBeInTheDocument()
 
     await user.type(screen.getByPlaceholderText("Label (required)"), "hotp-cred")
     const secretInput = screen.getByPlaceholderText("Secret (required)")

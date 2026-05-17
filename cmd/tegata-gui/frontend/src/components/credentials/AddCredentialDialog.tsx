@@ -180,7 +180,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                   </p>
                 )}
               </div>
-              {(credType === "totp" || credType === "challenge-response") && (
+              {(credType === "totp" || credType === "hotp" || credType === "challenge-response") && (
                 <div className="space-y-2">
                   <button
                     type="button"
@@ -192,23 +192,25 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                   </button>
                   {showAdvanced && (
                     <div className="space-y-2 rounded-md border border-border p-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Hash algorithm</label>
-                        <select
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={algorithm}
-                          onChange={(e) => setAlgorithm(e.target.value)}
-                        >
-                          <option value="SHA1">SHA-1 (default)</option>
-                          <option value="SHA256">SHA-256</option>
-                          <option value="SHA512">SHA-512</option>
-                        </select>
-                        {credType === "totp" && (
-                          <p className="text-xs text-muted-foreground">
-                            Default is SHA-1. If your provider&apos;s otpauth URI specifies SHA256 or SHA512, use that value.
-                          </p>
-                        )}
-                      </div>
+                      {(credType === "totp" || credType === "challenge-response") && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Hash algorithm</label>
+                          <select
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={algorithm}
+                            onChange={(e) => setAlgorithm(e.target.value)}
+                          >
+                            <option value="SHA1">SHA-1 (default)</option>
+                            <option value="SHA256">SHA-256</option>
+                            <option value="SHA512">SHA-512</option>
+                          </select>
+                          {credType === "totp" && (
+                            <p className="text-xs text-muted-foreground">
+                              Default is SHA-1. If your provider&apos;s otpauth URI specifies SHA256 or SHA512, use that value.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {credType !== "challenge-response" && (
                         <div className="space-y-1">
                           <label className="text-xs text-muted-foreground">Code length</label>
