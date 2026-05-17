@@ -770,8 +770,39 @@ func StopStack(composePath, projectName string) error {
 // TeardownStack runs `docker compose -f composePath down -v`, removing
 // containers and the named volume. Use this only in integration tests for
 // post-test cleanup — it permanently deletes all audit history.
+//
+// If a ledger-data bind-mount directory exists in the compose directory, it is
+// also removed via a throwaway Docker container running as root. This is
+// necessary because the postgres container takes ownership of the directory
+// (uid 999, mode 0700) inside the container, making it inaccessible to the
+// host user afterwards.
 func TeardownStack(composePath, projectName string) error {
-	return runDockerCompose(composePath, projectName, "down", "-v")
+	if err := runDockerCompose(composePath, projectName, "down", "-v"); err != nil {
+		return err
+	}
+	composeDir := filepath.Dir(composePath)
+	ledgerDataDir := LedgerVolumeDataDir(composeDir)
+	if _, statErr := os.Stat(ledgerDataDir); statErr == nil {
+		_ = removeLedgerDataDir(ledgerDataDir)
+	}
+	return nil
+}
+
+// removeLedgerDataDir deletes the ledger data bind-mount directory using a
+// throwaway Docker container running as root. Required because the postgres
+// container takes ownership of the directory (uid 999, mode 0700), making it
+// inaccessible to the host user for deletion.
+func removeLedgerDataDir(dataDir string) error {
+	parentDir := filepath.Dir(dataDir)
+	baseName := filepath.Base(dataDir)
+	cmd := dockerCmd("run", "--rm",
+		"-v", parentDir+":/data",
+		"postgres:15-alpine",
+		"rm", "-rf", "/data/"+baseName)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("removing ledger data directory: %w\n%s", err, out)
+	}
+	return nil
 }
 
 // EnsureStack starts the Docker audit stack synchronously, suitable for
