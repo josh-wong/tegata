@@ -411,9 +411,9 @@ func TestOverlayAddTOTPShowsAlgorithmRow(t *testing.T) {
 	if algIdx == -1 || helpIdx == -1 || periodIdx == -1 {
 		t.Fatal("expected algorithm/help/period sections to be present")
 	}
-	if !(algIdx < helpIdx && helpIdx < periodIdx) {
-		t.Fatal("expected SHA guidance text to appear under Algorithm and above Period")
-	}
+    if algIdx >= helpIdx || helpIdx >= periodIdx {
+        t.Fatal("expected SHA guidance text to appear under Algorithm and above Period")
+    }
 }
 
 // TestOverlayRemove asserts that pressing 'r' from stateMainView transitions
