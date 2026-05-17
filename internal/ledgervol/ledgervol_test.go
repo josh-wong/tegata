@@ -1,7 +1,9 @@
 package ledgervol
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"os"
 	"path/filepath"
@@ -190,9 +192,10 @@ func TestPathTraversalPrevention(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	// Attempt to decrypt - should reject traversal attempts
+	// Attempt to decrypt - path traversal entries should be rejected.
+	// Unlock may return an error when traversal is detected; that is acceptable.
 	if err := Unlock(encPath, dataDir, key); err != nil {
-		t.Fatalf("Unlock: %v", err)
+		t.Logf("Unlock returned expected error for traversal archive: %v", err)
 	}
 
 	// Verify that traversal attempts were blocked:
@@ -421,28 +424,38 @@ func TestEncryptDecryptLargeData(t *testing.T) {
 	}
 }
 
-// Helper function to create a tar archive with specific paths for testing
+// createMaliciousTar builds a gzip-compressed tar archive whose entry names
+// contain the raw path strings in paths — including traversal sequences like
+// "../../../etc/passwd" — without creating any real files on the filesystem.
 func createMaliciousTar(t *testing.T, paths []string) []byte {
-	dir := t.TempDir()
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
 
-	// Create files in the directory
-	for _, path := range paths {
-		fullPath := filepath.Join(dir, path)
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-			t.Fatalf("mkdir: %v", err)
+	for _, name := range paths {
+		content := []byte("content")
+		hdr := &tar.Header{
+			Typeflag: tar.TypeReg,
+			Name:     name, // Intentionally raw; may include traversal sequences.
+			Size:     int64(len(content)),
+			Mode:     0644,
 		}
-		if err := os.WriteFile(fullPath, []byte("content"), 0644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatalf("WriteHeader %q: %v", name, err)
+		}
+		if _, err := tw.Write(content); err != nil {
+			t.Fatalf("Write %q: %v", name, err)
 		}
 	}
 
-	// Tar the directory
-	data, err := tarGzip(dir)
-	if err != nil {
-		t.Fatalf("tarGzip: %v", err)
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar.Close: %v", err)
 	}
-
-	return data
+	if err := gw.Close(); err != nil {
+		t.Fatalf("gzip.Close: %v", err)
+	}
+	return buf.Bytes()
 }
 
 // Test that zeroBytes actually zeros memory

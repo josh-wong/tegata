@@ -214,8 +214,11 @@ func tarGzip(dir string) ([]byte, error) {
 			if err != nil {
 				return err
 			}
-			defer f.Close()
 			if _, err := io.Copy(tw, f); err != nil {
+				_ = f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
 				return err
 			}
 		}
@@ -240,7 +243,7 @@ func untarGzip(data []byte, dir string) error {
 	if err != nil {
 		return err
 	}
-	defer gr.Close()
+	defer func() { _ = gr.Close() }()
 	tr := tar.NewReader(gr)
 
 	// Ensure dir ends with the path separator for prefix checks below.
@@ -277,10 +280,12 @@ func untarGzip(data []byte, dir string) error {
 				return err
 			}
 			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return err
+			}
 		default:
 			// Skip non-regular entries (symlinks, fifos, etc.) for safety.
 		}
