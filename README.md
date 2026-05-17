@@ -3,9 +3,10 @@
 <p align="center"><strong>Your 2FA codes and credentials, encrypted and portable</strong></p>
 
 <p align="center">
-<a href="https://github.com/josh-wong/tegata/releases"><img src="https://img.shields.io/github/v/release/josh-wong/tegata" alt="Latest Release"></a>
+	<a href="https://github.com/josh-wong/tegata/releases"><img src="https://img.shields.io/github/v/release/josh-wong/tegata" alt="Latest Release"></a>
 	<img src="https://github.com/josh-wong/tegata/actions/workflows/ci.yml/badge.svg" alt="CI">
 	<a href="https://github.com/josh-wong/tegata/actions/workflows/release.yml"><img src="https://github.com/josh-wong/tegata/actions/workflows/release.yml/badge.svg" alt="Release Workflow"></a>
+	<br />
 	<a href="https://github.com/josh-wong/tegata/actions/workflows/deploy.yml"><img src="https://github.com/josh-wong/tegata/actions/workflows/deploy.yml/badge.svg" alt="Docs Deploy"></a>
 	<img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg" alt="Go 1.25+">
 	<a href="https://goreportcard.com/report/github.com/josh-wong/tegata"><img src="https://goreportcard.com/badge/github.com/josh-wong/tegata" alt="Go Report Card"></a>
