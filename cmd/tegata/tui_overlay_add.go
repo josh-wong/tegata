@@ -67,6 +67,7 @@ func (m *model) resetAddOverlay() {
 	m.addSecretInput.Reset()
 	m.addSecretInput.Blur()
 	m.addPeriodInput.Reset()
+	m.addPeriodInput.SetValue("30")
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Reset()
 	m.addTagsInput.Blur()
@@ -399,6 +400,10 @@ func (m model) viewOverlayAdd() string {
 	// Algorithm selector — shown only for TOTP and challenge-response.
 	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialChallengeResponse {
 		lines = append(lines, renderAddSelector("Algorithm:", addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoLabels))
+		if ct.ctype == pkgmodel.CredentialTOTP {
+			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("Default SHA-1. If your provider URI specifies")))
+			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("SHA256/SHA512, use that value.")))
+		}
 	}
 
 	// Digits selector — TOTP and HOTP only.
@@ -408,8 +413,8 @@ func (m model) viewOverlayAdd() string {
 
 	// Period text input — TOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP {
-		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", m.addPeriodInput.View(), helpBarStyle.Render("seconds")))
-		lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("Default SHA-1. If your provider URI specifies SHA256/SHA512, use that value.")))
+		periodView := strings.TrimRight(m.addPeriodInput.View(), " ")
+		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", periodView, helpBarStyle.Render("seconds")))
 	}
 
 	// Tags text input.
