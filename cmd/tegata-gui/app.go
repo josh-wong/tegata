@@ -332,7 +332,7 @@ func (a *App) LockVault() {
 // disk after the app closes or the vault is locked.
 func (a *App) deleteClientProperties() {
 	// Try to delete from the configured Docker compose location if available.
-	// DockerComposePath is a file path (e.g. .../docker/docker-compose.yml),
+	// DockerComposePath is a file path (e.g., .../docker/docker-compose.yml),
 	// so use its parent directory to locate the certs/ subdirectory.
 	if a.config.Audit.DockerComposePath != "" {
 		composeDir := filepath.Dir(a.config.Audit.DockerComposePath)

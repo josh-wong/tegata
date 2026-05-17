@@ -1,0 +1,39 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #E34234;
+  --ifm-color-primary-dark: #CC3B2D;
+  --ifm-color-primary-darker: #C1382A;
+  --ifm-color-primary-darkest: #9E2D22;
+  --ifm-color-primary-light: #E6554A;
+  --ifm-color-primary-lighter: #E85C51;
+  --ifm-color-primary-lightest: #EE7A72;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(227, 66, 52, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #F07068;
+  --ifm-color-primary-dark: #EE5D54;
+  --ifm-color-primary-darker: #EC5650;
+  --ifm-color-primary-darkest: #E83D35;
+  --ifm-color-primary-light: #F28479;
+  --ifm-color-primary-lighter: #F38B80;
+  --ifm-color-primary-lightest: #F7A39D;
+  --docusaurus-highlighted-code-line-bg: rgba(227, 66, 52, 0.3);
+}
+
+/* Allow card descriptions to show up to 2 lines instead of being clipped to 1. */
+.theme-doc-card-description {
+  white-space: normal !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

@@ -1,0 +1,290 @@
+---
+title: Enable audit logging
+sidebar_position: 6
+description: Set up and test the optional tamper-evident audit layer (backed by ScalarDL Ledger) in Tegata, including one-click setup, manual configuration, and tamper-detection demos.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The optional audit layer in Tegata records every authentication event in a hash-chained ScalarDL Ledger, enabling post-hoc integrity verification with `tegata verify`. Audit logging is disabled by default—all authentication operations work fully without it.
+
+If you do not need tamper-evident logging, skip this guide and continue using Tegata normally.
+
+## Prerequisites
+
+- Docker Desktop (Windows and macOS) or Docker Engine 24+ with Compose v2 (Linux)
+- A Tegata vault already set up with credentials
+  - See [Quickstart](quickstart.mdx) if you need to create a vault.
+
+No certificates or key pairs are needed. Tegata uses ScalarDL's HMAC authentication mode with a secret key generated automatically during setup.
+
+## Set up via the GUI
+
+The desktop GUI includes a setup wizard for the audit layer. After creating your vault, your first vault unlock prompts you to enable audit logging. Follow the prompts to complete setup with no command-line interaction.
+
+## Set up with one command via the terminal
+
+Run `tegata ledger start` once after creating your vault, replacing `path/to/vault` with the path to your vault file:
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+Tegata prompts for your vault passphrase, then runs the following full setup sequence:
+
+1. Checks that Docker is installed and starts the Docker daemon if it is not running.
+2. Extracts the bundled `docker-compose.yml` to `~/.tegata/docker/`.
+3. Generates a unique entity ID and secret key from your vault.
+4. Starts the infrastructure containers (PostgreSQL, schema loaders, ScalarDL Ledger).
+5. Waits for the ledger to become ready (up to 30 seconds).
+6. Registers your audit credentials with the ledger and writes the `[audit]` section to `tegata.toml`.
+7. Starts the contract-registration container and waits for HashStore contracts to be registered (up to 10 minutes on first run—the JVM startup and ~50 MB SDK download are the slow parts).
+
+When setup completes you should see:
+
+```bash
+Ledger server started. Audit logging is now active.
+```
+
+From this point forward, every vault unlock automatically starts the Docker stack—including the Docker daemon if it is not running—in the background with no extra steps required.
+
+## Configure auto-start behavior
+
+After setup, every vault unlock starts the Docker audit stack automatically.
+
+- If Docker Desktop is closed, Tegata starts it and waits up to 60 seconds for it to become ready.
+- Once the Docker daemon is running, Tegata starts the ScalarDL containers (`docker compose up -d`).
+- Tegata also syncs the embedded `docker-compose.yml` to `~/.tegata/docker/` on each unlock, keeping the stack current after binary upgrades.
+- In the CLI, auto-start completes before the command runs; in the TUI, it runs in the background.
+
+If auto-start fails for any reason, Tegata logs the error to stderr and queues audit events locally. Queued events are submitted when the ledger becomes reachable.
+
+To disable auto-start without removing the audit configuration:
+
+```bash
+tegata config set audit.auto_start false
+```
+
+To re-enable it:
+
+```bash
+tegata config set audit.auto_start true
+```
+
+## Test the audit layer
+
+Test that events are recorded and integrity verification works as expected.
+
+### Test via the CLI
+
+Generate a TOTP code to trigger an audit event by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata code my-totp-credential --vault /path/to/vault
+```
+
+Check that the event was recorded by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata history --vault /path/to/vault
+```
+
+Verify hash-chain integrity by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+Expected output when the audit log is intact:
+
+```bash
+Audit log integrity verified. 3 events checked.
+```
+
+`tegata verify` exits with code `9` on an integrity violation or `8` if the ledger is unreachable.
+
+### Test via the TUI
+
+Launch the TUI and unlock your vault by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata ui --vault /path/to/vault
+```
+
+Press `v` to open the audit overlay, then use `↑`/`j` and `↓`/`k` to select an option and press **Enter**.
+
+- **View history.** Fetches and displays all audit events from the ledger.
+- **Verify integrity.** Validates the hash chain and reports whether the log is intact or tampered.
+
+Press **Esc** to close the overlay.
+
+### Test via the GUI
+
+Unlock your vault. The Docker audit stack starts in the background automatically. Select the shield icon in the header bar to open the audit panel.
+
+- **View history.** Fetches and displays a table of audit events.
+- **Verify integrity.** Runs the hash-chain check; a green banner indicates a valid log, a red "TAMPER DETECTED" banner appears if the log has been modified.
+
+## Demonstrate tamper detection
+
+This procedure intentionally corrupts an audit record to verify that ScalarDL detects the modification.
+
+:::warning[Tampered records are permanent]
+
+Running the commands in this section modifies the audit log irreversibly. Do not run these commands on a vault that you use for real authentication. Use a test vault or back up your vault file before proceeding.
+
+:::
+
+First, confirm the audit log is currently intact by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+Tamper with a record by zeroing a hash value directly in the database:
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+```powershell
+docker exec docker-compose-postgres-1 psql -U scalardl -d scalardl -c "UPDATE scalar.asset SET hash = decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex') WHERE id LIKE 'tegata-%%' LIMIT 1;"
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+```bash
+docker exec docker-compose-postgres-1 psql -U scalardl -d scalardl -c "
+  UPDATE scalar.asset
+  SET hash = decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
+  WHERE id LIKE 'tegata-%'
+  LIMIT 1;
+"
+```
+
+  </TabItem>
+</Tabs>
+
+Run verify again by running the following command, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+Expected output:
+
+```bash
+Integrity violation detected. <error details>
+```
+
+The command exits with code `9`. Even with direct database access, modifications are detectable because ScalarDL maintains an independent hash chain that cannot be reconstructed without the original data.
+
+:::note[Clean the ledger after testing]
+
+The audit log is append-only by design—there is no way to delete entries through Tegata. If you want a clean ledger after testing, tear down the stack and re-run setup by running the following commands, replacing `path/to/vault` with your vault path:
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+:::
+
+## Set up the audit log manually (advanced)
+
+If you are running your own ScalarDL instance rather than the bundled Docker stack, skip `tegata ledger start` and configure `tegata.toml` manually.
+
+Add the `[audit]` section to `tegata.toml` in your vault directory.
+
+<Tabs groupId="scalardl-host">
+  <TabItem value="local" label="Local/self-hosted (no TLS)" default>
+
+```toml
+[audit]
+enabled           = true
+server            = "127.0.0.1:50051"
+privileged_server = "127.0.0.1:50052"
+entity_id         = "tegata-client"
+key_version       = 1
+insecure          = true
+auto_start        = false
+```
+
+  </TabItem>
+  <TabItem value="remote" label="Remote/production (TLS)">
+
+```toml
+[audit]
+enabled           = true
+server            = "scalardl.example.com:50051"
+privileged_server = "scalardl.example.com:50052"
+entity_id         = "tegata-client"
+key_version       = 1
+# insecure defaults to false – TLS is enabled
+auto_start        = false
+```
+
+If your server uses a self-signed certificate, set `ca_cert_path` to the path of your CA certificate file.
+
+  </TabItem>
+</Tabs>
+
+:::note[`auto_start` for self-hosted setups]
+
+Set `auto_start = false` when managing ScalarDL yourself. `auto_start` only controls whether Tegata starts the local Docker stack on vault unlock; it does not affect connectivity to a remote or manually managed instance.
+
+:::
+
+The `secret_key` is not stored in `tegata.toml`; instead, it is stored in the encrypted vault. Run `tegata ledger setup` to register your credentials, replacing `path/to/vault` with your vault path:
+
+```bash
+tegata ledger setup --vault /path/to/vault
+```
+
+Tegata prompts for your vault passphrase and loads the HMAC secret from your vault automatically.
+
+## Troubleshooting
+
+This section focuses on common ScalarDL setup issues. For full diagnosis and recovery procedures, see the [Troubleshooting](troubleshooting.mdx) guide.
+
+Common ScalarDL setup issues:
+
+- Docker daemon startup failures: [`tegata ledger start` fails immediately](troubleshooting.mdx#tegata-ledger-start-fails-immediately)
+- Contract registration failures or `INVALID_SIGNATURE`: [Predefined HashStore contracts are not registered](troubleshooting.mdx#predefined-hashstore-contracts-are-not-registered)
+
+### `DL-COMMON-400003`: request signature cannot be validated
+
+The HMAC secret key used for signing does not match the secret registered with the ledger. If you changed the secret after initial registration, tear down the stack and re-run setup, replacing `path/to/vault` with your vault path:
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+### `DB-CORE-10016`: coordinator.state table does not exist
+
+The coordinator schema was not created during setup. Tear down completely and re-run, replacing `path/to/vault` with your vault path:
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+### Docker image errors on macOS with Apple Silicon
+
+Some ScalarDL images are x86-64 only. Docker Desktop for Mac runs them automatically under Rosetta 2 on Apple Silicon—no manual configuration is needed. An "AMD64" badge in Docker Desktop for these containers is expected and normal.
+
+### Connection refused or timeout
+
+Confirm the ScalarDL containers are running:
+
+```bash
+cd ~/.tegata/docker && docker compose ps
+```
+
+On WSL2, use `127.0.0.1` instead of `localhost` in `tegata.toml`. WSL2 resolves `localhost` to IPv6 `::1`, but the ScalarDL containers only listen on IPv4.
+
+### Audit logging is not enabled
+
+Confirm `tegata.toml` has `enabled = true` in the `[audit]` section and that the file is in the same directory as `vault.tegata`. Run `tegata config show` to see the effective configuration.

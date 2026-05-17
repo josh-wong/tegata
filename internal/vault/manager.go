@@ -512,7 +512,7 @@ func (m *Manager) ListCredentials() []model.Credential {
 }
 
 // ReloadPayload re-reads and decrypts the vault file from disk using the
-// already-unlocked DEK. This is used when an external process (e.g. the TUI)
+// already-unlocked DEK. This is used when an external process (e.g., the TUI)
 // may have written a newer version of the vault to disk without this process
 // knowing. The caller should check whether the file has been modified (e.g.
 // via os.Stat mtime) before calling, to avoid unnecessary I/O.

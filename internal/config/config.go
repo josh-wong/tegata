@@ -27,10 +27,10 @@ type Config struct {
 type AuditConfig struct {
 	// Enabled controls whether audit events are submitted to the ledger.
 	Enabled bool
-	// Server is the gRPC address of the ScalarDL Ledger service (e.g. "localhost:50051").
+	// Server is the gRPC address of the ScalarDL Ledger service (e.g., "localhost:50051").
 	Server string
 	// PrivilegedServer is the gRPC address of the ScalarDL LedgerPrivileged
-	// service (e.g. "localhost:50052"). Used only for RegisterCert during setup.
+	// service (e.g., "localhost:50052"). Used only for RegisterCert during setup.
 	PrivilegedServer string
 	// SecretKey is the HMAC secret key for ScalarDL HMAC authentication.
 	SecretKey string `json:"-"`
@@ -54,7 +54,7 @@ type AuditConfig struct {
 	// vault unlock (D-06, D-09).
 	DockerComposePath string
 	// DockerProjectName is the Docker Compose project name for the per-vault
-	// stack (e.g. "tegata-abc12345"). Used with --project-name to isolate
+	// stack (e.g., "tegata-abc12345"). Used with --project-name to isolate
 	// containers and volumes per vault. Empty for legacy single-directory setups.
 	DockerProjectName string
 	// AutoStart controls whether MaybeAutoStart fires on vault unlock.

@@ -426,7 +426,7 @@ func (c *LedgerClient) CollectionGet(ctx context.Context, collectionID string) (
 		Nonce:            nonce,
 	})
 	if err != nil {
-		// Detect when the collection doesn't exist (e.g. after a wipe).
+		// Detect when the collection doesn't exist (e.g., after a wipe).
 		// ScalarDL HashStore returns Internal with an empty description when the
 		// collection or its backing object does not exist; NotFound/InvalidArgument
 		// cover other ledger implementations.
@@ -527,7 +527,7 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 //     must equal expectedHash — detects content replacement.
 //  3. Individual metadata display fields (operation, label_hash) must match
 //     the authenticated content — detects targeted field tampering when
-//     hash_value and content are left intact (e.g. changing
+//     hash_value and content are left intact (e.g., changing
 //     operation "hotp" → "totp" without touching the other fields).
 //
 // Events submitted before content storage was introduced pass check (1) only.
@@ -551,7 +551,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 	// at most one record. The HashStore bootstrap registers the same generic
 	// contract class directly (hash-store depends on generic-contracts; it ships
 	// no separate Get implementation). If ScalarDL ever exposes a contract that
-	// returns multiple versions (e.g. via ledger.scan()), this guard would
+	// returns multiple versions (e.g., via ledger.scan()), this guard would
 	// become active. Keep it for defensive correctness and to signal intent.
 	if len(records) > 1 {
 		return &ValidationResult{
@@ -573,7 +573,7 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 	// submitted after D-17). Check 2 recomputes SHA-256(content) to confirm
 	// content itself has not been replaced. Check 3 cross-checks individual
 	// display fields against the now-authenticated content to catch targeted
-	// field tampering (e.g. operation changed while content is left intact).
+	// field tampering (e.g., operation changed while content is left intact).
 	if content, ok := record.Metadata["content"].(string); ok && content != "" {
 		// Check 2: recompute SHA-256 of stored event content and compare.
 		sum := sha256.Sum256([]byte(content))
@@ -659,7 +659,7 @@ func (c *LedgerClient) Ping(ctx context.Context) error {
 		if ok && st.Code() == codes.Unavailable {
 			return fmt.Errorf("%w: ping failed: %s", tegerrors.ErrNetworkFailed, err)
 		}
-		// Any other gRPC error (e.g. Unimplemented) still confirms the server
+		// Any other gRPC error (e.g., Unimplemented) still confirms the server
 		// is reachable at the transport level.
 		return nil
 	}

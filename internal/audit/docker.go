@@ -28,7 +28,7 @@ const (
 )
 
 // SetupTestObjectID is a fixed well-known key used during setup and by
-// `tegata ledger setup` to verify that the generic contracts are registered.
+// `tegata ledger setup` to verify that the predefined HashStore contracts are registered.
 // Using a constant avoids accumulating unique orphan objects on every run.
 const SetupTestObjectID = "tegata-setup-probe"
 
@@ -37,17 +37,6 @@ const SetupTestObjectID = "tegata-setup-probe"
 const (
 	daemonPollRetries  = 30
 	daemonPollInterval = 2 * time.Second
-)
-
-// contractRetries and contractRetryInterval control how long waitForContracts
-// polls for the generic ScalarDL contracts to become reachable. The
-// scalardl-contract-registration container runs `apk add curl unzip`,
-// downloads the ~50 MB HashStore SDK from GitHub, starts the JVM, and calls
-// `scalardl-hashstore bootstrap` — which can exceed 2 minutes on first run.
-// 30 retries x 10s = 5 minutes total.
-const (
-	contractRetries       = 30
-	contractRetryInterval = 10 * time.Second
 )
 
 // knownDockerPaths lists well-known Docker binary locations that may not be
@@ -70,6 +59,25 @@ func checkPortsAvailable() error {
 	return checkPorts(auditPorts)
 }
 
+// effectiveProjectName returns the Docker Compose project name to use for
+// label-based container queries. When projectName is non-empty it is returned
+// as-is. When it is empty (config written by an older binary that did not
+// record docker_project_name), entityID is used as the fallback because it
+// equals the project name assigned by all new binaries. The compose
+// directory name is a last resort for configs that also lack entity_id.
+func effectiveProjectName(projectName, entityID, composePath string) string {
+	if projectName != "" {
+		return projectName
+	}
+	if entityID != "" {
+		return entityID
+	}
+	if composePath != "" {
+		return filepath.Base(filepath.Dir(composePath))
+	}
+	return ""
+}
+
 // checkPorts dials each port in the list and returns an error on the first one
 // that is already bound. Separated from checkPortsAvailable to allow tests to
 // inject arbitrary ports without touching system-reserved port numbers.
@@ -82,7 +90,11 @@ func checkPorts(ports []int) error {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
 			_ = conn.Close()
-			return fmt.Errorf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
+			msg := fmt.Sprintf("Port %d is already in use. Stop the current vault's audit stack with \"tegata ledger stop\" before starting another.", port) //nolint:staticcheck // user-facing message requires sentence punctuation
+			if runtime.GOOS == "windows" {
+				msg += "\nIf no vault is running, PostgreSQL inside WSL2 may be using this port. To stop it, run:\n  wsl -- sudo service postgresql stop"
+			}
+			return fmt.Errorf("%s", msg) //nolint:staticcheck,govet // user-facing message
 		}
 	}
 	return nil
@@ -117,8 +129,21 @@ func CheckLedgerAvailability(cfg config.AuditConfig) error {
 	if cfg.DockerComposePath == "" {
 		return nil
 	}
-	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
-		return nil
+	projName := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+	if isDockerProjectRunning(cfg.DockerComposePath, projName) {
+		// Containers are running — verify the ledger gRPC port is actually
+		// accepting connections. The ScalarDL JVM can take ~30s to start after
+		// the container is created, so containers running ≠ ledger ready.
+		if client, err := NewClientFromConfig(cfg); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			pingErr := client.Ping(ctx)
+			cancel()
+			_ = client.Close()
+			if pingErr == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("Ledger is starting up. Please wait a moment and try again.") //nolint:staticcheck // user-facing message
 	}
 	if portErr := checkPortsAvailable(); portErr != nil {
 		return portErr
@@ -270,17 +295,20 @@ func generateSecretKey() (string, error) {
 // composePath on disk, keeping the live file in sync with the embedded bundle.
 // Called by EnsureStack and MaybeAutoStart so that binary upgrades
 // automatically update the running compose configuration without requiring
-// the user to re-run `tegata ledger start`. When entityID is non-empty the
-// global volume name is rewritten to a per-vault name before writing.
+// the user to re-run `tegata ledger start`. When entityID is non-empty, the
+// Compose project name and Docker volume name are rewritten to per-vault values
+// before writing, ensuring the correct project name is embedded in the file
+// rather than relying solely on --project-name (which Docker Desktop for
+// Windows does not always honour when a top-level name: directive is present).
 func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
 	data, err := fs.ReadFile(fsys, "docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
 	}
 	if entityID != "" {
-		rewritten, ok := rewriteComposeVolume(data, entityID)
+		rewritten, ok := rewriteComposeFile(data, entityID)
 		if !ok {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 		}
 		data = rewritten
 	}
@@ -312,9 +340,9 @@ func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
 		}
 
 		if entityID != "" && path == "docker-compose.yml" {
-			rewritten, ok := rewriteComposeVolume(data, entityID)
+			rewritten, ok := rewriteComposeFile(data, entityID)
 			if !ok {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: volume name %q not found in docker-compose.yml; per-vault isolation may not be applied\n", "tegata-scalardl-data")
+				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 			}
 			data = rewritten
 		}
@@ -365,17 +393,39 @@ func ComposeDirForVault(homeDir, vaultID string) string {
 	return filepath.Join(homeDir, ".tegata", "docker", entityIDFromVaultID(vaultID))
 }
 
-// rewriteComposeVolume replaces the global volume name in docker-compose.yml
-// content with a per-vault name. Returns the rewritten data and true if the
-// substitution was made, or the original data and false if the target string
-// was not found (compose file format may have drifted from expectations).
+// rewriteComposeFile rewrites the Docker Compose file content so that both the
+// project name and the named volume are scoped to the given entityID. This
+// ensures the correct project name is embedded in the file itself rather than
+// relying solely on --project-name, which Docker Desktop for Windows does not
+// always honour when a top-level name: directive is present.
+//
+// Two substitutions are performed:
+//   - "name: tegata-ledger"       → "name: entityID"
+//   - "name: tegata-scalardl-data" → "name: entityID-scalardl-data"
+//
+// Returns the rewritten data and true if at least the volume name substitution
+// was found (the project-name substitution is best-effort). Returns the
+// original data and false if neither target was found (compose file format may
+// have drifted from expectations).
 // entityID must be non-empty.
-func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
-	target := []byte("name: tegata-scalardl-data")
-	if !bytes.Contains(data, target) {
+func rewriteComposeFile(data []byte, entityID string) ([]byte, bool) {
+	// Rewrite the top-level Compose project name.
+	projectTarget := []byte("name: tegata-ledger")
+	data = bytes.ReplaceAll(data, projectTarget, []byte("name: "+entityID))
+
+	// Rewrite the Docker named volume so each vault's PostgreSQL data is
+	// stored in an isolated volume.
+	volumeTarget := []byte("name: tegata-scalardl-data")
+	if !bytes.Contains(data, volumeTarget) {
 		return data, false
 	}
-	return bytes.ReplaceAll(data, target, []byte("name: "+entityID+"-scalardl-data")), true
+	return bytes.ReplaceAll(data, volumeTarget, []byte("name: "+entityID+"-scalardl-data")), true
+}
+
+// rewriteComposeVolume is a backward-compatible alias for rewriteComposeFile
+// retained for test compatibility. New callers should use rewriteComposeFile.
+func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
+	return rewriteComposeFile(data, entityID)
 }
 
 // runDockerCompose executes a docker compose command with the given compose
@@ -409,10 +459,10 @@ func progress(fn func(string), msg string) {
 //  2. extractComposeFiles(fsys, composeDir)
 //  3. entityID from vaultID, generate secretKey
 //  4. write client.properties to composeDir/certs/
-//  5. docker compose -f composeDir/docker-compose.yml up -d
+//  5. start infrastructure services (postgres, schema-loader, coordinator, ledger)
 //  6. wait for ledger (up to 30s)
-//  7. RegisterSecret + Ping + verifyContracts (reuses audit.NewClientFromConfig)
-//  8. returns populated AuditConfig -- caller writes tegata.toml
+//  7. RegisterSecret + Ping
+//  8. start scalardl-contract-registration, wait for it to exit via `docker compose wait` (up to 10 minutes)
 //
 // progressFn receives one-line status strings as each step completes; it may be
 // nil (no progress reporting). fsys must contain docker-compose.yml and
@@ -422,7 +472,7 @@ func progress(fn func(string), msg string) {
 // modify any config. tegata.toml is only written by the caller on success.
 // SetupStack runs the full Docker audit setup sequence. It starts Docker, extracts
 // compose files, generates entity credentials, starts the stack, waits for the
-// ledger, registers the entity secret, and then waits for the generic contracts
+// ledger, registers the entity secret, and then waits for the predefined HashStore contracts
 // to be reachable (up to 5 minutes). After the entity is registered and the
 // ledger is reachable, onRegistered is called with the populated AuditConfig —
 // the caller should write tegata.toml at that point so config is persisted even
@@ -461,19 +511,25 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, fmt.Errorf("writing client properties: %w", err)
 	}
 
-	// Step 5: Start Docker stack and ensure contract registration runs with
-	// the current entity's credentials. Force-recreate the registration
-	// container so bootstrap runs even when the stack is already up (e.g.
-	// when setting up audit for a second vault — each entity needs its own
-	// contracts registered via scalardl-hashstore bootstrap).
+	// Step 5: Start infrastructure services only — do NOT start
+	// scalardl-contract-registration yet. The bootstrap tool inside that
+	// container downloads ~50 MB, then calls scalardl-hashstore bootstrap
+	// which needs (a) the ledger to be fully ready and (b) the entity secret
+	// to be registered. On Windows, the full startup chain (postgres
+	// healthcheck → schema-loader → coordinator schema → ledger JVM init)
+	// can exceed the container's internal 60-second nc wait loop, causing
+	// bootstrap to fail and exhaust its on-failure:3 restart budget before
+	// contracts are ever registered. By starting contract-registration only
+	// after the Go code confirms the ledger is ready and the entity is
+	// registered, bootstrap succeeds on the first attempt.
 	composePath := filepath.Join(composeDir, "docker-compose.yml")
 	progress(progressFn, "Starting Docker stack...")
-	if err := StartStack(composePath, entityID); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("starting Docker stack: %w", err)
+	if err := checkPortsAvailable(); err != nil {
+		return config.AuditConfig{}, err
 	}
-	progress(progressFn, "Registering contracts for entity...")
-	if err := runDockerCompose(composePath, entityID, "up", "-d", "--force-recreate", "scalardl-contract-registration"); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("restarting contract registration: %w", err)
+	if err := runDockerCompose(composePath, entityID, "up", "-d",
+		"postgres", "scalardl-schema-loader", "scalardl-coordinator-schema", "scalardl-ledger"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("starting Docker stack: %w", err)
 	}
 
 	// Step 6: Wait for ledger to become ready.
@@ -513,6 +569,15 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		return config.AuditConfig{}, fmt.Errorf("ping after registration: %w", err)
 	}
 
+	// Step 8a: Now that the ledger is fully ready and the entity secret is
+	// registered, start the contract-registration container. Bootstrap will
+	// find the ledger immediately reachable and the entity already registered,
+	// so it succeeds on the first attempt without exhausting its retry budget.
+	progress(progressFn, "Registering contracts for entity...")
+	if err := runDockerCompose(composePath, entityID, "up", "-d", "scalardl-contract-registration"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("starting contract registration: %w", err)
+	}
+
 	// Notify the caller that credentials are registered and the config is ready.
 	// The caller should persist tegata.toml here so audit is configured even if
 	// contract registration below is still in progress.
@@ -522,39 +587,56 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		}
 	}
 
-	// Step 8: Wait for generic contracts to become reachable (up to 5 minutes).
-	// The scalardl-contract-registration container downloads ~50 MB and runs the
-	// bootstrap tool; this is the slow part on first run.
-	progress(progressFn, "Waiting for generic contracts to become ready (up to 5 minutes on first run)...")
-	if err := waitForContracts(client, progressFn); err != nil {
-		return config.AuditConfig{}, fmt.Errorf("waiting for contracts: %w", err)
+	// Step 8b: Wait for the contract-registration container to finish.
+	// `docker compose wait` blocks until the service exits and reflects its exit
+	// code, so we know exactly when bootstrap completed and whether it succeeded.
+	// On Windows, package installation + 50 MB SDK download from GitHub + JVM
+	// startup can exceed 5 minutes, which caused the previous polling approach
+	// (30 × 10s = 5 min) to time out while bootstrap was still running.
+	progress(progressFn, "Waiting for contract registration to complete (up to 10 minutes on first run)...")
+	if err := waitForBootstrap(composePath, entityID, 10*time.Minute); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("contract registration: %w", err)
+	}
+
+	// Verify contracts are reachable with a single Put call.
+	ctxVerify, cancelVerify := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelVerify()
+	if err := client.Put(ctxVerify, SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000"); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("contract verification: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// waitForContracts polls client.Put until the generic ScalarDL contracts are
-// reachable, reporting elapsed time via progressFn on each failed attempt.
-// Must be called after RegisterSecret so the entity is authenticated.
-// Each attempt uses a fresh 5-second context; total wait is up to 5 minutes.
-func waitForContracts(c *LedgerClient, progressFn func(string)) error {
-	var lastErr error
-	for i := 0; i < contractRetries; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.Put(ctx, SetupTestObjectID, "0000000000000000000000000000000000000000000000000000000000000000")
-		cancel()
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		if i < contractRetries-1 {
-			elapsed := time.Duration(i+1) * contractRetryInterval
-			progress(progressFn, fmt.Sprintf("  still waiting... (%ds elapsed) — %v", int(elapsed.Seconds()), err))
-			time.Sleep(contractRetryInterval)
-		}
+// waitForBootstrap waits for the scalardl-contract-registration service to exit
+// successfully using `docker compose wait` (requires Docker Compose v2.4+,
+// included in Docker Desktop 4.9+ released April 2022). This is more reliable
+// than polling client.Put because it directly observes whether the bootstrap
+// script completed rather than inferring readiness from RPC call results.
+// Returns an error if the container exits non-zero or the timeout is reached.
+func waitForBootstrap(composePath, projectName string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmdArgs := []string{"compose", "-f", composePath}
+	if projectName != "" {
+		cmdArgs = append(cmdArgs, "--project-name", projectName)
 	}
-	total := time.Duration(contractRetries) * contractRetryInterval
-	return fmt.Errorf("contracts not ready after %v: %w", total, lastErr)
+	cmdArgs = append(cmdArgs, "wait", "scalardl-contract-registration")
+
+	bin := dockerBin()
+	if bin == "" {
+		bin = "docker"
+	}
+	cmd := exec.CommandContext(ctx, bin, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("timed out after %v; to diagnose, run: docker logs %s-scalardl-contract-registration-1", timeout, projectName)
+		}
+		return fmt.Errorf("bootstrap container exited with error: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // waitForLedger retries connecting to the ledger up to autoStartRetries times
@@ -627,27 +709,32 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		return nil
 	}
 
-	// Sync docker-compose.yml from the embedded bundle so binary upgrades
-	// (e.g. ScalarDL version bumps) take effect automatically.
-	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
+	// Resolve the effective Docker Compose project name. Prefers the explicit
+	// docker_project_name field, then falls back to entity ID (correct for all
+	// new configs), then to the compose directory name (last resort).
+	effProject := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+
+	// Ping the ledger first. If it responds, it is already running — return
+	// immediately regardless of which Docker project name it was started under.
+	// This handles configs from older binaries whose containers ran under
+	// "tegata-ledger" rather than the per-vault entity ID project name.
+	if client, err := NewClientFromConfig(cfg); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
 		}
 	}
 
-	// Quick probe: only skip startup when THIS vault's Docker project is
-	// confirmed running. Without the project check, the ping could succeed
-	// against a different vault's stack on the same ports, causing subsequent
-	// queries to silently target the wrong entity and return no events.
-	if isDockerProjectRunning(cfg.DockerComposePath, cfg.DockerProjectName) {
-		if client, err := NewClientFromConfig(cfg); err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			pingErr := client.Ping(ctx)
-			cancel()
-			_ = client.Close()
-			if pingErr == nil {
-				return nil
-			}
+	// Sync docker-compose.yml from the embedded bundle so binary upgrades
+	// (e.g., ScalarDL version bumps) take effect automatically. Use effProject
+	// so the per-vault project name is embedded in the file even when
+	// docker_project_name was absent from the config (old binary).
+	if fsys != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
 
@@ -656,7 +743,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
-	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
 		return fmt.Errorf("starting audit stack: %w", err)
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: waiting for ledger to become ready...")
@@ -679,15 +766,31 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 	if cfg.DockerComposePath == "" || !cfg.AutoStart {
 		return nil
 	}
+	// Resolve the effective Docker Compose project name.
+	effProject := effectiveProjectName(cfg.DockerProjectName, cfg.EntityID, cfg.DockerComposePath)
+
+	// Ping the ledger first. If it responds, it is already running — return
+	// immediately regardless of which Docker project name it was started under.
+	if client, err := NewClientFromConfig(cfg); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		pingErr := client.Ping(ctx)
+		cancel()
+		_ = client.Close()
+		if pingErr == nil {
+			return nil
+		}
+	}
+
 	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
+
 	if err := ensureDockerDaemon(); err != nil {
 		return fmt.Errorf("docker daemon not ready: %w", err)
 	}
-	if err := StartStack(cfg.DockerComposePath, cfg.DockerProjectName); err != nil {
+	if err := StartStack(cfg.DockerComposePath, effProject); err != nil {
 		return err
 	}
 	for i := 0; i < autoStartRetries; i++ {

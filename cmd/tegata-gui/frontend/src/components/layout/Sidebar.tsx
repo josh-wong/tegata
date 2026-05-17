@@ -164,7 +164,9 @@ export function Sidebar({
               </button>
 
               {!collapsed.has(tag) &&
-                creds.map((cred) => (
+                creds
+                  .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+                  .map((cred) => (
                   <button
                     key={cred.id}
                     onClick={() => {

@@ -35,7 +35,7 @@ func HashString(s string) string {
 }
 
 // emptyLabelHash is the SHA-256 of an empty string, used as a sentinel to
-// identify events that have no associated credential (e.g. vault-unlock).
+// identify events that have no associated credential (e.g., vault-unlock).
 var emptyLabelHash = HashString("")
 
 // BuildLabelMap creates a hash→label lookup table from a list of label strings.
@@ -65,7 +65,7 @@ func ResolveLabel(labelHash string, labelMap map[string]string) string {
 // ResolveLabelWithDeleted resolves a label hash using both the current label
 // map and a deleted-labels map. Returns "—" for events with no associated
 // credential, "Label (deleted)" for removed credentials, and "(deleted)" for
-// hashes with no record (e.g. entries predating this feature).
+// hashes with no record (e.g., entries predating this feature).
 func ResolveLabelWithDeleted(labelHash string, labelMap, deletedMap map[string]string) string {
 	if labelHash == emptyLabelHash {
 		return "—"
@@ -80,7 +80,7 @@ func ResolveLabelWithDeleted(labelHash string, labelMap, deletedMap map[string]s
 }
 
 // FormatOperation returns a human-readable display string for an operation
-// type stored in audit records (e.g. "totp" → "TOTP", "challenge-response" →
+// type stored in audit records (e.g., "totp" → "TOTP", "challenge-response" →
 // "Challenge-response").
 func FormatOperation(op string) string {
 	switch op {

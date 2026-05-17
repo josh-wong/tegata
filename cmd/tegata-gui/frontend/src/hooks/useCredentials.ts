@@ -32,7 +32,7 @@ export function useCredentials() {
   }, [])
 
   // Refresh whenever the backend detects an external write to the vault file
-  // (e.g. the TUI or CLI updated a credential in another process).
+  // (e.g., the TUI or CLI updated a credential in another process).
   useEffect(() => {
     EventsOn("vault:updated", refresh)
     return () => EventsOff("vault:updated")

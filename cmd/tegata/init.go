@@ -72,7 +72,7 @@ vault directory; otherwise the current directory is used.`,
 			}
 
 			fmt.Printf("Vault created: %s\n\n", vaultPath)
-			fmt.Println("Recovery key (store this somewhere safe -- you cannot see it again):")
+			fmt.Println("Recovery key (store this somewhere safe--you will not see it again):")
 			fmt.Printf("\n    %s\n\n", recoveryKey)
 			fmt.Println("If you forget your passphrase, this key is the only way to recover your vault.")
 
@@ -131,6 +131,7 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
 		return
 	}
+	auditCfg.AutoStart = true
 
 	if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not save audit config: %v\n", writeErr)

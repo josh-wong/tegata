@@ -1,0 +1,409 @@
+---
+title: Troubleshooting
+sidebar_position: 8
+description: Solutions for common Tegata issues – vault unlock failures, clipboard problems, audit setup errors, and more.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+This page covers common issues and their solutions. If you encounter a problem not listed here, run the failing command with `--verbose` to see debug output, then [file an issue](https://github.com/josh-wong/tegata/issues) with the output attached.
+
+Use this page for symptom-driven fixes. For deeper security rationale and policy details, see [Security best practices](security-best-practices.mdx).
+
+## Vault issues
+
+This section describes how to troubleshoot common problems with vault access, corruption, and passphrase recovery.
+
+### I can't unlock my vault because my passphrase is wrong
+
+**Symptom:** `tegata code` or `tegata ui` reports "Incorrect passphrase."
+
+**Check these first:**
+
+- Confirm you are using the passphrase you set during `tegata init`, not an older or different one.
+- Check for Caps Lock. Passphrases are case-sensitive.
+- If you recently ran `tegata change-passphrase`, make sure you are using the new passphrase.
+
+**Rate limiting:** After several failed attempts, Tegata applies exponential backoff. The error message includes the number of remaining attempts. Wait for the indicated delay before trying again. Rate-limit state persists across sessions because it is stored in your vault header.
+
+**Vault recovery:** If you have forgotten your passphrase, you can unlock your vault with your recovery key:
+
+```bash
+tegata verify-recovery
+```
+
+This verifies the key is valid.
+
+:::warning[Recovery key is not a passphrase]
+
+The recovery key is a separate 32-byte random value generated during vault creation. It is not derived from your passphrase and cannot be used as one. If you have the recovery key but not the passphrase, run `tegata verify-recovery` to unlock your vault and then use `tegata change-passphrase` to set a new passphrase.
+
+For recovery key storage and unrecoverable-loss guidance, see [Protecting your recovery key](security-best-practices.mdx#protecting-your-recovery-key).
+
+:::
+
+### I can't find my vault file
+
+**Symptom:** `Error: no vault found. Use --vault, set TEGATA_VAULT, or run from your vault directory.`
+
+Tegata searches for your vault in this order:
+
+1. `--vault` flag
+2. `TEGATA_VAULT` environment variable
+3. `./vault.tegata` in the current directory
+
+**Fix:** Specify your vault path explicitly, replacing `/path/to/vault` with the actual path to your vault:
+
+```bash
+tegata code GitHub --vault /path/to/vault
+```
+
+Or set the environment variable by running the following command, replacing `/path/to/vault` with your vault's directory:
+
+```bash
+export TEGATA_VAULT=/path/to/vault
+```
+
+In PowerShell on Windows, set the environment variable by running the following command, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive:
+
+```powershell
+$env:TEGATA_VAULT = "<USB_DRIVE_LETTER>:\"
+```
+
+### My vault appears corrupted
+
+**Symptom:** `Error: vault corrupt or invalid magic bytes.`
+
+This usually means either the wrong file was specified or your vault was damaged (power loss during write, filesystem error).
+
+**Try the backup first:** Tegata creates a `.bak` file in your vault directory before every write. If `vault.tegata.bak` exists, try renaming it to `vault.tegata`:
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows" default>
+
+To rename the backup vault in PowerShell, run the following command, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive:
+
+```powershell
+Rename-Item <USB_DRIVE_LETTER>:\vault.tegata.bak vault.tegata
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+To rename the backup vault in macOS or Linux, run the following command, replacing `/path/to/vault` with the actual path to your vault:
+
+```bash
+mv /path/to/vault/vault.tegata.bak /path/to/vault/vault.tegata
+```
+
+  </TabItem>
+</Tabs>
+
+**Restore from export backup:** If the `.bak` file does not help, restore from the encrypted backup you created with `tegata export` by running the following commands, replacing the paths with your backup file and vault directory:
+
+```bash
+tegata init /path/to/vault # Create fresh vault
+tegata import /path/to/backup/vault.tegata-backup # Restore credentials
+```
+
+### My vault locked after the idle timeout
+
+**Symptom:** The TUI or GUI shows a lock screen or session expired message.
+
+The vault auto-locks after 5 minutes of inactivity (default). Re-enter your passphrase to continue. To change the idle timeout, edit `tegata.toml` and set `idle_timeout` in seconds (set to `0` to disable).
+
+## Clipboard issues
+
+This section describes how to troubleshoot common problems with clipboard operations, such as codes not copying or auto-clear firing too quickly.
+
+### The clipboard auto-clear fires too quickly (or too slowly)
+
+The default clipboard clear delay is 45 seconds. Adjust it in `tegata.toml`:
+
+```toml
+[clipboard]
+clear_delay = 90 # seconds; 0 disables auto-clear
+```
+
+### Codes are not copied to the clipboard on Linux
+
+**Symptom:** The output shows `Copied to clipboard` but pasting produces nothing.
+
+Tegata uses `xclip` on X11 and `wl-copy` on Wayland. One of these must be installed.
+
+<Tabs groupId="linux-distro">
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
+
+```bash
+sudo apt install xclip wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora">
+
+```bash
+sudo dnf install xclip wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S xclip wl-clipboard
+```
+
+  </TabItem>
+</Tabs>
+
+If you are in a headless or SSH session without X11 forwarding, clipboard operations are not available. Use `--clip=false`:
+
+```bash
+tegata code GitHub --clip=false
+```
+
+### The clipboard doesn't work on WSL2
+
+WSL2 uses `clip.exe` from the Windows host. Verify that WSL interop is enabled:
+
+```bash
+cat /proc/sys/fs/binfmt_misc/WSLInterop
+# Expected output: enabled
+```
+
+If it is not enabled, add the following to `/etc/wsl.conf` and restart the WSL2 session:
+
+```ini
+[interop]
+enabled=true
+```
+
+## Audit logging issues
+
+This section describes how to troubleshoot common problems with the audit layer.
+
+### `tegata ledger start` fails immediately
+
+**Symptom:** The command exits with an error about Docker not found or Docker daemon not running.
+
+Install Docker and ensure the daemon is running.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows">
+
+Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and start it from the Start Menu. Tegata will start Docker automatically on subsequent vault unlocks, but the first `tegata ledger start` requires Docker Desktop to already be running.
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) and open it at least once. After that, Tegata can start Docker automatically.
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+```bash
+# Start the Docker daemon
+sudo systemctl start docker
+
+# Enable it to start on boot
+sudo systemctl enable docker
+
+# Add your user to the docker group (log out and back in after this)
+sudo usermod -aG docker $USER
+```
+
+  </TabItem>
+</Tabs>
+
+### The ledger setup hangs at "waiting for HashStore contracts"
+
+**Symptom:** The setup progress stalls at the HashStore registration step for more than 10 minutes.
+
+The first run downloads the ScalarDL HashStore SDK (~50 MB) and bootstraps the JVM inside Docker. On a slow network or resource-constrained machine, this can take longer than expected.
+
+- Wait at least 10 minutes before cancelling.
+- Check that no firewall is blocking outbound HTTPS traffic to `github.com` or `objects.githubusercontent.com`.
+- Verify that Docker has sufficient memory allocated (at least 2 GB recommended).
+
+If the setup truly fails, run `tegata ledger stop` to clean up and retry `tegata ledger start`.
+
+### Predefined HashStore contracts are not registered
+
+**Symptom:** Setup fails during contract registration, or registration appears incomplete even after the containers are running.
+
+Run the registration container manually:
+
+```bash
+cd ~/.tegata/docker
+docker compose run --rm scalardl-contract-registration
+```
+
+If this command fails with `INVALID_SIGNATURE`, check `~/.tegata/docker/certs/client.properties` and verify that the `scalar.db.storage.secret_key` value is on a single line with no embedded line breaks.
+
+### There's a port conflict with ScalarDL
+
+**Symptom:** Docker fails to start the ledger containers with a port already in use error.
+
+Tegata runs a port check before starting Docker and reports which process is holding the conflicting port. Common conflicts:
+
+- **Port 5432:** PostgreSQL (often a local PostgreSQL installation or, on Windows, a PostgreSQL instance running inside a WSL2 distribution)
+- **Port 50051:** gRPC server (sometimes used by other gRPC services or Kubernetes local proxies)
+- **Port 50052:** ScalarDL privileged port
+
+Stop the conflicting service and retry `tegata ledger start`. On Windows, if no vault stack is running and port 5432 is in use, a PostgreSQL server inside WSL2 is the likely cause. Stop it by running the following command:
+
+```powershell
+wsl -- sudo service postgresql stop
+```
+
+### The audit history shows `(deleted)` labels
+
+When a credential is removed with `tegata remove`, the label is no longer in your vault. Events logged before removal are preserved in the ledger but Tegata cannot resolve the label hash to a name. The history output shows `(deleted)` for these events. This is expected behavior.
+
+### `tegata verify` reports integrity violations
+
+**Symptom:** The verify command reports one or more events with hash mismatches.
+
+This indicates that event records in the ScalarDL Ledger have been modified after they were written. This is the primary signal the audit layer is designed to detect. If you see this:
+
+1. Run `tegata verify --json` to get the full list of affected event IDs.
+2. Review the timestamps and operations of the affected events.
+3. If you did not make the modifications yourself, treat this as a potential security incident.
+
+Events logged before the audit hash feature was enabled are reported as "pre-existing" and skipped; they cannot be verified without a stored hash.
+
+## Binary and installation issues
+
+This section describes how to troubleshoot common problems with the CLI and GUI binaries, installation, and platform-specific issues.
+
+### `tegata: command not found`
+
+The binary is not on your `PATH`. Either run it with the full path or add its directory to `PATH`.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+```powershell
+# Run directly
+<USB_DRIVE_LETTER>:\tegata.exe version
+
+# Add to session PATH, replacing <USB_DRIVE_LETTER> with the actual letter of your drive
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+```bash
+# Run directly, replacing <USB_DRIVE_NAME> with the actual name of your drive
+/Volumes/<USB_DRIVE_NAME>/tegata version
+
+# Add to PATH (zsh), replacing <USB_DRIVE_NAME> with the actual name of your drive
+echo 'export PATH="/Volumes/<USB_DRIVE_NAME>:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+  </TabItem>
+</Tabs>
+
+### macOS: "cannot be opened because the developer cannot be verified"
+
+This is a Gatekeeper quarantine block. Clear the quarantine attribute by running the following command, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
+
+```bash
+xattr -d com.apple.quarantine /Volumes/<USB_DRIVE_NAME>/tegata
+```
+
+For the GUI app:
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+### Build fails: `cgo: C compiler not found`
+
+The CLI binary is built with `CGO_ENABLED=0` and does not require a C compiler. If you see CGO errors when building from macOS or Linux, confirm that you are building the CLI target:
+
+```bash
+make build # Builds bin/tegata
+```
+
+On Windows, `make build` requires cmd.exe and GNU Make. Instead, in PowerShell, build directly by running the following commands from the repository root:
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
+```
+
+The GUI requires CGO because it depends on the system WebView. To build the GUI, install Xcode Command Line Tools on macOS, `build-essential` on Linux, or MSVC on Windows, then use:
+
+```bash
+wails build # Builds the GUI binary
+```
+
+## TOTP/HOTP issues
+
+This section describes how to troubleshoot common problems with generating TOTP and HOTP codes.
+
+### TOTP codes are rejected by the service
+
+**Symptom:** The code Tegata generates is correct-looking but the service says it is invalid.
+
+The most common cause is **clock drift**. TOTP is time-based and requires your system clock to be accurate within ±30 seconds.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows">
+
+```powershell
+# Sync time manually
+w32tm /resync /force
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+```bash
+# Check current time sync status
+sntp -sS time.apple.com
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+```bash
+# Check NTP sync status
+timedatectl status
+
+# Enable NTP sync if disabled
+sudo timedatectl set-ntp true
+```
+
+  </TabItem>
+</Tabs>
+
+If the clock is correct but codes are still rejected, verify that you added the correct secret during `tegata add`. You may need to remove the credential and re-add it.
+
+### The HOTP counter is out of sync
+
+If you have generated codes elsewhere (in another authenticator app, on the service's test page) without using Tegata, the counters may be desynchronized.
+
+Run the resync command with two consecutive codes from the service:
+
+```bash
+tegata resync <HOTP_SERVICE>
+```
+
+Tegata prompts for two consecutive codes and scans a look-ahead window of 100 counters to find the matching position.
+
+## Getting more help
+
+If none of the above resolves your issue:
+
+1. Run the failing command with `--verbose` to capture debug output, replacing `<COMMAND>` with the actual command you are running:
+
+   ```bash
+   tegata <COMMAND> --verbose 2>&1 | tee debug.log
+   ```
+
+2. Check the [GitHub Issues](https://github.com/josh-wong/tegata/issues) page to see if the problem has already been reported.
+3. [File a new issue](https://github.com/josh-wong/tegata/issues/new) with your platform, Tegata version (`tegata version`), and the debug log.

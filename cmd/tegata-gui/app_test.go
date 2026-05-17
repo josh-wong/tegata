@@ -469,7 +469,7 @@ func TestApp_VerifyAuditLog_RequiresUnlock(t *testing.T) {
 }
 
 func TestApp_ResetIdle_Safe(t *testing.T) {
-	// ResetIdle must not panic when no idle timer is running (e.g. vault locked).
+	// ResetIdle must not panic when no idle timer is running (e.g., vault locked).
 	app := NewApp()
 	app.ResetIdle() // no panic expected
 }

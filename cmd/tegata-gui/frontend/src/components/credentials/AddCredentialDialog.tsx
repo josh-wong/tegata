@@ -131,7 +131,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 autoFocus
               />
               <Input
-                placeholder="Service name, e.g. GitHub, Microsoft (optional)"
+                placeholder="Service name, e.g., GitHub, Microsoft (optional)"
                 value={issuer}
                 onChange={(e) => setIssuer(e.target.value)}
               />

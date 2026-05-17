@@ -27,7 +27,7 @@ type FetchHistoryResult struct {
 // FetchHistory retrieves all audit history records for the given entity from
 // the ledger. It fetches the entity's collection, then gets each event
 // individually. Events that fail to fetch are skipped and counted in Warning.
-// If the collection does not exist (e.g. after a wipe), returns empty results.
+// If the collection does not exist (e.g., after a wipe), returns empty results.
 func FetchHistory(ctx context.Context, client Client, entityID string) (*FetchHistoryResult, error) {
 	collectionID := CollectionID(entityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)
@@ -140,7 +140,7 @@ func VerifyByLabelHash(ctx context.Context, client Client, entityID, labelHash s
 // It fetches the entity's collection, then validates each event individually
 // using the caller-supplied vaultHashes map. Events without a vault hash entry
 // are skipped (pre-existing events, per D-09). If the collection does not exist
-// (e.g. after a wipe), returns valid with zero events.
+// (e.g., after a wipe), returns valid with zero events.
 func VerifyAll(ctx context.Context, client Client, entityID string, vaultHashes map[string]string) (*VerifyResult, error) {
 	collectionID := CollectionID(entityID)
 	eventIDs, err := client.CollectionGet(ctx, collectionID)

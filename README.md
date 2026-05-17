@@ -35,7 +35,24 @@ Tegata can be installed using pre-built binaries or built from source.
 
 Download the binary for your platform from the [Releases](https://github.com/josh-wong/tegata/releases) page. On macOS and Linux, mark the binary as executable with `chmod +x`.
 
+For GUI downloads, use the platform-specific release artifacts on the same page:
+
+- Windows: `tegata-gui-windows-amd64-setup.exe`
+- macOS: `tegata-gui-darwin-universal.dmg`
+- Linux: `tegata-gui-linux-amd64.deb` or `tegata-gui-linux-amd64.rpm`
+
+If you are a maintainer creating release artifacts, see [Build and release artifacts](admin/build-and-release.md) for the full cross-platform build, packaging, signing, and publishing runbook.
+
 ### Build from source
+
+For source builds, the minimum prerequisites are:
+
+- Go 1.25 or later for CLI/TUI builds
+- Node.js 20 or later and Wails v2 for GUI builds
+
+For full platform-specific prerequisites and step-by-step instructions, see [Build the CLI and TUI from source](https://josh-wong.github.io/tegata/docs/quickstart/#build-the-cli-and-tui-from-source) or [Build the desktop GUI from source](https://josh-wong.github.io/tegata/docs/quickstart/#build-the-desktop-gui-from-source).
+
+To build from source, clone the repository and run `make build`:
 
 ```bash
 git clone https://github.com/josh-wong/tegata.git
@@ -44,6 +61,18 @@ make build
 ```
 
 The binary is placed in `bin/tegata`. Copy it to your USB drive alongside the vault.
+
+> [!NOTE]
+> 
+> On Windows, run `.\bin\tegata.exe` from the repository root, or copy `bin\tegata.exe` to a directory on your user `PATH` (for example, `%USERPROFILE%\bin`) and add that directory to `PATH`.
+>
+> On macOS and Linux, install the binary to a directory on your `PATH` to run `tegata` directly by running the following command:
+>
+> ```bash
+> sudo make install
+> ```
+>
+> By default this installs to `/usr/local/bin/tegata`. You can use a user-local path instead with `make install PREFIX=$HOME/.local`.
 
 ## Quickstart
 
@@ -69,7 +98,7 @@ Three steps to start generating authentication codes.
    tegata code GitHub --vault /mnt/usb
    ```
 
-Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full walkthrough, see the [getting started guide](docs/getting-started.md).
+Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full walkthrough, see the [getting started guide](docs/quick-start.md).
 
 ## Screenshots
 
@@ -79,16 +108,16 @@ Set `TEGATA_VAULT=/mnt/usb` to avoid repeating the `--vault` flag. For the full 
 
 Tegata is a software authenticator with portable key storage, not a hardware security key replacement. Keys are encrypted at rest with AES-256-GCM and decrypted in host memory during use. Sensitive memory is zeroed immediately after use via memguard. Rate limiting with exponential backoff protects against brute-force passphrase attempts.
 
-For a detailed review of the cryptographic implementation, memory handling, vault format, and input validation, see the [security audit](docs/SECURITY-AUDIT.md).
+For end-user hardening guidance, see [security best practices](site/docs/security-best-practices.mdx).
 
 ## Documentation
 
 | Document                                               | Description                                       |
 |--------------------------------------------------------|---------------------------------------------------|
-| [Getting started](docs/getting-started.md)             | Installation, quickstart, and daily use            |
+| [Quickstart](docs/quickstart.md)                      | Installation, quickstart, and daily use            |
 | [CLI command reference](docs/cli-reference.md)         | Complete documentation of all CLI commands          |
-| [ScalarDL setup](docs/scalardl-setup.md)               | Configure optional tamper-evident audit logging    |
-| [Security audit](docs/SECURITY-AUDIT.md)               | Self-audit of cryptographic and security practices |
+| [Enable audit logging](site/docs/scalardl-setup.mdx)   | Configure optional tamper-evident audit logging    |
+| [Security best practices](site/docs/security-best-practices.mdx) | User-facing security and operational guidance |
 | [Design document](docs/v1-design-doc.md)               | Technical architecture and component specifications |
 | [Product requirements](docs/v1-product-requirements-doc.md) | Requirements, use cases, and release plan     |
 | [Contributing](CONTRIBUTING.md)                        | Development setup, coding standards, and PR process |

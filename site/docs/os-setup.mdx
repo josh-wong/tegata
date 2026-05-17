@@ -1,0 +1,313 @@
+---
+title: Set up your OS
+sidebar_position: 2
+description: Windows, macOS, and Linux setup instructions for Tegata, including USB formatting, permissions, and OS quirks.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Tegata runs on Windows 10+, macOS 12+, and Linux (amd64) without any runtime dependencies. This page covers operating-system-specific configuration that goes beyond the [Quickstart](quickstart.mdx) guide—USB drive formatting, permission issues, auto-start behavior, and known OS quirks.
+
+## Set up your operating system
+
+Follow the instructions for your operating system to set up Tegata. If you use multiple operating systems, follow the instructions for each one.
+
+<Tabs groupId="os">
+  <TabItem value="windows" label="Windows" default>
+
+Windows users need to configure USB drive format, handle PowerShell execution policies, and manage Gatekeeper and SmartScreen security features that may block the Tegata binary.
+
+<h3>Format your USB drive or microSD card</h3>
+
+Format your USB drive or microSD card as **exFAT** for maximum cross-platform compatibility. FAT32 works but has a 4 GB file-size limit and does not support true atomic renames; Tegata handles this gracefully, but exFAT is preferable.
+
+To format in File Explorer: right-click the USB drive or microSD card → **Format** → set File system to **exFAT** → **Start**.
+
+<h3>Run the binary</h3>
+
+PowerShell does not search the current directory for executables. Prefix the command with `.\` or add the drive root to your `PATH`, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive.
+
+```powershell
+# Run directly
+.\tegata.exe version
+
+# Or add the USB drive to the session PATH
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
+tegata version
+```
+
+To make the PATH change permanent across sessions, add the drive letter via **System Properties → Environment Variables**.
+
+<h3>Allow the app through Microsoft Defender SmartScreen</h3>
+
+Windows may block the downloaded binary with a SmartScreen prompt. If you see "Windows protected your PC":
+
+1. Select **More info**.
+2. Select **Run anyway**.
+
+SmartScreen flags executables that are not yet well-known to Microsoft's cloud reputation service. This is expected for a new open-source tool.
+
+<h3>Adjust the execution policy</h3>
+
+If PowerShell blocks script execution, you may need to adjust the execution policy:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+This allows locally created scripts and signed remote scripts to run. Tegata itself is a binary, not a script, so the execution policy should not block it.
+
+<h3>Install the desktop GUI</h3>
+
+Run `tegata-gui-windows-amd64-setup.exe` and follow the NSIS installer. The GUI is installed to `%ProgramFiles%\Tegata\` and a Start Menu entry is created. The GUI binary remains on your host machine; only the CLI binary travels on the USB drive.
+
+<h3>Docker for audit logging</h3>
+
+The audit logging feature requires Docker Desktop for Windows. Install it from the [Docker website](https://www.docker.com/products/docker-desktop/). 
+
+After installation, Tegata can start Docker automatically when you unlock your vault—you do not need to open Docker Desktop manually.
+
+<h3>Set up the clipboard behavior on WSL2</h3>
+
+If you use Tegata inside WSL2, the clipboard integration writes to the Windows clipboard via `/mnt/c/Windows/System32/clip.exe`. If `clip.exe` is not available or WSL2 interop is disabled, clipboard copy will fail silently and a warning is printed to stderr.
+
+To verify interop is enabled:
+
+```bash
+cat /proc/sys/fs/binfmt_misc/WSLInterop
+```
+
+If the output is `enabled`, interop is active. If not, enable it in `/etc/wsl.conf`:
+
+```ini
+[interop]
+enabled=true
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+macOS adds security attributes to downloaded binaries and requires specific setup for ad-hoc signed applications. This section covers clearing quarantine flags, choosing the right binary for your architecture, and setting up Docker for audit logging.
+
+<h3>Clear the quarantine flag</h3>
+
+macOS adds a quarantine flag to files downloaded from the Internet. Running a quarantined binary shows an error like "cannot be opened because the developer cannot be verified."
+
+If you receive this error, clear the flag by running the following command in Terminal:
+
+```bash
+xattr -d com.apple.quarantine tegata-darwin-arm64 # For Macs with Apple Silicon processors
+xattr -d com.apple.quarantine tegata-darwin-amd64 # For Macs with Intel processors
+```
+
+If the binary is already on your USB drive, run the following command, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
+
+```bash
+xattr -d com.apple.quarantine /Volumes/<USB_DRIVE_NAME>/tegata
+```
+
+For the GUI app:
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+<h3>Apple Silicon vs. Intel</h3>
+
+Download the correct binary for your Mac.
+
+| Binary | Chip |
+|--------|------|
+| `tegata-darwin-arm64` | Apple Silicon |
+| `tegata-darwin-amd64` | Intel |
+
+The desktop GUI is distributed as a **universal binary** (`tegata-gui-darwin-universal.dmg`) that runs natively on both architectures.
+
+<h3>Format your USB drive or microSD card</h3>
+
+macOS can read and write exFAT and FAT32 natively. Format your USB drive or microSD card as exFAT using Disk Utility:
+
+1. Open **Disk Utility** (Applications → Utilities).
+2. Select the USB drive or microSD card and choose **Erase**.
+3. Set Format to **ExFAT**.
+4. Select **Erase**.
+
+:::tip[APFS is not recommended for cross-platform USB drives]
+
+APFS is the native macOS filesystem but is not readable on Windows or Linux without third-party software. Use exFAT if you move the drive between machines.
+
+:::
+
+<h3>Set TEGATA_VAULT persistently</h3>
+
+Add the export to your shell profile so you do not have to type `--vault` on every command by running the following command, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
+
+```bash
+# For zsh (default on macOS 10.15+)
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.bash_profile
+source ~/.bash_profile
+```
+
+<h3>Docker for audit logging</h3>
+
+The audit logging feature requires Docker Desktop for Mac. Install it from the [Docker website](https://www.docker.com/products/docker-desktop/). 
+
+After installation, Tegata can start Docker automatically when you unlock your vault—you do not need to open Docker Desktop manually.
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+:::note[Linux support]
+
+Linux has not been manually tested. The steps on this page are expected to work, but if you run into issues, please [open an issue](https://github.com/josh-wong/tegata/issues).
+
+:::
+
+Linux setup requires configuring USB drive mounting, installing clipboard tools appropriate for your desktop environment, and ensuring Docker has the correct permissions. WSL2 users should configure interop for clipboard access.
+
+<h3>Mount your USB drive or microSD card</h3>
+
+Most desktop Linux distributions auto-mount USB drives or microSD cards to `/media/$USER/<drive-name>`. On minimal or server systems, mount manually, replacing `/dev/path/to/device` and `/mnt/path/to/usb` with the correct values:
+
+```bash
+sudo mkdir -p /mnt/path/to/usb
+sudo mount /dev/path/to/device /mnt/path/to/usb
+```
+
+Use `lsblk` to identify the device:
+
+```bash
+lsblk -f
+```
+
+<h3>Install clipboard dependencies</h3>
+
+Tegata uses `xclip` on X11 and `wl-clipboard` (`wl-copy`) on Wayland. Install the appropriate package for your desktop environment.
+
+<Tabs groupId="linux-distro">
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
+
+```bash
+# X11
+sudo apt install xclip
+
+# Wayland
+sudo apt install wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+# X11
+sudo dnf install xclip
+
+# Wayland
+sudo dnf install wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+# X11
+sudo pacman -S xclip
+
+# Wayland
+sudo pacman -S wl-clipboard
+```
+
+  </TabItem>
+</Tabs>
+
+If neither tool is available, Tegata prints the code to stdout and logs a warning that clipboard copy was skipped. Run `tegata code <label> --clip=false` to suppress the warning.
+
+<h3>Disable clipboard copy on headless servers and SSH sessions</h3>
+
+Clipboard operations require a display. On headless servers or SSH sessions without X11 forwarding, use `--clip=false` to skip clipboard copy:
+
+```bash
+tegata code GitHub --clip=false
+```
+
+<h3>Install desktop GUI dependencies</h3>
+
+The desktop GUI uses a system WebView. Install your distribution's WebView library before running the GUI.
+
+<Tabs groupId="linux-distro">
+  <TabItem value="ubuntu-debian" label="Ubuntu 24.04+ / Debian 12+">
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+  </TabItem>
+  <TabItem value="ubuntu-older" label="Ubuntu 22.04 and earlier">
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+sudo dnf install gtk3-devel webkit2gtk4.1-devel
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S gtk3 webkit2gtk
+```
+
+  </TabItem>
+</Tabs>
+
+<h3>Add user to Docker group for audit logging</h3>
+
+Audit logging in Tegata requires Docker Engine 24+ with Compose v2. Install Docker Engine following the [official Docker docs](https://docs.docker.com/engine/install/).
+
+After installation, add your user to the `docker` group so Tegata can start containers without `sudo`:
+
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+<h3>Format your USB drive or microSD card</h3>
+
+Format your USB drive or microSD card as exFAT for cross-platform compatibility:
+
+```bash
+# Install exfatprogs if needed
+sudo apt install exfatprogs # Debian/Ubuntu
+sudo dnf install exfatprogs # Fedora
+
+# Format the drive (replace /dev/sdb1 with your device)
+sudo mkfs.exfat -n MyUSB /dev/sdb1
+```
+
+<h3>AppArmor / SELinux</h3>
+
+On systems with mandatory access control enabled, the Tegata binary may be blocked from accessing USB drives or clipboard tools. If you see permission errors, check your audit log (`journalctl -f`) for AppArmor or SELinux denials and add the appropriate policy exception.
+
+  </TabItem>
+</Tabs>
+
+## Environment variables reference
+
+These environment variables affect Tegata behavior on all platforms.
+
+| Variable | Description |
+|----------|-------------|
+| `TEGATA_VAULT` | Default vault path when `--vault` is not provided |
+| `TEGATA_PASSPHRASE` | Vault passphrase for non-interactive use (warning printed to stderr) |
+| `TEGATA_BACKUP_PASSPHRASE` | Backup passphrase for scripted `tegata import` |
+| `NO_COLOR` | Disable ANSI color output (any value, including empty, activates this) |

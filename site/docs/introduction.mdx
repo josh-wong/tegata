@@ -1,0 +1,29 @@
+---
+title: Introduction
+sidebar_position: 0
+description: Tegata is an open-source portable authenticator with optional tamper-evident audit logging.
+---
+
+Tegata (手形) is an open-source portable authenticator that stores encrypted credentials on a standard USB drive or microSD card. The name references historical Japanese travel passes—handprint-stamped documents used as portable proof of identity. The tagline is "Your authentication history. Integrity checked."
+
+## The problem Tegata solves
+
+Most authenticator apps tie your credentials to a phone or a cloud account. Tegata keeps them on hardware you physically carry. It is a low-cost alternative to dedicated hardware security keys (such as YubiKey) for individuals who need portability and optional auditability without hardware-level key isolation.
+
+## What Tegata does
+
+Tegata supports four credential types:
+
+- **TOTP and HOTP:** Time-based and counter-based one-time passwords, compatible with any service that follows RFC 6238 or RFC 4226
+- **Challenge-response:** HMAC-SHA256 signing for services that support it
+- **Static passwords:** Encrypted passwords retrieved on demand
+
+Credentials are stored in your vault file on the USB drive, encrypted with AES-256-GCM using a passphrase you choose. All authentication happens locally—nothing is transmitted to a cloud service.
+
+## Optional audit logging
+
+Tegata can record every authentication event in a tamper-evident, hash-chained audit log backed by [ScalarDL Ledger](https://scalardl.scalar-labs.com/docs/). Audit logging is disabled by default and requires Docker to enable.
+
+## Next steps
+
+To set up a vault and run your first credential workflow (for example, generating a TOTP code), see [Quickstart](quickstart.mdx).

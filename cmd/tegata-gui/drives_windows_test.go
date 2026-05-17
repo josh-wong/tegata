@@ -41,7 +41,7 @@ func TestScanMountedDrives_WindowsDriveLetters(t *testing.T) {
 	for _, r := range results {
 		// Every result path on Windows should start with a drive letter and colon.
 		if len(r.Path) < 2 || r.Path[1] != ':' {
-			t.Errorf("expected Windows drive letter path (e.g. D:\\), got %q", r.Path)
+			t.Errorf("expected Windows drive letter path (e.g., D:\\), got %q", r.Path)
 		}
 	}
 }

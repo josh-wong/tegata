@@ -1,0 +1,186 @@
+---
+title: Use the TUI
+sidebar_position: 4
+description: A complete walkthrough of the interactive terminal user interface of Tegata – Navigation, credential management, and keyboard shortcuts.
+---
+
+Tegata includes an interactive terminal user interface (TUI) for users who prefer a keyboard-driven, visual experience over individual CLI commands. The TUI maintains a session with an idle timeout-based auto-lock, so you unlock your vault once and generate codes throughout your session.
+
+Launch the TUI by running the following command in your terminal:
+
+```bash
+tegata ui
+```
+
+## First launch and setup wizard
+
+If no vault exists at the resolved vault path, the TUI launches a setup wizard. The wizard guides you through the same steps as `tegata init`—choosing a passphrase, creating your vault, and displaying your recovery key.
+
+:::danger[Save your recovery key]
+
+The recovery key is displayed once at the end of the wizard. Write it down and store it somewhere physically separate from your USB drive before continuing.
+
+:::
+
+After setup completes, the wizard transitions automatically to the main view.
+
+## Unlocking your vault
+
+If a vault already exists, the TUI presents an unlock prompt on launch:
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                         Enter vault passphrase:                             │
+│                         [ _________________ ]                               │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Type your passphrase and press **Enter**. The passphrase is masked (not displayed). After three failed attempts, Tegata applies exponential backoff and displays the wait time before the next attempt is allowed.
+
+## Main view
+
+After unlocking, the main view shows a two-panel layout: a credential list on the left and a detail panel on the right.
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ > GitHub             totp   │ │                                            │
+│ │   AWS-prod           hotp   │ │   482901                                   │
+│ │   WiFi-office        pw     │ │   Expires in 18s  ████████░░░░  (18/30)   │
+│ │                             │ │                                            │
+│ │                             │ │   ✓ Copied to clipboard                    │
+│ │                             │ │     (auto-clear in 45s)                    │
+│ │                             │ │                                            │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [↑↓] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+The left panel lists all credentials with their type abbreviated to the right (`totp`, `hotp`, `pw`, `cr`). The right panel shows the current code or action result for the selected credential.
+
+## Keyboard shortcuts
+
+The TUI supports keyboard navigation for moving through credentials, managing them, and interacting with overlays and dialogs. The most common operations, such as navigating credentials and copying codes, use arrow keys.
+
+### Navigation
+
+Use these keys to move through your credential list and manage your session.
+
+| Key | Action |
+|-----|--------|
+| `↓` or `j` | Move selection down |
+| `↑` or `k` | Move selection up |
+| `Enter` | Copy code or password for the selected credential |
+| `q` | Quit (your vault auto-locks) |
+
+Selection wraps around: pressing `↑`/`k` on the first credential moves to the last, and pressing `↓`/`j` on the last credential moves to the first.
+
+### Credential management
+
+These keys let you add new credentials and remove existing ones from within the TUI.
+
+| Key | Action |
+|-----|--------|
+| `a` | Open the add credential overlay |
+| `r` | Open the remove confirmation dialog for the selected credential |
+
+### In overlays and dialogs
+
+When adding or removing credentials, use these keys to navigate fields and confirm your actions.
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Cycle through fields or options |
+| `Enter` | Confirm / submit |
+| `Esc` | Cancel and return to main view |
+| `y` | Confirm (in yes/no prompts) |
+| `n` | Cancel (in yes/no prompts) |
+
+## Adding a credential
+
+Press `a` in the main view to open the add credential overlay:
+
+```
+┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+│ │ ┌─ Add credential ────────────────────────────────┐                       │
+│ │ │                                                  │                       │
+│ │ │  Type:    [TOTP]  HOTP   CR   Static             │                       │
+│ │ │                                                  │                       │
+│ │ │  Label:   <label input>                          │                       │
+│ │ │  Secret:  <secret input, masked>                 │                       │
+│ │ │                                                  │                       │
+│ │ │  [Tab] Switch type  [Enter] Add  [Esc] Cancel    │                       │
+│ │ └──────────────────────────────────────────────────┘                       │
+│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Press `Tab` to cycle through the credential type (`TOTP`, `HOTP`, `CR`, `Static`). Fill in the label and secret fields, then press `Enter` to save. Press `Esc` to cancel without saving.
+
+After a credential is successfully added, the overlay closes, the new credential appears in the list, and it is automatically selected.
+
+## Removing a credential
+
+Navigate to the credential you want to remove and press `r`. A confirmation dialog appears:
+
+```
+│  ┌─ Remove credential? ──────────────┐
+│  │                                    │
+│  │  Remove credential 'GitHub'?       │
+│  │  This cannot be undone.            │
+│  │                                    │
+│  │  [y] Yes, remove  [n] Cancel       │
+│  │                                    │
+│  └────────────────────────────────────┘
+```
+
+The credential name is shown in the dialog to prevent accidental deletion. The default action is **cancel** (`n`). Type `y` to confirm removal.
+
+After removal, the sidebar updates immediately and the selection moves to the next available credential. If the last credential is removed, the detail panel shows an empty-vault prompt.
+
+## TOTP countdown timer
+
+For TOTP credentials, the detail panel shows a progress bar and remaining seconds:
+
+```
+   482901
+   Expires in 18s  ████████░░░░  (18/30)
+```
+
+The bar depletes as the window expires. When the code changes, the new code and a fresh timer appear automatically. You do not need to press `Enter` again; the display updates in place.
+
+## Auto-lock behavior
+
+The TUI auto-locks after 5 minutes of inactivity (configurable in `tegata.toml`). When locked, the unlock prompt reappears. Your session state (which credential was selected) is preserved across a lock/unlock cycle within the same session.
+
+To change the idle timeout, set `idle_timeout` in `tegata.toml` in seconds:
+
+```toml
+[vault]
+idle_timeout = 300 # 5 minutes; set to 0 to disable
+```
+
+## Scrolling through long credential lists
+
+When the credential list exceeds the visible area, a scroll indicator appears in the sidebar:
+
+```
+│ │   Bitwarden          totp   │
+│ │   ▲ 6 more above            │
+│ │ > DB-backup          pw     │
+│ │   Corp-LDAP          cr     │
+```
+
+The sidebar scrolls independently of the detail panel. Use `↑`/`j` and `↓`/`k` to scroll. The selected credential always appears in the detail panel regardless of sidebar scroll position.
+
+## Tips for daily use
+
+- **Leave the TUI running.** Keep a terminal window open with `tegata ui` throughout your work session. The vault stays unlocked (subject to the idle timeout) and you can generate codes with a single `Enter` keypress.
+- **No vault path needed.** If you set `TEGATA_VAULT`, the TUI finds your vault automatically. Otherwise, run `tegata ui --vault /path/to/vault`, replacing `/path/to/vault` with the actual path to your vault.
+- **Prefer `tegata code` for scripting.** The TUI is for interactive use. For automation or shell aliases, use the CLI directly.
+
+For full CLI command documentation, see the [CLI reference](cli-reference.mdx).
