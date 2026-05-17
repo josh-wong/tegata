@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base32"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -78,6 +79,10 @@ func (a *App) shutdown(_ context.Context) {
 	a.deleteClientProperties()
 	if a.config.Audit.DockerComposePath != "" {
 		_ = audit.StopStack(a.config.Audit.DockerComposePath, a.config.Audit.DockerProjectName)
+		// Lock the encrypted ledger volume after stopping the stack.
+		_ = audit.LockLedgerVolume(a.config.Audit)
+		// Zero the volume key from memory.
+		zeroBytes(a.config.Audit.LedgerVolumeKey)
 	}
 	a.LockVault()
 }
@@ -233,6 +238,15 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// Use the secret (from vault or after migration).
 	if secretFromVault != "" {
 		a.config.Audit.SecretKey = secretFromVault
+	}
+
+	// Load the ledger volume key from vault (encrypted storage) so the
+	// encrypted data directory can be decrypted and mounted for postgres.
+	volumeKeyHex := a.vault.GetSecret("audit.ledger_volume_key")
+	if volumeKeyHex != "" {
+		if volumeKey, hexErr := hex.DecodeString(volumeKeyHex); hexErr == nil {
+			a.config.Audit.LedgerVolumeKey = volumeKey
+		}
 	}
 
 	// Ensure the audit stack is running before building the EventBuilder so

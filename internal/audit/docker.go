@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/ledgervol"
 )
 
 // autoStartRetries and autoStartInterval control how long MaybeAutoStart
@@ -300,13 +301,15 @@ func generateSecretKey() (string, error) {
 // before writing, ensuring the correct project name is embedded in the file
 // rather than relying solely on --project-name (which Docker Desktop for
 // Windows does not always honour when a top-level name: directive is present).
-func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
+// When ledgerDataDir is non-empty, the postgres named volume mount is replaced
+// with a bind mount pointing at the encrypted-volume data directory.
+func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string) error {
 	data, err := fs.ReadFile(fsys, "docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
 	}
 	if entityID != "" {
-		rewritten, ok := rewriteComposeFile(data, entityID)
+		rewritten, ok := rewriteComposeFile(data, entityID, ledgerDataDir)
 		if !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 		}
@@ -318,8 +321,10 @@ func syncDockerCompose(fsys fs.FS, composePath, entityID string) error {
 // extractComposeFiles walks the provided fs.FS and writes each file to
 // targetDir, preserving the directory structure. When entityID is non-empty,
 // docker-compose.yml is rewritten with a per-vault volume name so each vault's
-// PostgreSQL data is stored in an isolated Docker named volume.
-func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
+// PostgreSQL data is stored in an isolated Docker named volume. When
+// ledgerDataDir is non-empty, the postgres named volume mount is also replaced
+// with a bind mount to enable encrypted-at-rest ledger data.
+func extractComposeFiles(fsys fs.FS, targetDir, entityID, ledgerDataDir string) error {
 	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -340,7 +345,7 @@ func extractComposeFiles(fsys fs.FS, targetDir, entityID string) error {
 		}
 
 		if entityID != "" && path == "docker-compose.yml" {
-			rewritten, ok := rewriteComposeFile(data, entityID)
+			rewritten, ok := rewriteComposeFile(data, entityID, ledgerDataDir)
 			if !ok {
 				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 			}
@@ -393,28 +398,84 @@ func ComposeDirForVault(homeDir, vaultID string) string {
 	return filepath.Join(homeDir, ".tegata", "docker", entityIDFromVaultID(vaultID))
 }
 
+// LedgerVolumeEncPath returns the path of the AES-256-GCM encrypted ledger
+// data archive for the given compose directory. The archive stores the postgres
+// data directory when the vault is locked.
+func LedgerVolumeEncPath(composeDir string) string {
+	return filepath.Join(composeDir, "ledger-data.enc")
+}
+
+// LedgerVolumeDataDir returns the plaintext bind-mount directory for the
+// postgres container. It is populated by decrypting LedgerVolumeEncPath on
+// vault unlock and re-encrypted back to LedgerVolumeEncPath on vault lock.
+func LedgerVolumeDataDir(composeDir string) string {
+	return filepath.Join(composeDir, "ledger-data")
+}
+
+// UnlockLedgerVolume decrypts the encrypted ledger data archive and makes the
+// plaintext postgres data directory available for the Docker bind mount. When
+// cfg.LedgerVolumeKey is empty, the function is a no-op (encryption disabled).
+func UnlockLedgerVolume(cfg config.AuditConfig) error {
+	if len(cfg.LedgerVolumeKey) == 0 {
+		return nil
+	}
+	if cfg.DockerComposePath == "" {
+		return nil
+	}
+	composeDir := filepath.Dir(cfg.DockerComposePath)
+	return ledgervol.Unlock(LedgerVolumeEncPath(composeDir), LedgerVolumeDataDir(composeDir), cfg.LedgerVolumeKey)
+}
+
+// LockLedgerVolume re-encrypts the plaintext postgres data directory into the
+// encrypted ledger archive, then deletes the plaintext directory. Call this
+// after StopStack. When cfg.LedgerVolumeKey is empty, the function is a no-op.
+func LockLedgerVolume(cfg config.AuditConfig) error {
+	if len(cfg.LedgerVolumeKey) == 0 {
+		return nil
+	}
+	if cfg.DockerComposePath == "" {
+		return nil
+	}
+	composeDir := filepath.Dir(cfg.DockerComposePath)
+	return ledgervol.Lock(LedgerVolumeEncPath(composeDir), LedgerVolumeDataDir(composeDir), cfg.LedgerVolumeKey)
+}
+
 // rewriteComposeFile rewrites the Docker Compose file content so that both the
 // project name and the named volume are scoped to the given entityID. This
 // ensures the correct project name is embedded in the file itself rather than
 // relying solely on --project-name, which Docker Desktop for Windows does not
 // always honour when a top-level name: directive is present.
 //
-// Two substitutions are performed:
+// Two required substitutions are performed:
 //   - "name: tegata-ledger"       → "name: entityID"
 //   - "name: tegata-scalardl-data" → "name: entityID-scalardl-data"
+//
+// When ledgerDataDir is non-empty, a third substitution replaces the named
+// volume mount for postgres with a bind mount pointing at the decrypted ledger
+// data directory managed by the ledgervol package:
+//   - "- tegata-scalardl-data:/var/lib/postgresql/data" → "- ledgerDataDir:/var/lib/postgresql/data"
 //
 // Returns the rewritten data and true if at least the volume name substitution
 // was found (the project-name substitution is best-effort). Returns the
 // original data and false if neither target was found (compose file format may
 // have drifted from expectations).
 // entityID must be non-empty.
-func rewriteComposeFile(data []byte, entityID string) ([]byte, bool) {
+func rewriteComposeFile(data []byte, entityID, ledgerDataDir string) ([]byte, bool) {
 	// Rewrite the top-level Compose project name.
 	projectTarget := []byte("name: tegata-ledger")
 	data = bytes.ReplaceAll(data, projectTarget, []byte("name: "+entityID))
 
+	// When a ledger data directory is provided, replace the named volume mount
+	// in the postgres service with a bind mount before rewriting the volume name.
+	// This allows Docker to access the decrypted data directory directly.
+	if ledgerDataDir != "" {
+		volumeMountTarget := []byte("- tegata-scalardl-data:/var/lib/postgresql/data")
+		data = bytes.ReplaceAll(data, volumeMountTarget, []byte("- "+ledgerDataDir+":/var/lib/postgresql/data"))
+	}
+
 	// Rewrite the Docker named volume so each vault's PostgreSQL data is
-	// stored in an isolated volume.
+	// stored in an isolated volume. When using a bind mount above, this volume
+	// declaration remains but is unused — Docker will not create it.
 	volumeTarget := []byte("name: tegata-scalardl-data")
 	if !bytes.Contains(data, volumeTarget) {
 		return data, false
@@ -425,7 +486,7 @@ func rewriteComposeFile(data []byte, entityID string) ([]byte, bool) {
 // rewriteComposeVolume is a backward-compatible alias for rewriteComposeFile
 // retained for test compatibility. New callers should use rewriteComposeFile.
 func rewriteComposeVolume(data []byte, entityID string) ([]byte, bool) {
-	return rewriteComposeFile(data, entityID)
+	return rewriteComposeFile(data, entityID, "")
 }
 
 // runDockerCompose executes a docker compose command with the given compose
@@ -491,12 +552,32 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 
 	// Step 2: Derive entity ID and extract compose files with per-vault volume name.
 	entityID := entityIDFromVaultID(vaultID)
+
+	// Generate a 32-byte AES-256 key for the encrypted ledger data volume.
+	// The key is stored in the vault's encrypted key storage on success (via
+	// onRegistered) and is never written to disk in plaintext.
+	ledgerVolumeKey := make([]byte, 32)
+	if _, err := rand.Read(ledgerVolumeKey); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("generating ledger volume key: %w", err)
+	}
+
+	ledgerDataDir := LedgerVolumeDataDir(composeDir)
+
 	progress(progressFn, "Extracting compose files to "+composeDir+"...")
 	if err := os.MkdirAll(composeDir, 0700); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("creating compose directory: %w", err)
 	}
-	if err := extractComposeFiles(fsys, composeDir, entityID); err != nil {
+	if err := extractComposeFiles(fsys, composeDir, entityID, ledgerDataDir); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("extracting compose files: %w", err)
+	}
+
+	// Initialize the encrypted ledger data directory so the postgres container
+	// can write its initial data on first start. On first run there is no
+	// existing encrypted archive, so ledgervol.Unlock just creates the empty
+	// data directory.
+	encPath := LedgerVolumeEncPath(composeDir)
+	if err := ledgervol.Unlock(encPath, ledgerDataDir, ledgerVolumeKey); err != nil {
+		return config.AuditConfig{}, fmt.Errorf("initializing ledger volume: %w", err)
 	}
 
 	// Step 3: Generate secret key.
@@ -544,6 +625,7 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		Insecure:          true,
 		DockerComposePath: composePath,
 		DockerProjectName: entityID,
+		LedgerVolumeKey:   ledgerVolumeKey,
 	}
 
 	if err := waitForLedger(cfg); err != nil {
@@ -733,9 +815,19 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 	// so the per-vault project name is embedded in the file even when
 	// docker_project_name was absent from the config (old binary).
 	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
+		ledgerDir := ""
+		if len(cfg.LedgerVolumeKey) > 0 {
+			ledgerDir = LedgerVolumeDataDir(filepath.Dir(cfg.DockerComposePath))
+		}
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
+	}
+
+	// Decrypt the ledger data directory before starting the Docker stack so
+	// the bind mount is available when postgres starts.
+	if err := UnlockLedgerVolume(cfg); err != nil {
+		return fmt.Errorf("unlocking ledger volume: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(os.Stderr, "tegata: audit ledger is not running; starting it...")
@@ -782,9 +874,19 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 	}
 
 	if fsys != nil {
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject); err != nil {
+		ledgerDir := ""
+		if len(cfg.LedgerVolumeKey) > 0 {
+			ledgerDir = LedgerVolumeDataDir(filepath.Dir(cfg.DockerComposePath))
+		}
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
+	}
+
+	// Decrypt the ledger data directory before starting the Docker stack so
+	// the bind mount is available when postgres starts.
+	if err := UnlockLedgerVolume(cfg); err != nil {
+		return fmt.Errorf("unlocking ledger volume: %w", err)
 	}
 
 	if err := ensureDockerDaemon(); err != nil {

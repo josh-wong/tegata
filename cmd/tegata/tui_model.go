@@ -570,6 +570,12 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 		if err := audit.StopStack(m.cfg.Audit.DockerComposePath, m.cfg.Audit.DockerProjectName); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not stop audit server: %v\n", err)
 		}
+		// Lock the encrypted ledger volume after stopping the stack.
+		if err := audit.LockLedgerVolume(m.cfg.Audit); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not encrypt ledger volume: %v\n", err)
+		}
+		// Zero the volume key from memory.
+		zeroBytes(m.cfg.Audit.LedgerVolumeKey)
 	}
 	// Delete the plaintext client.properties now that the stack is stopped.
 	m.deleteClientProperties()

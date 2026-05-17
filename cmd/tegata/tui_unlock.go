@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -92,6 +93,15 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		// Use the secret (from vault or after migration).
 		if secretFromVault != "" {
 			cfg.Audit.SecretKey = secretFromVault
+		}
+
+		// Load the ledger volume key from vault (encrypted storage) so the
+		// encrypted data directory can be decrypted and mounted for postgres.
+		volumeKeyHex := mgr.GetSecret("audit.ledger_volume_key")
+		if volumeKeyHex != "" {
+			if volumeKey, hexErr := hex.DecodeString(volumeKeyHex); hexErr == nil {
+				cfg.Audit.LedgerVolumeKey = volumeKey
+			}
 		}
 
 		// Auto-start is deferred to a tea.Cmd (maybeAutoStartCmd) issued by
