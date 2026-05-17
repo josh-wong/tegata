@@ -239,27 +239,44 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("unlocking vault: %w", err)
 	}
 	zeroBytes(passphraseBytes)
-	vaultID := mgr.VaultID()
 	defer mgr.Close()
 
-	// Resolve per-vault compose directory: ~/.tegata/docker/<entityID>/
-	u, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("resolving home directory: %w", err)
-	}
-	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
-
-	// Strip the docker-bundle/ prefix from the embed.FS so SetupStack
-	// receives an FS rooted at the docker-compose.yml level.
+	// Strip the docker-bundle/ prefix from the embed.FS so SetupStack and
+	// EnsureStack receive an FS rooted at the docker-compose.yml level.
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 	if err != nil {
 		return fmt.Errorf("accessing embedded docker bundle: %w", err)
 	}
 
-	// progress: print each step to stderr (per UI-SPEC CLI surface).
 	progressFn := func(msg string) {
 		fmt.Fprintln(os.Stderr, msg)
 	}
+
+	// If the audit stack is already configured, load the existing keys and
+	// start/ensure the stack. Re-running SetupStack would generate a new key
+	// and fail to decrypt any existing ledger-data.enc archive.
+	if cfg, loadErr := config.Load(dir); loadErr == nil && cfg.Audit.Enabled && cfg.Audit.DockerComposePath != "" {
+		if volumeKeyHex := mgr.GetSecret("audit.ledger_volume_key"); volumeKeyHex != "" {
+			if key, decErr := hex.DecodeString(volumeKeyHex); decErr == nil {
+				cfg.Audit.LedgerVolumeKey = key
+				defer zeroBytes(cfg.Audit.LedgerVolumeKey)
+			}
+		}
+		if secretKey := mgr.GetSecret("audit.secret_key"); secretKey != "" {
+			cfg.Audit.SecretKey = secretKey
+			defer func() { cfg.Audit.SecretKey = "" }()
+		}
+		return audit.EnsureStack(cfg.Audit, bundleFS, progressFn)
+	}
+
+	// First-time setup: generate new keys and configure the stack.
+	vaultID := mgr.VaultID()
+
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("resolving home directory: %w", err)
+	}
+	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 	// onRegistered stores the generated HMAC secret and ledger volume key in the
 	// encrypted vault and writes the [audit] section to tegata.toml. The secrets
@@ -276,7 +293,6 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 			if vaultErr := mgr.SetSecret("audit.ledger_volume_key", hexKey); vaultErr != nil {
 				return fmt.Errorf("storing ledger volume key in vault: %w", vaultErr)
 			}
-			// Zero the key from memory after storing
 			zeroBytes(auditCfg.LedgerVolumeKey)
 		}
 		auditCfg.AutoStart = true
