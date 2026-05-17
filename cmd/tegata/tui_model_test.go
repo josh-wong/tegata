@@ -368,6 +368,32 @@ func TestOverlayAdd(t *testing.T) {
 	}
 }
 
+// TestOverlayAddHOTPNoAlgorithmRow verifies HOTP add form does not show an
+// algorithm row in the TUI.
+func TestOverlayAddHOTPNoAlgorithmRow(t *testing.T) {
+	m := initialModel("")
+	m.state = stateOverlayAdd
+	m.addTypeIdx = 1 // HOTP
+	view := m.viewOverlayAdd()
+
+	if strings.Contains(view, "Algorithm:") {
+		t.Fatal("expected HOTP add form to hide algorithm row")
+	}
+}
+
+// TestOverlayAddTOTPShowsAlgorithmRow verifies TOTP add form still exposes
+// algorithm selection.
+func TestOverlayAddTOTPShowsAlgorithmRow(t *testing.T) {
+	m := initialModel("")
+	m.state = stateOverlayAdd
+	m.addTypeIdx = 0 // TOTP
+	view := m.viewOverlayAdd()
+
+	if !strings.Contains(view, "Algorithm:") {
+		t.Fatal("expected TOTP add form to show algorithm row")
+	}
+}
+
 // TestOverlayRemove asserts that pressing 'r' from stateMainView transitions
 // to stateOverlayRemove; 'y' removes the selected credential and 'n' cancels.
 func TestOverlayRemove(t *testing.T) {

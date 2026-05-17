@@ -452,6 +452,171 @@ func TestAddCredentialDuplicateLabel(t *testing.T) {
 	}
 }
 
+func TestAddCredential_HOTPForcesSHA1(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	id, err := m.AddCredential(model.Credential{
+		Label:     "hotp-default",
+		Type:      model.CredentialHOTP,
+		Algorithm: "",
+		Secret:    "GEZDGNBVGY3TQOJQ",
+	})
+	if err != nil {
+		t.Fatalf("AddCredential: %v", err)
+	}
+	if id == "" {
+		t.Fatal("expected non-empty ID")
+	}
+
+	cred, err := m.GetCredential("hotp-default")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	if cred.Algorithm != "SHA1" {
+		t.Errorf("HOTP algorithm = %q, want SHA1", cred.Algorithm)
+	}
+}
+
+func TestAddCredential_HOTPRejectsNonSHA1(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	_, err = m.AddCredential(model.Credential{
+		Label:     "hotp-sha256",
+		Type:      model.CredentialHOTP,
+		Algorithm: "SHA256",
+		Secret:    "GEZDGNBVGY3TQOJQ",
+	})
+	if !errors.Is(err, errors.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestUpdateCredential_PreservesLegacyHOTPAlgorithm(t *testing.T) {
+	path, _ := createTestVault(t)
+	m, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	// Seed a legacy HOTP record by writing directly into payload (simulates
+	// existing vaults created before SHA1-only enforcement).
+	legacy := model.Credential{
+		ID:         "legacy-hotp-id",
+		Label:      "legacy-hotp",
+		Type:       model.CredentialHOTP,
+		Algorithm:  "SHA256",
+		Secret:     "GEZDGNBVGY3TQOJQ",
+		Counter:    1,
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+		Tags:       []string{},
+	}
+	m.payload.Credentials = append(m.payload.Credentials, legacy)
+	if err := m.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	cred, err := m.GetCredential("legacy-hotp")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	cred.Issuer = "UpdatedIssuer"
+	if err := m.UpdateCredential(cred); err != nil {
+		t.Fatalf("UpdateCredential: %v", err)
+	}
+
+	updated, err := m.GetCredential("legacy-hotp")
+	if err != nil {
+		t.Fatalf("GetCredential after update: %v", err)
+	}
+	if updated.Algorithm != "SHA256" {
+		t.Errorf("legacy HOTP algorithm changed unexpectedly: got %q, want SHA256", updated.Algorithm)
+	}
+}
+
+func TestImportCredentials_PreservesLegacyHOTPAlgorithm(t *testing.T) {
+	pathSrc, _ := createTestVault(t)
+	src, err := Open(pathSrc)
+	if err != nil {
+		t.Fatalf("Open source: %v", err)
+	}
+	defer src.Close()
+	if err := src.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock source: %v", err)
+	}
+
+	// Insert a legacy HOTP credential directly to simulate old data.
+	src.payload.Credentials = append(src.payload.Credentials, model.Credential{
+		ID:         "legacy-import-id",
+		Label:      "legacy-import",
+		Type:       model.CredentialHOTP,
+		Algorithm:  "SHA512",
+		Secret:     "GEZDGNBVGY3TQOJQ",
+		Counter:    5,
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+		Tags:       []string{},
+	})
+	if err := src.Save(); err != nil {
+		t.Fatalf("Save source: %v", err)
+	}
+
+	exportPass := []byte("export-pass-1234")
+	data, err := src.ExportCredentials(exportPass)
+	if err != nil {
+		t.Fatalf("ExportCredentials: %v", err)
+	}
+
+	pathDst, _ := createTestVault(t)
+	dst, err := Open(pathDst)
+	if err != nil {
+		t.Fatalf("Open dest: %v", err)
+	}
+	defer dst.Close()
+	if err := dst.Unlock([]byte("test-passphrase")); err != nil {
+		t.Fatalf("Unlock dest: %v", err)
+	}
+
+	imported, skipped, err := dst.ImportCredentials(data, exportPass)
+	if err != nil {
+		t.Fatalf("ImportCredentials: %v", err)
+	}
+	if imported != 1 || skipped != 0 {
+		t.Fatalf("unexpected import counts: imported=%d skipped=%d", imported, skipped)
+	}
+
+	cred, err := dst.GetCredential("legacy-import")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	if cred.Algorithm != "SHA512" {
+		t.Errorf("imported legacy HOTP algorithm = %q, want SHA512", cred.Algorithm)
+	}
+}
+
 func TestExportCredentials_RoundTrip(t *testing.T) {
 	path, _ := createTestVault(t)
 	m, err := Open(path)

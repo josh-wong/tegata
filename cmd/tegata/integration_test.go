@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-
 	"github.com/josh-wong/tegata/internal/auth"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
@@ -658,9 +657,9 @@ func TestIntegration_ChangePassphrase(t *testing.T) {
 
 func TestDecodeBase32Secret(t *testing.T) {
 	valid := []struct {
-		name   string
-		input  string
-		wantN  int // expected decoded byte length
+		name  string
+		input string
+		wantN int // expected decoded byte length
 	}{
 		{name: "uppercase no padding", input: "JBSWY3DPEHPK3PXP", wantN: 10},
 		{name: "lowercase", input: "jbswy3dpehpk3pxp", wantN: 10},
@@ -1040,6 +1039,13 @@ func TestResolveAlgorithm(t *testing.T) {
 			ct:          pkgmodel.CredentialHOTP,
 			flagChanged: false,
 			flagValue:   "SHA1",
+			want:        "SHA1",
+		},
+		{
+			name:        "HOTP with explicit SHA256 is normalized to SHA1",
+			ct:          pkgmodel.CredentialHOTP,
+			flagChanged: true,
+			flagValue:   "SHA256",
 			want:        "SHA1",
 		},
 	}

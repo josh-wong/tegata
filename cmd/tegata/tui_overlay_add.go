@@ -102,7 +102,7 @@ func (m model) addVisibleSlots() []int {
 	case pkgmodel.CredentialTOTP:
 		slots = append(slots, addSlotAlgorithm, addSlotDigits, addSlotPeriod)
 	case pkgmodel.CredentialHOTP:
-		slots = append(slots, addSlotAlgorithm, addSlotDigits)
+		slots = append(slots, addSlotDigits)
 	case pkgmodel.CredentialChallengeResponse:
 		slots = append(slots, addSlotAlgorithm)
 	}
@@ -278,6 +278,9 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Read algorithm and digits from selectors.
 			algo := addAlgoValues[m.addAlgoIdx]
+			if ct.ctype == pkgmodel.CredentialHOTP {
+				algo = "SHA1"
+			}
 			digits := addDigitValues[m.addDigitsIdx]
 
 			// Parse period for TOTP credentials.
@@ -393,8 +396,8 @@ func (m model) viewOverlayAdd() string {
 	}
 	lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, secretLabel, m.addSecretInput.View()))
 
-	// Algorithm selector — hidden for Static.
-	if ct.ctype != pkgmodel.CredentialStatic {
+	// Algorithm selector — shown only for TOTP and challenge-response.
+	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialChallengeResponse {
 		lines = append(lines, renderAddSelector("Algorithm:", addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoLabels))
 	}
 
@@ -406,6 +409,7 @@ func (m model) viewOverlayAdd() string {
 	// Period text input — TOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP {
 		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", m.addPeriodInput.View(), helpBarStyle.Render("seconds")))
+		lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("Default SHA-1. If your provider URI specifies SHA256/SHA512, use that value.")))
 	}
 
 	// Tags text input.

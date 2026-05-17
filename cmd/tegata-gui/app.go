@@ -386,14 +386,28 @@ func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, d
 	}
 	a.resetIdle()
 
-	if model.CredentialType(credType) == model.CredentialTOTP && (period < 15 || period > 120) {
+	ctype := model.CredentialType(credType)
+	algorithm = strings.ToUpper(strings.TrimSpace(algorithm))
+	if ctype == model.CredentialHOTP {
+		if algorithm == "" {
+			algorithm = "SHA1"
+		}
+		if algorithm != "SHA1" {
+			return "", fmt.Errorf("HOTP algorithm must be SHA1 per RFC 4226")
+		}
+	}
+	if ctype == model.CredentialTOTP && algorithm == "" {
+		algorithm = "SHA1"
+	}
+
+	if ctype == model.CredentialTOTP && (period < 15 || period > 120) {
 		return "", fmt.Errorf("period must be between 15 and 120 seconds")
 	}
 
 	cred := model.Credential{
 		Label:     label,
 		Issuer:    issuer,
-		Type:      model.CredentialType(credType),
+		Type:      ctype,
 		Secret:    secret,
 		Algorithm: algorithm,
 		Digits:    digits,
