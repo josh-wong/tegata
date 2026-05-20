@@ -1,6 +1,6 @@
 {
-  "name": "site",
-  "version": "0.0.0",
+  "name": "Tegata Documentation",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",

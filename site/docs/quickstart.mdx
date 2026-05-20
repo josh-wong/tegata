@@ -21,7 +21,7 @@ Before you begin, you need the following:
 
 ## Install Tegata
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 Download `tegata-windows-amd64.exe` from the [Releases](https://github.com/josh-wong/tegata/releases) page. Rename it to `tegata.exe` and copy it to your USB drive.
@@ -55,7 +55,7 @@ cp tegata-darwin-arm64 /Volumes/<USB_DRIVE_NAME>/tegata # or cp tegata-darwin-am
 
 :::warning[macOS Gatekeeper]
 
-macOS might block the binary the first time you run it. For the exact steps to clear the quarantine flag, see the [macOS setup guide](os-setup.mdx#macos).
+macOS might block the binary the first time you run it. For the exact steps to clear the quarantine flag, see the [macOS setup guide](os-setup.mdx?os=macos#set-up-your-operating-system).
 
 :::
 
@@ -82,7 +82,7 @@ cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
 
 A graphical interface is available separately and is installed on your host machine rather than carried on the USB drive.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 Download and run `tegata-gui-windows-amd64-setup.exe`. The NSIS installer places the binary in `Program Files` and creates a Start Menu entry.
@@ -118,7 +118,7 @@ git clone https://github.com/josh-wong/tegata.git
 cd tegata
 ```
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows (PowerShell)" default>
 
 `make build` on Windows requires cmd.exe and GNU Make. Instead, in PowerShell, build directly by running the following commands from the repository root:
@@ -146,7 +146,7 @@ The binary is placed in `bin/tegata`. Copy it to your USB drive alongside your v
 
 :::tip[Make the CLI runnable from anywhere]
 
-<Tabs groupId="source-install-os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 In PowerShell, run the following command from the repository root:
@@ -192,7 +192,7 @@ Building the GUI requires the [Wails CLI](https://wails.io/docs/gettingstarted/i
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows (PowerShell)" default>
 
 `make gui` on Windows uses `mv`, which is not available in PowerShell. Instead, run the following commands from the repository root:
@@ -222,7 +222,7 @@ On macOS, the app bundle is placed in `cmd/tegata-gui/build/bin/Tegata.app`. On 
 
 To create a vault, choose your platform and run the corresponding command.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows">
 
 In PowerShell, run the following command, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive:
@@ -272,7 +272,7 @@ Write your recovery key down and store it somewhere physically separate from you
 
 Tegata supports two methods for adding credentials: scanning an `otpauth://` URI and entering the secret manually. In this section, as an example, a credential for GitHub will be added using both methods.
 
-<Tabs groupId="add-method">
+<Tabs groupId="add-method" queryString>
   <TabItem value="scan" label="Scan URI (recommended)">
 
 When a service shows you a QR code, most services also offer a "copy link" option or display the `otpauth://` URI as text. Copy the URI and run the following command, replacing `path/to/vault` with your vault path:

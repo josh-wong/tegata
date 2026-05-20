@@ -31,8 +31,8 @@ If a vault already exists, the TUI presents an unlock prompt on launch:
 ```
 ┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
 │                                                                              │
-│                         Enter vault passphrase:                             │
-│                         [ _________________ ]                               │
+│                         Enter vault passphrase:                              │
+│                         [ _________________ ]                                │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -44,18 +44,18 @@ Type your passphrase and press **Enter**. The passphrase is masked (not displaye
 After unlocking, the main view shows a two-panel layout: a credential list on the left and a detail panel on the right.
 
 ```
-┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
+┌─ Tegata ────────────────────────────────────────────────────────────────────┐
 │ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
-│ │ > GitHub             totp   │ │                                            │
-│ │   AWS-prod           hotp   │ │   482901                                   │
+│ │ > GitHub             totp   │ │                                           │
+│ │   AWS-prod           hotp   │ │   482901                                  │
 │ │   WiFi-office        pw     │ │   Expires in 18s  ████████░░░░  (18/30)   │
-│ │                             │ │                                            │
-│ │                             │ │   ✓ Copied to clipboard                    │
-│ │                             │ │     (auto-clear in 45s)                    │
-│ │                             │ │                                            │
-│ └─────────────────────────────┘ └──────────────────────────────────────────── │
-│  [↑↓] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
-└──────────────────────────────────────────────────────────────────────────────┘
+│ │                             │ │                                           │
+│ │                             │ │   ✓ Copied to clipboard                   │
+│ │                             │ │     (auto-clear in 45s)                   │
+│ │                             │ │                                           │
+│ └─────────────────────────────┘ └────────────────────────────────────────── │
+│  [↑↓] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                 │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 The left panel lists all credentials with their type abbreviated to the right (`totp`, `hotp`, `pw`, `cr`). The right panel shows the current code or action result for the selected credential.
@@ -103,20 +103,20 @@ When adding or removing credentials, use these keys to navigate fields and confi
 Press `a` in the main view to open the add credential overlay:
 
 ```
-┌─ Tegata ─────────────────────────────────────────────────────────────────────┐
-│ ┌── Credentials (3) ──────────┐ ┌── GitHub ──────────────────────────────── │
+┌─ Tegata ────────────────────────────────────────────────────────────────────┐
+│ ┌── Credentials (3) ──┐ ┌── GitHub ──────────────────────────────────────── │
 │ │ ┌─ Add credential ────────────────────────────────┐                       │
-│ │ │                                                  │                       │
-│ │ │  Type:    [TOTP]  HOTP   CR   Static             │                       │
-│ │ │                                                  │                       │
-│ │ │  Label:   <label input>                          │                       │
-│ │ │  Secret:  <secret input, masked>                 │                       │
-│ │ │                                                  │                       │
-│ │ │  [Tab] Switch type  [Enter] Add  [Esc] Cancel    │                       │
-│ │ └──────────────────────────────────────────────────┘                       │
-│ └─────────────────────────────┘ └──────────────────────────────────────────── │
+│ │ │                                                 │                       │
+│ │ │  Type:    [TOTP]  HOTP   CR   Static            │                       │
+│ │ │                                                 │                       │
+│ │ │  Label:   <label input>                         │                       │
+│ │ │  Secret:  <secret input, masked>                │                       │
+│ │ │                                                 │                       │
+│ │ │  [Tab] Switch type  [Enter] Add  [Esc] Cancel   │                       │
+│ │ └─────────────────────────────────────────────────┘                       │
+│ └─────────────────────┘ └────────────────────────────────────────────────── │
 │  [j/k] Navigate  [Enter] Copy  [a] Add  [r] Remove  [q] Quit                │
-└──────────────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Press `Tab` to cycle through the credential type (`TOTP`, `HOTP`, `CR`, `Static`). Fill in the label and secret fields, then press `Enter` to save. Press `Esc` to cancel without saving.
@@ -129,13 +129,13 @@ Navigate to the credential you want to remove and press `r`. A confirmation dial
 
 ```
 │  ┌─ Remove credential? ──────────────┐
-│  │                                    │
-│  │  Remove credential 'GitHub'?       │
-│  │  This cannot be undone.            │
-│  │                                    │
-│  │  [y] Yes, remove  [n] Cancel       │
-│  │                                    │
-│  └────────────────────────────────────┘
+│  │                                   │
+│  │  Remove credential 'GitHub'?      │
+│  │  This cannot be undone.           │
+│  │                                   │
+│  │  [y] Yes, remove  [n] Cancel      │
+│  │                                   │
+│  └───────────────────────────────────┘
 ```
 
 The credential name is shown in the dialog to prevent accidental deletion. The default action is **cancel** (`n`). Type `y` to confirm removal.

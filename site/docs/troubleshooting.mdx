@@ -79,7 +79,7 @@ This usually means either the wrong file was specified or your vault was damaged
 
 **Try the backup first:** Tegata creates a `.bak` file in your vault directory before every write. If `vault.tegata.bak` exists, try renaming it to `vault.tegata`:
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 To rename the backup vault in PowerShell, run the following command, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive:
@@ -132,7 +132,7 @@ clear_delay = 90 # seconds; 0 disables auto-clear
 
 Tegata uses `xclip` on X11 and `wl-copy` on Wayland. One of these must be installed.
 
-<Tabs groupId="linux-distro">
+<Tabs groupId="linux-distro" queryString>
   <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
 
 ```bash
@@ -188,7 +188,7 @@ This section describes how to troubleshoot common problems with the audit layer.
 
 Install Docker and ensure the daemon is running.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows">
 
 Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and start it from the Start Menu. Tegata will start Docker automatically on subsequent vault unlocks, but the first `tegata ledger start` requires Docker Desktop to already be running.
@@ -280,7 +280,7 @@ This section describes how to troubleshoot common problems with the CLI and GUI 
 
 The binary is not on your `PATH`. Either run it with the full path or add its directory to `PATH`.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows (PowerShell)" default>
 
 ```powershell
@@ -351,7 +351,7 @@ This section describes how to troubleshoot common problems with generating TOTP 
 
 The most common cause is **clock drift**. TOTP is time-based and requires your system clock to be accurate within ±30 seconds.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows">
 
 ```powershell

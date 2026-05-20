@@ -13,7 +13,7 @@ Tegata runs on Windows 10+, macOS 12+, and Linux (amd64) without any runtime dep
 
 Follow the instructions for your operating system to set up Tegata. If you use multiple operating systems, follow the instructions for each one.
 
-<Tabs groupId="os">
+<Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 Windows users need to configure USB drive format, handle PowerShell execution policies, and manage Gatekeeper and SmartScreen security features that may block the Tegata binary.
@@ -189,7 +189,7 @@ lsblk -f
 
 Tegata uses `xclip` on X11 and `wl-clipboard` (`wl-copy`) on Wayland. Install the appropriate package for your desktop environment.
 
-<Tabs groupId="linux-distro">
+<Tabs groupId="linux-distro" queryString>
   <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
 
 ```bash
@@ -239,7 +239,7 @@ tegata code GitHub --clip=false
 
 The desktop GUI uses a system WebView. Install your distribution's WebView library before running the GUI.
 
-<Tabs groupId="linux-distro">
+<Tabs groupId="linux-distro" queryString>
   <TabItem value="ubuntu-debian" label="Ubuntu 24.04+ / Debian 12+">
 
 ```bash
