@@ -133,6 +133,30 @@ const config = {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
       },
+      algolia: {
+        // The application ID provided by Algolia
+        appId: '6G0F38QD9K',
+
+        // Public API key: it is safe to commit it
+        apiKey: 'ef6970ac3647aaa2db175c91770fca7e',
+
+        indexName: 'Tegata Documentation',
+
+        // Optional: see doc section below
+        contextualSearch: true,
+
+        // Optional: Algolia search parameters
+        searchParameters: {},
+
+        // Optional: path for search page that enabled by default (`false` to disable it)
+        searchPagePath: 'search',
+
+        // Optional: whether the insights feature is enabled or not on Docsearch (`false` by default)
+        insights: true,
+
+        // Optional: whether you want to use the new Ask AI feature (undefined by default)
+        // askAi: 'YOUR_ALGOLIA_ASK_AI_ASSISTANT_ID',
+      },
     }),
 };
 
