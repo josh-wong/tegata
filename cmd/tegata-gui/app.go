@@ -455,8 +455,27 @@ func (a *App) RemoveCredential(id string) error {
 		return fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
+
+	// Capture label and issuer before removal so the audit event can reference them.
+	var label, issuer string
+	if a.builder != nil {
+		for _, c := range a.vault.ListCredentials() {
+			if c.ID == id {
+				label = c.Label
+				issuer = c.Issuer
+				break
+			}
+		}
+	}
+
 	if err := a.vault.RemoveCredential(id); err != nil {
 		return fmt.Errorf("removing credential: %w", err)
+	}
+
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("credential-remove", label, issuer, audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
 	}
 	return nil
 }
