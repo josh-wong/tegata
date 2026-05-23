@@ -100,3 +100,23 @@ func TestFindVaultsInDir_FiltersMacOSMetadata(t *testing.T) {
 		t.Errorf("expected vault.tegata, got %q", filepath.Base(results[0].Path))
 	}
 }
+
+func TestFindVaultsInDir_FiltersQueueFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a vault file and the offline audit queue file.
+	if err := os.WriteFile(filepath.Join(dir, "vault.tegata"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "queue.tegata"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	results := findVaultsInDir(dir, "USB")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 vault (queue.tegata excluded), got %d", len(results))
+	}
+	if filepath.Base(results[0].Path) != "vault.tegata" {
+		t.Errorf("expected vault.tegata, got %q", filepath.Base(results[0].Path))
+	}
+}
