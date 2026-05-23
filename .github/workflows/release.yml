@@ -230,6 +230,12 @@ jobs:
           cp -R "$APP_PATH" gui-app/
           echo "Normalized app to: gui-app/$(basename "$APP_PATH")"
 
+          # Restore executable permissions lost during artifact upload/download.
+          # actions/upload-artifact does not preserve file permissions, so binaries
+          # inside the app bundle arrive as 644 and must be made executable before
+          # signing, otherwise macOS refuses to launch the app.
+          find "gui-app/$(basename "$APP_PATH")/Contents/MacOS" -type f -exec chmod +x {} \;
+
       - name: Setup signing keychain
         env:
           CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
