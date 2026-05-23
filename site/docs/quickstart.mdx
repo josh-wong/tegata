@@ -82,16 +82,28 @@ cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
 
 A graphical interface is available separately and is installed on your host machine rather than carried on the USB drive.
 
+If the GUI or CLI does not launch on first run, check [Set up your OS](os-setup.mdx) and [Troubleshooting](troubleshooting.mdx) for platform-specific fixes.
+
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
 Download and run `tegata-gui-windows-amd64-setup.exe`. The NSIS installer places the binary in `Program Files` and creates a Start Menu entry.
 
+:::note
+
+If SmartScreen blocks first launch, select **More info**, then choose **Run anyway**.
+
+:::
   </TabItem>
   <TabItem value="macos" label="macOS">
 
 Download `tegata-gui-darwin-universal.dmg`. Open the disk image and drag Tegata to your Applications folder.
 
+:::note
+
+If Gatekeeper blocks first launch, use **System Settings → Privacy & Security → Open Anyway** or follow the quarantine-removal steps in [Set up your OS](os-setup.mdx?os=macos#set-up-your-operating-system).
+
+:::
   </TabItem>
   <TabItem value="linux" label="Linux">
 
@@ -106,6 +118,11 @@ Download the package format that matches your Linux system from the [Releases](h
 - `.deb` for Debian, Ubuntu, and derivatives: `sudo dpkg -i tegata-gui-linux-amd64.deb`
 - `.rpm` for Fedora, RHEL, and derivatives: `sudo rpm -i tegata-gui-linux-amd64.rpm`
 
+:::note
+
+If the app fails to start, install the WebKit2GTK runtime package for your distribution and retry. For more information, see [Set up your OS](os-setup.mdx?os=linux#set-up-your-operating-system).
+
+:::
 </TabItem>
 </Tabs>
 

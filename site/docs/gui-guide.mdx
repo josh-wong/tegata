@@ -22,17 +22,25 @@ Unlike the CLI binary, which is designed to travel on the USB drive alongside yo
 
 Download `tegata-gui-windows-amd64-setup.exe` from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page. Run the installer and follow the prompts. The GUI is installed to `Program Files\Tegata\` and a Start Menu entry is created automatically.
 
+:::note
+
+On first launch, Microsoft Defender SmartScreen may show "Windows protected your PC". Select **More info**, then choose **Run anyway**.
+
+:::
   </TabItem>
   <TabItem value="macos" label="macOS">
 
 Download `tegata-gui-darwin-universal.dmg` from the [GitHub Releases](https://github.com/josh-wong/tegata/releases) page. Open the disk image and drag **Tegata** to your **Applications** folder.
 
-On first launch, macOS Gatekeeper may block the app. To clear the quarantine flag:
+:::note
+
+On first launch, macOS Gatekeeper may block the app. If prompted, open **System Settings → Privacy & Security** and select **Open Anyway** for Tegata. If Gatekeeper still blocks launch, clear the quarantine flag:
 
 ```bash
 xattr -r -d com.apple.quarantine /Applications/Tegata.app
 ```
 
+:::
   </TabItem>
   <TabItem value="linux" label="Linux">
 
@@ -52,15 +60,17 @@ sudo dpkg -i tegata-gui-linux-amd64.deb
 sudo rpm -i tegata-gui-linux-amd64.rpm
 ```
 
-The GUI requires WebKit2GTK. Install it if the package manager reports missing dependencies:
+The GUI requires WebKit2GTK. If the app does not launch, install the runtime package that matches your distro release:
 
 ```bash
-# Ubuntu 24.04+
-sudo apt install libwebkit2gtk-4.1-dev
+# Ubuntu / Debian (newer releases)
+sudo apt install libwebkit2gtk-4.1-0
 
-# Ubuntu 22.04 and earlier
-sudo apt install libwebkit2gtk-4.0-dev
+# Ubuntu / Debian (older releases)
+sudo apt install libwebkit2gtk-4.0-37
 ```
+
+If the app still does not launch, see [Troubleshooting](troubleshooting.mdx#the-gui-doesnt-launch).
 
   </TabItem>
 </Tabs>
