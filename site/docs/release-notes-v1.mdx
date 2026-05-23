@@ -1,0 +1,157 @@
+---
+title: v1.0 release notes
+description: Read about what's new in Tegata v1.0.0, the first stable release of the open-source portable authenticator.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Tegata v1.0 release notes
+
+This page describes the release notes for Tegata v1.0 and will be updated with future release notes as new minor and patch versions are released.
+
+## 🚀 v1.0.0 – Initial release
+
+**Release date:** May 23, 2026
+
+This is the first release of Tegata v1.0.0, an open-source portable authenticator that stores your 2FA codes and credentials in an AES-256-GCM encrypted vault on a standard USB drive or microSD card. No proprietary hardware is required.
+
+### ✨ New features
+
+This release includes the following features.
+
+#### Core authenticator
+
+Tegata's offline-capable core handles all authentication operations locally on your device without network access.
+
+- **TOTP/HOTP code generation.** Generate RFC 6238/4226-compliant codes. TOTP supports SHA-1, SHA-256, and SHA-512; HOTP uses SHA-1 only (by @josh-wong in #2, #94, #101).
+	- For details on how to generate your first code, see [Generate your first code](https://tegata.080f53.com/docs/quickstart#generate-your-first-code).
+- **Challenge-response signing.** Sign challenge strings with HMAC-SHA256 for services that support it (by @josh-wong in #3, #94).
+	- For details on how to use a challenge-response credential, see [What is a challenge-response credential](https://tegata.080f53.com/docs/faq#what-is-a-challenge-response-credential).
+- **Static password storage.** Store and retrieve credentials that don't use OTPs (by @josh-wong in #3).
+	- For details on how to add static passwords to Tegata, see [Can I add static passwords to Tegata](https://tegata.080f53.com/docs/faq#can-i-add-static-passwords-to-tegata).
+- **AES-256-GCM encrypted vault.** Encrypt credentials at rest using a passphrase stretched with Argon2id (time=3, memory=64 MiB, parallelism=4) (by @josh-wong in #2)
+- **Recovery key.** Recover vault access if your passphrase is lost (by @josh-wong in #2).
+	- For details on how to protect your recovery key, see [Protecting your recovery key](https://tegata.080f53.com/docs/security-best-practices#protecting-your-recovery-key).
+- **memguard-protected memory.** Keep key material in guarded memory pages and zero it immediately after use (by @josh-wong in #2).
+	- For details on how to handle key material, see [Key material handling](https://tegata.080f53.com/docs/security-best-practices#key-material-handling).
+- **Auto-lock.** Lock the vault after 5 minutes of idle time (by @josh-wong in #49, #79).
+	- For details on how auto-lock works, see [Auto-lock behavior](https://tegata.080f53.com/docs/tui-guide#auto-lock-behavior).
+- **Export and import.** Create encrypted backup files for vault portability (by @josh-wong in #3, #68).
+	- For details on how to create an encrypted backup, see [Create an encrypted backup](https://tegata.080f53.com/docs/security-best-practices#create-an-encrypted-backup).
+- **Tag-based credential organization.** Filter and group credentials with tags (by @josh-wong in #85).
+	- For details on how to organize credentials, see [Credential organization](https://tegata.080f53.com/docs/security-best-practices#credential-organization).
+
+#### Interfaces
+
+**Terminal UI (TUI).** Offers a guided terminal interface with:
+
+- Setup wizard for first-time vault initialization (by @josh-wong in #5).
+	- For details on how to complete first launch, see [First launch and setup wizard](https://tegata.080f53.com/docs/tui-guide#first-launch-and-setup-wizard).
+- Visual countdown timer for TOTP codes (by @josh-wong in #5).
+	- For details on how the countdown timer works, see [TOTP countdown timer](https://tegata.080f53.com/docs/tui-guide#totp-countdown-timer).
+- Full keyboard navigation (by @josh-wong in #5).
+	- For details on how to navigate with the keyboard, see [Keyboard shortcuts](https://tegata.080f53.com/docs/tui-guide#keyboard-shortcuts).
+- Viewport-aware context menus (by @josh-wong in #101)
+
+**Desktop GUI.** Offers a Wails + React desktop app with:
+
+- Full feature parity with the CLI/TUI (by @josh-wong in #7, #9)
+- Installer packages for Windows, macOS, and Linux (by @josh-wong in #7).
+	- For details on how to install the GUI, see [Install the GUI](https://tegata.080f53.com/docs/gui-guide#install-the-gui).
+- Vault identifier display so you always know which vault is open (by @josh-wong in #81)
+
+#### Optional audit logging
+
+Tegata optionally integrates with [ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (Community Edition, Apache 2.0) to record authentication events in a tamper-evident, hash-chained ledger.
+
+- Audit events use hashed credential labels and service names — no plaintext secrets are ever transmitted (by @josh-wong in #4, #80).
+	- For details on how audit event fields are protected, see [What data does the audit log contain](https://tegata.080f53.com/docs/faq#what-data-does-the-audit-log-contain).
+- `tegata verify` traverses the hash chain to confirm no entries have been tampered with (by @josh-wong in #16, #74).
+	- For details on how verification works, see [What tegata verify proves](https://tegata.080f53.com/docs/security-best-practices#what-tegata-verify-proves).
+- An offline event queue stores audit events when the ledger is unreachable and replays them on reconnection (by @josh-wong in #4, #27).
+	- For details on how queued events behave offline, see [What happens to queued events if Docker is offline](https://tegata.080f53.com/docs/faq#what-happens-to-queued-events-if-docker-is-offline).
+- The audit stack runs locally via Docker and uses an encrypted backing volume for ledger data at rest (by @josh-wong in #102).
+	- For details on how to use encrypted ledger storage, see [Encrypted ledger data volume](https://tegata.080f53.com/docs/scalardl-setup#encrypted-ledger-data-volume).
+- Per-vault audit isolation ensures each vault has its own dedicated audit context (by @josh-wong in #92).
+	- For details on how to set up ScalarDL per vault, see [ScalarDL setup](https://tegata.080f53.com/docs/scalardl-setup).
+
+### 📈 Improvements
+
+_Nothing to list – This is the initial release._
+
+### 🐛 Bug fixes
+
+_Nothing to list – This is the initial release._
+
+### 📚 Documentation
+
+A full documentation site is now available at [tegata.080f53.com](https://tegata.080f53.com), covering quickstart guides, setup walkthroughs, a CLI reference, and more (by @josh-wong in #98).
+
+### 📦 Downloads
+
+<Tabs>
+  <TabItem value="windows" label="Windows">
+
+| Interface | Downloadable                                                                                                                          |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| **GUI**   | [tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-windows-amd64-setup.exe) |
+| **CLI**   | [tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-windows-amd64.exe)                     |
+
+:::note
+
+On first launch, Windows may show a SmartScreen warning for new binaries. If you see "Windows protected your PC", select **More info**, then choose **Run anyway**.
+
+:::
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+| Architecture      | Interface | Downloadable                                                                                                                    |
+|-------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------|
+| **Universal**     | **GUI**   | [tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-darwin-universal.dmg) |
+| **Apple Silicon** | **CLI**   | [tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-darwin-arm64)                         |
+| **Intel**         | **CLI**   | [tegata-darwin-amd64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-darwin-amd64)                         |
+
+:::note
+
+On macOS, run one of the following commands to mark the CLI binary as executable after downloading:
+
+```shell
+# For Apple Silicon–based Macs
+chmod +x tegata-darwin-arm64
+
+# For Intel–based Macs
+chmod +x tegata-darwin-amd64
+```
+
+Gatekeeper may also block first launch of the GUI app. If prompted, use **System Settings → Privacy & Security → Open Anyway**, or clear quarantine with:
+
+```shell
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+:::
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+| Interface | Downloadable                                                                                                          |
+|-----------|-----------------------------------------------------------------------------------------------------------------------|
+| **GUI**   | [tegata-gui-linux-amd64.deb](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-linux-amd64.deb) |
+| **GUI**   | [tegata-gui-linux-amd64.rpm](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-linux-amd64.rpm) |
+| **CLI**   | [tegata-linux-amd64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-linux-amd64)                 |
+
+:::note
+
+- **Regarding the GUI:** The Linux GUI depends on a system WebKit2GTK runtime. If the app does not launch after installation, install the appropriate runtime package for your distro release and retry.
+- **Regarding the CLI:** On Linux, run the following command to mark the CLI binary as executable after downloading:
+
+  ```shell
+  chmod +x tegata-linux-amd64
+  ```
+
+:::
+  </TabItem>
+</Tabs>
+
+SHA-256 checksums are in [SHA256SUMS.txt](https://github.com/josh-wong/tegata/releases/download/v1.0.0/SHA256SUMS.txt).

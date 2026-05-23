@@ -44,6 +44,17 @@ const sidebars = {
       items: ['security-best-practices', 'troubleshooting', 'faq'],
     },
   ],
+
+  releaseNotesSidebar: [
+    {
+      type: 'category',
+      label: 'Release notes',
+      link: {
+        type: 'generated-index',
+      },
+      items: ['release-notes-v1'],
+    },
+  ],
 };
 
 export default sidebars;

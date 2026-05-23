@@ -7,7 +7,7 @@ description: Windows, macOS, and Linux setup instructions for Tegata, including 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Tegata runs on Windows 10+, macOS 12+, and Linux (amd64) without any runtime dependencies. This page covers operating-system-specific configuration that goes beyond the [Quickstart](quickstart.mdx) guide—USB drive formatting, permission issues, auto-start behavior, and known OS quirks.
+Tegata runs on Windows 10+, macOS 12+, and Linux (amd64). The CLI and TUI are self-contained, while the desktop GUI relies on each platform's system WebView. This page covers operating-system-specific configuration that goes beyond the [Quickstart](quickstart.mdx) guide—USB drive formatting, permission issues, auto-start behavior, and known OS quirks.
 
 ## Set up your operating system
 
@@ -16,7 +16,7 @@ Follow the instructions for your operating system to set up Tegata. If you use m
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
-Windows users need to configure USB drive format, handle PowerShell execution policies, and manage Gatekeeper and SmartScreen security features that may block the Tegata binary.
+Windows users need to configure the USB drive format, handle PowerShell execution policies, and manage Microsoft Defender SmartScreen prompts that may block the Tegata binary.
 
 <h3>Format your USB drive or microSD card</h3>
 
@@ -235,19 +235,54 @@ Clipboard operations require a display. On headless servers or SSH sessions with
 tegata code GitHub --clip=false
 ```
 
-<h3>Install desktop GUI dependencies</h3>
+<h3>Install desktop GUI runtime dependencies</h3>
 
-The desktop GUI uses a system WebView. Install your distribution's WebView library before running the GUI.
+The desktop GUI uses a system WebView. Install your distribution's WebView runtime library before running the GUI.
 
 <Tabs groupId="linux-distro" queryString>
-  <TabItem value="ubuntu-debian" label="Ubuntu 24.04+ / Debian 12+">
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian (newer releases)">
+
+```bash
+sudo apt install libwebkit2gtk-4.1-0
+```
+
+  </TabItem>
+  <TabItem value="ubuntu-older" label="Ubuntu / Debian (older releases)">
+
+```bash
+sudo apt install libwebkit2gtk-4.0-37
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+sudo dnf install webkit2gtk4.1
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S webkit2gtk
+```
+
+  </TabItem>
+</Tabs>
+
+<h3>Install desktop GUI build dependencies (developer only)</h3>
+
+If you are building the GUI from source, install development headers in addition to the runtime packages listed above.
+
+<Tabs groupId="linux-distro" queryString>
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian (newer releases)">
 
 ```bash
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
   </TabItem>
-  <TabItem value="ubuntu-older" label="Ubuntu 22.04 and earlier">
+  <TabItem value="ubuntu-older" label="Ubuntu / Debian (older releases)">
 
 ```bash
 sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev

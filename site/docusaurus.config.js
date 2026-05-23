@@ -87,6 +87,18 @@ const config = {
             label: 'Docs',
           }, */
           {
+            type: 'docSidebar',
+            sidebarId: 'tutorialSidebar',
+            position: 'left',
+            label: 'Docs',
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'releaseNotesSidebar',
+            position: 'left',
+            label: 'Release notes',
+          },
+          {
             href: 'https://github.com/josh-wong/tegata',
             label: 'GitHub',
             position: 'right',

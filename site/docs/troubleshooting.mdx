@@ -15,6 +15,8 @@ Use this page for symptom-driven fixes. For deeper security rationale and policy
 
 This section describes how to troubleshoot common problems with vault access, corruption, and passphrase recovery.
 
+
+
 ### I can't unlock my vault because my passphrase is wrong
 
 **Symptom:** `tegata code` or `tegata ui` reports "Incorrect passphrase."
@@ -177,6 +179,63 @@ If it is not enabled, add the following to `/etc/wsl.conf` and restart the WSL2 
 [interop]
 enabled=true
 ```
+
+## GUI issues
+
+This section describes common problems with starting the desktop GUI on each platform.
+
+### The GUI doesn't launch
+
+**Symptom:** The installer succeeds, but the GUI does not open or exits immediately.
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows">
+
+If Windows shows "Windows protected your PC", the binary is being blocked by SmartScreen reputation checks.
+
+1. Select **More info**.
+2. Choose **Run anyway**.
+
+This is expected for new open-source binaries that do not yet have broad reputation history.
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+If macOS reports that Tegata cannot be opened because the developer cannot be verified, allow launch via **System Settings → Privacy & Security → Open Anyway**.
+
+If the app is still blocked, clear quarantine and retry:
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+The GUI requires a system WebKit2GTK runtime. If the app does not start, install runtime dependencies and retry:
+
+```bash
+# Ubuntu / Debian (newer releases)
+sudo apt install libwebkit2gtk-4.1-0
+
+# Ubuntu / Debian (older releases)
+sudo apt install libwebkit2gtk-4.0-37
+
+# Fedora / RHEL
+sudo dnf install webkit2gtk4.1
+
+# Arch Linux
+sudo pacman -S webkit2gtk
+```
+
+If launch still fails, run from a terminal to capture loader errors and attach them to a new [issue](https://github.com/josh-wong/tegata/issues/new?assignees=&labels=triage%2C+needs+triage%2C+bug%2C+gui&template=bug_report.md&title=%5BGUI+bug%5D+Brief+description+of+the+issue):
+
+```bash
+tegata-gui
+```
+
+  </TabItem>
+</Tabs>
 
 ## Audit logging issues
 
