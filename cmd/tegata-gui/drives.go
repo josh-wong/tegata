@@ -85,7 +85,8 @@ func scanMountedDrives() []VaultLocation {
 }
 
 // findVaultsInDir returns VaultLocation entries for all *.tegata files in dir,
-// skipping macOS resource fork files (names starting with "._").
+// skipping macOS resource fork files (names starting with "._") and known
+// non-vault .tegata files such as queue.tegata.
 func findVaultsInDir(dir, driveName string) []VaultLocation {
 	var results []VaultLocation
 	entries, err := os.ReadDir(dir)
@@ -98,6 +99,10 @@ func findVaultsInDir(dir, driveName string) []VaultLocation {
 		}
 		name := e.Name()
 		if strings.HasPrefix(name, "._") {
+			continue
+		}
+		// Skip queue.tegata — it is the offline audit event queue, not a vault.
+		if strings.ToLower(name) == "queue.tegata" {
 			continue
 		}
 		if strings.HasSuffix(strings.ToLower(name), vaultExtension) {
