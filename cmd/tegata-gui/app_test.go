@@ -211,6 +211,63 @@ func TestAdapter_RemoveCredential(t *testing.T) {
 	app.LockVault()
 }
 
+// TestAdapter_RemoveCredential_LogsAuditEvent verifies that RemoveCredential
+// emits a credential-remove audit event when a builder is active, and does
+// not panic when the builder is nil.
+func TestAdapter_RemoveCredential_LogsAuditEvent(t *testing.T) {
+	for _, withBuilder := range []bool{false, true} {
+		name := "nil_builder"
+		if withBuilder {
+			name = "with_builder"
+		}
+		t.Run(name, func(t *testing.T) {
+			vaultPath := setupTestVault(t)
+
+			app := NewApp()
+
+			mgr, err := vault.Open(vaultPath)
+			if err != nil {
+				t.Fatalf("opening vault: %v", err)
+			}
+			if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+				mgr.Close()
+				t.Fatalf("unlocking vault: %v", err)
+			}
+			app.vault = mgr
+			app.vaultPath = vaultPath
+
+			if withBuilder {
+				// Use a disabled builder (nil client) so LogEvent is a no-op —
+				// no ledger required. This exercises the nil-guard and lookup
+				// path without network I/O.
+				b, berr := audit.NewEventBuilder(nil, "", nil, 0)
+				if berr != nil {
+					t.Fatalf("creating disabled builder: %v", berr)
+				}
+				app.builder = b
+			}
+
+			id, err := app.AddCredential("audit-remove-test", "Issuer", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
+			if err != nil {
+				t.Fatalf("adding credential: %v", err)
+			}
+
+			// Must not panic regardless of builder state.
+			if err := app.RemoveCredential(id); err != nil {
+				t.Fatalf("removing credential: %v", err)
+			}
+
+			creds, err := app.ListCredentials()
+			if err != nil {
+				t.Fatalf("listing credentials: %v", err)
+			}
+			if len(creds) != 0 {
+				t.Errorf("expected 0 credentials after removal, got %d", len(creds))
+			}
+		})
+	}
+}
+
 func TestAdapter_GenerateTOTP(t *testing.T) {
 	vaultPath := setupTestVault(t)
 
