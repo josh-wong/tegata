@@ -68,17 +68,25 @@ The optional ScalarDL Ledger integration provides tamper-evident audit logging, 
 
 Tegata can be installed using pre-built binaries or built from source.
 
-To download the pre-built binary for your operating system, see the [Releases](https://github.com/josh-wong/tegata/releases) page.
+Download the pre-built CLI binary for your operating system:
+
+- **Windows:** [tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-windows-amd64.exe)
+- **macOS (Apple Silicon):** [tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-arm64)
+- **macOS (Intel):** [tegata-darwin-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-amd64)
+- **Linux:** [tegata-linux-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-linux-amd64)
 
 > [!IMPORTANT]
 > 
 > On macOS and Linux, mark the binary as executable with `chmod +x`.
 
-For GUI downloads, use the platform-specific release artifacts on the same page:
+For the optional desktop GUI:
 
-- **Windows:** `tegata-gui-windows-amd64-setup.exe`
-- **macOS:** `tegata-gui-darwin-universal.dmg`
-- **Linux:** `tegata-gui-linux-amd64.deb` or `tegata-gui-linux-amd64.rpm`
+- **Windows:** [tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-windows-amd64-setup.exe)
+- **macOS:** [tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-darwin-universal.dmg)
+- **Linux (.deb):** [tegata-gui-linux-amd64.deb](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-linux-amd64.deb)
+- **Linux (.rpm):** [tegata-gui-linux-amd64.rpm](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-linux-amd64.rpm)
+
+All links above always resolve to the latest release. For a full list of release assets, see the [Releases](https://github.com/josh-wong/tegata/releases) page.
 
 > [!NOTE]
 > 
