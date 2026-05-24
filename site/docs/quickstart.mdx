@@ -1,7 +1,7 @@
 ---
 title: Quickstart
 sidebar_position: 1
-description: Install Tegata, create your first vault, and generate your first 2FA code.
+description: Set up Tegata, create your first vault, and generate your first 2FA code.
 ---
 
 import Tabs from '@theme/Tabs';
@@ -31,7 +31,7 @@ If the interface you set up does not launch on first run, check [Set up your OS]
 
 ### Run the CLI and TUI
 
-The CLI and TUI runs directly from your USB drive and requires no installation on the host machine.
+The CLI and TUI run directly from your USB drive and requires no installation on the host machine.
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
@@ -250,9 +250,10 @@ On macOS, the app bundle is placed in `cmd/tegata-gui/build/bin/Tegata.app`. On 
 
 ## Create a vault
 
-The following steps use the CLI and TUI. If you installed only the desktop GUI, see [Using the GUI](gui-guide.mdx) for the equivalent walkthrough.
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
 
-To create a vault, choose your platform and run the corresponding command.
+Choose your platform and run the corresponding command.
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows">
@@ -260,7 +261,7 @@ To create a vault, choose your platform and run the corresponding command.
 In PowerShell, run the following command, replacing `<USB_DRIVE_LETTER>` with the actual letter of your drive:
 
 ```powershell
-.\tegata.exe init <USB_DRIVE_LETTER>:\ 
+.\tegata.exe init <USB_DRIVE_LETTER>:\
 ```
 
   </TabItem>
@@ -300,9 +301,55 @@ Write your recovery key down and store it somewhere physically separate from you
 
 :::
 
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+Run `tegata ui` to launch the TUI. If no vault exists at the resolved vault path, the setup wizard starts automatically.
+
+```bash
+tegata ui
+```
+
+The wizard guides you through:
+
+1. **Choose vault location.** Point to your USB drive or microSD card.
+2. **Create a passphrase.** Enter and confirm a passphrase (minimum 8 characters).
+3. **Save your recovery key.** The key is displayed once.
+
+After setup completes, the TUI transitions automatically to the main view.
+
+:::danger[Save your recovery key]
+
+Write your recovery key down and store it somewhere physically separate from your USB drive—a printed copy in a safe, a trusted password manager, or a locked drawer. If you forget your passphrase, this key is the only way to recover your vault. It cannot be retrieved after moving on from this screen.
+
+:::
+
+  </TabItem>
+  <TabItem value="gui" label="Desktop GUI">
+
+Open Tegata. On first launch, the setup wizard starts automatically.
+
+The wizard guides you through:
+
+1. **Choose vault location.** Select your USB drive or microSD card directory.
+2. **Create a passphrase.** Enter and confirm a passphrase. A strength indicator shows the estimated security level.
+3. **Save your recovery key.** The key is displayed once.
+
+:::danger[Save your recovery key before selecting Continue]
+
+The recovery key screen will not appear again. If you lose your passphrase without this key, your vault cannot be recovered.
+
+:::
+
+  </TabItem>
+</Tabs>
+
 ## Add a credential
 
-Tegata supports two methods for adding credentials: scanning an `otpauth://` URI and entering the secret manually. In this section, as an example, a credential for GitHub will be added using both methods.
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+Tegata supports two methods for adding credentials: scanning an `otpauth://` URI and entering the secret manually.
 
 <Tabs groupId="add-method" queryString>
   <TabItem value="scan" label="Scan URI (recommended)">
@@ -329,23 +376,41 @@ Tegata prompts you to enter the secret (input is hidden).
   </TabItem>
 </Tabs>
 
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+In the main view, press `a` to open the add credential overlay. Press Tab to cycle through credential types (TOTP, HOTP, Challenge-response, Static password), fill in the label and secret fields, then press Enter to save.
+
+After the credential is saved, it appears in the list and is automatically selected.
+
+  </TabItem>
+  <TabItem value="gui" label="Desktop GUI">
+
+Select the **+** button in the toolbar, or choose **Add credential** from the File menu. The dialog has tabs for each credential type: TOTP, HOTP, Challenge-response, and Static password. Fill in the required fields and select **Add**.
+
+To add a credential by using an `otpauth://` URI, select **Scan URI** and paste the URI. The type, label, issuer, algorithm, digits, and period are populated automatically.
+
+  </TabItem>
+</Tabs>
+
 ## Generate your first code
 
-To generate a TOTP code for the credential you just added, run the following command, replacing `/path/to/vault` with your vault path:
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+Run the following command, replacing `/path/to/vault` with your vault path:
 
 ```bash
 tegata code GitHub --vault /path/to/vault
 ```
 
-The output shows the current code, the time until it expires, and a confirmation that it has been copied to your clipboard. The following is an example output:
+The output shows the current code, the time until it expires, and a confirmation that it has been copied to your clipboard:
 
 ```bash
 482901
 Expires in 18s
 Copied to clipboard (auto-clear in 45s)
 ```
-
-The code is displayed in the terminal and copied to your clipboard. The clipboard is automatically cleared after 45 seconds.
 
 :::tip[Avoid typing your vault path every time]
 
@@ -363,9 +428,29 @@ $env:TEGATA_VAULT = "<USB_DRIVE_LETTER>:\"
 
 :::
 
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+Navigate to the credential with ↑/↓ and press Enter to copy the current code to your clipboard. The detail panel shows the current code, a countdown timer, and clipboard confirmation.
+
+For TOTP credentials, the code and timer update automatically — you do not need to press Enter again to refresh.
+
+  </TabItem>
+  <TabItem value="gui" label="Desktop GUI">
+
+Select the credential in the list. The detail panel on the right shows the current code and countdown timer. Select **Copy** to copy it to your clipboard.
+
+For TOTP credentials, the code updates automatically before it expires.
+
+  </TabItem>
+</Tabs>
+
 ## Workflow
 
-The typical workflow is straightforward:
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+The typical workflow is:
 
 1. Plug in your USB drive.
 2. Run `tegata code <label>` to generate and copy a code.
@@ -390,23 +475,76 @@ When you do not specify `--vault`, Tegata looks for your vault in this order:
 
 :::
 
-:::tip[Prefer a visual interface?]
+  </TabItem>
+  <TabItem value="tui" label="TUI">
 
-If you prefer a visual interface in the terminal, run `tegata ui` to launch the TUI. It shows live TOTP countdown timers, a credential list you can navigate with the keyboard, and an overlay form for adding credentials. For a complete walkthrough, see the [Using the TUI](tui-guide.mdx) guide.
+The typical workflow is:
 
-:::
+1. Plug in your USB drive.
+2. Run `tegata ui` to launch the TUI, or leave it running between sessions.
+3. Navigate with ↑/↓ and press Enter to copy a code.
+4. Paste the code where needed.
+5. The clipboard clears automatically in 45 seconds.
+
+For keyboard shortcuts, credential management, and tips for daily use, see [Using the TUI](tui-guide.mdx).
+
+  </TabItem>
+  <TabItem value="gui" label="Desktop GUI">
+
+The typical workflow is:
+
+1. Plug in your USB drive.
+2. Open Tegata.
+3. Select a credential and select **Copy** to copy the code.
+4. Paste the code where needed.
+5. The clipboard clears automatically in 45 seconds.
+
+For credential management, settings, and the audit panel, see [Using the desktop GUI](gui-guide.mdx).
+
+  </TabItem>
+</Tabs>
 
 ## Optional: Enable audit logging
 
 Tegata can record every authentication event in a tamper-evident audit log backed by ScalarDL Ledger. Audit logging is disabled by default and requires Docker.
 
-Enable it once after creating your vault by running the following command, replacing `/path/to/vault` with your vault path:
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+Run the following command once after creating your vault, replacing `/path/to/vault` with your vault path:
 
 ```bash
 tegata ledger start --vault /path/to/vault
 ```
 
-After setup, every vault unlock automatically starts the Docker stack in the background. For full details, see the [Enable audit logging](scalardl-setup.mdx) guide.
+After setup, every vault unlock automatically starts the Docker stack in the background.
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+Audit logging setup uses the CLI command regardless of your primary interface. Run the following command once, replacing `/path/to/vault` with your vault path:
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+After setup, every vault unlock automatically starts the Docker stack in the background.
+
+  </TabItem>
+  <TabItem value="gui" label="Desktop GUI">
+
+Enable audit logging from the Settings panel, or run the following CLI command once to set it up:
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+After enabling, the audit panel becomes available in the GUI to view recorded events. For details, see [Using the desktop GUI](gui-guide.mdx#view-events-in-the-audit-panel).
+
+  </TabItem>
+</Tabs>
+
+For full details, see the [Enable audit logging](scalardl-setup.mdx) guide.
 
 ## Next steps
 
