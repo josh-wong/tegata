@@ -66,9 +66,9 @@ The optional ScalarDL Ledger integration provides tamper-evident audit logging, 
 
 ## Installation
 
-Tegata can be installed using pre-built binaries or built from source.
+Tegata can be installed using pre-built binaries or built from source. Install the interface that fits your workflow, or install both.
 
-Download the pre-built CLI binary for your operating system:
+**CLI and TUI** (runs from USB drive — no host installation required):
 
 - **Windows:** [tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-windows-amd64.exe)
 - **macOS (Apple Silicon):** [tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-arm64)
@@ -79,7 +79,7 @@ Download the pre-built CLI binary for your operating system:
 > 
 > On macOS and Linux, mark the binary as executable with `chmod +x`.
 
-For the optional desktop GUI:
+**Desktop GUI** (installed on the host machine):
 
 - **Windows:** [tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-windows-amd64-setup.exe)
 - **macOS:** [tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-darwin-universal.dmg)
