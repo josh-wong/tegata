@@ -68,7 +68,7 @@ jobs:
 
       - name: Build Windows app
         working-directory: cmd/tegata-gui
-        run: wails build --platform windows/amd64 -webview2 download -nsis -o tegata-gui
+        run: wails build --platform windows/amd64 -webview2 embed -nsis -o tegata-gui
         shell: pwsh
 
       - name: Rename installer
