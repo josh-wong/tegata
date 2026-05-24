@@ -24,7 +24,7 @@ Before you begin, you need the following:
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
-Download `tegata-windows-amd64.exe` from the [Releases](https://github.com/josh-wong/tegata/releases) page. Rename it to `tegata.exe` and copy it to your USB drive.
+Download [tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-windows-amd64.exe). Rename it to `tegata.exe` and copy it to your USB drive.
 
 Open PowerShell. Since PowerShell does not search the current directory for executables, run the following command to run the binary by prefixing it with `.\`:
 
@@ -41,16 +41,16 @@ $env:PATH += ";<USB_DRIVE_LETTER>:\"
   </TabItem>
   <TabItem value="macos" label="macOS">
 
-Download the binary for your Mac from the [Releases](https://github.com/josh-wong/tegata/releases) page.
+Download the binary for your Mac:
 
-- `tegata-darwin-arm64` for Apple Silicon (M1 and later)
-- `tegata-darwin-amd64` for Intel
+- [tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-arm64) for Apple Silicon (M1 and later)
+- [tegata-darwin-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-amd64) for Intel
 
 Make the binary executable and copy it to your USB drive by running the following commands, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
 
 ```bash
-chmod +x tegata-darwin-arm64 # or chmod +x tegata-darwin-amd64 for Macs with Intel processors
-cp tegata-darwin-arm64 /Volumes/<USB_DRIVE_NAME>/tegata # or cp tegata-darwin-amd64 /Volumes/<USB_DRIVE_NAME>/tegata for Macs with Intel processors
+chmod +x tegata-darwin-arm64 # Or chmod +x tegata-darwin-amd64 for Macs with Intel processors
+cp tegata-darwin-arm64 /Volumes/<USB_DRIVE_NAME>/tegata # Or cp tegata-darwin-amd64 /Volumes/<USB_DRIVE_NAME>/tegata for Macs with Intel processors
 ```
 
 :::warning[macOS Gatekeeper]
@@ -68,13 +68,12 @@ Linux has not been manually tested. These steps are expected to work, but if you
 
 :::
 
-Download `tegata-linux-amd64` from the [Releases](https://github.com/josh-wong/tegata/releases) page. Then, make the file executable and copy it to your USB drive by running the following commands, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
+Download [tegata-linux-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-linux-amd64). Then, make the file executable and copy it to your USB drive by running the following commands, replacing `<USB_DRIVE_NAME>` with the actual name of your drive:
 
 ```bash
 chmod +x tegata-linux-amd64
 cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
 ```
-
   </TabItem>
 </Tabs>
 
@@ -82,12 +81,16 @@ cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
 
 A graphical interface is available separately and is installed on your host machine rather than carried on the USB drive.
 
+:::note[Troubleshooting]
+
 If the GUI or CLI does not launch on first run, check [Set up your OS](os-setup.mdx) and [Troubleshooting](troubleshooting.mdx) for platform-specific fixes.
+
+:::
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
 
-Download and run `tegata-gui-windows-amd64-setup.exe`. The NSIS installer places the binary in `Program Files` and creates a Start Menu entry.
+Download and run [tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-windows-amd64-setup.exe). The NSIS installer places the binary in `Program Files` and creates a Start Menu entry.
 
 :::note
 
@@ -97,7 +100,7 @@ If SmartScreen blocks first launch, select **More info**, then choose **Run anyw
   </TabItem>
   <TabItem value="macos" label="macOS">
 
-Download `tegata-gui-darwin-universal.dmg`. Open the disk image and drag Tegata to your Applications folder.
+Download [tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-darwin-universal.dmg). Open the disk image and drag Tegata to your Applications folder.
 
 :::note
 
