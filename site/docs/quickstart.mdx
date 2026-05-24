@@ -19,7 +19,19 @@ Before you begin, you need the following:
 - [Node.js](https://nodejs.org/) 20 or later and [Wails](https://wails.io/) v2 (optional – only if you plan to build the desktop GUI from source)
 - [Docker](https://www.docker.com/products/docker-desktop/) (optional – only if you want to enable audit logging)
 
-## Install Tegata
+## Set up Tegata
+
+Tegata offers two interfaces. Set up the one that fits your workflow, or set up both.
+
+:::note[Troubleshooting]
+
+If the interface you set up does not launch on first run, check [Set up your OS](os-setup.mdx) and [Troubleshooting](troubleshooting.mdx) for platform-specific fixes.
+
+:::
+
+### Run the CLI and TUI
+
+The CLI and TUI runs directly from your USB drive and requires no installation on the host machine.
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
@@ -79,13 +91,7 @@ cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
 
 ### Install the desktop GUI
 
-A graphical interface is available separately and is installed on your host machine rather than carried on the USB drive.
-
-:::note[Troubleshooting]
-
-If the GUI or CLI does not launch on first run, check [Set up your OS](os-setup.mdx) and [Troubleshooting](troubleshooting.mdx) for platform-specific fixes.
-
-:::
+The desktop GUI is installed on your host machine rather than carried on your USB drive.
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows" default>
@@ -129,14 +135,18 @@ If the app fails to start, install the WebKit2GTK runtime package for your distr
 </TabItem>
 </Tabs>
 
-### Build the CLI and TUI from source
+### Build from source
 
-If you prefer to build the CLI from the source code, clone the repository and build for your platform.
+If you prefer to build from source, clone the repository first:
 
 ```bash
 git clone https://github.com/josh-wong/tegata.git
 cd tegata
 ```
+
+#### CLI and TUI
+
+Build the CLI and TUI for your platform.
 
 <Tabs groupId="os" queryString>
   <TabItem value="windows" label="Windows (PowerShell)" default>
@@ -204,7 +214,7 @@ This installs `tegata` to `/usr/local/bin/tegata` by default. For a user-local p
 
 :::
 
-### Build the desktop GUI from source
+#### Desktop GUI
 
 Building the GUI requires the [Wails CLI](https://wails.io/docs/gettingstarted/installation), Go 1.25 or later, and Node.js 20 or later. Install the Wails CLI by running the following command:
 
@@ -239,6 +249,8 @@ On macOS, the app bundle is placed in `cmd/tegata-gui/build/bin/Tegata.app`. On 
 </Tabs>
 
 ## Create a vault
+
+The following steps use the CLI and TUI. If you installed only the desktop GUI, see [Using the GUI](gui-guide.mdx) for the equivalent walkthrough.
 
 To create a vault, choose your platform and run the corresponding command.
 
@@ -368,7 +380,7 @@ tegata list
 
 Credentials are grouped by tag. Untagged credentials appear under `[untagged]`.
 
-### Vault resolution order
+:::tip[Vault resolution order]
 
 When you do not specify `--vault`, Tegata looks for your vault in this order:
 
@@ -376,15 +388,13 @@ When you do not specify `--vault`, Tegata looks for your vault in this order:
 2. `TEGATA_VAULT` environment variable
 3. `./vault.tegata` in the current working directory
 
-### Prefer the TUI
+:::
 
-If you prefer a visual interface in the terminal, run the following command to launch the TUI:
+:::tip[Prefer a visual interface?]
 
-```bash
-tegata ui
-```
+If you prefer a visual interface in the terminal, run `tegata ui` to launch the TUI. It shows live TOTP countdown timers, a credential list you can navigate with the keyboard, and an overlay form for adding credentials. For a complete walkthrough, see the [Using the TUI](tui-guide.mdx) guide.
 
-The TUI shows live TOTP countdown timers, a credential list you can navigate with the keyboard, and an overlay form for adding credentials. If no vault is found, it launches a setup wizard. For a complete walkthrough, see the [Using the TUI](tui-guide.mdx) guide.
+:::
 
 ## Optional: Enable audit logging
 
