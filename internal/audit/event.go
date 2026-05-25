@@ -88,10 +88,14 @@ func FormatOperation(op string) string {
 		return "TOTP code copied"
 	case "hotp":
 		return "HOTP code generated"
+	case "hotp-copy":
+		return "HOTP code copied"
 	case "static":
 		return "Static password copied"
 	case "challenge-response":
 		return "Challenge-response signed"
+	case "challenge-response-copy":
+		return "Challenge-response copied"
 	case "vault-unlock":
 		return "Vault unlock"
 	case "vault-lock":

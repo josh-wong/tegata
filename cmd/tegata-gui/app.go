@@ -638,6 +638,39 @@ func (a *App) RecordTOTPUsed(label string) error {
 	return a.builder.LogEvent("totp", cred.Label, cred.Issuer, audit.Hostname(), true)
 }
 
+// RecordHOTPUsed logs an audit event when the user copies an HOTP code.
+func (a *App) RecordHOTPUsed(label string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.builder == nil {
+		return nil
+	}
+	cred, err := a.vault.GetCredential(label)
+	if err != nil {
+		return err
+	}
+	return a.builder.LogEvent("hotp-copy", cred.Label, cred.Issuer, audit.Hostname(), true)
+}
+
+// RecordChallengeResponseUsed logs an audit event when the user copies a
+// challenge-response signature.
+func (a *App) RecordChallengeResponseUsed(label string) error {
+	if a.vault == nil {
+		return fmt.Errorf("vault is locked")
+	}
+	a.resetIdle()
+	if a.builder == nil {
+		return nil
+	}
+	cred, err := a.vault.GetCredential(label)
+	if err != nil {
+		return err
+	}
+	return a.builder.LogEvent("challenge-response-copy", cred.Label, cred.Issuer, audit.Hostname(), true)
+}
+
 // GenerateHOTP generates an HOTP code for the credential with the given label.
 // It increments the counter and saves the vault.
 func (a *App) GenerateHOTP(label string) (string, error) {
