@@ -187,7 +187,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             </Button>
           </div>
 
-          <div className="p-4 space-y-4 overflow-y-auto flex-1">
+          <div className="p-4 flex flex-col gap-4 overflow-hidden flex-1 min-h-0">
             {!dockerPath && history.length === 0 && !verifyResult && (
               <p className="text-sm text-muted-foreground">
                 Audit logging was not enabled during vault creation.
@@ -266,11 +266,11 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             )}
 
             {history.length > 0 && (
-              <>
+              <div className="flex flex-1 min-h-0 flex-col gap-2">
                 <Separator />
 
                 {/* Filters toolbar */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 flex-none">
                   <select
                     className="text-xs border rounded px-2 py-1 bg-background min-w-[11.5rem]"
                     value={opFilter}
@@ -303,68 +303,70 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 </div>
 
                 {/* History table */}
-                <div className="space-y-1">
-                  <div className="border rounded-md overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th
-                            className="text-left p-2 cursor-pointer select-none w-[22%]"
-                            onClick={() => toggleSort("operation")}
-                          >
-                            Operation <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
-                          </th>
-                          <th
-                            className="text-left p-2 cursor-pointer select-none w-[22%]"
-                            onClick={() => toggleSort("label")}
-                          >
-                            Label <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
-                          </th>
-                          <th
-                            className="text-left p-2 cursor-pointer select-none w-[22%]"
-                            onClick={() => toggleSort("timestamp")}
-                          >
-                            Timestamp <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
-                          </th>
-                          <th
-                            className="text-left p-2 cursor-pointer select-none w-[34%]"
-                            onClick={() => toggleSort("hash")}
-                          >
-                            Hash <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pageRows.map((record, i) => {
-                          const justCopied = copiedHash === record.hash_value
-                          return (
-                            <tr key={i} className="border-b last:border-0">
-                              <td className="p-2">{record.operation}</td>
-                              <td className="p-2">{record.label}</td>
-                              <td className="p-2 text-muted-foreground">
-                                {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
-                              </td>
-                              <td className="p-2 font-mono">
-                                <button
-                                  type="button"
-                                  className="text-left focus:outline-none cursor-pointer"
-                                  style={justCopied ? { color: "var(--cinnabar)" } : undefined}
-                                  title="Click to copy full hash"
-                                  onClick={() => copyHash(record.hash_value)}
-                                >
-                                  {record.hash_value.length > 10 ? record.hash_value.slice(0, 10) + "…" : record.hash_value}
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                <div className="flex flex-1 min-h-0 flex-col gap-1">
+                  <div className="border rounded-md overflow-hidden flex-1 min-h-0">
+                    <div className="h-full overflow-x-auto overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th
+                              className="text-left p-2 cursor-pointer select-none w-[22%]"
+                              onClick={() => toggleSort("operation")}
+                            >
+                              Operation <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
+                            </th>
+                            <th
+                              className="text-left p-2 cursor-pointer select-none w-[22%]"
+                              onClick={() => toggleSort("label")}
+                            >
+                              Label <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
+                            </th>
+                            <th
+                              className="text-left p-2 cursor-pointer select-none w-[22%]"
+                              onClick={() => toggleSort("timestamp")}
+                            >
+                              Timestamp <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
+                            </th>
+                            <th
+                              className="text-left p-2 cursor-pointer select-none w-[34%]"
+                              onClick={() => toggleSort("hash")}
+                            >
+                              Hash <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageRows.map((record, i) => {
+                            const justCopied = copiedHash === record.hash_value
+                            return (
+                              <tr key={i} className="border-b last:border-0">
+                                <td className="p-2">{record.operation}</td>
+                                <td className="p-2">{record.label}</td>
+                                <td className="p-2 text-muted-foreground">
+                                  {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
+                                </td>
+                                <td className="p-2 font-mono">
+                                  <button
+                                    type="button"
+                                    className="text-left focus:outline-none cursor-pointer"
+                                    style={justCopied ? { color: "var(--cinnabar)" } : undefined}
+                                    title="Click to copy full hash"
+                                    onClick={() => copyHash(record.hash_value)}
+                                  >
+                                    {record.hash_value.length > 10 ? record.hash_value.slice(0, 10) + "…" : record.hash_value}
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
                   {/* Pagination controls */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <div className="flex items-center justify-end gap-2 pt-1 flex-none">
                       <span className="text-xs text-muted-foreground">
                         Page {page + 1} of {totalPages}
                       </span>
@@ -391,7 +393,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     </div>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
