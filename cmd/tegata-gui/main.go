@@ -14,9 +14,9 @@ func main() {
 	err := wails.Run(&options.App{
 		Title:     "Tegata",
 		Width:     1024,
-		Height:    700,
+		Height:    820,
 		MinWidth:  800,
-		MinHeight: 600,
+		MinHeight: 760,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

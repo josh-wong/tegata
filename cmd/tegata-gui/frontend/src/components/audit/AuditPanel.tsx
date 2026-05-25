@@ -176,7 +176,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-background border rounded-lg shadow-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="bg-background border rounded-lg shadow-lg w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
