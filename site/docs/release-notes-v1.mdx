@@ -24,56 +24,56 @@ This release includes the following features.
 
 Tegata's offline-capable core handles all authentication operations locally on your device without network access.
 
-- **TOTP/HOTP code generation.** Generate RFC 6238/4226-compliant codes. TOTP supports SHA-1, SHA-256, and SHA-512; HOTP uses SHA-1 only (by @josh-wong in #2, #94, #101).
+- **TOTP/HOTP code generation.** Generate RFC 6238/4226-compliant codes. TOTP supports SHA-1, SHA-256, and SHA-512; HOTP uses SHA-1 only (by [josh-wong](https://github.com/josh-wong) in [#2](https://github.com/josh-wong/tegata/pull/2), [#94](https://github.com/josh-wong/tegata/pull/94), [#101](https://github.com/josh-wong/tegata/pull/101)).
 	- For details on how to generate your first code, see [Generate your first code](https://tegata.080f53.com/docs/quickstart#generate-your-first-code).
-- **Challenge-response signing.** Sign challenge strings with HMAC-SHA256 for services that support it (by @josh-wong in #3, #94).
+- **Challenge-response signing.** Sign challenge strings with HMAC-SHA256 for services that support it (by [josh-wong](https://github.com/josh-wong) in [#3](https://github.com/josh-wong/tegata/pull/3), [#94](https://github.com/josh-wong/tegata/pull/94)).
 	- For details on how to use a challenge-response credential, see [What is a challenge-response credential](https://tegata.080f53.com/docs/faq#what-is-a-challenge-response-credential).
-- **Static password storage.** Store and retrieve credentials that don't use OTPs (by @josh-wong in #3).
+- **Static password storage.** Store and retrieve credentials that don't use OTPs (by [josh-wong](https://github.com/josh-wong) in [#3](https://github.com/josh-wong/tegata/pull/3)).
 	- For details on how to add static passwords to Tegata, see [Can I add static passwords to Tegata](https://tegata.080f53.com/docs/faq#can-i-add-static-passwords-to-tegata).
-- **AES-256-GCM encrypted vault.** Encrypt credentials at rest using a passphrase stretched with Argon2id (time=3, memory=64 MiB, parallelism=4) (by @josh-wong in #2)
-- **Recovery key.** Recover vault access if your passphrase is lost (by @josh-wong in #2).
+- **AES-256-GCM encrypted vault.** Encrypt credentials at rest using a passphrase stretched with Argon2id (time=3, memory=64 MiB, parallelism=4) (by [josh-wong](https://github.com/josh-wong) in [#2](https://github.com/josh-wong/tegata/pull/2))
+- **Recovery key.** Recover vault access if your passphrase is lost (by [josh-wong](https://github.com/josh-wong) in [#2](https://github.com/josh-wong/tegata/pull/2)).
 	- For details on how to protect your recovery key, see [Protecting your recovery key](https://tegata.080f53.com/docs/security-best-practices#protecting-your-recovery-key).
-- **memguard-protected memory.** Keep key material in guarded memory pages and zero it immediately after use (by @josh-wong in #2).
+- **memguard-protected memory.** Keep key material in guarded memory pages and zero it immediately after use (by [josh-wong](https://github.com/josh-wong) in [#2](https://github.com/josh-wong/tegata/pull/2)).
 	- For details on how to handle key material, see [Key material handling](https://tegata.080f53.com/docs/security-best-practices#key-material-handling).
-- **Auto-lock.** Lock the vault after 5 minutes of idle time (by @josh-wong in #49, #79).
+- **Auto-lock.** Lock the vault after 5 minutes of idle time (by [josh-wong](https://github.com/josh-wong) in [#49](https://github.com/josh-wong/tegata/pull/49), [#79](https://github.com/josh-wong/tegata/pull/79)).
 	- For details on how auto-lock works, see [Auto-lock behavior](https://tegata.080f53.com/docs/tui-guide#auto-lock-behavior).
-- **Export and import.** Create encrypted backup files for vault portability (by @josh-wong in #3, #68).
+- **Export and import.** Create encrypted backup files for vault portability (by [josh-wong](https://github.com/josh-wong) in [#3](https://github.com/josh-wong/tegata/pull/3), [#68](https://github.com/josh-wong/tegata/pull/68)).
 	- For details on how to create an encrypted backup, see [Create an encrypted backup](https://tegata.080f53.com/docs/security-best-practices#create-an-encrypted-backup).
-- **Tag-based credential organization.** Filter and group credentials with tags (by @josh-wong in #85).
+- **Tag-based credential organization.** Filter and group credentials with tags (by [josh-wong](https://github.com/josh-wong) in [#85](https://github.com/josh-wong/tegata/pull/85)).
 	- For details on how to organize credentials, see [Credential organization](https://tegata.080f53.com/docs/security-best-practices#credential-organization).
 
 #### Interfaces
 
 **Terminal UI (TUI).** Offers a guided terminal interface with:
 
-- Setup wizard for first-time vault initialization (by @josh-wong in #5).
+- Setup wizard for first-time vault initialization (by [josh-wong](https://github.com/josh-wong) in [#5](https://github.com/josh-wong/tegata/pull/5)).
 	- For details on how to complete first launch, see [First launch and setup wizard](https://tegata.080f53.com/docs/tui-guide#first-launch-and-setup-wizard).
-- Visual countdown timer for TOTP codes (by @josh-wong in #5).
+- Visual countdown timer for TOTP codes (by [josh-wong](https://github.com/josh-wong) in [#5](https://github.com/josh-wong/tegata/pull/5)).
 	- For details on how the countdown timer works, see [TOTP countdown timer](https://tegata.080f53.com/docs/tui-guide#totp-countdown-timer).
-- Full keyboard navigation (by @josh-wong in #5).
+- Full keyboard navigation (by [josh-wong](https://github.com/josh-wong) in [#5](https://github.com/josh-wong/tegata/pull/5)).
 	- For details on how to navigate with the keyboard, see [Keyboard shortcuts](https://tegata.080f53.com/docs/tui-guide#keyboard-shortcuts).
-- Viewport-aware context menus (by @josh-wong in #101)
+- Viewport-aware context menus (by [josh-wong](https://github.com/josh-wong) in [#101](https://github.com/josh-wong/tegata/pull/101)).
 
 **Desktop GUI.** Offers a Wails + React desktop app with:
 
-- Full feature parity with the CLI/TUI (by @josh-wong in #7, #9)
-- Installer packages for Windows, macOS, and Linux (by @josh-wong in #7).
+- Full feature parity with the CLI/TUI (by [josh-wong](https://github.com/josh-wong) in [#7](https://github.com/josh-wong/tegata/pull/7), [#9](https://github.com/josh-wong/tegata/pull/9))
+- Installer packages for Windows, macOS, and Linux (by [josh-wong](https://github.com/josh-wong) in [#7](https://github.com/josh-wong/tegata/pull/7)).
 	- For details on how to install the GUI, see [Install the GUI](https://tegata.080f53.com/docs/gui-guide#install-the-gui).
-- Vault identifier display so you always know which vault is open (by @josh-wong in #81)
+- Vault identifier display so you always know which vault is open (by [josh-wong](https://github.com/josh-wong) in [#81](https://github.com/josh-wong/tegata/pull/81)).
 
 #### Optional audit logging
 
 Tegata optionally integrates with [ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (Community Edition, Apache 2.0) to record authentication events in a tamper-evident, hash-chained ledger.
 
-- Audit events use hashed credential labels and service names — no plaintext secrets are ever transmitted (by @josh-wong in #4, #80).
+- Audit events use hashed credential labels and service names — no plaintext secrets are ever transmitted (by [josh-wong](https://github.com/josh-wong) in [#4](https://github.com/josh-wong/tegata/pull/4), [#80](https://github.com/josh-wong/tegata/pull/80)).
 	- For details on how audit event fields are protected, see [What data does the audit log contain](https://tegata.080f53.com/docs/faq#what-data-does-the-audit-log-contain).
-- `tegata verify` traverses the hash chain to confirm no entries have been tampered with (by @josh-wong in #16, #74).
+- `tegata verify` traverses the hash chain to confirm no entries have been tampered with (by [josh-wong](https://github.com/josh-wong) in [#16](https://github.com/josh-wong/tegata/pull/16), [#74](https://github.com/josh-wong/tegata/pull/74)).
 	- For details on how verification works, see [What tegata verify proves](https://tegata.080f53.com/docs/security-best-practices#what-tegata-verify-proves).
-- An offline event queue stores audit events when the ledger is unreachable and replays them on reconnection (by @josh-wong in #4, #27).
+- An offline event queue stores audit events when the ledger is unreachable and replays them on reconnection (by [josh-wong](https://github.com/josh-wong) in [#4](https://github.com/josh-wong/tegata/pull/4), [#27](https://github.com/josh-wong/tegata/pull/27)).
 	- For details on how queued events behave offline, see [What happens to queued events if Docker is offline](https://tegata.080f53.com/docs/faq#what-happens-to-queued-events-if-docker-is-offline).
-- The audit stack runs locally via Docker and uses an encrypted backing volume for ledger data at rest (by @josh-wong in #102).
+- The audit stack runs locally via Docker and uses an encrypted backing volume for ledger data at rest (by [josh-wong](https://github.com/josh-wong) in [#102](https://github.com/josh-wong/tegata/pull/102)).
 	- For details on how to use encrypted ledger storage, see [Encrypted ledger data volume](https://tegata.080f53.com/docs/scalardl-setup#encrypted-ledger-data-volume).
-- Per-vault audit isolation ensures each vault has its own dedicated audit context (by @josh-wong in #92).
+- Per-vault audit isolation ensures each vault has its own dedicated audit context (by [josh-wong](https://github.com/josh-wong) in [#92](https://github.com/josh-wong/tegata/pull/92)).
 	- For details on how to set up ScalarDL per vault, see [ScalarDL setup](https://tegata.080f53.com/docs/scalardl-setup).
 
 ### 📈 Improvements
@@ -86,7 +86,7 @@ _Nothing to list – This is the initial release._
 
 ### 📚 Documentation
 
-A full documentation site is now available at [tegata.080f53.com](https://tegata.080f53.com), covering quickstart guides, setup walkthroughs, a CLI reference, and more (by @josh-wong in #98).
+A full documentation site is now available at [tegata.080f53.com](https://tegata.080f53.com), covering quickstart guides, setup walkthroughs, a CLI reference, and more (by [josh-wong](https://github.com/josh-wong) in [#98](https://github.com/josh-wong/tegata/pull/98)).
 
 ### 📦 Downloads
 
