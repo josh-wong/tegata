@@ -44,8 +44,10 @@ interface WailsAppBindings {
   GenerateTOTP(label: string): Promise<TOTPResult>
   RecordTOTPUsed(label: string): Promise<void>
   GenerateHOTP(label: string): Promise<string>
+  RecordHOTPUsed(label: string): Promise<void>
   GetStaticPassword(label: string): Promise<void>
   SignChallenge(label: string, challenge: string): Promise<string>
+  RecordChallengeResponseUsed(label: string): Promise<void>
   ExportVault(exportPassphrase: string): Promise<number[]>
   ExportVaultToFile(exportPassphrase: string): Promise<string>
   ImportVault(data: number[], importPassphrase: string): Promise<{ imported: number; skipped: number }>
@@ -99,8 +101,10 @@ export const App = {
   GenerateTOTP: (label: string) => getApp().GenerateTOTP(label),
   RecordTOTPUsed: (label: string) => getApp().RecordTOTPUsed(label),
   GenerateHOTP: (label: string) => getApp().GenerateHOTP(label),
+  RecordHOTPUsed: (label: string) => getApp().RecordHOTPUsed(label),
   GetStaticPassword: (label: string) => getApp().GetStaticPassword(label),
   SignChallenge: (label: string, challenge: string) => getApp().SignChallenge(label, challenge),
+  RecordChallengeResponseUsed: (label: string) => getApp().RecordChallengeResponseUsed(label),
   ExportVault: (passphrase: string) => getApp().ExportVault(passphrase),
   ExportVaultToFile: (passphrase: string) => getApp().ExportVaultToFile(passphrase),
   ImportVault: (data: number[], passphrase: string) => getApp().ImportVault(data, passphrase),

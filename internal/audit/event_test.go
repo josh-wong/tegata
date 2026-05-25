@@ -117,3 +117,23 @@ func TestAuthEvent_PrevHashPassedThrough(t *testing.T) {
 		t.Errorf("PrevHash = %q, want %q", evt.PrevHash, prevHash)
 	}
 }
+
+func TestFormatOperation_ActionLabels(t *testing.T) {
+	tests := []struct {
+		op   string
+		want string
+	}{
+		{op: "totp", want: "TOTP code copied"},
+		{op: "hotp", want: "HOTP code generated"},
+		{op: "hotp-copy", want: "HOTP code copied"},
+		{op: "static", want: "Static password copied"},
+		{op: "challenge-response", want: "Challenge-response signed"},
+		{op: "challenge-response-copy", want: "Challenge-response copied"},
+	}
+
+	for _, tc := range tests {
+		if got := audit.FormatOperation(tc.op); got != tc.want {
+			t.Errorf("FormatOperation(%q) = %q, want %q", tc.op, got, tc.want)
+		}
+	}
+}

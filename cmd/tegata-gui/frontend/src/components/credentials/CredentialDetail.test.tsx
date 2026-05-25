@@ -121,6 +121,25 @@ describe("CredentialDetail", () => {
     })
   })
 
+  it("HOTP copy logs usage audit event", async () => {
+    vi.mocked(App.GenerateHOTP).mockResolvedValue("987654")
+    vi.mocked(App.CopyToClipboard).mockResolvedValue(undefined)
+    vi.mocked(App.RecordHOTPUsed).mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<CredentialDetail credential={hotpCredential} onRemove={vi.fn()} />)
+
+    await user.click(screen.getByText("Generate code"))
+    await waitFor(() => {
+      expect(screen.getByText("987654")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Copy" }))
+    await waitFor(() => {
+      expect(App.CopyToClipboard).toHaveBeenCalledWith("987654")
+      expect(App.RecordHOTPUsed).toHaveBeenCalledWith("HOTP Service")
+    })
+  })
+
   it("static type shows copy to clipboard button", () => {
     render(<CredentialDetail credential={staticCredential} onRemove={vi.fn()} />)
     expect(screen.getByText("Copy to clipboard")).toBeInTheDocument()
@@ -157,6 +176,27 @@ describe("CredentialDetail", () => {
       expect(App.SignChallenge).toHaveBeenCalledWith("Challenge Key", "test-challenge")
       expect(screen.getByText("abcdef1234567890")).toBeInTheDocument()
       expect(screen.getByText("Signature")).toBeInTheDocument()
+    })
+  })
+
+  it("challenge-response copy logs usage audit event", async () => {
+    vi.mocked(App.SignChallenge).mockResolvedValue("abcdef1234567890")
+    vi.mocked(App.CopyToClipboard).mockResolvedValue(undefined)
+    vi.mocked(App.RecordChallengeResponseUsed).mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<CredentialDetail credential={challengeCredential} onRemove={vi.fn()} />)
+
+    await user.type(screen.getByPlaceholderText("Enter challenge text..."), "test-challenge")
+    await user.click(screen.getByText("Sign"))
+
+    await waitFor(() => {
+      expect(screen.getByText("abcdef1234567890")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Copy" }))
+    await waitFor(() => {
+      expect(App.CopyToClipboard).toHaveBeenCalledWith("abcdef1234567890")
+      expect(App.RecordChallengeResponseUsed).toHaveBeenCalledWith("Challenge Key")
     })
   })
 

@@ -277,6 +277,73 @@ func TestAdapter_AddCredential_LogsAuditEvent(t *testing.T) {
 	}
 }
 
+func TestAdapter_RecordCredentialCopyActions_LogAuditEvents(t *testing.T) {
+	vaultPath := setupTestVault(t)
+
+	app := NewApp()
+	mgr, err := vault.Open(vaultPath)
+	if err != nil {
+		t.Fatalf("opening vault: %v", err)
+	}
+	if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+		mgr.Close()
+		t.Fatalf("unlocking vault: %v", err)
+	}
+	app.vault = mgr
+	app.vaultPath = vaultPath
+
+	_, err = app.AddCredential("copy-totp", "IssuerA", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
+	if err != nil {
+		t.Fatalf("adding TOTP credential: %v", err)
+	}
+	_, err = app.AddCredential("copy-hotp", "IssuerB", "hotp", "GEZDGNBVGY3TQOJQ", "SHA1", 6, 30, nil, "")
+	if err != nil {
+		t.Fatalf("adding HOTP credential: %v", err)
+	}
+	_, err = app.AddCredential("copy-cr", "IssuerC", "challenge-response", "shared-secret", "SHA256", 6, 30, nil, "")
+	if err != nil {
+		t.Fatalf("adding challenge-response credential: %v", err)
+	}
+
+	rec := &recordingSubmitter{}
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i + 1)
+	}
+	builder, err := audit.NewEventBuilder(rec, filepath.Join(t.TempDir(), "queue.tegata"), key, 100)
+	if err != nil {
+		t.Fatalf("creating event builder: %v", err)
+	}
+	app.builder = builder
+
+	if err := app.RecordTOTPUsed("copy-totp"); err != nil {
+		t.Fatalf("RecordTOTPUsed: %v", err)
+	}
+	if err := app.RecordHOTPUsed("copy-hotp"); err != nil {
+		t.Fatalf("RecordHOTPUsed: %v", err)
+	}
+	if err := app.RecordChallengeResponseUsed("copy-cr"); err != nil {
+		t.Fatalf("RecordChallengeResponseUsed: %v", err)
+	}
+
+	entries := rec.snapshot()
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 submitted audit events, got %d", len(entries))
+	}
+
+	gotOps := []string{
+		entries[0].Event.OperationType,
+		entries[1].Event.OperationType,
+		entries[2].Event.OperationType,
+	}
+	wantOps := []string{"totp", "hotp-copy", "challenge-response-copy"}
+	for i := range wantOps {
+		if gotOps[i] != wantOps[i] {
+			t.Errorf("event %d operation = %q, want %q", i, gotOps[i], wantOps[i])
+		}
+	}
+}
+
 func TestAdapter_RemoveCredential(t *testing.T) {
 	vaultPath := setupTestVault(t)
 

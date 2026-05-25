@@ -85,13 +85,17 @@ func ResolveLabelWithDeleted(labelHash string, labelMap, deletedMap map[string]s
 func FormatOperation(op string) string {
 	switch op {
 	case "totp":
-		return "TOTP"
+		return "TOTP code copied"
 	case "hotp":
-		return "HOTP"
+		return "HOTP code generated"
+	case "hotp-copy":
+		return "HOTP code copied"
 	case "static":
-		return "Static password"
+		return "Static password copied"
 	case "challenge-response":
-		return "Challenge-response"
+		return "Challenge-response signed"
+	case "challenge-response-copy":
+		return "Challenge-response copied"
 	case "vault-unlock":
 		return "Vault unlock"
 	case "vault-lock":

@@ -383,7 +383,9 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
             copied={copied}
             onCopy={() => {
               App.CopyToClipboard(code).catch(() => {})
+              App.RecordHOTPUsed(credential.label).catch(() => {})
               setCopied(true)
+              onUsed()
               setTimeout(() => setCopied(false), 2000)
             }}
           />
@@ -477,7 +479,9 @@ function ChallengeResponseView({ credential, onUsed }: { credential: Credential;
             copied={copied}
             onCopy={() => {
               App.CopyToClipboard(response).catch(() => {})
+              App.RecordChallengeResponseUsed(credential.label).catch(() => {})
               setCopied(true)
+              onUsed()
               setTimeout(() => setCopied(false), 2000)
             }}
           />
