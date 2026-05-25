@@ -430,7 +430,16 @@ func (a *App) AddCredential(label, issuer, credType, secret, algorithm string, d
 		Category:  strings.ToLower(strings.TrimSpace(category)),
 	}
 
-	return a.vault.AddCredential(cred)
+	id, err := a.vault.AddCredential(cred)
+	if err != nil {
+		return "", err
+	}
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
+	}
+	return id, nil
 }
 
 // AddCredentialFromURI parses an otpauth:// URI and adds the credential to the
@@ -446,7 +455,16 @@ func (a *App) AddCredentialFromURI(uri string) (string, error) {
 		return "", fmt.Errorf("parsing URI: %w", err)
 	}
 
-	return a.vault.AddCredential(*cred)
+	id, err := a.vault.AddCredential(*cred)
+	if err != nil {
+		return "", err
+	}
+	if a.builder != nil {
+		if logErr := a.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "tegata-gui: audit log failed: %v\n", logErr)
+		}
+	}
+	return id, nil
 }
 
 // RemoveCredential removes a credential by ID from the vault.
