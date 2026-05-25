@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -16,6 +18,26 @@ import (
 
 // testPassphrase is a fixed passphrase used across all adapter tests.
 const testPassphrase = "test-passphrase-12345"
+
+type recordingSubmitter struct {
+	mu      sync.Mutex
+	entries []audit.QueueEntry
+}
+
+func (s *recordingSubmitter) Submit(_ context.Context, entry audit.QueueEntry) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+	return "ok", nil
+}
+
+func (s *recordingSubmitter) snapshot() []audit.QueueEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]audit.QueueEntry, len(s.entries))
+	copy(out, s.entries)
+	return out
+}
 
 // setupTestVault creates a temporary directory with a new vault and returns
 // the vault file path and a cleanup function. The vault is created with fast
@@ -172,6 +194,87 @@ func TestAdapter_AddCredential_HOTPDefaultsToSHA1(t *testing.T) {
 	}
 
 	app.LockVault()
+}
+
+func TestAdapter_AddCredential_LogsAuditEvent(t *testing.T) {
+	tests := []struct {
+		name       string
+		add        func(app *App) (string, error)
+		wantLabel  string
+		wantIssuer string
+	}{
+		{
+			name: "direct_add",
+			add: func(app *App) (string, error) {
+				return app.AddCredential("audit-add-direct", "IssuerA", "totp", "JBSWY3DPEHPK3PXP", "SHA1", 6, 30, nil, "")
+			},
+			wantLabel:  "audit-add-direct",
+			wantIssuer: "IssuerA",
+		},
+		{
+			name: "uri_add",
+			add: func(app *App) (string, error) {
+				return app.AddCredentialFromURI("otpauth://totp/IssuerB:audit-add-uri?secret=JBSWY3DPEHPK3PXP&issuer=IssuerB&algorithm=SHA1&digits=6&period=30")
+			},
+			wantLabel:  "audit-add-uri",
+			wantIssuer: "IssuerB",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vaultPath := setupTestVault(t)
+
+			app := NewApp()
+			mgr, err := vault.Open(vaultPath)
+			if err != nil {
+				t.Fatalf("opening vault: %v", err)
+			}
+			if err := mgr.Unlock([]byte(testPassphrase)); err != nil {
+				mgr.Close()
+				t.Fatalf("unlocking vault: %v", err)
+			}
+			app.vault = mgr
+			app.vaultPath = vaultPath
+
+			rec := &recordingSubmitter{}
+			key := make([]byte, 32)
+			for i := range key {
+				key[i] = byte(i + 1)
+			}
+			builder, err := audit.NewEventBuilder(rec, filepath.Join(t.TempDir(), "queue.tegata"), key, 100)
+			if err != nil {
+				t.Fatalf("creating event builder: %v", err)
+			}
+			app.builder = builder
+
+			id, err := tc.add(app)
+			if err != nil {
+				t.Fatalf("adding credential: %v", err)
+			}
+			if id == "" {
+				t.Fatal("expected non-empty credential ID")
+			}
+
+			entries := rec.snapshot()
+			if len(entries) != 1 {
+				t.Fatalf("expected 1 submitted audit event, got %d", len(entries))
+			}
+
+			e := entries[0].Event
+			if e.OperationType != "credential-add" {
+				t.Errorf("operation type = %q, want %q", e.OperationType, "credential-add")
+			}
+			if e.LabelHash != audit.HashString(tc.wantLabel) {
+				t.Errorf("label hash mismatch for %q", tc.wantLabel)
+			}
+			if e.ServiceHash != audit.HashString(tc.wantIssuer) {
+				t.Errorf("service hash mismatch for %q", tc.wantIssuer)
+			}
+
+			app.LockVault()
+		})
+	}
 }
 
 func TestAdapter_RemoveCredential(t *testing.T) {

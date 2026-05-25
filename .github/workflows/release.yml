@@ -62,6 +62,18 @@ jobs:
         with:
           node-version: '20.x'
 
+      - name: Install NSIS
+        run: |
+          choco install nsis --yes --no-progress
+          $nsisExe = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (-not (Test-Path $nsisExe)) {
+            Write-Error "NSIS install succeeded but makensis was not found at $nsisExe"
+            exit 1
+          }
+          & $nsisExe /VERSION
+          Split-Path $nsisExe -Parent | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
         shell: bash
@@ -75,6 +87,7 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = Join-Path $PWD 'cmd/tegata-gui/build'
+          $installer = Join-Path $buildDir 'bin/tegata-gui-amd64-installer.exe'
           if (-not (Test-Path $buildDir)) {
             Write-Error "Build directory not found: $buildDir"
             Get-ChildItem -Path (Join-Path $PWD 'cmd/tegata-gui') -Recurse | ForEach-Object { Write-Host $_.FullName }
@@ -84,15 +97,13 @@ jobs:
           Write-Host "Listing build directory contents:"
           Get-ChildItem -Path $buildDir -Force -Recurse | ForEach-Object { Write-Host $_.FullName }
 
-          $installer = Get-ChildItem -Path $buildDir -Filter "*.exe" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-          if (-not $installer) {
-            Write-Error "No .exe installer found under $buildDir"
+          if (-not (Test-Path $installer)) {
+            Write-Error "Expected NSIS installer was not created: $installer"
             exit 1
           }
 
-          Write-Host "Found installer: $($installer.FullName) -> copying to tegata-gui-windows-amd64-setup.exe"
-          Copy-Item -Path $installer.FullName -Destination (Join-Path $PWD "tegata-gui-windows-amd64-setup.exe")
+          Write-Host "Found installer: $installer -> copying to tegata-gui-windows-amd64-setup.exe"
+          Copy-Item -Path $installer -Destination (Join-Path $PWD "tegata-gui-windows-amd64-setup.exe")
           Write-Host "Copy finished."
 
       - uses: actions/upload-artifact@v4
