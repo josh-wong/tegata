@@ -184,7 +184,7 @@ func dockerCmd(args ...string) *exec.Cmd {
 	if bin == "" {
 		bin = "docker" // fallback: will fail with a clear "not found" error
 	}
-	return exec.Command(bin, args...)
+	return newCommand(bin, args...)
 }
 
 // detectDocker checks that Docker is installed, the daemon is running (starting
@@ -247,19 +247,19 @@ func startDockerDaemon() error {
 			}
 			exe := filepath.Join(dir, c.rel)
 			if _, err := os.Stat(exe); err == nil {
-				return exec.Command(exe).Start()
+				return newCommand(exe).Start()
 			}
 		}
 		return fmt.Errorf("no Docker Desktop installation found in any known location; please start it manually")
 	case "darwin":
-		return exec.Command("open", "-a", "Docker").Start()
+		return newCommand("open", "-a", "Docker").Start()
 	default: // linux
 		// Try systemd first, then sysvinit/OpenRC for distros or WSL2
 		// configurations that do not use systemd.
-		if exec.Command("systemctl", "start", "docker").Run() == nil {
+		if newCommand("systemctl", "start", "docker").Run() == nil {
 			return nil
 		}
-		return exec.Command("service", "docker", "start").Start()
+		return newCommand("service", "docker", "start").Start()
 	}
 }
 
@@ -713,7 +713,7 @@ func waitForBootstrap(composePath, projectName string, timeout time.Duration) er
 	if bin == "" {
 		bin = "docker"
 	}
-	cmd := exec.CommandContext(ctx, bin, cmdArgs...)
+	cmd := newCommandContext(ctx, bin, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() != nil {
