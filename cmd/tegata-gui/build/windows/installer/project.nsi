@@ -44,7 +44,7 @@ ManifestDPIAware true
 
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe"
-InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
+InstallDir "$PROGRAMFILES64\${INFO_PRODUCTNAME}"
 ShowInstDetails show
 
 Function .onInit
