@@ -117,7 +117,7 @@ When filing a bug report, include the following.
 - Tegata version (`tegata version`)
 - Relevant error output or logs (with `--verbose` flag if applicable)
 
-For feature requests, describe the user need and your proposed solution. Explain why the feature fits within Tegata's scope as a portable authenticator.
+For feature requests, describe the user need and your proposed solution. Explain why the feature fits within the scope of Tegata as a portable authenticator.
 
 ## Code of conduct
 
