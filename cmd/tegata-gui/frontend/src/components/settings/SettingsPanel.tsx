@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
+import { DOCUMENTATION_URLS } from "@/lib/constants"
 
 interface SettingsPanelProps {
   open: boolean
@@ -371,7 +372,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open("https://tegata.080f53.com/docs/privacy-and-disclaimer/", "_blank")}
+            onClick={() => window.open(DOCUMENTATION_URLS.privacyAndDisclaimer, "_blank")}
           >
             Privacy & Disclaimer
           </Button>
