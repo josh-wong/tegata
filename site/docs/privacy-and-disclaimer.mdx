@@ -1,0 +1,30 @@
+---
+title: Privacy and disclaimer
+sidebar_position: 10
+description: Tegata privacy practices and liability disclaimer.
+---
+
+This page describes how Tegata handles your data and the limits of liability for the project maintainers.
+
+## Privacy
+
+Tegata is designed to operate entirely on your device. It does not collect telemetry and does not send analytics data of any kind.
+
+All authentication operations—TOTP and HOTP code generation, challenge-response signing, and static password retrieval—happen locally. Your authentication codes, passwords, challenge responses, and vault contents are never transmitted to external servers.
+
+The only network activity Tegata performs is optional gRPC communication between Tegata and a [ScalarDL Ledger](https://scalardl.scalar-labs.com/docs/) instance running in Docker on your own machine or on a remote server that you have configured. In such a case, this communication stays on your local network or is sent to the remote server. If you have not enabled audit logging, Tegata does not make any network connections at all.
+
+For details on what the audit log records and how audit data is stored, see [Audit log security and privacy](security-best-practices.mdx#audit-log-security-and-privacy).
+
+## Disclaimer
+
+Tegata is provided as-is, without warranty of any kind, express or implied. The developer and project maintainers are not responsible for:
+
+- **Data loss** resulting from vault file corruption, forgotten passphrases, or lost USB drives.
+- **Security breaches** or unauthorized access to credentials stored in the vault.
+- **Costs incurred** from using Tegata, including costs associated with any ScalarDL Ledger deployment.
+- **Any direct, indirect, incidental, or consequential damages** arising from the use or inability to use this software.
+
+Use Tegata at your own risk. Follow the guidance in [Security best practices](security-best-practices.mdx) to protect your vault and credentials.
+
+For the full license text, see the [MIT License](https://github.com/josh-wong/tegata/blob/main/LICENSE).
