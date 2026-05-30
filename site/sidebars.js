@@ -41,7 +41,7 @@ const sidebars = {
         type: 'generated-index',
         description: 'Security best practices, troubleshooting, and frequently asked questions.',
       },
-      items: ['security-best-practices', 'troubleshooting', 'faq'],
+      items: ['security-best-practices', 'troubleshooting', 'faq', 'privacy-and-disclaimer'],
     },
   ],
 
