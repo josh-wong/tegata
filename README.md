@@ -98,6 +98,10 @@ For comprehensive guides and references, see the [Tegata documentation](https://
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, commit conventions, and the pull request process.
 
+## Privacy and disclaimer
+
+Tegata does not collect telemetry or send analytics data. All authentication operations are local to your device. For details on data handling and liability, see [Privacy and disclaimer](https://tegata.080f53.com/docs/privacy-and-disclaimer).
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for the full license text.
