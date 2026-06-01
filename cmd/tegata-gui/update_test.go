@@ -78,6 +78,13 @@ func TestIsDismissed(t *testing.T) {
 		}
 	})
 
+	t.Run("dismissed when stored without v prefix but tag has v prefix", func(t *testing.T) {
+		prefs := updatePrefs{DismissedVersion: "1.2.0"} // stored from UI (no v)
+		if !isDismissed(prefs, tag) {                   // tag is "v1.2.0" from GitHub
+			t.Error("expected dismissed: v-prefix mismatch should be normalized")
+		}
+	})
+
 	t.Run("dismissed when same version and remind date is in future", func(t *testing.T) {
 		prefs := updatePrefs{
 			DismissedVersion: tag,

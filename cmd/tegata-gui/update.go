@@ -115,7 +115,9 @@ func fetchLatestRelease() (*githubRelease, error) {
 // isDismissed reports whether the notification for the given release tag should
 // be suppressed based on stored preferences.
 func isDismissed(prefs updatePrefs, latestTag string) bool {
-	if prefs.DismissedVersion != latestTag {
+	// Normalize both sides so "v1.2.0" and "1.2.0" compare equal regardless of
+	// whether the stored value came from the raw GitHub tag or the UI version string.
+	if strings.TrimPrefix(prefs.DismissedVersion, "v") != strings.TrimPrefix(latestTag, "v") {
 		return false
 	}
 	// Same version was dismissed. If RemindAfter is set, only suppress until that time.
