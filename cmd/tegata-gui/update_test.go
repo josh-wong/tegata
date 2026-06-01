@@ -23,6 +23,7 @@ func TestIsNewerVersion(t *testing.T) {
 		{"v1.0.0", "v1.0.1", true},
 		{"1.0.0", "", false},
 		{"1.2.3", "1.2.3", false},
+		{"1.0.0", "v1.0.1-beta", true}, // pre-release suffix stripped during comparison
 	}
 	for _, tt := range tests {
 		got := isNewerVersion(tt.current, tt.latest)
@@ -43,6 +44,8 @@ func TestCompareSemver(t *testing.T) {
 		{"2.0.0", "1.9.9", 1},
 		{"1.9.9", "2.0.0", -1},
 		{"1.10.0", "1.9.0", 1},
+		{"1.0.0-rc1", "1.0.0", 0},  // pre-release suffix stripped
+		{"1.0.1+build", "1.0.1", 0}, // build metadata stripped
 	}
 	for _, tt := range tests {
 		got := compareSemver(tt.a, tt.b)

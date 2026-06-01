@@ -1086,11 +1086,11 @@ func (a *App) DismissUpdate(releaseVersion, option string) error {
 	prefs.DismissedVersion = releaseVersion
 
 	switch option {
-	case "tomorrow":
+	case DismissOptionTomorrow:
 		prefs.RemindAfter = time.Now().Add(24 * time.Hour)
-	case "one_month":
+	case DismissOptionOneMonth:
 		prefs.RemindAfter = time.Now().Add(30 * 24 * time.Hour)
-	case "next_release":
+	case DismissOptionNextRelease:
 		prefs.RemindAfter = time.Time{} // zero = never re-show for this version
 	default:
 		return fmt.Errorf("unknown dismiss option %q", option)

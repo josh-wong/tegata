@@ -64,6 +64,13 @@ func saveUpdatePrefs(prefs updatePrefs) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
+// dismissOption values for DismissUpdate.
+const (
+	DismissOptionTomorrow    = "tomorrow"
+	DismissOptionOneMonth    = "one_month"
+	DismissOptionNextRelease = "next_release"
+)
+
 // githubRelease is a minimal struct for the GitHub Releases API response.
 type githubRelease struct {
 	TagName    string `json:"tag_name"`
@@ -97,6 +104,10 @@ func fetchLatestRelease() (*githubRelease, error) {
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, err
+	}
+	// /releases/latest should never return a pre-release, but guard anyway.
+	if release.Prerelease {
+		return nil, fmt.Errorf("latest release %q is a pre-release", release.TagName)
 	}
 	return &release, nil
 }

@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
-import { DOCUMENTATION_URLS } from "@/lib/constants"
+import { DISMISS_OPTIONS, DOCUMENTATION_URLS } from "@/lib/constants"
 
 interface SettingsPanelProps {
   open: boolean
@@ -44,12 +44,14 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateCheckDone, setUpdateCheckDone] = useState(false)
   const [updateCheckError, setUpdateCheckError] = useState("")
+  const [updateCheckCooldown, setUpdateCheckCooldown] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setUpdateChecking(false)
       setUpdateCheckDone(false)
       setUpdateCheckError("")
+      setUpdateCheckCooldown(false)
     }
   }, [open])
 
@@ -117,6 +119,8 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
       const info = await App.CheckForUpdateManual()
       onUpdateFound(info)
       setUpdateCheckDone(true)
+      setUpdateCheckCooldown(true)
+      setTimeout(() => setUpdateCheckCooldown(false), 5000)
     } catch (err) {
       setUpdateCheckError(formatError(err, "Update check failed"))
     } finally {
@@ -399,13 +403,13 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Remind me:</p>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("tomorrow")}>
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.tomorrow)}>
                     Tomorrow
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("one_month")}>
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.oneMonth)}>
                     In one month
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("next_release")}>
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.nextRelease)}>
                     Not until next release
                   </Button>
                 </div>
@@ -423,7 +427,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                 variant="outline"
                 size="sm"
                 onClick={handleCheckForUpdates}
-                disabled={updateChecking}
+                disabled={updateChecking || updateCheckCooldown}
               >
                 {updateChecking ? "Checking..." : "Check for updates"}
               </Button>
