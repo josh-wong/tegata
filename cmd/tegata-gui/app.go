@@ -1056,6 +1056,9 @@ func (a *App) CheckForUpdate() (*UpdateInfo, error) {
 // rate-limiting and dismissal preferences. Called when the user explicitly
 // clicks "Check for updates" in the settings panel. Returns nil when already
 // up to date; error on network failure.
+//
+// Intentionally ignores dismissal prefs: if the user explicitly asks to check,
+// they should always see the result even if they previously dismissed this version.
 func (a *App) CheckForUpdateManual() (*UpdateInfo, error) {
 	release, err := fetchLatestRelease()
 	if err != nil {
