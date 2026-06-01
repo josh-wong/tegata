@@ -64,6 +64,8 @@ interface WailsAppBindings {
   CopyToClipboard(text: string): Promise<void>
   ResetIdle(): Promise<void>
   CheckForUpdate(): Promise<UpdateInfo | null>
+  CheckForUpdateManual(): Promise<UpdateInfo | null>
+  DismissUpdate(releaseVersion: string, option: string): Promise<void>
   IsAuditEnabled(): Promise<boolean>
   GetAuditHistory(): Promise<AuditHistoryRecord[]>
   VerifyAuditLog(): Promise<AuditVerifyResult>
@@ -121,6 +123,8 @@ export const App = {
   CopyToClipboard: (text: string) => getApp().CopyToClipboard(text),
   ResetIdle: () => getApp().ResetIdle(),
   CheckForUpdate: () => getApp().CheckForUpdate(),
+  CheckForUpdateManual: () => getApp().CheckForUpdateManual(),
+  DismissUpdate: (releaseVersion: string, option: string) => getApp().DismissUpdate(releaseVersion, option),
   IsAuditEnabled: () => getApp().IsAuditEnabled(),
   GetAuditHistory: () => getApp().GetAuditHistory(),
   VerifyAuditLog: () => getApp().VerifyAuditLog(),

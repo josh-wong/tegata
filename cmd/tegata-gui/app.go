@@ -1020,11 +1020,86 @@ func (a *App) ResetIdle() {
 	a.resetIdle()
 }
 
-// CheckForUpdate checks the GitHub Releases API for a newer version. Returns
-// nil if the current version is up to date or if the check is disabled.
+// CheckForUpdate checks the GitHub Releases API for a newer version. It
+// respects the user's dismissal preferences and rate-limits background checks
+// to once per hour. Returns nil when already up to date or suppressed.
 func (a *App) CheckForUpdate() (*UpdateInfo, error) {
-	// Stub: update checking will be implemented in a later plan.
-	return nil, nil
+	prefs := loadUpdatePrefs()
+
+	// Rate-limit background checks to once per hour.
+	if !prefs.LastChecked.IsZero() && time.Since(prefs.LastChecked) < time.Hour {
+		return nil, nil
+	}
+
+	release, err := fetchLatestRelease()
+	if err != nil {
+		return nil, nil // network errors are non-fatal for background checks
+	}
+
+	prefs.LastChecked = time.Now()
+	_ = saveUpdatePrefs(prefs)
+
+	if !isNewerVersion(version, release.TagName) {
+		return nil, nil
+	}
+	if isDismissed(prefs, release.TagName) {
+		return nil, nil
+	}
+	return &UpdateInfo{
+		Version: strings.TrimPrefix(release.TagName, "v"),
+		URL:     release.HTMLURL,
+		Notes:   release.Body,
+	}, nil
+}
+
+// CheckForUpdateManual queries the GitHub Releases API immediately, bypassing
+// rate-limiting and dismissal preferences. Called when the user explicitly
+// clicks "Check for updates" in the settings panel. Returns nil when already
+// up to date; error on network failure.
+//
+// Intentionally ignores dismissal prefs: if the user explicitly asks to check,
+// they should always see the result even if they previously dismissed this version.
+func (a *App) CheckForUpdateManual() (*UpdateInfo, error) {
+	release, err := fetchLatestRelease()
+	if err != nil {
+		return nil, fmt.Errorf("checking for updates: %w", err)
+	}
+
+	prefs := loadUpdatePrefs()
+	prefs.LastChecked = time.Now()
+	_ = saveUpdatePrefs(prefs)
+
+	if !isNewerVersion(version, release.TagName) {
+		return nil, nil
+	}
+	return &UpdateInfo{
+		Version: strings.TrimPrefix(release.TagName, "v"),
+		URL:     release.HTMLURL,
+		Notes:   release.Body,
+	}, nil
+}
+
+// DismissUpdate records the user's dismissal preference for the given release
+// version. The option parameter controls when the notification re-appears:
+//   - "tomorrow": re-show after 24 hours
+//   - "one_month": re-show after 30 days
+//   - "next_release": suppress until a newer version is released
+func (a *App) DismissUpdate(releaseVersion, option string) error {
+	prefs := loadUpdatePrefs()
+	prefs.DismissedVersion = releaseVersion
+
+	switch option {
+	case DismissOptionTomorrow:
+		prefs.RemindAfter = time.Now().Add(24 * time.Hour)
+	case DismissOptionOneMonth:
+		prefs.RemindAfter = time.Now().Add(30 * 24 * time.Hour)
+	case DismissOptionNextRelease:
+		prefs.RemindAfter = time.Time{} // zero = never re-show for this version
+	default:
+		return fmt.Errorf("unknown dismiss option %q", option)
+	}
+
+	return saveUpdatePrefs(prefs)
 }
 
 // startIdleTimer initializes and starts the idle timer using the configured
