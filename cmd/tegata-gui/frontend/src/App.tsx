@@ -169,6 +169,7 @@ function App() {
           vault.setView("setup")
         }}
         onUpdateFound={setUpdateInfo}
+        updateInfo={updateInfo}
         vaultPath={vault.vaultPath ?? undefined}
       />
       <div className="flex flex-1 overflow-hidden">
@@ -212,6 +213,7 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         onCredentialsChanged={creds.refresh}
         updateInfo={updateInfo}
+        onUpdateFound={setUpdateInfo}
       />
 
       <AuditPanel

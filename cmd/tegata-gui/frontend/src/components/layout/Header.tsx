@@ -8,6 +8,7 @@ interface HeaderProps {
   onAuditClick?: () => void
   onSwitchVault: () => void
   onUpdateFound: (info: UpdateInfo) => void
+  updateInfo: UpdateInfo | null
   vaultPath?: string
 }
 
@@ -39,7 +40,7 @@ function getVaultPathParts(path: string): { dir: string; filename: string } {
   }
 }
 
-export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, vaultPath }: HeaderProps) {
+export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, updateInfo, vaultPath }: HeaderProps) {
   let displayDir = ""
   let displayFilename = ""
 
@@ -96,7 +97,7 @@ export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateF
           >
             <Settings className="h-4 w-4" />
           </Button>
-          <UpdateBadge onUpdateFound={onUpdateFound} />
+          <UpdateBadge updateInfo={updateInfo} onUpdateFound={onUpdateFound} />
         </div>
       </div>
     </header>
