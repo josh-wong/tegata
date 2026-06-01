@@ -9,6 +9,7 @@ import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
 import { DISMISS_OPTIONS, DOCUMENTATION_URLS } from "@/lib/constants"
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 
 interface SettingsPanelProps {
   open: boolean
@@ -44,14 +45,12 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateCheckDone, setUpdateCheckDone] = useState(false)
   const [updateCheckError, setUpdateCheckError] = useState("")
-  const [updateCheckCooldown, setUpdateCheckCooldown] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setUpdateChecking(false)
       setUpdateCheckDone(false)
       setUpdateCheckError("")
-      setUpdateCheckCooldown(false)
     }
   }, [open])
 
@@ -119,8 +118,6 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
       const info = await App.CheckForUpdateManual()
       onUpdateFound(info)
       setUpdateCheckDone(true)
-      setUpdateCheckCooldown(true)
-      setTimeout(() => setUpdateCheckCooldown(false), 5000)
     } catch (err) {
       setUpdateCheckError(formatError(err, "Update check failed"))
     } finally {
@@ -396,7 +393,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(updateInfo.url, "_blank")}
+                onClick={() => BrowserOpenURL(updateInfo.url)}
               >
                 Download
               </Button>
@@ -418,7 +415,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           ) : (
             <div className="space-y-2">
               {updateCheckDone && !updateCheckError && (
-                <p className="text-sm text-muted-foreground">You're up to date.</p>
+                <p className="text-sm text-green-500">You're up to date.</p>
               )}
               {updateCheckError && (
                 <p className="text-sm text-destructive">{updateCheckError}</p>
@@ -427,7 +424,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                 variant="outline"
                 size="sm"
                 onClick={handleCheckForUpdates}
-                disabled={updateChecking || updateCheckCooldown}
+                disabled={updateChecking || updateCheckDone}
               >
                 {updateChecking ? "Checking..." : "Check for updates"}
               </Button>
@@ -446,9 +443,9 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(DOCUMENTATION_URLS.privacyAndDisclaimer, "_blank")}
+            onClick={() => BrowserOpenURL(DOCUMENTATION_URLS.privacyAndDisclaimer)}
           >
-            Privacy & Disclaimer
+            Privacy & disclaimer
           </Button>
         </section>
         </div>
