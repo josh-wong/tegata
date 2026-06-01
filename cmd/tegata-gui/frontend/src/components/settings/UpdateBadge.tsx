@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef } from "react"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 
@@ -8,11 +8,11 @@ interface UpdateBadgeProps {
 }
 
 export function UpdateBadge({ updateInfo, onUpdateFound }: UpdateBadgeProps) {
-  const [checked, setChecked] = useState(false)
+  const checkedRef = useRef(false)
 
   useEffect(() => {
-    if (checked) return
-    setChecked(true)
+    if (checkedRef.current) return
+    checkedRef.current = true
     App.CheckForUpdate()
       .then((info) => {
         if (info) {
@@ -20,7 +20,7 @@ export function UpdateBadge({ updateInfo, onUpdateFound }: UpdateBadgeProps) {
         }
       })
       .catch(() => {})
-  }, [checked, onUpdateFound])
+  }, [onUpdateFound])
 
   if (!updateInfo) return null
 
