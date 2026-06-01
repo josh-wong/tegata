@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
+import { DOCUMENTATION_URLS } from "@/lib/constants"
 
 interface SettingsPanelProps {
   open: boolean
@@ -363,11 +364,18 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
         )}
 
         {/* About */}
-        <section className="space-y-1">
+        <section className="space-y-2">
           <h3 className="text-sm font-medium">About</h3>
           <p className="text-xs text-muted-foreground">Tegata — Your credentials, encrypted and portable</p>
           {appVersion && <p className="text-xs text-muted-foreground">Version: {appVersion}</p>}
           <p className="text-xs text-muted-foreground">License: MIT</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(DOCUMENTATION_URLS.privacyAndDisclaimer, "_blank")}
+          >
+            Privacy & Disclaimer
+          </Button>
         </section>
         </div>
       </div>
