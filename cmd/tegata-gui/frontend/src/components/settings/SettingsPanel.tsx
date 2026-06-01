@@ -15,9 +15,10 @@ interface SettingsPanelProps {
   onClose: () => void
   onCredentialsChanged: () => void
   updateInfo: UpdateInfo | null
+  onUpdateFound: (info: UpdateInfo | null) => void
 }
 
-export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo }: SettingsPanelProps) {
+export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo, onUpdateFound }: SettingsPanelProps) {
   const { theme, setTheme } = useTheme()
 
   const [showPassChange, setShowPassChange] = useState(false)
@@ -39,6 +40,18 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
   const [showTooltip, setShowTooltip] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const infoRef = useRef<HTMLDivElement>(null)
+
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateCheckDone, setUpdateCheckDone] = useState(false)
+  const [updateCheckError, setUpdateCheckError] = useState("")
+
+  useEffect(() => {
+    if (!open) {
+      setUpdateChecking(false)
+      setUpdateCheckDone(false)
+      setUpdateCheckError("")
+    }
+  }, [open])
 
   useEffect(() => {
     if (open) {
@@ -93,6 +106,31 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
       await App.SetAuditAutoStart(enabled)
     } catch {
       setAutoStart(prev)
+    }
+  }
+
+  async function handleCheckForUpdates() {
+    setUpdateChecking(true)
+    setUpdateCheckDone(false)
+    setUpdateCheckError("")
+    try {
+      const info = await App.CheckForUpdateManual()
+      onUpdateFound(info)
+      setUpdateCheckDone(true)
+    } catch (err) {
+      setUpdateCheckError(formatError(err, "Update check failed"))
+    } finally {
+      setUpdateChecking(false)
+    }
+  }
+
+  async function handleDismissUpdate(option: string) {
+    if (!updateInfo) return
+    try {
+      await App.DismissUpdate(updateInfo.version, option)
+      onUpdateFound(null)
+    } catch {
+      // Non-critical — ignore failures saving dismissal prefs.
     }
   }
 
@@ -343,11 +381,11 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
 
         <Separator className="my-4" />
 
-        {/* Update */}
-        {updateInfo && (
-          <>
-            <section className="space-y-2">
-              <h3 className="text-sm font-medium">Update available</h3>
+        {/* Updates */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">Updates</h3>
+          {updateInfo ? (
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Version {updateInfo.version} is available.
               </p>
@@ -358,10 +396,42 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo 
               >
                 Download
               </Button>
-            </section>
-            <Separator className="my-4" />
-          </>
-        )}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Remind me:</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("tomorrow")}>
+                    Tomorrow
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("one_month")}>
+                    In one month
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDismissUpdate("next_release")}>
+                    Not until next release
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {updateCheckDone && !updateCheckError && (
+                <p className="text-sm text-muted-foreground">You're up to date.</p>
+              )}
+              {updateCheckError && (
+                <p className="text-sm text-destructive">{updateCheckError}</p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckForUpdates}
+                disabled={updateChecking}
+              >
+                {updateChecking ? "Checking..." : "Check for updates"}
+              </Button>
+            </div>
+          )}
+        </section>
+
+        <Separator className="my-4" />
 
         {/* About */}
         <section className="space-y-2">
