@@ -62,7 +62,7 @@ func newHistoryCmd() *cobra.Command {
 						map[string]any{"Value": order}), tegerrors.ErrInvalidInput)
 			}
 
-			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}

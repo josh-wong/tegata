@@ -334,7 +334,7 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	defer func() { cfg.Audit.SecretKey = "" }()
 	builder, err := newEventBuilder(cfg, dir, passphrase)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditUnavailable", map[string]any{"Err": err}))
+		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("helpers.warn.auditUnavailable", map[string]any{"Err": err}))
 		return nil
 	}
 	if builder == nil {
@@ -342,11 +342,11 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	}
 	builder.OnHashStored = func(eventID, hashValue string) {
 		if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-			_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditHash", map[string]any{"Err": err}))
+			_, _ = fmt.Fprintf(w, "%s", i18n.Tf("helpers.warn.auditHash", map[string]any{"Err": err}))
 		}
 	}
 	if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditFailed", map[string]any{"Err": logErr}))
+		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("helpers.warn.auditFailed", map[string]any{"Err": logErr}))
 	}
 	builder.LogVaultLockOnClose = true
 	return builder

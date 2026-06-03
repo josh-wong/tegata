@@ -652,7 +652,7 @@ func (m model) updateSettingsConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'l':
 			// Cycle to the next supported language, save to config, re-init i18n.
-			next := nextLanguage(m.cfg.Language)
+			next := i18n.NextLanguage(m.cfg.Language)
 			m.cfg.Language = next
 			if err := config.WriteLanguage(filepath.Dir(m.vaultPath), next); err != nil {
 				m.settingsMsg = i18n.Tf("tui.settings.error.saveError", map[string]any{"Err": err})
@@ -996,9 +996,4 @@ func writeConfigFile(vaultPath string, cfg config.Config) error {
 // secondsDuration converts an integer number of seconds to a time.Duration.
 func secondsDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
-}
-
-// nextLanguage cycles through supported languages, returning the one after current.
-func nextLanguage(current string) string {
-	return i18n.NextLanguage(current)
 }

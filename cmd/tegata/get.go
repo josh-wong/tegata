@@ -27,7 +27,7 @@ func newGetCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}

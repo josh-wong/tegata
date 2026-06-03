@@ -35,7 +35,7 @@ func newConfigCmd() *cobra.Command {
 			cfg, loadErr := config.Load(dir)
 			hasFile := loadErr == nil
 
-			fmt.Print(config.FormatEffective(cfg, hasFile, i18n.T("config.show.default")))
+			fmt.Print(config.FormatEffective(cfg, hasFile, i18n.T("cmd.config.show.default")))
 			return nil
 		},
 	}

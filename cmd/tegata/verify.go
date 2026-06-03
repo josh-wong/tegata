@@ -56,7 +56,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
+	passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 	if err != nil {
 		return err
 	}

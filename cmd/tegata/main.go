@@ -204,7 +204,7 @@ func loadConfigLang() string {
 	if err != nil {
 		return ""
 	}
-	return cfg.Language
+	return normalizeLangFlag(cfg.Language)
 }
 
 // preParseVaultDir scans os.Args for --vault or --vault=<value>.
