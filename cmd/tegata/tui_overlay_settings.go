@@ -44,6 +44,7 @@ func (m *model) resetSettingsOverlay() {
 	m.settingsMsg = ""
 	m.settingsTagIdx = 0
 	m.settingsEditMode = ""
+	m.settingsRecoveryOK = false
 }
 
 // updateOverlaySettings handles key events in stateOverlaySettings.
@@ -893,6 +894,7 @@ func (m model) updateSettingsRecovery(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsMsg = i18n.Tf("tui.settings.error.generic", map[string]any{"Err": err})
 				return m, nil
 			}
+			m.settingsRecoveryOK = ok
 			if ok {
 				m.settingsMsg = i18n.T("tui.settings.recoveryKey.valid")
 			} else {
@@ -917,7 +919,7 @@ func (m model) viewSettingsRecovery() string {
 	lines = append(lines, i18n.T("tui.settings.field.recoveryKey")+m.settingsInput1.View())
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		if strings.Contains(m.settingsMsg, "valid") && !strings.Contains(m.settingsMsg, "invalid") {
+		if m.settingsRecoveryOK {
 			lines = append(lines, tipStyle.Render(m.settingsMsg))
 		} else {
 			lines = append(lines, errorStyle.Render(m.settingsMsg))

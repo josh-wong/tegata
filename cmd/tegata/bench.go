@@ -21,11 +21,11 @@ func newBenchCmd() *cobra.Command {
 
 			salt := make([]byte, 32)
 			if _, err := rand.Read(salt); err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.bench.error.salt", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.bench.error.salt"), err)
 			}
 			passphrase := make([]byte, 16)
 			if _, err := rand.Read(passphrase); err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.bench.error.passphrase", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.bench.error.passphrase"), err)
 			}
 
 			fmt.Print(i18n.Tf("cmd.bench.header", map[string]any{

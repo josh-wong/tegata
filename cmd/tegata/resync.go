@@ -50,31 +50,31 @@ func newResyncCmd() *cobra.Command {
 			}
 
 			if cred.Type != "hotp" {
-				return fmt.Errorf("%s",
+				return fmt.Errorf("%s: %w",
 					i18n.Tf("cmd.resync.error.wrongType",
-						map[string]any{"Label": label, "Type": cred.Type, "Err": errors.ErrInvalidInput}))
+						map[string]any{"Label": label, "Type": cred.Type}), errors.ErrInvalidInput)
 			}
 
 			scanner := bufio.NewScanner(os.Stdin)
 
 			fmt.Fprint(os.Stderr, i18n.T("cmd.resync.prompt.firstCode"))
 			if !scanner.Scan() {
-				return fmt.Errorf("%s",
-					i18n.Tf("cmd.resync.error.readFirstCode", map[string]any{"Err": errors.ErrInvalidInput}))
+				return fmt.Errorf("%s: %w",
+					i18n.T("cmd.resync.error.readFirstCode"), errors.ErrInvalidInput)
 			}
 			code1 := strings.TrimSpace(scanner.Text())
 
 			fmt.Fprint(os.Stderr, i18n.T("cmd.resync.prompt.secondCode"))
 			if !scanner.Scan() {
-				return fmt.Errorf("%s",
-					i18n.Tf("cmd.resync.error.readSecondCode", map[string]any{"Err": errors.ErrInvalidInput}))
+				return fmt.Errorf("%s: %w",
+					i18n.T("cmd.resync.error.readSecondCode"), errors.ErrInvalidInput)
 			}
 			code2 := strings.TrimSpace(scanner.Text())
 
 			secret, err := decodeBase32Secret(cred.Secret)
 			if err != nil {
-				return fmt.Errorf("%s",
-					i18n.Tf("cmd.resync.error.decodeSecret", map[string]any{"Label": label, "Err": err}))
+				return fmt.Errorf("%s: %w",
+					i18n.Tf("cmd.resync.error.decodeSecret", map[string]any{"Label": label}), err)
 			}
 			defer zeroBytes(secret)
 
@@ -86,7 +86,7 @@ func newResyncCmd() *cobra.Command {
 
 			cred.Counter = newCounter
 			if err := mgr.UpdateCredential(cred); err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.resync.error.saveCounter", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.resync.error.saveCounter"), err)
 			}
 
 			if builder != nil {

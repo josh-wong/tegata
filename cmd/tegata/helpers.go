@@ -87,7 +87,7 @@ func promptPassphrase(prompt string) ([]byte, error) {
 		reader := bufio.NewReader(os.Stdin)
 		data, err := io.ReadAll(reader)
 		if err != nil {
-			return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.readStdin", map[string]any{"Err": err}))
+			return nil, fmt.Errorf("%s: %w", i18n.T("helpers.error.readStdin"), err)
 		}
 		// Trim trailing newline from piped input.
 		return []byte(strings.TrimRight(string(data), "\r\n")), nil
@@ -98,7 +98,7 @@ func promptPassphrase(prompt string) ([]byte, error) {
 	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr) // newline after hidden input
 	if err != nil {
-		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.readPassphrase", map[string]any{"Err": err}))
+		return nil, fmt.Errorf("%s: %w", i18n.T("helpers.error.readPassphrase"), err)
 	}
 	return pass, nil
 }
@@ -115,7 +115,7 @@ func promptNewPassphrase() ([]byte, error) {
 	}
 
 	if len(pass) < 8 {
-		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.shortPassphrase", map[string]any{"Err": errors.ErrInvalidInput}))
+		return nil, fmt.Errorf("%s: %w", i18n.T("helpers.error.shortPassphrase"), errors.ErrInvalidInput)
 	}
 
 	// Display strength meter.
@@ -139,7 +139,7 @@ func promptNewPassphrase() ([]byte, error) {
 		for i := range confirm {
 			confirm[i] = 0
 		}
-		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.passMismatch", map[string]any{"Err": errors.ErrInvalidInput}))
+		return nil, fmt.Errorf("%s: %w", i18n.T("helpers.error.passMismatch"), errors.ErrInvalidInput)
 	}
 
 	// Zero the confirmation copy.
@@ -232,7 +232,7 @@ func promptSecret(prompt string) (string, error) {
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr) // newline after hidden input
 	if err != nil {
-		return "", fmt.Errorf("%s", i18n.Tf("helpers.error.readSecret", map[string]any{"Err": err}))
+		return "", fmt.Errorf("%s: %w", i18n.T("helpers.error.readSecret"), err)
 	}
 	return string(secret), nil
 }
@@ -448,7 +448,7 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 		var err error
 		passBytes, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return "", fmt.Errorf("%s", i18n.Tf("helpers.error.readPassphrase", map[string]any{"Err": err}))
+			return "", fmt.Errorf("%s: %w", i18n.T("helpers.error.readPassphrase"), err)
 		}
 		fmt.Fprintln(os.Stderr) // newline after password input
 	}
@@ -461,12 +461,12 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 	// Open and unlock the vault.
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
-		return "", fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
+		return "", fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.openVault"), err)
 	}
 	defer mgr.Close()
 
 	if err := mgr.Unlock(passBytes); err != nil {
-		return "", fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
+		return "", fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.unlockVault"), err)
 	}
 
 	// Retrieve the secret from the vault.

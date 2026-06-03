@@ -42,7 +42,7 @@ func newHistoryCmd() *cobra.Command {
 
 			cfg, err := config.Load(vaultDir(vaultPath))
 			if err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.history.error.loadConfig", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.history.error.loadConfig"), err)
 			}
 
 			if !cfg.Audit.Enabled {
@@ -52,14 +52,14 @@ func newHistoryCmd() *cobra.Command {
 
 			validSortCols := map[string]bool{"operation": true, "label": true, "timestamp": true, "hash": true}
 			if sortBy != "" && !validSortCols[sortBy] {
-				return fmt.Errorf("%s",
+				return fmt.Errorf("%s: %w",
 					i18n.Tf("cmd.history.error.invalidSort",
-						map[string]any{"Value": sortBy, "Err": tegerrors.ErrInvalidInput}))
+						map[string]any{"Value": sortBy}), tegerrors.ErrInvalidInput)
 			}
 			if order != "" && order != "asc" && order != "desc" {
-				return fmt.Errorf("%s",
+				return fmt.Errorf("%s: %w",
 					i18n.Tf("cmd.history.error.invalidOrder",
-						map[string]any{"Value": order, "Err": tegerrors.ErrInvalidInput}))
+						map[string]any{"Value": order}), tegerrors.ErrInvalidInput)
 			}
 
 			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
@@ -69,7 +69,7 @@ func newHistoryCmd() *cobra.Command {
 			mgr, err := openAndUnlock(vaultPath, passphrase)
 			zeroBytes(passphrase)
 			if err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.history.error.unlockVault", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.history.error.unlockVault"), err)
 			}
 			defer mgr.Close()
 
@@ -122,17 +122,17 @@ func newHistoryCmd() *cobra.Command {
 			if from != "" {
 				fromTime, err = time.ParseInLocation("2006-01-02", from, time.Local)
 				if err != nil {
-					return fmt.Errorf("%s",
+					return fmt.Errorf("%s: %w",
 						i18n.Tf("cmd.history.error.invalidFrom",
-							map[string]any{"Value": from, "Err": tegerrors.ErrInvalidInput}))
+							map[string]any{"Value": from}), tegerrors.ErrInvalidInput)
 				}
 			}
 			if to != "" {
 				toTime, err = time.ParseInLocation("2006-01-02", to, time.Local)
 				if err != nil {
-					return fmt.Errorf("%s",
+					return fmt.Errorf("%s: %w",
 						i18n.Tf("cmd.history.error.invalidTo",
-							map[string]any{"Value": to, "Err": tegerrors.ErrInvalidInput}))
+							map[string]any{"Value": to}), tegerrors.ErrInvalidInput)
 				}
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}

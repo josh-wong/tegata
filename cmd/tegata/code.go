@@ -57,14 +57,14 @@ func newCodeCmd() *cobra.Command {
 			}
 
 			if cred.Type != pkgmodel.CredentialTOTP && cred.Type != pkgmodel.CredentialHOTP {
-				return fmt.Errorf("%s", i18n.Tf("cmd.code.error.wrongType",
-					map[string]any{"Label": label, "Type": cred.Type, "Err": errors.ErrInvalidInput}))
+				return fmt.Errorf("%s: %w", i18n.Tf("cmd.code.error.wrongType",
+					map[string]any{"Label": label, "Type": cred.Type}), errors.ErrInvalidInput)
 			}
 
 			secret, err := decodeBase32Secret(cred.Secret)
 			if err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.code.error.decodeSecret",
-					map[string]any{"Label": label, "Err": err}))
+				return fmt.Errorf("%s: %w", i18n.Tf("cmd.code.error.decodeSecret",
+					map[string]any{"Label": label}), err)
 			}
 			defer zeroBytes(secret)
 

@@ -39,13 +39,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	vaultPass, err := promptPassphrase(i18n.T("cmd.export.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.export.error.readVaultPass", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readVaultPass"), err)
 	}
 	defer zeroBytes(vaultPass)
 
 	mgr, err := openAndUnlock(vaultPath, vaultPass)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.export.error.unlockVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.unlockVault"), err)
 	}
 	defer mgr.Close()
 
@@ -66,7 +66,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			zeroBytes(exportPass)
-			return fmt.Errorf("%s", i18n.Tf("cmd.export.error.readExportPass", map[string]any{"Err": err}))
+			return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readExportPass"), err)
 		}
 
 		if len(exportPass) < 8 {
@@ -82,7 +82,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			zeroBytes(exportPass)
-			return fmt.Errorf("%s", i18n.Tf("cmd.export.error.readConfirmPass", map[string]any{"Err": err}))
+			return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readConfirmPass"), err)
 		}
 
 		if !bytes.Equal(exportPass, confirm) {
@@ -98,12 +98,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	data, err := mgr.ExportCredentials(exportPass)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.export.error.export", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.export"), err)
 	}
 	defer zeroBytes(data)
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.export.error.writeFile", map[string]any{"Path": outPath, "Err": err}))
+		return fmt.Errorf("%s: %w", i18n.Tf("cmd.export.error.writeFile", map[string]any{"Path": outPath}), err)
 	}
 
 	if builder != nil {

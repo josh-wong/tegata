@@ -69,7 +69,7 @@ func newAddCmd() *cobra.Command {
 				}
 				parsed, parseErr := auth.ParseOTPAuthURI(strings.TrimSpace(uri))
 				if parseErr != nil {
-					return fmt.Errorf("%s", i18n.Tf("cmd.add.error.parseURI", map[string]any{"Err": parseErr}))
+					return fmt.Errorf("%s: %w", i18n.T("cmd.add.error.parseURI"), parseErr)
 				}
 				cred = *parsed
 				cred.Label = label
@@ -80,14 +80,14 @@ func newAddCmd() *cobra.Command {
 				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP, pkgmodel.CredentialStatic,
 					pkgmodel.CredentialChallengeResponse:
 				default:
-					return fmt.Errorf("%s", i18n.Tf("cmd.add.error.invalidType",
-						map[string]any{"Type": credType, "Err": errors.ErrInvalidInput}))
+					return fmt.Errorf("%s: %w", i18n.Tf("cmd.add.error.invalidType",
+						map[string]any{"Type": credType}), errors.ErrInvalidInput)
 				}
 
 				requestedAlgorithm := algorithm
 				algorithm = resolveAlgorithm(ct, cmd.Flags().Changed("algorithm"), algorithm)
 				if ct == pkgmodel.CredentialHOTP && cmd.Flags().Changed("algorithm") && !strings.EqualFold(requestedAlgorithm, "SHA1") {
-					return fmt.Errorf("%s", i18n.Tf("cmd.add.error.hotpAlgorithm", map[string]any{"Err": errors.ErrInvalidInput}))
+					return fmt.Errorf("%s: %w", i18n.T("cmd.add.error.hotpAlgorithm"), errors.ErrInvalidInput)
 				}
 
 				var secretPrompt string
@@ -110,7 +110,7 @@ func newAddCmd() *cobra.Command {
 				switch ct {
 				case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP:
 					if _, decErr := decodeBase32Secret(trimmedSecret); decErr != nil {
-						return fmt.Errorf("%s", i18n.Tf("cmd.add.error.invalidBase32", map[string]any{"Err": errors.ErrInvalidInput}))
+						return fmt.Errorf("%s: %w", i18n.T("cmd.add.error.invalidBase32"), errors.ErrInvalidInput)
 					}
 				}
 

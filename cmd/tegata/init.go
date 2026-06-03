@@ -28,7 +28,7 @@ func newInitCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, err := os.Getwd()
 			if err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.getWD", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.init.error.getWD"), err)
 			}
 			if len(args) > 0 {
 				dir = args[0]
@@ -48,7 +48,7 @@ func newInitCmd() *cobra.Command {
 			}
 
 			if err := os.MkdirAll(dir, 0700); err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.createDir", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.init.error.createDir"), err)
 			}
 
 			passphrase, err := promptNewPassphrase()
@@ -59,7 +59,7 @@ func newInitCmd() *cobra.Command {
 
 			recoveryKey, err := vault.Create(vaultPath, passphrase, crypto.DefaultParams)
 			if err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.createVault", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.init.error.createVault"), err)
 			}
 
 			if err := config.WriteDefaults(dir); err != nil {

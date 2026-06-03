@@ -66,7 +66,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 
 	cfg, err := config.Load(dir)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.loadConfig", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.loadConfig"), err)
 	}
 
 	if !cfg.Audit.Enabled {
@@ -125,13 +125,13 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 			i18n.Tf("cmd.ledger.info.registerContracts", map[string]any{"Path": composeDir}))
 		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.signatureNote1"))
 		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.signatureNote2"))
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.contractVerification", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.contractVerification"), err)
 	}
 
 	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.storingSecret"))
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVaultForSecret", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.openVaultForSecret"), err)
 	}
 	defer mgr.Close()
 
@@ -139,7 +139,7 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 		fmt.Fprint(os.Stderr, i18n.T("cmd.ledger.prompt.passphrase"))
 		passBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
+			return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.readPassphrase"), err)
 		}
 		fmt.Fprintln(os.Stderr)
 		defer func() {
@@ -148,12 +148,12 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 			}
 		}()
 		if err := mgr.Unlock(passBytes); err != nil {
-			return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
+			return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.unlockVault"), err)
 		}
 	}
 
 	if err := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.storeSecret", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.storeSecret"), err)
 	}
 
 	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.success.setupComplete"))
@@ -187,17 +187,17 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 
 	passphraseBytes, err := promptPassphrase(i18n.T("cmd.ledger.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.readPassphrase"), err)
 	}
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
 		zeroBytes(passphraseBytes)
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.openVault"), err)
 	}
 	if err := mgr.Unlock(passphraseBytes); err != nil {
 		zeroBytes(passphraseBytes)
 		mgr.Close()
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.unlockVault"), err)
 	}
 	zeroBytes(passphraseBytes)
 	defer mgr.Close()
@@ -206,7 +206,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	// EnsureStack receive an FS rooted at the docker-compose.yml level.
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.accessBundle", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.accessBundle"), err)
 	}
 
 	progressFn := func(msg string) {
@@ -234,7 +234,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 
 	u, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.resolveHome", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.resolveHome"), err)
 	}
 	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
@@ -294,24 +294,24 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 
 	passphraseBytes, err := promptPassphrase(i18n.T("cmd.ledger.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.readPassphrase"), err)
 	}
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
 		zeroBytes(passphraseBytes)
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.openVault"), err)
 	}
 	if err := mgr.Unlock(passphraseBytes); err != nil {
 		zeroBytes(passphraseBytes)
 		mgr.Close()
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.unlockVault"), err)
 	}
 	zeroBytes(passphraseBytes)
 
 	cfg, err := config.Load(dir)
 	if err != nil {
 		mgr.Close()
-		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.loadConfig", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.ledger.error.loadConfig"), err)
 	}
 
 	if cfg.Audit.DockerComposePath == "" {

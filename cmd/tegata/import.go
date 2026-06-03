@@ -34,13 +34,13 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	vaultPass, err := promptPassphrase(i18n.T("cmd.import.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.import.error.readVaultPass", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.import.error.readVaultPass"), err)
 	}
 	defer zeroBytes(vaultPass)
 
 	mgr, err := openAndUnlock(vaultPath, vaultPass)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.import.error.unlockVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.import.error.unlockVault"), err)
 	}
 	defer mgr.Close()
 
@@ -52,7 +52,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	const maxImportSize = 10 << 20
 	info, err := os.Stat(backupPath)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.import.error.readFile", map[string]any{"Path": backupPath, "Err": err}))
+		return fmt.Errorf("%s: %w", i18n.Tf("cmd.import.error.readFile", map[string]any{"Path": backupPath}), err)
 	}
 	if info.Size() > maxImportSize {
 		return fmt.Errorf("%s",
@@ -61,7 +61,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.import.error.readFile", map[string]any{"Path": backupPath, "Err": err}))
+		return fmt.Errorf("%s: %w", i18n.Tf("cmd.import.error.readFile", map[string]any{"Path": backupPath}), err)
 	}
 
 	var importPass []byte
@@ -73,14 +73,14 @@ func runImport(cmd *cobra.Command, args []string) error {
 		importPass, err = term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
-			return fmt.Errorf("%s", i18n.Tf("cmd.import.error.readBackupPass", map[string]any{"Err": err}))
+			return fmt.Errorf("%s: %w", i18n.T("cmd.import.error.readBackupPass"), err)
 		}
 	}
 	defer zeroBytes(importPass)
 
 	imported, skipped, err := mgr.ImportCredentials(data, importPass)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.import.error.import", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.import.error.import"), err)
 	}
 
 	if builder != nil && imported > 0 {

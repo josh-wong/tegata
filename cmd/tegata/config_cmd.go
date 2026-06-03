@@ -72,11 +72,11 @@ func newConfigCmd() *cobra.Command {
 
 				cfg, err := config.Load(dir)
 				if err != nil {
-					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.loadConfig", map[string]any{"Err": err}))
+					return fmt.Errorf("%s: %w", i18n.T("cmd.config.set.error.loadConfig"), err)
 				}
 				cfg.Audit.AutoStart = autoStart
 				if err := config.WriteAuditSection(dir, cfg.Audit); err != nil {
-					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.writeConfig", map[string]any{"Err": err}))
+					return fmt.Errorf("%s: %w", i18n.T("cmd.config.set.error.writeConfig"), err)
 				}
 				fmt.Print(i18n.Tf("cmd.config.set.success.autoStart", map[string]any{"Value": value}))
 				return nil
@@ -96,7 +96,7 @@ func newConfigCmd() *cobra.Command {
 					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.invalidLanguage", map[string]any{"Value": value}))
 				}
 				if err := config.WriteLanguage(dir, lang); err != nil {
-					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.writeConfig", map[string]any{"Err": err}))
+					return fmt.Errorf("%s: %w", i18n.T("cmd.config.set.error.writeConfig"), err)
 				}
 				// Switch to the new language before printing the confirmation so
 				// the success message is shown in the language that was just set.

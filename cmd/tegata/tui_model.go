@@ -119,14 +119,15 @@ type model struct {
 	editCredID      string          // ID of credential being edited
 
 	// Settings overlay state
-	settingsMenuIdx  int          // 0-3 menu selection
-	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
-	settingsInput1   textinput.Model
-	settingsInput2   textinput.Model
-	settingsInput3   textinput.Model
-	settingsMsg      string
-	settingsTagIdx   int          // selected tag index in tag management
-	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
+	settingsMenuIdx    int          // 0-3 menu selection
+	settingsSubFlow    string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
+	settingsInput1     textinput.Model
+	settingsInput2     textinput.Model
+	settingsInput3     textinput.Model
+	settingsMsg        string
+	settingsTagIdx     int          // selected tag index in tag management
+	settingsEditMode   string       // "clipboard"|"idle"|"" for config edit mode
+	settingsRecoveryOK bool         // true when the most recent recovery key verification succeeded
 
 	// Audit overlay state
 	auditMenuIdx    int             // 0=History, 1=Verify, 2=Start

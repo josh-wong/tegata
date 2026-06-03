@@ -89,7 +89,7 @@ func newChangePassphraseCmd() *cobra.Command {
 			defer zeroBytes(newPassphrase)
 
 			if err := mgr.ChangePassphrase(newPassphrase); err != nil {
-				return fmt.Errorf("%s", i18n.Tf("cmd.changePassphrase.error.change", map[string]any{"Err": err}))
+				return fmt.Errorf("%s: %w", i18n.T("cmd.changePassphrase.error.change"), err)
 			}
 
 			if builder != nil {

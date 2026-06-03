@@ -48,7 +48,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 
 	cfg, err := config.Load(vaultDir(vaultPath))
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.verify.error.loadConfig", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.verify.error.loadConfig"), err)
 	}
 
 	if !cfg.Audit.Enabled {
@@ -63,7 +63,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	mgr, err := openAndUnlock(vaultPath, passphrase)
 	zeroBytes(passphrase)
 	if err != nil {
-		return fmt.Errorf("%s", i18n.Tf("cmd.verify.error.unlockVault", map[string]any{"Err": err}))
+		return fmt.Errorf("%s: %w", i18n.T("cmd.verify.error.unlockVault"), err)
 	}
 	defer mgr.Close()
 
