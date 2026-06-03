@@ -135,6 +135,7 @@ type model struct {
 	auditRecords        []historyRecord // fetched records (unfiltered)
 	auditFiltered       []historyRecord // fetched records after lock/unlock filter applied
 	auditLoading        bool            // true while async gRPC call is in progress
+	auditVerifyOK       bool            // true when the most recent verify run succeeded with no tampering
 	auditCursor         int             // selected row index in auditFiltered
 	auditScrollOff      int             // first visible row index in auditFiltered
 	auditMsgTime        time.Time       // time when auditMsg was set (for auto-dismiss)
@@ -218,7 +219,7 @@ func initialModel(vaultPath string) model {
 	cfg := config.DefaultConfig()
 
 	vaultPathIn := textinput.New()
-	vaultPathIn.Placeholder = i18n.T("tui.add.placeholder.uri") // reused for wizard path input
+	vaultPathIn.Placeholder = i18n.T("tui.wizard.placeholder.vaultPath")
 	vaultPathIn.EchoMode = textinput.EchoNormal
 
 	crInput := textinput.New()
@@ -284,8 +285,8 @@ func initialModel(vaultPath string) model {
 		idleTimeout:      cfg.IdleTimeout,
 		now:              time.Now(),
 		lastActivity:     time.Now(),
-		passphraseInput:  newPassphraseInput(i18n.T("tui.unlock.title")),
-		confirmInput:     newPassphraseInput("Confirm passphrase"),
+		passphraseInput:  newPassphraseInput(i18n.T("tui.unlock.placeholder.passphrase")),
+		confirmInput:     newPassphraseInput(i18n.T("tui.settings.placeholder.confirmPass")),
 		vaultPathInput:   vaultPathIn,
 		crChallengeInput: crInput,
 		addLabelInput:    addLabel,
@@ -450,11 +451,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case auditVerifyMsg:
 		m.auditLoading = false
+		m.auditVerifyOK = false
 		if msg.err != nil {
 			m.auditMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": msg.err})
 		} else if msg.eventCount == 0 {
 			m.auditMsg = i18n.T("cmd.verify.empty")
 		} else if msg.valid {
+			m.auditVerifyOK = true
 			m.auditMsg = i18n.Tf("cmd.verify.success", map[string]any{"Count": msg.eventCount})
 		} else {
 			var sb strings.Builder

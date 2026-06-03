@@ -42,9 +42,7 @@ func resolveVaultPath(cmd *cobra.Command) (string, error) {
 	// Fall back to current working directory.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("%s: %w",
-			i18n.Tf("helpers.error.getWD", map[string]any{"Err": err}),
-			err)
+		return "", fmt.Errorf("%s: %w", i18n.T("helpers.error.getWD"), err)
 	}
 	path := filepath.Join(cwd, vaultFilename)
 	if _, err := os.Stat(path); err != nil {
@@ -111,7 +109,7 @@ func promptPassphrase(prompt string) ([]byte, error) {
 func promptNewPassphrase() ([]byte, error) {
 	fmt.Fprintln(os.Stderr, i18n.T("helpers.tip.passphrase"))
 
-	pass, err := promptPassphrase(i18n.T("cmd.add.prompt.secret"))
+	pass, err := promptPassphrase(i18n.T("helpers.prompt.passphrase"))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +126,7 @@ func promptNewPassphrase() ([]byte, error) {
 		return pass, nil
 	}
 
-	confirm, err := promptPassphrase(i18n.T("cmd.add.prompt.secret"))
+	confirm, err := promptPassphrase(i18n.T("helpers.prompt.confirmPassphrase"))
 	if err != nil {
 		return nil, err
 	}

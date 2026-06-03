@@ -158,6 +158,7 @@ func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
 	m.auditSubFlow = ""
 	m.auditMsg = ""
+	m.auditVerifyOK = false
 	m.auditRecords = nil
 	m.auditFiltered = nil
 	m.auditLoading = false
@@ -434,9 +435,9 @@ func (m model) viewAuditVerify() string {
 	}
 
 	var body string
-	if strings.Contains(m.auditMsg, i18n.T("tui.audit.tampered")) {
+	if strings.HasPrefix(m.auditMsg, i18n.T("tui.audit.tampered")) {
 		body = errorStyle.Render(m.auditMsg)
-	} else if strings.Contains(m.auditMsg, i18n.T("tui.audit.verified")) {
+	} else if m.auditVerifyOK {
 		body = tipStyle.Render(m.auditMsg)
 	} else {
 		body = m.auditMsg

@@ -572,7 +572,7 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // viewOverlayRemove renders the remove-confirmation overlay.
 func (m model) viewOverlayRemove() string {
-	label := "(none selected)"
+	label := i18n.T("tui.remove.noneSelected")
 	if selected := m.credList.SelectedItem(); selected != nil {
 		if item, ok := selected.(credItem); ok {
 			label = item.cred.Label
