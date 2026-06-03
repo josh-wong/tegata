@@ -27,9 +27,7 @@ var credTypeNames = []struct {
 	{"Challenge-Resp", pkgmodel.CredentialChallengeResponse},
 }
 
-// addAlgoLabels and addAlgoValues map addAlgoIdx to display labels and
-// credential algorithm strings.
-var addAlgoLabels = []string{"SHA-1", "SHA-256", "SHA-512"}
+// addAlgoValues maps addAlgoIdx to the algorithm strings stored in credentials.
 var addAlgoValues = []string{"SHA1", "SHA256", "SHA512"}
 
 // addDigitValues maps addDigitsIdx to digit counts.
