@@ -16,6 +16,7 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -41,13 +42,17 @@ func resolveVaultPath(cmd *cobra.Command) (string, error) {
 	// Fall back to current working directory.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
+		return "", fmt.Errorf("%s: %w",
+			i18n.Tf("helpers.error.getWD", map[string]any{"Err": err}),
+			err)
 	}
 	path := filepath.Join(cwd, vaultFilename)
 	if _, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("%s: %w",
-			errors.UserMessage("No vault found",
-				"Run tegata init to create one, or use --vault /path to specify a location"),
+			errors.UserMessage(
+				i18n.T("helpers.error.noVault"),
+				i18n.T("helpers.info.noVaultHint"),
+			),
 			errors.ErrNotFound)
 	}
 	return path, nil
@@ -75,7 +80,7 @@ func resolvePathArg(path string) (string, error) {
 func promptPassphrase(prompt string) ([]byte, error) {
 	// Check env var first.
 	if envPass := os.Getenv("TEGATA_PASSPHRASE"); envPass != "" {
-		fmt.Fprintln(os.Stderr, "! Using passphrase from TEGATA_PASSPHRASE")
+		fmt.Fprintln(os.Stderr, i18n.T("helpers.info.envPassphrase"))
 		return []byte(envPass), nil
 	}
 
@@ -84,7 +89,7 @@ func promptPassphrase(prompt string) ([]byte, error) {
 		reader := bufio.NewReader(os.Stdin)
 		data, err := io.ReadAll(reader)
 		if err != nil {
-			return nil, fmt.Errorf("reading passphrase from stdin: %w", err)
+			return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.readStdin", map[string]any{"Err": err}))
 		}
 		// Trim trailing newline from piped input.
 		return []byte(strings.TrimRight(string(data), "\r\n")), nil
@@ -95,7 +100,7 @@ func promptPassphrase(prompt string) ([]byte, error) {
 	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr) // newline after hidden input
 	if err != nil {
-		return nil, fmt.Errorf("reading passphrase: %w", err)
+		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.readPassphrase", map[string]any{"Err": err}))
 	}
 	return pass, nil
 }
@@ -104,15 +109,15 @@ func promptPassphrase(prompt string) ([]byte, error) {
 // a tip, prompts for the passphrase with a strength meter, enforces a minimum
 // length, and confirms the passphrase.
 func promptNewPassphrase() ([]byte, error) {
-	fmt.Fprintln(os.Stderr, `! Tip: Use a memorable phrase (e.g., "correct horse battery staple")`)
+	fmt.Fprintln(os.Stderr, i18n.T("helpers.tip.passphrase"))
 
-	pass, err := promptPassphrase("Passphrase: ")
+	pass, err := promptPassphrase(i18n.T("cmd.add.prompt.secret"))
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pass) < 8 {
-		return nil, fmt.Errorf("passphrase must be at least 8 characters: %w", errors.ErrInvalidInput)
+		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.shortPassphrase", map[string]any{"Err": errors.ErrInvalidInput}))
 	}
 
 	// Display strength meter.
@@ -123,7 +128,7 @@ func promptNewPassphrase() ([]byte, error) {
 		return pass, nil
 	}
 
-	confirm, err := promptPassphrase("Confirm passphrase: ")
+	confirm, err := promptPassphrase(i18n.T("cmd.add.prompt.secret"))
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +141,7 @@ func promptNewPassphrase() ([]byte, error) {
 		for i := range confirm {
 			confirm[i] = 0
 		}
-		return nil, fmt.Errorf("passphrases do not match: %w", errors.ErrInvalidInput)
+		return nil, fmt.Errorf("%s", i18n.Tf("helpers.error.passMismatch", map[string]any{"Err": errors.ErrInvalidInput}))
 	}
 
 	// Zero the confirmation copy.
@@ -184,17 +189,17 @@ func charClasses(pass []byte) int {
 // the scoring algorithm stays in one place.
 func strengthLevel(pass []byte) (bar, label string) {
 	if len(pass) < 8 {
-		return "[X____]", "Too short"
+		return "[X____]", i18n.T("helpers.strength.tooShort")
 	}
 	classes := charClasses(pass)
 	if classes < 2 {
-		return "[X____]", "Weak"
+		return "[X____]", i18n.T("helpers.strength.weak")
 	}
 	score := len(pass) + classes*3
 	if score >= 22 {
-		return "[XXXXX]", "Strong"
+		return "[XXXXX]", i18n.T("helpers.strength.strong")
 	}
-	return "[XXX__]", "Fair"
+	return "[XXX__]", i18n.T("helpers.strength.fair")
 }
 
 // displayStrengthMeter prints a passphrase strength meter to stderr based on
@@ -202,7 +207,7 @@ func strengthLevel(pass []byte) (bar, label string) {
 // >= 8 are accepted.
 func displayStrengthMeter(pass []byte) {
 	bar, label := strengthLevel(pass)
-	fmt.Fprintf(os.Stderr, "  Strength: %s %s\n", bar, label)
+	fmt.Fprint(os.Stderr, i18n.Tf("helpers.strength.display", map[string]any{"Bar": bar, "Label": label}))
 }
 
 // vaultDir returns the directory containing the vault file at the given path.
@@ -229,7 +234,7 @@ func promptSecret(prompt string) (string, error) {
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr) // newline after hidden input
 	if err != nil {
-		return "", fmt.Errorf("reading secret: %w", err)
+		return "", fmt.Errorf("%s", i18n.Tf("helpers.error.readSecret", map[string]any{"Err": err}))
 	}
 	return string(secret), nil
 }
@@ -273,7 +278,7 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 
 		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: audit auto-start: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("helpers.error.autoStart", map[string]any{"Err": err}))
 		}
 	}
 	return mgr, nil
@@ -282,10 +287,10 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 // printAuditNotEnabledHint writes the standard audit-not-enabled guidance to w.
 // Called by any command that requires audit to be enabled.
 func printAuditNotEnabledHint(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "Audit logging is not enabled. To enable, choose one of:")
-	_, _ = fmt.Fprintln(w, "  Quick setup (Docker): tegata ledger start --vault <path>")
-	_, _ = fmt.Fprintln(w, "  Manual setup: add [audit] to tegata.toml and run: tegata ledger setup --vault <path>")
-	_, _ = fmt.Fprintln(w, "Run 'tegata ledger setup --help' for the required tegata.toml fields.")
+	_, _ = fmt.Fprintln(w, i18n.T("helpers.audit.notEnabled"))
+	_, _ = fmt.Fprintln(w, i18n.T("helpers.audit.quickSetup"))
+	_, _ = fmt.Fprintln(w, i18n.T("helpers.audit.manualSetup"))
+	_, _ = fmt.Fprintln(w, i18n.T("helpers.audit.helpHint"))
 }
 
 // zeroBytes overwrites a byte slice with zeros for memory hygiene.
@@ -331,7 +336,7 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	defer func() { cfg.Audit.SecretKey = "" }()
 	builder, err := newEventBuilder(cfg, dir, passphrase)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "Warning: Audit unavailable: %v\n", err)
+		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditUnavailable", map[string]any{"Err": err}))
 		return nil
 	}
 	if builder == nil {
@@ -339,11 +344,11 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 	}
 	builder.OnHashStored = func(eventID, hashValue string) {
 		if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-			_, _ = fmt.Fprintf(w, "Warning: Failed to store audit hash: %v\n", err)
+			_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditHash", map[string]any{"Err": err}))
 		}
 	}
 	if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-		_, _ = fmt.Fprintf(w, "Warning: Audit log failed: %v\n", logErr)
+		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("cmd.changePassphrase.warn.auditFailed", map[string]any{"Err": logErr}))
 	}
 	builder.LogVaultLockOnClose = true
 	return builder
@@ -353,29 +358,29 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 // Falls through to the original error for unknown types.
 func humanizeError(err error) string {
 	if err == nil {
-		return "Unknown error"
+		return i18n.T("helpers.error.unknown")
 	}
 
 	msg := err.Error()
 
 	// File not found (check both os.IsNotExist and text patterns for wrapped errors)
 	if os.IsNotExist(err) || strings.Contains(msg, "no such file or directory") || strings.Contains(msg, "file does not exist") {
-		return "Vault file not found. Check the path and try again."
+		return i18n.T("helpers.error.vaultNotFound")
 	}
 
 	// Permission denied (check both os.IsPermission and text pattern for wrapped errors)
 	if os.IsPermission(err) || strings.Contains(msg, "permission denied") {
-		return "Permission denied. Check file permissions and try again."
+		return i18n.T("helpers.error.permissionDenied")
 	}
 
 	// Read-only filesystem
 	if strings.Contains(msg, "read-only file system") {
-		return "Cannot write to this location—it appears to be read-only."
+		return i18n.T("helpers.error.readOnly")
 	}
 
 	// Vault file is corrupt or invalid
 	if strings.Contains(msg, "invalid header") || strings.Contains(msg, "corrupted") {
-		return "The vault file appears to be corrupt. Restore from a backup if available."
+		return i18n.T("helpers.error.corrupt")
 	}
 
 	// Fall back to original error if no pattern matches
@@ -420,9 +425,9 @@ func formatVaultPathWithBoldFilename(path string) string {
 		return boldStyle.Render(filename)
 	}
 
-	// Plain "Vault: " prefix + directory, then concat bold filename.
+	// Translated "Vault: " prefix + directory, then concat bold filename.
 	separator := string(filepath.Separator)
-	return "Vault: " + dir + separator + boldStyle.Render(filename)
+	return i18n.T("tui.vaultHeader") + dir + separator + boldStyle.Render(filename)
 }
 
 // unlockVaultForSecret opens a vault and returns the HMAC secret from encrypted storage.
@@ -441,11 +446,11 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 	if envPass := os.Getenv("TEGATA_VAULT_PASSPHRASE"); envPass != "" {
 		passBytes = []byte(envPass)
 	} else {
-		fmt.Fprint(os.Stderr, "Enter passphrase: ")
+		fmt.Fprint(os.Stderr, i18n.T("cmd.ledger.prompt.passphrase"))
 		var err error
 		passBytes, err = term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return "", fmt.Errorf("reading passphrase: %w", err)
+			return "", fmt.Errorf("%s", i18n.Tf("helpers.error.readPassphrase", map[string]any{"Err": err}))
 		}
 		fmt.Fprintln(os.Stderr) // newline after password input
 	}
@@ -458,12 +463,12 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 	// Open and unlock the vault.
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
-		return "", fmt.Errorf("opening vault: %w", err)
+		return "", fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
 	}
 	defer mgr.Close()
 
 	if err := mgr.Unlock(passBytes); err != nil {
-		return "", fmt.Errorf("unlocking vault: %w", err)
+		return "", fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
 	}
 
 	// Retrieve the secret from the vault.
@@ -474,4 +479,3 @@ func unlockVaultForSecret(cmd *cobra.Command) (string, error) {
 
 	return secret, nil
 }
-

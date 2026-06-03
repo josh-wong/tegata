@@ -4,15 +4,16 @@ import (
 	"fmt"
 
 	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 func newRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "remove <label>",
-		Short:   "Remove a credential from the vault",
+		Short:   i18n.T("cmd.remove.short"),
 		Args:    cobra.ExactArgs(1),
-		Example: `  tegata remove old-service`,
+		Example: i18n.T("cmd.remove.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
 
@@ -21,7 +22,7 @@ func newRemoveCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -43,9 +44,10 @@ func newRemoveCmd() *cobra.Command {
 				return err
 			}
 
-			prompt := fmt.Sprintf("Remove %q (%s)? This cannot be undone. [y/N]: ", label, cred.Type)
+			prompt := i18n.Tf("cmd.remove.prompt.confirm",
+				map[string]any{"Label": label, "Type": cred.Type})
 			if !promptConfirmation(prompt) {
-				fmt.Println("Canceled.")
+				fmt.Println(i18n.T("cmd.remove.canceled"))
 				return nil
 			}
 
@@ -55,11 +57,12 @@ func newRemoveCmd() *cobra.Command {
 
 			if builder != nil {
 				if logErr := builder.LogEvent("credential-remove", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.remove.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 			}
 
-			fmt.Printf("Removed: %s\n", label)
+			fmt.Print(i18n.Tf("cmd.remove.success", map[string]any{"Label": label}))
 			return nil
 		},
 	}

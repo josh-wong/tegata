@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	runewidth "github.com/mattn/go-runewidth"
+	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -38,24 +41,27 @@ func main() {
 	if err := run(); err != nil {
 		var re reportedError
 		if !errors.As(err, &re) {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprint(os.Stderr, i18n.Tf("main.error", map[string]any{"Err": err}))
 		}
 		os.Exit(errors.ExitCode(err))
 	}
 }
 
 func run() error {
+	// Initialise i18n before building the cobra tree so that Short/Long/Example
+	// strings on every command are already localised.
+	initI18n()
+
 	var verbose bool
+	var langFlag string
 
 	rootCmd := &cobra.Command{
-		Use:   "tegata",
-		Short: "Portable authenticator with tamper-evident audit logging",
-		Long: `Tegata is a portable authenticator that stores encrypted credentials
-on USB drives or microSD cards with optional tamper-evident audit logging
-via ScalarDL Ledger.`,
-		Example: `  tegata version          Show version information
-  tegata code GitHub     Generate TOTP code for GitHub
-  tegata --verbose code  Generate code with debug logging`,
+		Use:          "tegata",
+		Short:        i18n.T("cmd.root.short"),
+		Long:         i18n.T("cmd.root.long"),
+		Example:      i18n.T("cmd.root.example"),
+		SilenceUsage: true,
+		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			level := slog.LevelInfo
 			if verbose {
@@ -64,20 +70,36 @@ via ScalarDL Ledger.`,
 			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 				Level: level,
 			})))
+			// Phase-2 language init: cobra has now fully parsed all flags,
+			// so we can resolve the vault path properly and reload the language
+			// from its tegata.toml. This corrects any mis-detection from the
+			// early pre-parse in initI18n and ensures runtime output (error
+			// messages, status lines, prompts) uses the vault's stored language.
+			// --lang always takes priority over the stored setting.
+			if langFlag != "" {
+				i18n.Init(normalizeLangFlag(langFlag))
+			} else if vaultPath, err := resolveVaultPath(cmd); err == nil {
+				if cfg, loadErr := config.Load(vaultDir(vaultPath)); loadErr == nil {
+					i18n.Init(cfg.Language)
+				}
+			}
 		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug logging")
-	rootCmd.PersistentFlags().String("vault", "", "path to vault file or directory")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, i18n.T("cmd.root.flag.verbose"))
+	rootCmd.PersistentFlags().String("vault", "", i18n.T("cmd.root.flag.vault"))
+	rootCmd.PersistentFlags().StringVar(&langFlag, "lang", "", i18n.T("cmd.root.flag.lang"))
+	// Register -h/--help as a persistent flag before cobra's InitDefaultHelpFlag
+	// runs. Cobra checks if the flag already exists and skips its own version,
+	// so this ensures the translated description is used on every subcommand.
+	rootCmd.PersistentFlags().BoolP("help", "h", false, i18n.T("flag.help"))
 
 	versionCmd := &cobra.Command{
 		Use:     "version",
-		Short:   "Print version information",
-		Example: "  tegata version",
+		Short:   i18n.T("cmd.version.short"),
+		Example: i18n.T("cmd.version.example"),
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("tegata %s\n", version)
+			fmt.Print(i18n.Tf("cmd.version.output", map[string]any{"Version": version}))
 		},
 	}
 
@@ -105,5 +127,98 @@ via ScalarDL Ledger.`,
 		newVerifyCmd(),
 	)
 
+	// cobra adds "completion" during Execute() and "help" during AddCommand, so
+	// we patch them inside the help function — the only hook that fires before
+	// the help template renders, regardless of how help was triggered.
+	defaultHelp := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		for _, c := range cmd.Root().Commands() {
+			switch c.Name() {
+			case "completion":
+				c.Short = i18n.T("cmd.completion.short")
+			case "help":
+				c.Short = i18n.T("cmd.help.short")
+			}
+		}
+		defaultHelp(cmd, args)
+	})
+
 	return rootCmd.Execute()
+}
+
+// initI18n resolves the active language and initialises the global localizer.
+// Priority: --lang flag in os.Args > vault config > system locale > "en-US".
+func initI18n() {
+	lang := normalizeLangFlag(preParseLangFlag())
+	if lang == "" {
+		lang = loadConfigLang()
+	}
+	if lang == "" {
+		lang = i18n.DetectFromEnv()
+	}
+	i18n.Init(lang)
+}
+
+// normalizeLangFlag converts any accepted input form to the canonical lowercase
+// code the app uses. Accepts short forms (en, ja), uppercase BCP 47 (en-US,
+// ja-JP), and the canonical lowercase form (en-us, ja-jp). Unknown values are
+// passed through unchanged so Init can fall back to American English.
+func normalizeLangFlag(code string) string {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "en", "en-us":
+		return "en-us"
+	case "ja", "ja-jp":
+		return "ja-jp"
+	default:
+		return code
+	}
+}
+
+// preParseLangFlag scans os.Args for --lang or --lang=<value> before cobra
+// has parsed flags, so the language is available when constructing commands.
+func preParseLangFlag() string {
+	args := os.Args[1:]
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "--lang=") {
+			return strings.TrimPrefix(arg, "--lang=")
+		}
+		if arg == "--lang" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// loadConfigLang attempts to find a vault directory from --vault in os.Args
+// (or the current directory) and loads the language from tegata.toml.
+func loadConfigLang() string {
+	dir := preParseVaultDir()
+	if dir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
+		dir = cwd
+	}
+	cfg, err := config.Load(dir)
+	if err != nil {
+		return ""
+	}
+	return cfg.Language
+}
+
+// preParseVaultDir scans os.Args for --vault or --vault=<value>.
+// vaultDir is defined in helpers.go.
+func preParseVaultDir() string {
+	args := os.Args[1:]
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "--vault=") {
+			p := strings.TrimPrefix(arg, "--vault=")
+			return vaultDir(p)
+		}
+		if arg == "--vault" && i+1 < len(args) {
+			return vaultDir(args[i+1])
+		}
+	}
+	return ""
 }

@@ -6,28 +6,27 @@ import (
 	"strings"
 
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 func newConfigCmd() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage configuration",
+		Short: i18n.T("cmd.config.short"),
 	}
 
 	showCmd := &cobra.Command{
 		Use:     "show",
-		Short:   "Display effective configuration",
+		Short:   i18n.T("cmd.config.show.short"),
 		Args:    cobra.NoArgs,
-		Example: `  tegata config show`,
+		Example: i18n.T("cmd.config.show.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Try to find the vault directory for config location.
 			dir := "."
 			vaultPath, err := resolveVaultPath(cmd)
 			if err == nil {
 				dir = vaultDir(vaultPath)
 			} else {
-				// Fall back to current directory.
 				if cwd, cwdErr := os.Getwd(); cwdErr == nil {
 					dir = cwd
 				}
@@ -36,21 +35,19 @@ func newConfigCmd() *cobra.Command {
 			cfg, loadErr := config.Load(dir)
 			hasFile := loadErr == nil
 
-			fmt.Print(config.FormatEffective(cfg, hasFile))
+			fmt.Print(config.FormatEffective(cfg, hasFile, i18n.T("config.show.default")))
 			return nil
 		},
 	}
 
 	setCmd := &cobra.Command{
 		Use:     "set <key> <value>",
-		Short:   "Set a configuration value",
+		Short:   i18n.T("cmd.config.set.short"),
 		Args:    cobra.ExactArgs(2),
-		Example: `  tegata config set audit.auto_start true
-  tegata config set audit.auto_start false`,
+		Example: i18n.T("cmd.config.set.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, value := args[0], args[1]
 
-			// Resolve vault directory.
 			dir := "."
 			vaultPath, err := resolveVaultPath(cmd)
 			if err == nil {
@@ -70,22 +67,45 @@ func newConfigCmd() *cobra.Command {
 				case "false":
 					autoStart = false
 				default:
-					return fmt.Errorf("invalid value %q: expected true or false", value)
+					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.invalidBool", map[string]any{"Value": value}))
 				}
 
-				// Load full config to preserve existing audit fields.
 				cfg, err := config.Load(dir)
 				if err != nil {
-					return fmt.Errorf("loading config: %w", err)
+					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.loadConfig", map[string]any{"Err": err}))
 				}
 				cfg.Audit.AutoStart = autoStart
 				if err := config.WriteAuditSection(dir, cfg.Audit); err != nil {
-					return fmt.Errorf("writing config: %w", err)
+					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.writeConfig", map[string]any{"Err": err}))
 				}
-				fmt.Printf("audit.auto_start set to %s\n", value)
+				fmt.Print(i18n.Tf("cmd.config.set.success.autoStart", map[string]any{"Value": value}))
 				return nil
+
+			case "language":
+				// Accept both short codes (en, ja) and full BCP 47 tags (en-US, ja-JP).
+				lang := normalizeLangFlag(value)
+				valid := false
+				for _, supported := range i18n.SupportedLanguages {
+					if strings.EqualFold(lang, supported) {
+						lang = supported // use canonical casing
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.invalidLanguage", map[string]any{"Value": value}))
+				}
+				if err := config.WriteLanguage(dir, lang); err != nil {
+					return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.writeConfig", map[string]any{"Err": err}))
+				}
+				// Switch to the new language before printing the confirmation so
+				// the success message is shown in the language that was just set.
+				i18n.Init(lang)
+				fmt.Print(i18n.Tf("cmd.config.set.success.language", map[string]any{"Value": lang}))
+				return nil
+
 			default:
-				return fmt.Errorf("unknown config key: %s (supported: audit.auto_start)", key)
+				return fmt.Errorf("%s", i18n.Tf("cmd.config.set.error.unknownKey", map[string]any{"Key": key}))
 			}
 		},
 	}

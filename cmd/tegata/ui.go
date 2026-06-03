@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -14,11 +15,8 @@ import (
 func newUICmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ui",
-		Short: "Interactive terminal UI",
-		Long: `Launch the interactive terminal user interface for Tegata.
-
-If no vault is found, the first-time setup wizard guides you through vault
-creation. If a vault exists, you will be prompted to unlock it.`,
+		Short: i18n.T("cmd.ui.short"),
+		Long:  i18n.T("cmd.ui.long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Resolve vault path optionally — absence is OK here; the TUI
 			// wizard handles new-vault creation.
@@ -43,7 +41,7 @@ creation. If a vault exists, you will be prompted to unlock it.`,
 			return err
 		},
 	}
-	cmd.Flags().String("vault", "", "Path to vault file or directory")
+	cmd.Flags().String("vault", "", i18n.T("cmd.ui.flag.vault"))
 	return cmd
 }
 

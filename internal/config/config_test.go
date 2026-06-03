@@ -177,7 +177,7 @@ func TestWriteDefaults(t *testing.T) {
 
 func TestFormatEffectiveDefaults(t *testing.T) {
 	cfg := DefaultConfig()
-	out := FormatEffective(cfg, false)
+	out := FormatEffective(cfg, false, "  (default)")
 	if !strings.Contains(out, "clipboard.timeout = 45") {
 		t.Errorf("FormatEffective missing clipboard.timeout, got: %s", out)
 	}
@@ -191,10 +191,11 @@ func TestFormatEffectiveDefaults(t *testing.T) {
 
 func TestFormatEffectiveFromFile(t *testing.T) {
 	cfg := Config{
+		Language:         "en",
 		ClipboardTimeout: 30 * time.Second,
 		IdleTimeout:      600 * time.Second,
 	}
-	out := FormatEffective(cfg, true)
+	out := FormatEffective(cfg, true, "  (default)")
 	if strings.Contains(out, "(default)") {
 		t.Errorf("FormatEffective should not show (default) when file exists, got: %s", out)
 	}

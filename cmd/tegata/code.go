@@ -9,6 +9,7 @@ import (
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
 )
@@ -20,11 +21,10 @@ func newCodeCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "code <label>",
-		Short: "Generate a TOTP or HOTP code",
-		Args:  cobra.ExactArgs(1),
-		Example: `  tegata code GitHub
-  tegata code --no-clip GitHub`,
+		Use:     "code <label>",
+		Short:   i18n.T("cmd.code.short"),
+		Args:    cobra.ExactArgs(1),
+		Example: i18n.T("cmd.code.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
 
@@ -33,7 +33,7 @@ func newCodeCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,6 @@ func newCodeCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			// Load config for clipboard settings; build audit builder while passphrase is still in scope.
 			cfg, _ := config.Load(vaultDir(vaultPath))
 			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
 			if builder != nil {
@@ -58,14 +57,14 @@ func newCodeCmd() *cobra.Command {
 			}
 
 			if cred.Type != pkgmodel.CredentialTOTP && cred.Type != pkgmodel.CredentialHOTP {
-				return fmt.Errorf("credential %q is type %s, expected totp or hotp: %w",
-					label, cred.Type, errors.ErrInvalidInput)
+				return fmt.Errorf("%s", i18n.Tf("cmd.code.error.wrongType",
+					map[string]any{"Label": label, "Type": cred.Type, "Err": errors.ErrInvalidInput}))
 			}
 
-			// Decode the base32 secret.
 			secret, err := decodeBase32Secret(cred.Secret)
 			if err != nil {
-				return fmt.Errorf("decoding secret for %q: %w", label, err)
+				return fmt.Errorf("%s", i18n.Tf("cmd.code.error.decodeSecret",
+					map[string]any{"Label": label, "Err": err}))
 			}
 			defer zeroBytes(secret)
 
@@ -78,7 +77,7 @@ func newCodeCmd() *cobra.Command {
 				if show {
 					fmt.Println(code)
 				}
-				fmt.Printf("Expires in %ds\n", remaining)
+				fmt.Print(i18n.Tf("cmd.code.expires", map[string]any{"Secs": remaining}))
 
 			case pkgmodel.CredentialHOTP:
 				// Counter-before-code: save the incremented counter BEFORE
@@ -93,11 +92,11 @@ func newCodeCmd() *cobra.Command {
 				}
 			}
 
-			// Emit audit event (non-fatal: errors are logged, not propagated).
 			if builder != nil {
 				opType := string(cred.Type)
 				if logErr := builder.LogEvent(opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.code.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 			}
 
@@ -105,10 +104,11 @@ func newCodeCmd() *cobra.Command {
 				cm := clipboard.NewManager()
 				defer cm.Close()
 				if err := cm.CopyWithAutoClear(code, cfg.ClipboardTimeout); err != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %v\n", err)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.code.warn.clipboard", map[string]any{"Err": err}))
 				} else {
-					fmt.Printf("Copied to clipboard (auto-clear in %ds)\n",
-						int(cfg.ClipboardTimeout.Seconds()))
+					fmt.Print(i18n.Tf("cmd.code.copied",
+						map[string]any{"Secs": int(cfg.ClipboardTimeout.Seconds())}))
 				}
 			}
 
@@ -116,8 +116,8 @@ func newCodeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&clip, "clip", true, "copy code to clipboard")
-	cmd.Flags().BoolVar(&show, "show", true, "display code in terminal")
+	cmd.Flags().BoolVar(&clip, "clip", true, i18n.T("cmd.code.flag.noClip"))
+	cmd.Flags().BoolVar(&show, "show", true, i18n.T("cmd.code.flag.show"))
 
 	return cmd
 }

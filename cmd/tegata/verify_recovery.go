@@ -3,22 +3,23 @@ package main
 import (
 	"fmt"
 
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 func newVerifyRecoveryCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "verify-recovery",
-		Short:   "Verify a recovery key against the vault",
+		Short:   i18n.T("cmd.verifyRecovery.short"),
 		Args:    cobra.NoArgs,
-		Example: `  tegata verify-recovery`,
+		Example: i18n.T("cmd.verifyRecovery.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath, err := resolveVaultPath(cmd)
 			if err != nil {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.verifyRecovery.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -30,16 +31,15 @@ func newVerifyRecoveryCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			// Recovery keys are displayed in base32 (with dashes) at vault creation.
-			// Prompt for the recovery key string, decode it, and verify the hash.
-			recoveryKeyStr, err := promptSecret("Recovery key: ")
+			recoveryKeyStr, err := promptSecret(i18n.T("cmd.verifyRecovery.prompt.recoveryKey"))
 			if err != nil {
 				return err
 			}
 
 			rawKey, err := decodeBase32Secret(recoveryKeyStr)
 			if err != nil {
-				return fmt.Errorf("decoding recovery key: %w", err)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.verifyRecovery.error.decodeKey", map[string]any{"Err": err}))
 			}
 			defer zeroBytes(rawKey)
 
@@ -49,9 +49,9 @@ func newVerifyRecoveryCmd() *cobra.Command {
 			}
 
 			if ok {
-				fmt.Println("Recovery key: VALID")
+				fmt.Println(i18n.T("cmd.verifyRecovery.success"))
 			} else {
-				fmt.Println("Recovery key: INVALID")
+				fmt.Println(i18n.T("cmd.verifyRecovery.failure"))
 			}
 			return nil
 		},

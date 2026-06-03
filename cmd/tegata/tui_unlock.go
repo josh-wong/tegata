@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
@@ -76,7 +77,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 			if vaultErr := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); vaultErr != nil {
 				// Migration failed — keep cfg.Audit.SecretKey so audit can still
 				// function using the plaintext value from tegata.toml this session.
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: audit secret migration failed: %v\n", vaultErr)
+				_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.secretMigration", map[string]any{"Err": vaultErr}))
 				secretFromVault = cfg.Audit.SecretKey
 			} else {
 				secretFromVault = cfg.Audit.SecretKey
@@ -84,7 +85,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 				// Cleanup: rewrite tegata.toml to remove the plaintext secret_key field
 				// now that it has been safely stored in the vault.
 				if writeErr := config.WriteAuditSection(filepath.Dir(path), cfg.Audit); writeErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "tegata: audit secret cleanup failed: %v\n", writeErr)
+					_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.secretCleanup", map[string]any{"Err": writeErr}))
 				}
 			}
 			cfg.Audit.SecretKey = ""
@@ -112,7 +113,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 		builder, builderErr := newEventBuilder(cfg, filepath.Dir(path), passphrase)
 		if builderErr != nil {
 			// Non-fatal: TUI works without audit.
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit unavailable: %v\n", builderErr)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditUnavailable", map[string]any{"Err": builderErr}))
 		}
 
 		zeroBytes(passphrase)
@@ -143,6 +144,9 @@ func loadCredentials(m model) model {
 		}
 		m.cfg = cfg
 		m.idleTimeout = cfg.IdleTimeout
+		if cfg.Language != "" {
+			i18n.Init(cfg.Language)
+		}
 	}
 
 	return m
@@ -153,7 +157,7 @@ func loadCredentials(m model) model {
 func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	m.unlocking = false
 	if msg.err != nil {
-		m.errMsg = "Unlock failed: " + humanizeError(msg.err)
+		m.errMsg = i18n.T("tui.unlock.error.prefix") + humanizeError(msg.err)
 		m.passphraseInput.Reset()
 		m.passphraseInput.Focus()
 		m.state = stateUnlock
@@ -171,11 +175,11 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 		mgr := m.vaultMgr
 		m.builder.OnHashStored = func(eventID, hashValue string) {
 			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "Warning: Failed to store audit hash: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditHash", map[string]any{"Err": err}))
 			}
 		}
 		if logErr := m.builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditFailed", map[string]any{"Err": logErr}))
 		}
 	}
 	m.passphraseInput.Blur()
@@ -271,28 +275,28 @@ func (m model) viewUnlock() string {
 
 // viewUnlockScreen renders the passphrase entry UI.
 func (m model) viewUnlockScreen() string {
-	appNameHeader := appNameStyle.Render(appName)
+	appNameHeader := appNameStyle.Render(appName())
 	var content string
 	if m.unlocking {
 		content = appNameHeader + "\n\n" +
-			titleStyle.Render("Unlock Vault") + "\n\n" +
-			m.spinner.View() + " Unlocking…\n"
+			titleStyle.Render(i18n.T("tui.unlock.title")) + "\n\n" +
+			m.spinner.View() + " " + i18n.T("tui.unlock.unlocking") + "\n"
 	} else {
 		content = appNameHeader + "\n\n" +
-			titleStyle.Render("Unlock Vault") + "\n\n" +
+			titleStyle.Render(i18n.T("tui.unlock.title")) + "\n\n" +
 			m.passphraseInput.View() + "\n"
 		if m.errMsg != "" {
 			content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 		}
-		content += "\n" + helpBarStyle.Render("[Enter] Unlock  [Esc] Quit")
+		content += "\n" + helpBarStyle.Render(i18n.T("tui.unlock.helpBar"))
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 // viewLockedIdle renders the idle-locked notice.
 func (m model) viewLockedIdle() string {
-	content := titleStyle.Render("Vault Locked") + "\n\n" +
-		"Vault locked due to inactivity. Press Enter to unlock.\n\n" +
-		helpBarStyle.Render("[Enter] Unlock  [Esc] Quit")
+	content := titleStyle.Render(i18n.T("tui.unlock.locked.title")) + "\n\n" +
+		i18n.T("tui.unlock.locked.message") + "\n\n" +
+		helpBarStyle.Render(i18n.T("tui.unlock.helpBar"))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 )
@@ -34,10 +35,8 @@ const auditTOMLExample = `  [audit]
 func newLedgerCmd() *cobra.Command {
 	ledgerCmd := &cobra.Command{
 		Use:   "ledger",
-		Short: "Manage ScalarDL Ledger connection",
-		Long: `Commands for configuring and verifying the optional ScalarDL Ledger
-audit integration. The audit layer records authentication events in a
-tamper-evident ledger for post-hoc integrity verification.`,
+		Short: i18n.T("cmd.ledger.short"),
+		Long:  i18n.T("cmd.ledger.long"),
 	}
 
 	ledgerCmd.AddCommand(newLedgerSetupCmd())
@@ -49,67 +48,49 @@ tamper-evident ledger for post-hoc integrity verification.`,
 // newLedgerSetupCmd returns the 'tegata ledger setup' command.
 func newLedgerSetupCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "setup",
-		Short: "Register HMAC secret and verify connectivity",
-		Long: `Register the HMAC secret key with the ScalarDL LedgerPrivileged
-service and verify that the ledger is reachable.
-
-This command must be run once before audit logging is active. It reads the
-[audit] section from tegata.toml (located in the vault directory) and uses
-the configured secret key and server address.
-
-To configure tegata.toml for a local ScalarDL instance:
-
-` + auditTOMLExample + `
-
-For a remote instance with TLS, omit insecure (or set it to false). Run
-'tegata ledger start' for automatic Docker-based setup instead.`,
-		Example: `  tegata ledger setup
-  tegata ledger setup --vault /media/usb`,
-		Args: cobra.NoArgs,
-		RunE: runLedgerSetup,
+		Use:     "setup",
+		Short:   i18n.T("cmd.ledger.setup.short"),
+		Long:    i18n.T("cmd.ledger.setup.long"),
+		Example: i18n.T("cmd.ledger.setup.example"),
+		Args:    cobra.NoArgs,
+		RunE:    runLedgerSetup,
 	}
 }
 
 func runLedgerSetup(cmd *cobra.Command, _ []string) error {
-	// Resolve vault path and directory.
 	vaultPath, err := resolveVaultPath(cmd)
 	if err != nil {
 		return err
 	}
 	dir := vaultDir(vaultPath)
 
-	// Load configuration from tegata.toml.
 	cfg, err := config.Load(dir)
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.loadConfig", map[string]any{"Err": err}))
 	}
 
 	if !cfg.Audit.Enabled {
-		fmt.Fprintln(os.Stderr, "Audit logging is not enabled. Add the [audit] section to tegata.toml in your vault directory:")
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.error.auditNotEnabled"))
 		fmt.Fprintln(os.Stderr, auditTOMLExample)
-		fmt.Fprintln(os.Stderr, "Or run 'tegata ledger start' for automatic Docker-based setup.")
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.dockerAlternative"))
 		return nil
 	}
 
-	// Attempt to load secret_key from tegata.toml (old behavior for backward compatibility).
-	// If not present, prompt for vault unlock and load from encrypted vault storage.
 	if cfg.Audit.SecretKey == "" {
-		fmt.Fprintln(os.Stderr, "Secret key not found in tegata.toml. Loading from encrypted vault...")
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.loadingSecret"))
 		secret, err := unlockVaultForSecret(cmd)
 		if err != nil {
 			return err
 		}
 		cfg.Audit.SecretKey = secret
 	}
-	// Zero the secret on all exit paths regardless of success or failure.
 	defer func() { cfg.Audit.SecretKey = "" }()
 
-	// Dial the ScalarDL Ledger.
-	fmt.Fprintf(os.Stderr, "Connecting to ScalarDL Ledger at %s (privileged: %s)...\n",
-		cfg.Audit.Server, cfg.Audit.PrivilegedServer)
+	fmt.Fprintf(os.Stderr, "%s",
+		i18n.Tf("cmd.ledger.info.connecting",
+			map[string]any{"Server": cfg.Audit.Server, "Privileged": cfg.Audit.PrivilegedServer}))
 	if cfg.Audit.Insecure {
-		fmt.Fprintln(os.Stderr, "WARNING: Insecure mode enabled — TLS disabled. Do not use in production.")
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.warn.insecure"))
 	}
 	client, err := audit.NewClientFromConfig(cfg.Audit)
 	if err != nil {
@@ -117,53 +98,48 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 	}
 	defer func() { _ = client.Close() }()
 
-	// Use a 30-second timeout covering both registration and verification.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Register the HMAC secret with the LedgerPrivileged service.
-	fmt.Fprintf(os.Stderr, "Registering secret for entity %q (key version %d)...\n",
-		cfg.Audit.EntityID, cfg.Audit.KeyVersion)
+	fmt.Fprintf(os.Stderr, "%s",
+		i18n.Tf("cmd.ledger.info.registering",
+			map[string]any{"EntityID": cfg.Audit.EntityID, "KeyVersion": cfg.Audit.KeyVersion}))
 	if err := client.RegisterSecret(ctx, cfg.Audit.EntityID, cfg.Audit.KeyVersion, cfg.Audit.SecretKey); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "Secret registered successfully.")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.success.registered"))
 
-	// Ping the Ledger service to confirm connectivity.
-	fmt.Fprintln(os.Stderr, "Verifying ledger connectivity...")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.verifyingConnectivity"))
 	if err := client.Ping(ctx); err != nil {
 		return err
 	}
 
-	// Verify that the predefined HashStore contracts are registered by attempting a test Put.
-	fmt.Fprintln(os.Stderr, "Verifying predefined HashStore contracts are registered...")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.verifyingContracts"))
 	if err := verifyContracts(ctx, client); err != nil {
 		composeDir := "~/.tegata/docker"
 		if u, err := user.Current(); err == nil {
 			composeDir = filepath.Join(u.HomeDir, ".tegata", "docker")
 		}
-		fmt.Fprintln(os.Stderr, "Predefined HashStore contracts are NOT registered on this ScalarDL instance.")
-		fmt.Fprintf(os.Stderr, "Run from %s: docker compose run --rm scalardl-contract-registration\n", composeDir)
-		fmt.Fprintln(os.Stderr, "If registration fails with INVALID_SIGNATURE, confirm that the secret key in")
-		fmt.Fprintln(os.Stderr, "certs/client.properties is on a single unbroken line with no line breaks in the value.")
-		return fmt.Errorf("contract verification failed: %w", err)
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.error.contractsNotRegistered"))
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.ledger.info.registerContracts", map[string]any{"Path": composeDir}))
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.signatureNote1"))
+		fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.signatureNote2"))
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.contractVerification", map[string]any{"Err": err}))
 	}
 
-	// Store the secret in the vault's encrypted storage so the GUI can retrieve it on unlock.
-	// This ensures that even after ledger database resets, the secret persists in the vault.
-	fmt.Fprintln(os.Stderr, "Storing secret in vault...")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.info.storingSecret"))
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
-		return fmt.Errorf("opening vault to store secret: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVaultForSecret", map[string]any{"Err": err}))
 	}
 	defer mgr.Close()
 
 	if err := mgr.Unlock([]byte(os.Getenv("TEGATA_VAULT_PASSPHRASE"))); err != nil {
-		// If TEGATA_VAULT_PASSPHRASE is not set, prompt the user.
-		fmt.Fprint(os.Stderr, "Enter passphrase to save secret in vault: ")
+		fmt.Fprint(os.Stderr, i18n.T("cmd.ledger.prompt.passphrase"))
 		passBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return fmt.Errorf("reading passphrase: %w", err)
+			return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
 		}
 		fmt.Fprintln(os.Stderr)
 		defer func() {
@@ -172,15 +148,15 @@ func runLedgerSetup(cmd *cobra.Command, _ []string) error {
 			}
 		}()
 		if err := mgr.Unlock(passBytes); err != nil {
-			return fmt.Errorf("unlocking vault: %w", err)
+			return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
 		}
 	}
 
 	if err := mgr.SetSecret("audit.secret_key", cfg.Audit.SecretKey); err != nil {
-		return fmt.Errorf("storing secret in vault: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.storeSecret", map[string]any{"Err": err}))
 	}
 
-	fmt.Fprintln(os.Stderr, "Predefined HashStore contracts verified. Audit setup complete.")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.success.setupComplete"))
 	return nil
 }
 
@@ -193,25 +169,12 @@ func verifyContracts(ctx context.Context, client audit.Client) error {
 // newLedgerStartCmd returns the 'tegata ledger start' command.
 func newLedgerStartCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "start",
-		Short: "One-click Docker audit setup",
-		Long: `Start the ScalarDL Ledger Docker stack and configure audit logging.
-
-This command:
-  1. Checks Docker is installed
-  2. Extracts the bundled docker-compose.yml to ~/.tegata/docker/
-  3. Generates an entity ID and secret key from your vault
-  4. Starts the Docker stack (docker compose up -d)
-  5. Waits for the ledger to become ready (up to 30 seconds)
-  6. Registers audit credentials with the ledger
-  7. Writes the [audit] section to tegata.toml
-
-After running this command, audit logging is active immediately. Subsequent
-vault unlocks auto-start the Docker stack if it is not already running.`,
-		Example: `  tegata ledger start
-  tegata ledger start --vault /media/usb`,
-		Args: cobra.NoArgs,
-		RunE: runLedgerStart,
+		Use:     "start",
+		Short:   i18n.T("cmd.ledger.start.short"),
+		Long:    i18n.T("cmd.ledger.start.long"),
+		Example: i18n.T("cmd.ledger.start.example"),
+		Args:    cobra.NoArgs,
+		RunE:    runLedgerStart,
 	}
 }
 
@@ -222,21 +185,19 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	}
 	dir := filepath.Dir(vaultPath)
 
-	// Open and unlock the vault. Keep it open through SetupStack so we can
-	// store the generated HMAC secret in encrypted vault storage.
-	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
+	passphraseBytes, err := promptPassphrase(i18n.T("cmd.ledger.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("reading passphrase: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
 	}
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
 		zeroBytes(passphraseBytes)
-		return fmt.Errorf("opening vault: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
 	}
 	if err := mgr.Unlock(passphraseBytes); err != nil {
 		zeroBytes(passphraseBytes)
 		mgr.Close()
-		return fmt.Errorf("unlocking vault: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
 	}
 	zeroBytes(passphraseBytes)
 	defer mgr.Close()
@@ -245,7 +206,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	// EnsureStack receive an FS rooted at the docker-compose.yml level.
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 	if err != nil {
-		return fmt.Errorf("accessing embedded docker bundle: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.accessBundle", map[string]any{"Err": err}))
 	}
 
 	progressFn := func(msg string) {
@@ -269,12 +230,11 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		return audit.EnsureStack(cfg.Audit, bundleFS, progressFn)
 	}
 
-	// First-time setup: generate new keys and configure the stack.
 	vaultID := mgr.VaultID()
 
 	u, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("resolving home directory: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.resolveHome", map[string]any{"Err": err}))
 	}
 	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
@@ -285,19 +245,22 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 	onRegistered := func(auditCfg config.AuditConfig) error {
 		if auditCfg.SecretKey != "" {
 			if vaultErr := mgr.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
-				return fmt.Errorf("storing HMAC secret in vault: %w", vaultErr)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.init.error.storeHMAC", map[string]any{"Err": vaultErr}))
 			}
 		}
 		if len(auditCfg.LedgerVolumeKey) > 0 {
 			hexKey := hex.EncodeToString(auditCfg.LedgerVolumeKey)
 			if vaultErr := mgr.SetSecret("audit.ledger_volume_key", hexKey); vaultErr != nil {
-				return fmt.Errorf("storing ledger volume key in vault: %w", vaultErr)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.init.error.storeLedgerKey", map[string]any{"Err": vaultErr}))
 			}
 			zeroBytes(auditCfg.LedgerVolumeKey)
 		}
 		auditCfg.AutoStart = true
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-			return fmt.Errorf("writing audit config: %w", writeErr)
+			return fmt.Errorf("%s",
+				i18n.Tf("cmd.init.error.writeAuditConfig", map[string]any{"Err": writeErr}))
 		}
 		return nil
 	}
@@ -306,23 +269,19 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(os.Stderr, "Ledger server started. Audit logging is now active.")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.success.started"))
 	return nil
 }
 
 // newLedgerStopCmd returns the 'tegata ledger stop' command.
 func newLedgerStopCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "stop",
-		Short: "Stop the ledger server Docker containers",
-		Long: `Stop the ScalarDL Ledger Docker containers.
-
-Containers are stopped and your audit history is preserved
-(docker compose stop, named volume retained).`,
-		Example: `  tegata ledger stop
-  tegata ledger stop --vault /media/usb`,
-		Args: cobra.NoArgs,
-		RunE: runLedgerStop,
+		Use:     "stop",
+		Short:   i18n.T("cmd.ledger.stop.short"),
+		Long:    i18n.T("cmd.ledger.stop.long"),
+		Example: i18n.T("cmd.ledger.stop.example"),
+		Args:    cobra.NoArgs,
+		RunE:    runLedgerStop,
 	}
 }
 
@@ -333,32 +292,31 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	}
 	dir := filepath.Dir(vaultPath)
 
-	// Require vault authentication before stopping the ledger.
-	passphraseBytes, err := promptPassphrase("Vault passphrase: ")
+	passphraseBytes, err := promptPassphrase(i18n.T("cmd.ledger.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("reading passphrase: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.readPassphrase", map[string]any{"Err": err}))
 	}
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
 		zeroBytes(passphraseBytes)
-		return fmt.Errorf("opening vault: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.openVault", map[string]any{"Err": err}))
 	}
 	if err := mgr.Unlock(passphraseBytes); err != nil {
 		zeroBytes(passphraseBytes)
 		mgr.Close()
-		return fmt.Errorf("unlocking vault: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.unlockVault", map[string]any{"Err": err}))
 	}
 	zeroBytes(passphraseBytes)
 
 	cfg, err := config.Load(dir)
 	if err != nil {
 		mgr.Close()
-		return fmt.Errorf("loading config: %w", err)
+		return fmt.Errorf("%s", i18n.Tf("cmd.ledger.error.loadConfig", map[string]any{"Err": err}))
 	}
 
 	if cfg.Audit.DockerComposePath == "" {
 		mgr.Close()
-		return fmt.Errorf("audit Docker setup not found. Run 'tegata ledger start' first")
+		return fmt.Errorf("%s", i18n.T("cmd.ledger.error.dockerNotFound"))
 	}
 
 	if err := audit.StopStack(cfg.Audit.DockerComposePath, cfg.Audit.DockerProjectName); err != nil {
@@ -366,13 +324,13 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Load the ledger volume key from vault and lock the encrypted volume.
 	if volumeKeyHex := mgr.GetSecret("audit.ledger_volume_key"); volumeKeyHex != "" {
 		if volumeKey, hexErr := hex.DecodeString(volumeKeyHex); hexErr == nil {
 			defer zeroBytes(volumeKey)
 			cfg.Audit.LedgerVolumeKey = volumeKey
 			if lockErr := audit.LockLedgerVolume(cfg.Audit); lockErr != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not encrypt ledger volume: %v\n", lockErr)
+				_, _ = fmt.Fprintf(os.Stderr, "%s",
+					i18n.Tf("cmd.ledger.warn.encryptVolume", map[string]any{"Err": lockErr}))
 			}
 		}
 	}
@@ -380,9 +338,10 @@ func runLedgerStop(cmd *cobra.Command, _ []string) error {
 	composeDir := filepath.Dir(cfg.Audit.DockerComposePath)
 	clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
 	if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
-		_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.ledger.warn.deleteClientProps", map[string]any{"Err": err}))
 	}
 
-	fmt.Fprintln(os.Stderr, "Ledger server stopped. Your audit history is preserved.")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.ledger.success.stopped"))
 	return nil
 }

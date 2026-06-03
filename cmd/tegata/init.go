@@ -13,24 +13,22 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/crypto"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 )
 
 func newInitCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "init [path]",
-		Short: "Initialize a new encrypted vault",
-		Long: `Create a new encrypted vault file. If a path is given it is used as the
-vault directory; otherwise the current directory is used.`,
-		Args: cobra.MaximumNArgs(1),
-		Example: `  tegata init /mnt/usb
-  tegata init`,
+		Use:     "init [path]",
+		Short:   i18n.T("cmd.init.short"),
+		Long:    i18n.T("cmd.init.long"),
+		Args:    cobra.MaximumNArgs(1),
+		Example: i18n.T("cmd.init.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Determine vault directory.
 			dir, err := os.Getwd()
 			if err != nil {
-				return fmt.Errorf("getting working directory: %w", err)
+				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.getWD", map[string]any{"Err": err}))
 			}
 			if len(args) > 0 {
 				dir = args[0]
@@ -38,22 +36,19 @@ vault directory; otherwise the current directory is used.`,
 
 			vaultPath := filepath.Join(dir, vaultFilename)
 
-			// Warn if the chosen path is not on a removable drive.
 			if !isRemovablePath(dir) {
-				fmt.Fprintln(os.Stderr, "Note: This path doesn't appear to be on a removable drive.")
-				fmt.Fprintln(os.Stderr, "For better security, store your vault on a USB or microSD card.")
-				fmt.Fprintln(os.Stderr, "Physical separation helps keep your vault safe if your computer is compromised.")
+				fmt.Fprintln(os.Stderr, i18n.T("cmd.init.warn.notRemovable"))
+				fmt.Fprintln(os.Stderr, i18n.T("cmd.init.info.removableAdvice"))
+				fmt.Fprintln(os.Stderr, i18n.T("cmd.init.info.physicalSep"))
 				fmt.Fprintln(os.Stderr)
 			}
 
-			// Check that vault doesn't already exist.
 			if _, err := os.Stat(vaultPath); err == nil {
-				return fmt.Errorf("vault already exists at %s", vaultPath)
+				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.alreadyExists", map[string]any{"Path": vaultPath}))
 			}
 
-			// Ensure the directory exists.
 			if err := os.MkdirAll(dir, 0700); err != nil {
-				return fmt.Errorf("creating directory: %w", err)
+				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.createDir", map[string]any{"Err": err}))
 			}
 
 			passphrase, err := promptNewPassphrase()
@@ -64,21 +59,20 @@ vault directory; otherwise the current directory is used.`,
 
 			recoveryKey, err := vault.Create(vaultPath, passphrase, crypto.DefaultParams)
 			if err != nil {
-				return fmt.Errorf("creating vault: %w", err)
+				return fmt.Errorf("%s", i18n.Tf("cmd.init.error.createVault", map[string]any{"Err": err}))
 			}
 
-			// Write default config alongside the vault.
 			if err := config.WriteDefaults(dir); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Could not write default config: %v\n", err)
+				fmt.Fprintf(os.Stderr, "%s",
+					i18n.Tf("cmd.init.warn.defaultConfig", map[string]any{"Err": err}))
 			}
 
-			fmt.Printf("Vault created: %s\n\n", vaultPath)
-			fmt.Println("Recovery key (store this somewhere safe--you will not see it again):")
-			fmt.Printf("\n    %s\n\n", recoveryKey)
-			fmt.Println("If you forget your passphrase, this key is the only way to recover your vault.")
+			fmt.Print(i18n.Tf("cmd.init.success", map[string]any{"Path": vaultPath}))
+			fmt.Println(i18n.T("cmd.init.recoveryKeyHeader"))
+			fmt.Print(i18n.Tf("cmd.init.recoveryKeyDisplay", map[string]any{"Key": recoveryKey}))
+			fmt.Println(i18n.T("cmd.init.recoveryKeyAdvice"))
 
-			// Audit opt-in: run full SetupStack immediately on yes.
-			fmt.Fprintf(os.Stderr, "\nEnable audit logging? (requires Docker) [y/N]: ")
+			fmt.Fprintf(os.Stderr, "%s", i18n.T("cmd.init.prompt.enableAudit"))
 			scanner := bufio.NewScanner(os.Stdin)
 			if scanner.Scan() {
 				answer := strings.TrimSpace(scanner.Text())
@@ -99,16 +93,18 @@ vault directory; otherwise the current directory is used.`,
 // callback before SetupStack returns. Errors are printed to stderr and the
 // user is directed to run 'tegata ledger start' to retry.
 func runInitAudit(vaultPath, dir string, passphrase []byte) {
-	fmt.Fprintln(os.Stderr, "Setting up audit ledger (this may take several minutes)...")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.init.info.settingUpAudit"))
 
 	mgr, err := vault.Open(vaultPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.init.error.auditSetup", map[string]any{"Err": err}))
 		return
 	}
 	if err := mgr.Unlock(passphrase); err != nil {
 		mgr.Close()
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.init.error.auditSetup", map[string]any{"Err": err}))
 		return
 	}
 	defer mgr.Close()
@@ -116,14 +112,16 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 
 	u, err := user.Current()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.init.error.auditSetup", map[string]any{"Err": err}))
 		return
 	}
 	composeDir := audit.ComposeDirForVault(u.HomeDir, vaultID)
 
 	bundleFS, err := fs.Sub(dockerBundle, "docker-bundle")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.init.error.auditSetup", map[string]any{"Err": err}))
 		return
 	}
 
@@ -132,27 +130,31 @@ func runInitAudit(vaultPath, dir string, passphrase []byte) {
 	onRegistered := func(auditCfg config.AuditConfig) error {
 		if auditCfg.SecretKey != "" {
 			if vaultErr := mgr.SetSecret("audit.secret_key", auditCfg.SecretKey); vaultErr != nil {
-				return fmt.Errorf("storing HMAC secret in vault: %w", vaultErr)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.init.error.storeHMAC", map[string]any{"Err": vaultErr}))
 			}
 		}
 		if len(auditCfg.LedgerVolumeKey) > 0 {
 			hexKey := hex.EncodeToString(auditCfg.LedgerVolumeKey)
 			if vaultErr := mgr.SetSecret("audit.ledger_volume_key", hexKey); vaultErr != nil {
-				return fmt.Errorf("storing ledger volume key in vault: %w", vaultErr)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.init.error.storeLedgerKey", map[string]any{"Err": vaultErr}))
 			}
 			zeroBytes(auditCfg.LedgerVolumeKey)
 		}
 		auditCfg.AutoStart = true
 		if writeErr := config.WriteAuditSection(dir, auditCfg); writeErr != nil {
-			return fmt.Errorf("writing audit config: %w", writeErr)
+			return fmt.Errorf("%s",
+				i18n.Tf("cmd.init.error.writeAuditConfig", map[string]any{"Err": writeErr}))
 		}
 		return nil
 	}
 
 	if _, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, onRegistered); err != nil {
-		fmt.Fprintf(os.Stderr, "Audit setup failed: %v\nRun 'tegata ledger start' to retry.\n", err)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.init.error.auditSetup", map[string]any{"Err": err}))
 		return
 	}
 
-	fmt.Fprintln(os.Stderr, "Audit logging enabled and active.")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.init.success.auditEnabled"))
 }
