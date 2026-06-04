@@ -1,6 +1,9 @@
 package main
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/josh-wong/tegata/internal/i18n"
+)
 
 // cinnabar is the primary brand color used throughout the TUI.
 const cinnabar lipgloss.Color = "#E34234"
@@ -8,8 +11,8 @@ const cinnabar lipgloss.Color = "#E34234"
 // darkRed is the darker red used for filenames and emphatic headings.
 const darkRed lipgloss.Color = "#F04368"
 
-// appName is the display name rendered in the TUI header.
-const appName = "Tegata"
+// appName returns the localised display name for the TUI header.
+func appName() string { return i18n.T("tui.styles.appName") }
 
 // titleStyle renders bold centered text for wizard and overlay titles.
 var titleStyle = lipgloss.NewStyle().Bold(true).AlignHorizontal(lipgloss.Center)

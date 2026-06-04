@@ -24,6 +24,7 @@ These flags are available on every command.
 |------|------|---------|-------------|
 | `--vault` | string | (none) | Path to vault file or directory. |
 | `--verbose` | bool | false | Enable debug logging to stderr. |
+| `--lang` | string | (auto) | Language code for CLI and TUI output: `en-us` (American English) or `ja-jp` (Japanese). The short forms `en` and `ja` are also accepted and mapped automatically. Overrides the language stored in `tegata.toml` and the system locale for a single invocation. |
 
 ## Commands
 
@@ -123,20 +124,27 @@ Set a configuration value in `tegata.toml`.
 | Key | Values | Description |
 |-----|--------|-------------|
 | `audit.auto_start` | `true` / `false` | Auto-start the Docker audit stack on vault unlock. |
+| `language` | `en-us` / `ja-jp` | Language for CLI and TUI output. Stored in `tegata.toml` so the preference travels with the vault. |
 
 **Examples:**
+
+```bash title="Switch to Japanese"
+tegata config set language ja-jp
+```
+
+```bash title="Switch back to English"
+tegata config set language en-us
+```
 
 ```bash title="Disable audit auto-start"
 tegata config set audit.auto_start false
 ```
 
-```bash title="Re-enable audit auto-start"
-tegata config set audit.auto_start true
-```
+The language setting is stored in `tegata.toml` alongside other vault configuration, so it follows your vault across machines—no need to set it again on a new device.
 
 ### `tegata config show`
 
-Display the effective configuration, including values from `tegata.toml` or their defaults.
+Display the effective configuration, including values from `tegata.toml` or their defaults. Output includes the active language.
 
 **Usage:** `tegata config show`
 
@@ -455,8 +463,20 @@ tegata version
 | `TEGATA_PASSPHRASE` | Vault passphrase for non-interactive use (warning printed to stderr). |
 | `TEGATA_BACKUP_PASSPHRASE` | Backup passphrase for scripted `tegata import`. |
 | `NO_COLOR` | Disable ANSI color output (any non-empty value activates this). |
+| `LANG` / `LANGUAGE` / `LC_ALL` / `LC_MESSAGES` | System locale variables. Tegata reads these to detect the preferred language when no `language` value is set in `tegata.toml` and `--lang` is not provided. The full locale tag and the language-only portion are both matched (`ja_JP.UTF-8` → `ja-jp`, `en_US.UTF-8` → `en-us`). Supported values: `en-us`, `ja-jp`. |
 
 `TEGATA_PASSPHRASE` is intended for CI and scripting environments. A warning is printed to stderr whenever it is used. The `tegata export` command never reads from this variable—an interactive prompt is always required when setting a new backup passphrase.
+
+## Language selection
+
+Tegata supports American English (`en-us`) and Japanese (`ja-jp`). The language is resolved in this order:
+
+1. `--lang` flag (single command override, highest priority)
+2. `language` in `tegata.toml` (stored with the vault, travels across machines)
+3. System locale (`$LANG`, `$LANGUAGE`, `$LC_ALL`, `$LC_MESSAGES`)
+4. English (default)
+
+To change your default language persistently, use `tegata config set language <code>`. To override for one command, use `--lang`.
 
 ## Exit codes
 

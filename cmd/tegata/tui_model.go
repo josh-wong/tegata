@@ -16,6 +16,7 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
@@ -118,14 +119,15 @@ type model struct {
 	editCredID      string          // ID of credential being edited
 
 	// Settings overlay state
-	settingsMenuIdx  int          // 0-3 menu selection
-	settingsSubFlow  string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
-	settingsInput1   textinput.Model
-	settingsInput2   textinput.Model
-	settingsInput3   textinput.Model
-	settingsMsg      string
-	settingsTagIdx   int          // selected tag index in tag management
-	settingsEditMode string       // "clipboard"|"idle"|"" for config edit mode
+	settingsMenuIdx    int          // 0-3 menu selection
+	settingsSubFlow    string       // ""|"tags"|"passphrase"|"export"|"import"|"config"
+	settingsInput1     textinput.Model
+	settingsInput2     textinput.Model
+	settingsInput3     textinput.Model
+	settingsMsg        string
+	settingsTagIdx     int          // selected tag index in tag management
+	settingsEditMode   string       // "clipboard"|"idle"|"" for config edit mode
+	settingsRecoveryOK bool         // true when the most recent recovery key verification succeeded
 
 	// Audit overlay state
 	auditMenuIdx    int             // 0=History, 1=Verify, 2=Start
@@ -134,6 +136,7 @@ type model struct {
 	auditRecords        []historyRecord // fetched records (unfiltered)
 	auditFiltered       []historyRecord // fetched records after lock/unlock filter applied
 	auditLoading        bool            // true while async gRPC call is in progress
+	auditVerifyOK       bool            // true when the most recent verify run succeeded with no tampering
 	auditCursor         int             // selected row index in auditFiltered
 	auditScrollOff      int             // first visible row index in auditFiltered
 	auditMsgTime        time.Time       // time when auditMsg was set (for auto-dismiss)
@@ -217,53 +220,53 @@ func initialModel(vaultPath string) model {
 	cfg := config.DefaultConfig()
 
 	vaultPathIn := textinput.New()
-	vaultPathIn.Placeholder = "Enter a path (or leave this blank to use the current directory)"
+	vaultPathIn.Placeholder = i18n.T("tui.wizard.placeholder.vaultPath")
 	vaultPathIn.EchoMode = textinput.EchoNormal
 
 	crInput := textinput.New()
-	crInput.Placeholder = "hex or plain text"
+	crInput.Placeholder = i18n.T("tui.add.placeholder.crChallenge")
 	crInput.EchoMode = textinput.EchoNormal
 
 	addLabel := textinput.New()
-	addLabel.Placeholder = "Label or otpauth:// URI"
+	addLabel.Placeholder = i18n.T("tui.add.placeholder.uri")
 	addLabel.EchoMode = textinput.EchoNormal
 
 	addIssuer := textinput.New()
-	addIssuer.Placeholder = "Issuer (optional)"
+	addIssuer.Placeholder = i18n.T("tui.add.placeholder.issuer")
 	addIssuer.EchoMode = textinput.EchoNormal
 
 	addSecret := textinput.New()
-	addSecret.Placeholder = "Secret (base32)"
+	addSecret.Placeholder = i18n.T("tui.add.placeholder.secret")
 	addSecret.EchoMode = textinput.EchoPassword
 	addSecret.EchoCharacter = '·'
 
 	addPeriod := textinput.New()
-	addPeriod.Placeholder = "30"
+	addPeriod.Placeholder = i18n.T("tui.add.placeholder.period")
 	addPeriod.SetValue("30")
 	addPeriod.EchoMode = textinput.EchoNormal
 
 	addTags := textinput.New()
-	addTags.Placeholder = "Tags (comma-separated, optional)"
+	addTags.Placeholder = i18n.T("tui.add.placeholder.tags")
 	addTags.EchoMode = textinput.EchoNormal
 
 	addCategory := textinput.New()
-	addCategory.Placeholder = "Category (optional)"
+	addCategory.Placeholder = i18n.T("tui.add.placeholder.category")
 	addCategory.EchoMode = textinput.EchoNormal
 
 	editLabel := textinput.New()
-	editLabel.Placeholder = "Label"
+	editLabel.Placeholder = i18n.T("tui.edit.placeholder.label")
 	editLabel.EchoMode = textinput.EchoNormal
 
 	editIssuer := textinput.New()
-	editIssuer.Placeholder = "Issuer (optional)"
+	editIssuer.Placeholder = i18n.T("tui.edit.placeholder.issuer")
 	editIssuer.EchoMode = textinput.EchoNormal
 
 	editTags := textinput.New()
-	editTags.Placeholder = "Tags (comma-separated, optional)"
+	editTags.Placeholder = i18n.T("tui.edit.placeholder.tags")
 	editTags.EchoMode = textinput.EchoNormal
 
 	editCategory := textinput.New()
-	editCategory.Placeholder = "Category (optional)"
+	editCategory.Placeholder = i18n.T("tui.edit.placeholder.category")
 	editCategory.EchoMode = textinput.EchoNormal
 
 	settingsIn1 := textinput.New()
@@ -283,8 +286,8 @@ func initialModel(vaultPath string) model {
 		idleTimeout:      cfg.IdleTimeout,
 		now:              time.Now(),
 		lastActivity:     time.Now(),
-		passphraseInput:  newPassphraseInput("Passphrase"),
-		confirmInput:     newPassphraseInput("Confirm passphrase"),
+		passphraseInput:  newPassphraseInput(i18n.T("tui.unlock.placeholder.passphrase")),
+		confirmInput:     newPassphraseInput(i18n.T("tui.settings.placeholder.confirmPass")),
 		vaultPathInput:   vaultPathIn,
 		crChallengeInput: crInput,
 		addLabelInput:    addLabel,
@@ -386,7 +389,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if idleLockable && time.Since(m.lastActivity) >= m.idleTimeout {
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 				_ = m.builder.Close()
 				m.builder = nil
@@ -424,16 +427,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case auditAutoStartMsg:
 		if msg.err != nil {
-			m.statusMsg = "Audit auto-start failed: " + msg.err.Error()
+			m.statusMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": msg.err})
 		}
 		return m, nil
 
 	case auditHistoryMsg:
 		m.auditLoading = false
 		if msg.err != nil {
-			m.auditMsg = fmt.Sprintf("Error: %v", msg.err)
+			m.auditMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": msg.err})
 		} else if len(msg.records) == 0 {
-			m.auditMsg = "No audit events found."
+			m.auditMsg = i18n.T("cmd.history.empty")
 			m.auditRecords = nil
 			m.auditFiltered = nil
 		} else {
@@ -449,15 +452,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case auditVerifyMsg:
 		m.auditLoading = false
+		m.auditVerifyOK = false
 		if msg.err != nil {
-			m.auditMsg = fmt.Sprintf("Error: %v", msg.err)
+			m.auditMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": msg.err})
 		} else if msg.eventCount == 0 {
-			m.auditMsg = "No audit events found. Nothing to verify."
+			m.auditMsg = i18n.T("cmd.verify.empty")
 		} else if msg.valid {
-			m.auditMsg = fmt.Sprintf("Audit log integrity verified. %d events checked.", msg.eventCount)
+			m.auditVerifyOK = true
+			m.auditMsg = i18n.Tf("cmd.verify.success", map[string]any{"Count": msg.eventCount})
 		} else {
 			var sb strings.Builder
-			sb.WriteString("TAMPERING DETECTED\n")
+			sb.WriteString(i18n.T("tui.audit.tampered"))
 			for _, f := range msg.faults {
 				sb.WriteString(formatFault(f) + "\n")
 			}
@@ -470,7 +475,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.auditMsg = "Setup failed: " + msg.err.Error()
 		} else {
-			m.auditMsg = "Ledger server started. Audit logging is now active."
+			m.auditMsg = i18n.T("tui.audit.ledgerStarted")
 			// Persist the HMAC secret in the vault so it survives restarts.
 			// The secret is NOT written to tegata.toml (WriteAuditSection omits
 			// it) — the vault is the only persistent store for this value.
@@ -523,7 +528,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	switch m.state {
 	case stateTerminalTooNarrow:
-		content := "Terminal too narrow (minimum 80 columns)\n\nPlease resize your terminal."
+		content := i18n.T("tui.model.error.narrow")
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 
 	case stateWizardWelcome,
@@ -543,14 +548,14 @@ func (m model) View() string {
 		return m.viewOverlay()
 	}
 
-	return fmt.Sprintf("[unknown state: %d]", m.state)
+	return i18n.Tf("tui.model.error.unknownState", map[string]any{"State": int(m.state)})
 }
 
 // quit cleanly closes all resources and returns tea.Quit.
 func (m model) quit() (tea.Model, tea.Cmd) {
 	if m.builder != nil {
 		if logErr := m.builder.LogEvent("vault-lock", "", "", audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditFailed", map[string]any{"Err": logErr}))
 		}
 		_ = m.builder.Close()
 		m.builder = nil
@@ -568,11 +573,11 @@ func (m model) quit() (tea.Model, tea.Cmd) {
 	// Stop Docker audit stack on exit (mirrors GUI shutdown behavior).
 	if m.cfg.Audit.DockerComposePath != "" {
 		if err := audit.StopStack(m.cfg.Audit.DockerComposePath, m.cfg.Audit.DockerProjectName); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not stop audit server: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditStop", map[string]any{"Err": err}))
 		}
 		// Lock the encrypted ledger volume after stopping the stack.
 		if err := audit.LockLedgerVolume(m.cfg.Audit); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: could not encrypt ledger volume: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.encryptLedger", map[string]any{"Err": err}))
 		}
 		// Zero the volume key from memory.
 		zeroBytes(m.cfg.Audit.LedgerVolumeKey)
@@ -594,7 +599,7 @@ func (m model) deleteClientProperties() {
 		composeDir := filepath.Dir(m.cfg.Audit.DockerComposePath)
 		clientPropsPath := filepath.Join(composeDir, "certs", "client.properties")
 		if err := os.Remove(clientPropsPath); err != nil && !os.IsNotExist(err) {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", clientPropsPath, err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.deleteClientProps", map[string]any{"Path": clientPropsPath, "Err": err}))
 		}
 		return
 	}
@@ -608,7 +613,7 @@ func (m model) deleteClientProperties() {
 	matches, _ := filepath.Glob(filepath.Join(homeDir, ".tegata", "docker", "*", "certs", "client.properties")) // Glob only errors on malformed patterns, not missing paths
 	for _, p := range matches {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not delete client.properties at %s: %v\n", p, err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.deleteClientProps", map[string]any{"Path": p, "Err": err}))
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
+	"github.com/josh-wong/tegata/internal/i18n"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
@@ -26,9 +27,7 @@ var credTypeNames = []struct {
 	{"Challenge-Resp", pkgmodel.CredentialChallengeResponse},
 }
 
-// addAlgoLabels and addAlgoValues map addAlgoIdx to display labels and
-// credential algorithm strings.
-var addAlgoLabels = []string{"SHA-1", "SHA-256", "SHA-512"}
+// addAlgoValues maps addAlgoIdx to the algorithm strings stored in credentials.
 var addAlgoValues = []string{"SHA1", "SHA256", "SHA512"}
 
 // addDigitValues maps addDigitsIdx to digit counts.
@@ -59,19 +58,26 @@ const (
 )
 
 // resetAddOverlay clears all add-overlay input fields and resets indices.
+// Placeholders are refreshed here so they always reflect the active language,
+// even when the user changes language from the TUI settings mid-session.
 func (m *model) resetAddOverlay() {
 	m.addLabelInput.Reset()
+	m.addLabelInput.Placeholder = i18n.T("tui.add.placeholder.uri")
 	m.addLabelInput.Blur()
 	m.addIssuerInput.Reset()
+	m.addIssuerInput.Placeholder = i18n.T("tui.add.placeholder.issuer")
 	m.addIssuerInput.Blur()
 	m.addSecretInput.Reset()
 	m.addSecretInput.Blur()
 	m.addPeriodInput.Reset()
+	m.addPeriodInput.Placeholder = i18n.T("tui.add.placeholder.period")
 	m.addPeriodInput.SetValue("30")
 	m.addPeriodInput.Blur()
 	m.addTagsInput.Reset()
+	m.addTagsInput.Placeholder = i18n.T("tui.add.placeholder.tags")
 	m.addTagsInput.Blur()
 	m.addCategoryInput.Reset()
+	m.addCategoryInput.Placeholder = i18n.T("tui.add.placeholder.category")
 	m.addCategoryInput.Blur()
 	m.addTypeIdx = 0
 	m.addAlgoIdx = 0
@@ -86,11 +92,11 @@ func (m *model) resetAddOverlay() {
 func (m *model) updateSecretPlaceholder() {
 	switch credTypeNames[m.addTypeIdx].ctype {
 	case pkgmodel.CredentialStatic:
-		m.addSecretInput.Placeholder = "Password"
+		m.addSecretInput.Placeholder = i18n.T("tui.add.placeholder.password")
 	case pkgmodel.CredentialChallengeResponse:
-		m.addSecretInput.Placeholder = "Shared secret key"
+		m.addSecretInput.Placeholder = i18n.T("tui.add.placeholder.sharedSecret")
 	default:
-		m.addSecretInput.Placeholder = "Secret (base32)"
+		m.addSecretInput.Placeholder = i18n.T("tui.add.placeholder.secret")
 	}
 }
 
@@ -229,7 +235,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if strings.HasPrefix(labelVal, "otpauth://") {
 				cred, err := auth.ParseOTPAuthURI(labelVal)
 				if err != nil {
-					m.errMsg = fmt.Sprintf("Invalid URI: %v", err)
+					m.errMsg = i18n.Tf("tui.add.error.invalidURI", map[string]any{"Err": err})
 					return m, nil
 				}
 				m.addLabelInput.SetValue(cred.Label)
@@ -263,7 +269,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Validate required fields.
 			if labelVal == "" || m.addSecretInput.Value() == "" {
-				m.errMsg = "Label and secret are required"
+				m.errMsg = i18n.T("tui.add.error.labelAndSecretRequired")
 				return m, nil
 			}
 
@@ -272,7 +278,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch ct.ctype {
 			case pkgmodel.CredentialTOTP, pkgmodel.CredentialHOTP:
 				if _, err := decodeBase32Secret(m.addSecretInput.Value()); err != nil {
-					m.errMsg = "Secret is not valid base32 — TOTP and HOTP secrets use characters A-Z and 2-7 only"
+					m.errMsg = i18n.T("tui.add.error.invalidBase32")
 					return m, nil
 				}
 			}
@@ -290,7 +296,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if v := strings.TrimSpace(m.addPeriodInput.Value()); v != "" {
 					p, err := strconv.Atoi(v)
 					if err != nil || p < 15 || p > 120 {
-						m.errMsg = "Period must be between 15 and 120 seconds"
+						m.errMsg = i18n.T("tui.add.error.invalidPeriod")
 						return m, nil
 					}
 					period = p
@@ -324,18 +330,18 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if m.vaultMgr == nil {
-				m.errMsg = "Vault not unlocked"
+				m.errMsg = i18n.T("tui.add.error.vaultLocked")
 				return m, nil
 			}
 
 			if _, err := m.vaultMgr.AddCredential(cred); err != nil {
-				m.errMsg = fmt.Sprintf("Add failed: %v", err)
+				m.errMsg = i18n.Tf("tui.add.error.addFailed", map[string]any{"Err": err})
 				return m, nil
 			}
 
 			if m.builder != nil {
 				if logErr := m.builder.LogEvent("credential-add", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 			}
 
@@ -344,7 +350,7 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 			label := labelVal
 			m.resetAddOverlay()
 			m.state = stateMainView
-			m.statusMsg = fmt.Sprintf("Added %q", label)
+			m.statusMsg = i18n.Tf("tui.add.success", map[string]any{"Label": label})
 			return m, nil
 		}
 	}
@@ -372,18 +378,28 @@ func (m model) updateOverlayAdd(msg tea.Msg) (tea.Model, tea.Cmd) {
 // addLabelWidthForType returns the column width for field labels in the add
 // overlay based on the currently selected credential type.
 func addLabelWidthForType(ct pkgmodel.CredentialType) int {
-	labels := []string{"Label:", "Issuer:", "Type:", "Secret:", "Algorithm:", "Digits:", "Period:", "Tags:", "Category:"}
+	labels := []string{
+		i18n.T("tui.add.field.label"),
+		i18n.T("tui.add.field.issuer"),
+		i18n.T("tui.add.field.type"),
+		i18n.T("tui.add.field.secret"),
+		i18n.T("tui.add.field.algorithm"),
+		i18n.T("tui.add.field.digits"),
+		i18n.T("tui.add.field.period"),
+		i18n.T("tui.add.field.tags"),
+		i18n.T("tui.add.field.category"),
+	}
 	switch ct {
 	case pkgmodel.CredentialStatic:
-		labels[3] = "Password:"
+		labels[3] = i18n.T("tui.add.field.password")
 	case pkgmodel.CredentialChallengeResponse:
-		labels[3] = "Shared secret key:"
+		labels[3] = i18n.T("tui.add.field.sharedSecret")
 	}
 
 	max := 0
 	for _, l := range labels {
-		if len(l) > max {
-			max = len(l)
+		if w := lipgloss.Width(l); w > max {
+			max = w
 		}
 	}
 	// Keep one space between the label column and the field content.
@@ -393,54 +409,58 @@ func addLabelWidthForType(ct pkgmodel.CredentialType) int {
 // viewOverlayAdd renders the add-credential overlay.
 func (m model) viewOverlayAdd() string {
 	ct := credTypeNames[m.addTypeIdx]
-	addLabelWidth := addLabelWidthForType(ct.ctype)
+	col := addLabelWidthForType(ct.ctype)
+
+	// pad pads label to col display columns using lipgloss.Width for
+	// correct East Asian wide-character measurement.
+	pad := func(label string) string {
+		return label + strings.Repeat(" ", col-lipgloss.Width(label))
+	}
+
 	var lines []string
-	lines = append(lines, titleStyle.Render("Add Credential"))
+	lines = append(lines, titleStyle.Render(i18n.T("tui.add.title")))
 	lines = append(lines, "")
 
-	lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "Label:", m.addLabelInput.View()))
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Issuer:", m.addIssuerInput.View(), helpBarStyle.Render("(optional)")))
+	lines = append(lines, pad(i18n.T("tui.add.field.label"))+m.addLabelInput.View())
+	lines = append(lines, pad(i18n.T("tui.add.field.issuer"))+m.addIssuerInput.View()+" "+helpBarStyle.Render(i18n.T("tui.add.hint.optional")))
 
 	// Type selector row.
-	lines = append(lines, renderAddSelector(addLabelWidth, "Type:", addSlotType, m.addFocusIdx, m.addTypeIdx, credTypeDisplayLabels()))
+	lines = append(lines, renderAddSelector(col, pad, i18n.T("tui.add.field.type"), addSlotType, m.addFocusIdx, m.addTypeIdx, credTypeDisplayLabels()))
 
 	// Secret row with type-dependent label.
 	var secretLabel string
 	switch ct.ctype {
 	case pkgmodel.CredentialStatic:
-		secretLabel = "Password:"
+		secretLabel = i18n.T("tui.add.field.password")
 	case pkgmodel.CredentialChallengeResponse:
-		secretLabel = "Shared secret key:"
+		secretLabel = i18n.T("tui.add.field.sharedSecret")
 	default:
-		secretLabel = "Secret:"
+		secretLabel = i18n.T("tui.add.field.secret")
 	}
-	lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, secretLabel, m.addSecretInput.View()))
+	lines = append(lines, pad(secretLabel)+m.addSecretInput.View())
 
 	// Algorithm selector — shown only for TOTP and challenge-response.
 	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialChallengeResponse {
-		lines = append(lines, renderAddSelector(addLabelWidth, "Algorithm:", addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoLabels))
+		lines = append(lines, renderAddSelector(col, pad, i18n.T("tui.add.field.algorithm"), addSlotAlgorithm, m.addFocusIdx, m.addAlgoIdx, addAlgoDisplayLabels()))
 		if ct.ctype == pkgmodel.CredentialTOTP {
-			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("Default SHA-1. If your provider URI specifies")))
-			lines = append(lines, fmt.Sprintf("%-*s%s", addLabelWidth, "", helpBarStyle.Render("SHA256/SHA512, use that value.")))
+			lines = append(lines, strings.Repeat(" ", col)+helpBarStyle.Render(i18n.T("tui.add.help.algorithmNote1")))
+			lines = append(lines, strings.Repeat(" ", col)+helpBarStyle.Render(i18n.T("tui.add.help.algorithmNote2")))
 		}
 	}
 
 	// Digits selector — TOTP and HOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP || ct.ctype == pkgmodel.CredentialHOTP {
-		lines = append(lines, renderAddSelector(addLabelWidth, "Digits:", addSlotDigits, m.addFocusIdx, m.addDigitsIdx, []string{"6", "8"}))
+		lines = append(lines, renderAddSelector(col, pad, i18n.T("tui.add.field.digits"), addSlotDigits, m.addFocusIdx, m.addDigitsIdx, []string{"6", "8"}))
 	}
 
 	// Period text input — TOTP only.
 	if ct.ctype == pkgmodel.CredentialTOTP {
 		periodView := strings.TrimRight(m.addPeriodInput.View(), " ")
-		lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Period:", periodView, helpBarStyle.Render("seconds")))
+		lines = append(lines, pad(i18n.T("tui.add.field.period"))+periodView+" "+helpBarStyle.Render(i18n.T("tui.add.unit.seconds")))
 	}
 
-	// Tags text input.
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Tags:", m.addTagsInput.View(), helpBarStyle.Render("(optional)")))
-
-	// Category text input.
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", addLabelWidth, "Category:", m.addCategoryInput.View(), helpBarStyle.Render("(optional)")))
+	lines = append(lines, pad(i18n.T("tui.add.field.tags"))+m.addTagsInput.View()+" "+helpBarStyle.Render(i18n.T("tui.add.hint.optional")))
+	lines = append(lines, pad(i18n.T("tui.add.field.category"))+m.addCategoryInput.View()+" "+helpBarStyle.Render(i18n.T("tui.add.hint.optional")))
 
 	if m.errMsg != "" {
 		lines = append(lines, "")
@@ -448,26 +468,46 @@ func (m model) viewOverlayAdd() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[Tab] Navigate  [\u2190/\u2192] Change  [Enter] Save  [Esc] Cancel"))
+	lines = append(lines, helpBarStyle.Render(i18n.T("tui.add.helpBar")))
 
 	content := strings.Join(lines, "\n")
-	overlay := overlayBoxStyle.Render(content)
+	// Grow the box with the terminal so wide languages (Japanese) fit all
+	// credential types on one line without wrapping. Minimum 70, maximum 120,
+	// leaving 8 columns margin (4 each side) so it doesn't fill the screen.
+	boxWidth := m.width - 8
+	if boxWidth < 70 {
+		boxWidth = 70
+	}
+	if boxWidth > 120 {
+		boxWidth = 120
+	}
+	overlay := overlayBoxStyle.Width(boxWidth).Render(content)
 	return overlayOnBackground(overlay, m.width, m.height)
 }
 
-// credTypeDisplayLabels returns the display labels for credential types.
+// credTypeDisplayLabels returns the localized display labels for credential types.
 func credTypeDisplayLabels() []string {
-	labels := make([]string, len(credTypeNames))
-	for i, ct := range credTypeNames {
-		labels[i] = ct.label
+	return []string{
+		i18n.T("tui.add.type.totp"),
+		i18n.T("tui.add.type.hotp"),
+		i18n.T("tui.add.type.static"),
+		i18n.T("tui.add.type.cr"),
 	}
-	return labels
+}
+
+// addAlgoDisplayLabels returns the localized display labels for algorithms.
+func addAlgoDisplayLabels() []string {
+	return []string{
+		i18n.T("tui.add.algo.sha1"),
+		i18n.T("tui.add.algo.sha256"),
+		i18n.T("tui.add.algo.sha512"),
+	}
 }
 
 // renderAddSelector renders a label + selectable options row. The selected
-// option is highlighted in green. When the selector has focus, left/right
-// arrows flank the selected option.
-func renderAddSelector(addLabelWidth int, label string, slot, focusIdx, selectedIdx int, options []string) string {
+// option is highlighted. When the selector has focus, left/right arrows flank
+// the selected option. pad is a display-width-aware padding function.
+func renderAddSelector(_ int, pad func(string) string, label string, slot, focusIdx, selectedIdx int, options []string) string {
 	focused := focusIdx == slot
 	var parts []string
 	for i, opt := range options {
@@ -481,7 +521,7 @@ func renderAddSelector(addLabelWidth int, label string, slot, focusIdx, selected
 			parts = append(parts, opt)
 		}
 	}
-	return fmt.Sprintf("%-*s%s", addLabelWidth, label, strings.Join(parts, "  "))
+	return pad(label) + strings.Join(parts, "  ")
 }
 
 // updateOverlayRemove handles key events in stateOverlayRemove.
@@ -514,14 +554,14 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if m.builder != nil {
 					if logErr := m.builder.LogEvent("credential-remove", item.cred.Label, item.cred.Issuer, audit.Hostname(), true); logErr != nil {
-						_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+						_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.model.warn.auditFailed", map[string]any{"Err": logErr}))
 					}
 				}
 			}
 
 			m = refreshCredList(m)
 			m.state = stateMainView
-			m.statusMsg = "Removed"
+			m.statusMsg = i18n.Tf("cmd.remove.success", map[string]any{"Label": item.cred.Label})
 			return m, nil
 		}
 	}
@@ -530,7 +570,7 @@ func (m model) updateOverlayRemove(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // viewOverlayRemove renders the remove-confirmation overlay.
 func (m model) viewOverlayRemove() string {
-	label := "(none selected)"
+	label := i18n.T("tui.remove.noneSelected")
 	if selected := m.credList.SelectedItem(); selected != nil {
 		if item, ok := selected.(credItem); ok {
 			label = item.cred.Label
@@ -538,11 +578,11 @@ func (m model) viewOverlayRemove() string {
 	}
 
 	var lines []string
-	lines = append(lines, titleStyle.Render("Remove credential?"))
+	lines = append(lines, titleStyle.Render(i18n.T("tui.remove.title")))
 	lines = append(lines, "")
-	lines = append(lines, "Credential: "+label)
+	lines = append(lines, i18n.T("tui.remove.credentialLabel")+label)
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[y] Remove  [n] Cancel"))
+	lines = append(lines, helpBarStyle.Render(i18n.T("tui.remove.helpBar")))
 
 	content := strings.Join(lines, "\n")
 	overlay := overlayBoxStyle.Render(content)
@@ -621,12 +661,13 @@ func refreshCredList(m model, selectLabel ...string) model {
 	}
 	m.credList.Select(selectedIdx)
 	m.cursor = selectedIdx
-	if len(creds) == 1 {
-		m.credList.Title = "1 credential"
-	} else if len(creds) > 1 {
-		m.credList.Title = fmt.Sprintf("%d credentials", len(creds))
-	} else {
-		m.credList.Title = "No credentials"
+	switch len(creds) {
+	case 0:
+		m.credList.Title = i18n.T("cmd.list.empty")
+	case 1:
+		m.credList.Title = i18n.T("tui.credList.one")
+	default:
+		m.credList.Title = i18n.Tf("tui.credList.many", map[string]any{"Count": len(creds)})
 	}
 	return m
 }

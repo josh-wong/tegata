@@ -10,31 +10,23 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 	"github.com/spf13/cobra"
 )
 
 func newVerifyCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "verify",
-		Short: "Verify hash-chain integrity of the audit log",
-		Long: `Call the ScalarDL Ledger to verify the integrity of all audit records.
-Reports the number of events checked and whether the hash chain is intact.
-
-Exits with code 0 on success, code 9 on integrity violation, or code 8 on
-network failure.
-
-Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
-		Example: `  tegata verify
-  tegata verify --vault /media/usb`,
-		Args: cobra.NoArgs,
-		RunE: runVerify,
+		Use:     "verify",
+		Short:   i18n.T("cmd.verify.short"),
+		Long:    i18n.T("cmd.verify.long"),
+		Example: i18n.T("cmd.verify.example"),
+		Args:    cobra.NoArgs,
+		RunE:    runVerify,
 	}
 }
 
 // formatFault converts an "id: detail" fault string into a readable sentence.
-// Normal faults become "The {detail} for record {id}".
-// Error faults (from Validate returning an error) become "Verification error for record {id}: {err}".
 func formatFault(f string) string {
 	idx := strings.Index(f, ": ")
 	if idx < 0 {
@@ -42,9 +34,10 @@ func formatFault(f string) string {
 	}
 	id, detail := f[:idx], f[idx+2:]
 	if strings.HasPrefix(detail, "error: ") {
-		return fmt.Sprintf("Verification error for record %s: %s", id, strings.TrimPrefix(detail, "error: "))
+		return i18n.Tf("cmd.verify.error.record",
+			map[string]any{"Hash": id, "Msg": strings.TrimPrefix(detail, "error: ")})
 	}
-	return fmt.Sprintf("The %s for record %s", detail, id)
+	return i18n.Tf("cmd.verify.error.field", map[string]any{"Field": detail, "Hash": id})
 }
 
 func runVerify(cmd *cobra.Command, _ []string) error {
@@ -55,7 +48,7 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 
 	cfg, err := config.Load(vaultDir(vaultPath))
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("cmd.verify.error.loadConfig"), err)
 	}
 
 	if !cfg.Audit.Enabled {
@@ -63,18 +56,17 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	passphrase, err := promptPassphrase("Passphrase: ")
+	passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 	if err != nil {
 		return err
 	}
 	mgr, err := openAndUnlock(vaultPath, passphrase)
 	zeroBytes(passphrase)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", i18n.T("cmd.verify.error.unlockVault"), err)
 	}
 	defer mgr.Close()
 
-	// Load HMAC secret from vault and inject into config.
 	secretFromVault := mgr.GetSecret("audit.secret_key")
 	if secretFromVault != "" {
 		cfg.Audit.SecretKey = secretFromVault
@@ -102,26 +94,27 @@ func runVerify(cmd *cobra.Command, _ []string) error {
 	}
 
 	if result.EventCount == 0 && result.Skipped == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "No audit events found. Nothing to verify.")
+		_, _ = fmt.Fprintln(os.Stdout, i18n.T("cmd.verify.empty"))
 		return nil
 	}
 
 	if result.Skipped > 0 {
-		fmt.Fprintf(os.Stderr, "Note: %d events pre-date independent hash storage and were not verified.\n", result.Skipped)
+		fmt.Fprintf(os.Stderr, "%s",
+			i18n.Tf("cmd.verify.note.unverified", map[string]any{"Count": result.Skipped}))
 	}
 
 	if result.Valid {
 		if result.EventCount > 0 {
-			fmt.Printf("Audit log integrity verified. %d events checked.\n", result.EventCount)
+			fmt.Print(i18n.Tf("cmd.verify.success", map[string]any{"Count": result.EventCount}))
 		} else {
-			fmt.Printf("No events could be verified — all %d events pre-date independent hash storage.\n", result.Skipped)
+			fmt.Print(i18n.Tf("cmd.verify.warn.allUnverified", map[string]any{"Count": result.Skipped}))
 		}
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "TAMPERING DETECTED\n")
+	fmt.Fprint(os.Stderr, i18n.T("cmd.verify.tampered"))
 	for _, f := range result.Faults {
-		fmt.Fprintf(os.Stderr, "  %s\n", formatFault(f))
+		fmt.Fprintf(os.Stderr, "%s", i18n.Tf("cmd.verify.detail", map[string]any{"Detail": formatFault(f)}))
 	}
 	return reportedError{tegerrors.ErrIntegrityViolation}
 }

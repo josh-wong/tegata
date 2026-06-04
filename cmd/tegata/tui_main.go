@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/auth"
+	"github.com/josh-wong/tegata/internal/i18n"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
@@ -148,6 +149,7 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleCredentialAction()
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'a':
+			m.resetAddOverlay()
 			m.state = stateOverlayAdd
 			m.addFocusIdx = 0
 			m.focusAddInput()
@@ -172,7 +174,7 @@ func (m model) updateMainView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case len(msg.Runes) == 1 && msg.Runes[0] == 'v':
 			if !m.cfg.Audit.Enabled {
-				m.errMsg = "Audit logging is not enabled"
+				m.errMsg = i18n.T("tui.main.error.auditNotEnabled")
 				return m, nil
 			}
 			m.state = stateOverlayAudit
@@ -199,7 +201,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 	case pkgmodel.CredentialTOTP:
 		secret, err := decodeBase32Secret(cred.Secret)
 		if err != nil {
-			m.errMsg = fmt.Sprintf("Invalid TOTP secret: %v", err)
+			m.errMsg = i18n.Tf("tui.main.error.invalidTOTP", map[string]any{"Err": err})
 			return m, nil
 		}
 		defer zeroBytes(secret)
@@ -217,20 +219,21 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
-				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
+				m.statusMsg = i18n.Tf("tui.main.codeSelectToCopy", map[string]any{"Code": code})
 				m.errMsg = ""
 				return m, nil
 			}
-			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+			m.statusMsg = i18n.Tf("tui.main.copied",
+				map[string]any{"Secs": int(m.cfg.ClipboardTimeout.Seconds())})
 		} else {
-			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
+			m.statusMsg = i18n.Tf("tui.main.codeNoClipboard", map[string]any{"Code": code})
 		}
 		m.errMsg = ""
 
 	case pkgmodel.CredentialHOTP:
 		secret, err := decodeBase32Secret(cred.Secret)
 		if err != nil {
-			m.errMsg = fmt.Sprintf("Invalid HOTP secret: %v", err)
+			m.errMsg = i18n.Tf("tui.main.error.invalidHOTP", map[string]any{"Err": err})
 			return m, nil
 		}
 		defer zeroBytes(secret)
@@ -244,7 +247,7 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		cred.Counter++
 		if m.vaultMgr != nil {
 			if err := m.vaultMgr.UpdateCredential(&cred); err != nil {
-				m.errMsg = fmt.Sprintf("Counter save failed: %v", err)
+				m.errMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": err})
 				return m, nil
 			}
 			m = refreshCredList(m, cred.Label)
@@ -254,20 +257,21 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(code, m.cfg.ClipboardTimeout); err != nil {
-				m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable — select to copy)", code)
+				m.statusMsg = i18n.Tf("tui.main.codeSelectToCopy", map[string]any{"Code": code})
 				m.errMsg = ""
 				return m, nil
 			}
-			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+			m.statusMsg = i18n.Tf("tui.main.copied",
+				map[string]any{"Secs": int(m.cfg.ClipboardTimeout.Seconds())})
 		} else {
-			m.statusMsg = fmt.Sprintf("Code: %s  (clipboard unavailable)", code)
+			m.statusMsg = i18n.Tf("tui.main.codeNoClipboard", map[string]any{"Code": code})
 		}
 		m.errMsg = ""
 
 	case pkgmodel.CredentialStatic:
 		password, err := auth.GetStaticPassword(&cred)
 		if err != nil {
-			m.errMsg = fmt.Sprintf("Error: %v", err)
+			m.errMsg = i18n.Tf("tui.main.error.generic", map[string]any{"Err": err})
 			return m, nil
 		}
 		defer zeroBytes(password)
@@ -276,20 +280,22 @@ func (m model) handleCredentialAction() (tea.Model, tea.Cmd) {
 		}
 		if m.clipMgr != nil {
 			if err := m.clipMgr.CopyWithAutoClear(string(password), m.cfg.ClipboardTimeout); err != nil {
-				m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable — select to copy)", password)
+				m.statusMsg = i18n.Tf("tui.main.passwordSelectToCopy", map[string]any{"Password": string(password)})
 				m.errMsg = ""
 				return m, nil
 			}
-			m.statusMsg = fmt.Sprintf("Copied! (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+			m.statusMsg = i18n.Tf("tui.main.copied",
+				map[string]any{"Secs": int(m.cfg.ClipboardTimeout.Seconds())})
 		} else {
-			m.statusMsg = fmt.Sprintf("Password: %s  (clipboard unavailable)", password)
+			m.statusMsg = i18n.Tf("tui.main.passwordNoClipboard", map[string]any{"Password": string(password)})
 		}
 		m.errMsg = ""
 
 	case pkgmodel.CredentialChallengeResponse:
-		// Enter challenge-input mode.
+		// Enter challenge-input mode; refresh placeholder for active language.
 		m.crChallengeActive = true
 		m.crChallengeInput.Reset()
+		m.crChallengeInput.Placeholder = i18n.T("tui.add.placeholder.crChallenge")
 		m.crChallengeInput.Focus()
 		return m, nil
 	}
@@ -334,16 +340,17 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 
 	if m.clipMgr != nil {
 		if err := m.clipMgr.CopyWithAutoClear(response, m.cfg.ClipboardTimeout); err != nil {
-			m.statusMsg = fmt.Sprintf("Response: %s  (clipboard unavailable — select to copy)", response)
+			m.statusMsg = i18n.Tf("tui.main.responseSelectToCopy", map[string]any{"Response": response})
 			m.errMsg = ""
 			m.crChallengeActive = false
 			m.crChallengeInput.Reset()
 			m.crChallengeInput.Blur()
 			return m, nil
 		}
-		m.statusMsg = fmt.Sprintf("Signed response copied (auto-clear in %ds)", int(m.cfg.ClipboardTimeout.Seconds()))
+		m.statusMsg = i18n.Tf("tui.main.signedCopied",
+			map[string]any{"Secs": int(m.cfg.ClipboardTimeout.Seconds())})
 	} else {
-		m.statusMsg = fmt.Sprintf("Response: %s  (clipboard unavailable)", response)
+		m.statusMsg = i18n.Tf("tui.main.responseNoClipboard", map[string]any{"Response": response})
 	}
 	m.errMsg = ""
 	m.crChallengeActive = false
@@ -355,7 +362,7 @@ func (m model) submitCRChallenge() (tea.Model, tea.Cmd) {
 // viewMainView renders the two-column credential list + detail panel layout.
 func (m model) viewMainView() string {
 	// App name header (always shown, cinnabar brand color).
-	appHeader := appNameStyle.Render(appName)
+	appHeader := appNameStyle.Render(appName())
 
 	// Vault identifier header (shows full path with bold filename).
 	var vaultHeader string
@@ -380,9 +387,9 @@ func (m model) viewMainView() string {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
 
 	// Help bar at the bottom.
-	helpText := "↑↓ Navigate  Enter Copy/Act  a Add  e Edit  r Remove  s Settings  q Quit"
+	helpText := i18n.T("tui.main.helpBar")
 	if m.cfg.Audit.Enabled {
-		helpText = "↑↓ Navigate  Enter Copy/Act  a Add  e Edit  r Remove  s Settings  v Audit  q Quit"
+		helpText = i18n.T("tui.main.helpBarAudit")
 	}
 	help := helpBarStyle.Render(helpText)
 
@@ -396,7 +403,7 @@ func (m model) viewMainView() string {
 func (m model) renderDetailPanel(width int) string {
 	selected := m.credList.SelectedItem()
 	if selected == nil {
-		content := "No credential selected.\n\nUse ↑↓ to navigate."
+		content := i18n.T("tui.main.noCredentialSelected")
 		return panelStyle.Width(width - 2).Render(content)
 	}
 	item, ok := selected.(credItem)
@@ -465,7 +472,7 @@ func (m model) renderTOTPPanel(cred pkgmodel.Credential, width int) string {
 	lines = append(lines, "")
 	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(code))
 	lines = append(lines, bar)
-	lines = append(lines, fmt.Sprintf("%ds remaining", remaining))
+	lines = append(lines, i18n.Tf("tui.main.timeRemaining", map[string]any{"Secs": remaining}))
 
 	return strings.Join(lines, "\n")
 }
@@ -478,9 +485,9 @@ func (m model) renderHOTPPanel(cred pkgmodel.Credential) string {
 		lines = append(lines, cred.Issuer)
 	}
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("Counter: %d", cred.Counter))
+	lines = append(lines, i18n.Tf("tui.main.counter", map[string]any{"Counter": cred.Counter}))
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[Enter] Generate & advance counter"))
+	lines = append(lines, helpBarStyle.Render(i18n.T("tui.main.help.hotpEnter")))
 	return strings.Join(lines, "\n")
 }
 
@@ -492,7 +499,7 @@ func (m model) renderStaticPanel(cred pkgmodel.Credential) string {
 		lines = append(lines, cred.Issuer)
 	}
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[Enter] Copy password"))
+	lines = append(lines, helpBarStyle.Render(i18n.T("tui.main.help.staticEnter")))
 	return strings.Join(lines, "\n")
 }
 
@@ -505,11 +512,11 @@ func (m model) renderCRPanel(cred pkgmodel.Credential) string {
 	}
 	lines = append(lines, "")
 	if m.crChallengeActive {
-		lines = append(lines, "Challenge: "+m.crChallengeInput.View())
+		lines = append(lines, i18n.T("tui.main.challenge.label")+m.crChallengeInput.View())
 		lines = append(lines, "")
-		lines = append(lines, helpBarStyle.Render("[Enter] Sign  [Esc] Cancel"))
+		lines = append(lines, helpBarStyle.Render(i18n.T("tui.main.help.crSign")))
 	} else {
-		lines = append(lines, "Press Enter to sign a challenge.")
+		lines = append(lines, i18n.T("tui.main.help.crPrompt"))
 	}
 	return strings.Join(lines, "\n")
 }

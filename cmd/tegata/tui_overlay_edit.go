@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/i18n"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
@@ -20,14 +22,19 @@ const (
 )
 
 // resetEditOverlay clears all edit-overlay input fields and resets indices.
+// Placeholders are refreshed here so they always reflect the active language.
 func (m *model) resetEditOverlay() {
 	m.editLabelInput.Reset()
+	m.editLabelInput.Placeholder = i18n.T("tui.edit.placeholder.label")
 	m.editLabelInput.Blur()
 	m.editIssuerInput.Reset()
+	m.editIssuerInput.Placeholder = i18n.T("tui.edit.placeholder.issuer")
 	m.editIssuerInput.Blur()
 	m.editCategoryInput.Reset()
+	m.editCategoryInput.Placeholder = i18n.T("tui.edit.placeholder.category")
 	m.editCategoryInput.Blur()
 	m.editTagsInput.Reset()
+	m.editTagsInput.Placeholder = i18n.T("tui.edit.placeholder.tags")
 	m.editTagsInput.Blur()
 	m.editFocusIdx = 0
 	m.editCredID = ""
@@ -143,20 +150,20 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Validate label is not empty (after trimming whitespace).
 			if labelVal == "" {
-				m.errMsg = "Label is required"
+				m.errMsg = i18n.T("tui.edit.error.labelRequired")
 				return m, nil
 			}
 
 			// Parse and validate tags.
 			tags := parseTags(rawTags)
 			if dup := hasDuplicateTags(tags); dup != "" {
-				m.errMsg = fmt.Sprintf("Duplicate tag: %q", dup)
+				m.errMsg = i18n.Tf("tui.edit.error.duplicateTag", map[string]any{"Tag": dup})
 				return m, nil
 			}
 
 			// Get the original credential to check for duplicates and audit changes.
 			if m.vaultMgr == nil {
-				m.errMsg = "Vault not unlocked"
+				m.errMsg = i18n.T("tui.edit.error.vaultLocked")
 				return m, nil
 			}
 
@@ -171,7 +178,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if !found {
-				m.errMsg = "Credential not found"
+				m.errMsg = i18n.T("tui.edit.error.notFound")
 				return m, nil
 			}
 
@@ -179,7 +186,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if labelVal != originalCred.Label {
 				for _, c := range m.vaultMgr.ListCredentials() {
 					if strings.EqualFold(c.Label, labelVal) && c.ID != m.editCredID {
-						m.errMsg = fmt.Sprintf("A credential with label %q already exists", labelVal)
+						m.errMsg = i18n.Tf("tui.edit.error.labelExists", map[string]any{"Label": labelVal})
 						return m, nil
 					}
 				}
@@ -194,7 +201,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Save to vault.
 			if err := m.vaultMgr.UpdateCredential(&updatedCred); err != nil {
-				m.errMsg = fmt.Sprintf("Update failed: %v", err)
+				m.errMsg = i18n.Tf("tui.edit.error.updateFailed", map[string]any{"Err": err})
 				return m, nil
 			}
 
@@ -213,7 +220,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for _, fe := range events {
 					if fe.changed {
 						if logErr := m.builder.LogEvent(fe.opType, labelVal, issuerVal, audit.Hostname(), true); logErr != nil {
-							_, _ = fmt.Fprintf(os.Stderr, "Warning: Audit log failed: %v\n", logErr)
+							_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.edit.warn.auditFailed", map[string]any{"Err": logErr}))
 						}
 					}
 				}
@@ -223,7 +230,7 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = refreshCredList(m, labelVal)
 			m.resetEditOverlay()
 			m.state = stateMainView
-			m.statusMsg = fmt.Sprintf("Updated %q", labelVal)
+			m.statusMsg = i18n.Tf("tui.edit.success", map[string]any{"Label": labelVal})
 			return m, nil
 		}
 	}
@@ -246,14 +253,30 @@ func (m model) updateOverlayEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 // viewOverlayEdit renders the edit-credential overlay.
 func (m model) viewOverlayEdit() string {
 	var lines []string
-	lines = append(lines, titleStyle.Render("Edit Credential"))
+	lines = append(lines, titleStyle.Render(i18n.T("tui.edit.title")))
 	lines = append(lines, "")
 
-	const editLabelWidth = 10
-	lines = append(lines, fmt.Sprintf("%-*s%s", editLabelWidth, "Label:", m.editLabelInput.View()))
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Issuer:", m.editIssuerInput.View(), helpBarStyle.Render("(optional)")))
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Category:", m.editCategoryInput.View(), helpBarStyle.Render("(optional)")))
-	lines = append(lines, fmt.Sprintf("%-*s%s %s", editLabelWidth, "Tags:", m.editTagsInput.View(), helpBarStyle.Render("(optional)")))
+	labelL    := i18n.T("tui.edit.field.label")
+	issuerL   := i18n.T("tui.edit.field.issuer")
+	categoryL := i18n.T("tui.edit.field.category")
+	tagsL     := i18n.T("tui.edit.field.tags")
+
+	editCol := lipgloss.Width(labelL)
+	for _, l := range []string{issuerL, categoryL, tagsL} {
+		if w := lipgloss.Width(l); w > editCol {
+			editCol = w
+		}
+	}
+	editCol += 1
+	editPad := func(label string) string {
+		return label + strings.Repeat(" ", editCol-lipgloss.Width(label))
+	}
+
+	opt := helpBarStyle.Render(i18n.T("tui.edit.hint.optional"))
+	lines = append(lines, editPad(labelL)+m.editLabelInput.View())
+	lines = append(lines, editPad(issuerL)+m.editIssuerInput.View()+" "+opt)
+	lines = append(lines, editPad(categoryL)+m.editCategoryInput.View()+" "+opt)
+	lines = append(lines, editPad(tagsL)+m.editTagsInput.View()+" "+opt)
 
 	if m.errMsg != "" {
 		lines = append(lines, "")
@@ -261,7 +284,7 @@ func (m model) viewOverlayEdit() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, helpBarStyle.Render("[Tab] Navigate  [Enter] Save  [Esc] Cancel"))
+	lines = append(lines, helpBarStyle.Render(i18n.T("tui.edit.helpBar")))
 
 	content := strings.Join(lines, "\n")
 	overlay := overlayBoxStyle.Render(content)

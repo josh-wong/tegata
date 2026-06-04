@@ -8,7 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/josh-wong/tegata/internal/i18n"
 )
+
+// TestMain initialises the i18n package (English) before any test in the
+// cmd/tegata package runs, so functions that call i18n.T() return real strings
+// rather than falling back to the raw message ID.
+func TestMain(m *testing.M) {
+	i18n.Init("en")
+	os.Exit(m.Run())
+}
 
 // TestHumanizeError tests error translation for common filesystem errors.
 func TestHumanizeError(t *testing.T) {
@@ -251,8 +261,8 @@ func TestFormatVaultPathWithBoldFilename(t *testing.T) {
 		if !strings.Contains(got, "vault.tegata") {
 			t.Errorf("expected output to contain filename, got %q", got)
 		}
-		if !strings.Contains(got, "Vault: ") {
-			t.Errorf("expected output to contain 'Vault: ' prefix, got %q", got)
+		if !strings.Contains(got, i18n.T("tui.vaultHeader")) {
+			t.Errorf("expected output to contain vault header prefix, got %q", got)
 		}
 	})
 
@@ -261,8 +271,8 @@ func TestFormatVaultPathWithBoldFilename(t *testing.T) {
 		if !strings.Contains(got, "vault.tegata") {
 			t.Errorf("expected output to contain filename, got %q", got)
 		}
-		if strings.Contains(got, "Vault: ") {
-			t.Errorf("expected no 'Vault: ' prefix for bare filename, got %q", got)
+		if strings.Contains(got, i18n.T("tui.vaultHeader")) {
+			t.Errorf("expected no vault header prefix for bare filename, got %q", got)
 		}
 	})
 

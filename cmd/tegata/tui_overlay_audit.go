@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
 )
@@ -157,6 +158,7 @@ func (m *model) resetAuditOverlay() {
 	m.auditMenuIdx = 0
 	m.auditSubFlow = ""
 	m.auditMsg = ""
+	m.auditVerifyOK = false
 	m.auditRecords = nil
 	m.auditFiltered = nil
 	m.auditLoading = false
@@ -224,15 +226,15 @@ func (m model) updateOverlayAudit(msg tea.Msg) (tea.Model, tea.Cmd) {
 				hash := m.auditFiltered[m.auditCursor].HashValue
 				if m.clipMgr != nil {
 					if err := m.clipMgr.CopyWithAutoClear(hash, m.cfg.ClipboardTimeout); err != nil {
-						m.auditMsg = fmt.Sprintf("Hash: %s  (clipboard unavailable)", hash)
+						m.auditMsg = i18n.Tf("tui.audit.hashNoClipboard", map[string]any{"Hash": hash})
 						m.auditMsgTime = time.Time{} // don't auto-dismiss error messages
 					} else {
-						m.auditMsg = fmt.Sprintf("Hash copied to clipboard (auto-clears in %ds)",
-							int(m.cfg.ClipboardTimeout.Seconds()))
+						m.auditMsg = i18n.Tf("tui.audit.hashCopied",
+							map[string]any{"Secs": int(m.cfg.ClipboardTimeout.Seconds())})
 						m.auditMsgTime = m.now // set time for auto-dismiss
 					}
 				} else {
-					m.auditMsg = fmt.Sprintf("Hash: %s", hash)
+					m.auditMsg = i18n.Tf("tui.audit.hashDisplay", map[string]any{"Hash": hash})
 					m.auditMsgTime = time.Time{}
 				}
 			}
@@ -322,9 +324,9 @@ func (m model) viewOverlayAudit() string {
 }
 
 func (m model) viewAuditMenu() string {
-	title := titleStyle.Render("Audit")
+	title := titleStyle.Render(i18n.T("tui.audit.title.main"))
 
-	items := []string{"View history", "Verify integrity"}
+	items := []string{i18n.T("tui.audit.menuHistory"), i18n.T("tui.audit.menuVerify")}
 	var menu strings.Builder
 	for i, item := range items {
 		if i == m.auditMenuIdx {
@@ -335,18 +337,18 @@ func (m model) viewAuditMenu() string {
 		menu.WriteString("\n")
 	}
 
-	help := helpBarStyle.Render("[↑↓] Navigate  [Enter] Select  [Esc] Close")
+	help := helpBarStyle.Render(i18n.T("tui.audit.helpBar.menu"))
 	return title + "\n\n" + menu.String() + "\n" + help
 }
 
 // viewAuditHistory renders the audit history sub-flow.
 // boxW is the lipgloss Width value (text area, before padding and border).
 func (m model) viewAuditHistory(boxW int) string {
-	title := titleStyle.Render("Audit history")
+	title := titleStyle.Render(i18n.T("tui.audit.title.history"))
 
 	if m.auditLoading {
-		return title + "\n\n" + m.spinner.View() + " Loading...\n\n" +
-			helpBarStyle.Render("[Esc] Back")
+		return title + "\n\n" + m.spinner.View() + " " + i18n.T("tui.audit.loading") + "\n\n" +
+			helpBarStyle.Render(i18n.T("tui.audit.helpBar.back"))
 	}
 
 	// Derive column widths from available space.
@@ -374,7 +376,11 @@ func (m model) viewAuditHistory(boxW int) string {
 
 	var body strings.Builder
 	if len(m.auditFiltered) > 0 {
-		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n", opW, "Operation", labelW, "Label", tsW, "Timestamp", "Hash"))
+		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n",
+			opW, i18n.T("tui.audit.col.operation"),
+			labelW, i18n.T("tui.audit.col.label"),
+			tsW, i18n.T("tui.audit.col.timestamp"),
+			i18n.T("tui.audit.col.hash")))
 		body.WriteString(strings.Repeat("-", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize
@@ -407,8 +413,8 @@ func (m model) viewAuditHistory(boxW int) string {
 
 		// Show scroll indicator when the list overflows.
 		if len(m.auditFiltered) > auditHistoryPageSize {
-			body.WriteString(fmt.Sprintf("\n  %d–%d of %d",
-				m.auditScrollOff+1, end, len(m.auditFiltered)))
+			body.WriteString("\n  " + i18n.Tf("tui.audit.scroll", map[string]any{
+				"From": m.auditScrollOff + 1, "To": end, "Total": len(m.auditFiltered)}))
 		}
 	}
 
@@ -416,32 +422,28 @@ func (m model) viewAuditHistory(boxW int) string {
 		body.WriteString("\n" + m.auditMsg)
 	}
 
-	lockToggleLabel := "[f] Show lock events"
-	if m.auditShowLockEvents {
-		lockToggleLabel = "[f] Hide lock events"
-	}
-	help := helpBarStyle.Render("[↑↓] Navigate  [Enter/c] Copy hash  " + lockToggleLabel + "  [Esc] Back")
+	help := helpBarStyle.Render(i18n.T("tui.audit.helpBar.history"))
 	return title + "\n\n" + body.String() + "\n\n" + help
 }
 
 func (m model) viewAuditVerify() string {
-	title := titleStyle.Render("Verify audit log")
+	title := titleStyle.Render(i18n.T("tui.audit.title.verify"))
 
 	if m.auditLoading {
-		return title + "\n\n" + m.spinner.View() + " Verifying...\n\n" +
-			helpBarStyle.Render("[Esc] Back")
+		return title + "\n\n" + m.spinner.View() + " " + i18n.T("tui.audit.verifying") + "\n\n" +
+			helpBarStyle.Render(i18n.T("tui.audit.helpBar.back"))
 	}
 
 	var body string
-	if strings.Contains(m.auditMsg, "TAMPERING DETECTED") {
+	if strings.HasPrefix(m.auditMsg, i18n.T("tui.audit.tampered")) {
 		body = errorStyle.Render(m.auditMsg)
-	} else if strings.Contains(m.auditMsg, "verified") {
+	} else if m.auditVerifyOK {
 		body = tipStyle.Render(m.auditMsg)
 	} else {
 		body = m.auditMsg
 	}
 
-	help := helpBarStyle.Render("[Esc] Back")
+	help := helpBarStyle.Render(i18n.T("tui.audit.helpBar.back"))
 	return title + "\n\n" + body + "\n\n" + help
 }
 
@@ -486,10 +488,10 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 // viewAuditStart renders the ledger server setup sub-flow. Shows a spinner
 // while running, then a success or error message.
 func (m model) viewAuditStart() string {
-	title := titleStyle.Render("Start ledger server")
+	title := titleStyle.Render(i18n.T("tui.audit.title.startLedger"))
 
 	if m.auditLoading {
-		return title + "\n\n" + m.spinner.View() + " Starting ledger server...\n\n" +
+		return title + "\n\n" + m.spinner.View() + " " + i18n.T("tui.audit.startingLedger") + "\n\n" +
 			helpBarStyle.Render("")
 	}
 
@@ -503,6 +505,6 @@ func (m model) viewAuditStart() string {
 		}
 	}
 
-	help := helpBarStyle.Render("[Esc] Continue")
+	help := helpBarStyle.Render(i18n.T("tui.audit.helpBar.continue"))
 	return title + "\n\n" + body + "\n\n" + help
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -19,22 +20,16 @@ func newEditCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "edit <label>",
-		Short: "Edit a credential's metadata (label, issuer, category, tags)",
-		Args:  cobra.ExactArgs(1),
-		Example: `  tegata edit github --issuer "GitHub Inc"
-  tegata edit github --tags "work, totp"
-  tegata edit github --category "work"
-  tegata edit github --label "github-personal"`,
+		Use:     "edit <label>",
+		Short:   i18n.T("cmd.edit.short"),
+		Args:    cobra.ExactArgs(1),
+		Example: i18n.T("cmd.edit.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			credLabel := args[0]
 
-			// Validate that at least one field is being updated.
 			if label == "" && issuer == "" && tags == "" && category == "" {
-				return fmt.Errorf(
-					"at least one of --label, --issuer, --tags, or --category must be provided: %w",
-					errors.ErrInvalidInput,
-				)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.edit.error.noFlags", map[string]any{"Err": errors.ErrInvalidInput}))
 			}
 
 			vaultPath, err := resolveVaultPath(cmd)
@@ -42,7 +37,7 @@ func newEditCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -64,24 +59,22 @@ func newEditCmd() *cobra.Command {
 				return err
 			}
 
-			// Track the original values for audit event decision.
 			origLabel := cred.Label
 			origIssuer := cred.Issuer
 			origTags := slices.Clone(cred.Tags)
 			origCategory := cred.Category
 
-			// Apply updates from flags.
 			if label != "" {
 				label = strings.TrimSpace(label)
 				if label == "" {
-					return fmt.Errorf("label cannot be empty or whitespace-only: %w",
-						errors.ErrInvalidInput)
+					return fmt.Errorf("%s",
+						i18n.Tf("cmd.edit.error.emptyLabel", map[string]any{"Err": errors.ErrInvalidInput}))
 				}
-				// Check for duplicate label.
 				for _, c := range mgr.ListCredentials() {
 					if strings.EqualFold(c.Label, label) && c.ID != cred.ID {
-						return fmt.Errorf("a credential with label %q already exists: %w",
-							label, errors.ErrInvalidInput)
+						return fmt.Errorf("%s",
+							i18n.Tf("cmd.edit.error.duplicateLabel",
+								map[string]any{"Label": label, "Err": errors.ErrInvalidInput}))
 					}
 				}
 				cred.Label = label
@@ -90,7 +83,6 @@ func newEditCmd() *cobra.Command {
 			cred.Issuer = issuer
 
 			if tags != "" {
-				// Parse tags: split by comma, trim whitespace, filter empty strings, and normalize to lowercase.
 				var newTags []string
 				for _, t := range strings.Split(tags, ",") {
 					if t = strings.TrimSpace(t); t != "" {
@@ -98,11 +90,12 @@ func newEditCmd() *cobra.Command {
 					}
 				}
 
-				// Check for duplicates.
 				seen := make(map[string]struct{})
 				for _, t := range newTags {
 					if _, exists := seen[t]; exists {
-						return fmt.Errorf("duplicate tag %q: %w", t, errors.ErrInvalidInput)
+						return fmt.Errorf("%s",
+							i18n.Tf("cmd.edit.error.duplicateTag",
+								map[string]any{"Tag": t, "Err": errors.ErrInvalidInput}))
 					}
 					seen[t] = struct{}{}
 				}
@@ -118,7 +111,6 @@ func newEditCmd() *cobra.Command {
 				return err
 			}
 
-			// Log one audit event per changed field.
 			if builder != nil {
 				type fieldEvent struct {
 					changed bool
@@ -133,29 +125,30 @@ func newEditCmd() *cobra.Command {
 				for _, fe := range events {
 					if fe.changed {
 						if logErr := builder.LogEvent(fe.opType, cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-							_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+							_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+								i18n.Tf("cmd.edit.warn.auditFailed", map[string]any{"Err": logErr}))
 						}
 					}
 				}
 			}
 
-			fmt.Printf("Updated %q\n", cred.Label)
+			fmt.Print(i18n.Tf("cmd.edit.success", map[string]any{"Label": cred.Label}))
 			if cred.Category != "" {
-				fmt.Printf("  Category: %s\n", cred.Category)
+				fmt.Print(i18n.Tf("cmd.edit.category", map[string]any{"Category": cred.Category}))
 			}
 			if len(cred.Tags) == 0 {
-				fmt.Printf("  Tags: (none)\n")
+				fmt.Print(i18n.T("cmd.edit.tagsNone"))
 			} else {
-				fmt.Printf("  Tags: %s\n", strings.Join(cred.Tags, ", "))
+				fmt.Print(i18n.Tf("cmd.edit.tags", map[string]any{"Tags": strings.Join(cred.Tags, ", ")}))
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&label, "label", "", "new label for the credential")
-	cmd.Flags().StringVar(&issuer, "issuer", "", "new issuer for the credential")
-	cmd.Flags().StringVar(&tags, "tags", "", "comma-separated replacement tag list")
-	cmd.Flags().StringVar(&category, "category", "", "category for sidebar grouping (empty string clears it)")
+	cmd.Flags().StringVar(&label, "label", "", i18n.T("cmd.edit.flag.label"))
+	cmd.Flags().StringVar(&issuer, "issuer", "", i18n.T("cmd.edit.flag.issuer"))
+	cmd.Flags().StringVar(&tags, "tags", "", i18n.T("cmd.edit.flag.tags"))
+	cmd.Flags().StringVar(&category, "category", "", i18n.T("cmd.edit.flag.category"))
 
 	return cmd
 }
