@@ -6,29 +6,33 @@ import (
 	"time"
 
 	"github.com/josh-wong/tegata/internal/crypto"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 func newBenchCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "bench",
-		Short:   "Benchmark vault unlock time on this machine",
+		Short:   i18n.T("cmd.bench.short"),
 		Args:    cobra.NoArgs,
-		Example: `  tegata bench`,
+		Example: i18n.T("cmd.bench.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			params := crypto.DefaultParams
 
 			salt := make([]byte, 32)
 			if _, err := rand.Read(salt); err != nil {
-				return fmt.Errorf("generating salt: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("cmd.bench.error.salt"), err)
 			}
 			passphrase := make([]byte, 16)
 			if _, err := rand.Read(passphrase); err != nil {
-				return fmt.Errorf("generating passphrase: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("cmd.bench.error.passphrase"), err)
 			}
 
-			fmt.Printf("Argon2id benchmark (t=%d, m=%dMiB, p=%d):\n",
-				params.Time, params.Memory/1024, params.Threads)
+			fmt.Print(i18n.Tf("cmd.bench.header", map[string]any{
+				"T": params.Time,
+				"M": params.Memory / 1024,
+				"P": params.Threads,
+			}))
 
 			var total time.Duration
 			const runs = 3
@@ -39,16 +43,17 @@ func newBenchCmd() *cobra.Command {
 				elapsed := time.Since(start)
 				key.Destroy()
 				total += elapsed
-				fmt.Printf("  Run %d: %dms\n", i, elapsed.Milliseconds())
+				fmt.Print(i18n.Tf("cmd.bench.run", map[string]any{"N": i, "Ms": elapsed.Milliseconds()}))
 			}
 
 			avg := total / runs
-			fmt.Printf("  Average: %dms\n\n", avg.Milliseconds())
-			fmt.Printf("Vault unlock will take approximately %dms on this machine.\n", avg.Milliseconds())
-			fmt.Println("Target: under 3000ms")
+			fmt.Print(i18n.Tf("cmd.bench.average", map[string]any{"Ms": avg.Milliseconds()}))
+			fmt.Print(i18n.Tf("cmd.bench.result", map[string]any{"Ms": avg.Milliseconds()}))
+			fmt.Println(i18n.T("cmd.bench.target"))
 
 			if avg > 3*time.Second {
-				fmt.Println("\nWarning: Unlock time exceeds 3s target. Consider reducing Argon2id parameters.")
+				fmt.Println()
+				fmt.Println(i18n.T("cmd.bench.warn.slow"))
 			}
 
 			return nil

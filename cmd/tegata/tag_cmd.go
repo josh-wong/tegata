@@ -6,6 +6,7 @@ import (
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -16,19 +17,16 @@ func newTagCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "tag <label>",
-		Short: "Add or remove tags on an existing credential",
-		Args:  cobra.ExactArgs(1),
-		Example: `  tegata tag github --add work --add totp
-  tegata tag github --remove personal`,
+		Use:     "tag <label>",
+		Short:   i18n.T("cmd.tag.short"),
+		Args:    cobra.ExactArgs(1),
+		Example: i18n.T("cmd.tag.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
 
 			if len(addTags) == 0 && len(removeTags) == 0 {
-				return fmt.Errorf(
-					"at least one of --add or --remove must be provided: %w",
-					errors.ErrInvalidInput,
-				)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.tag.error.noFlags", map[string]any{"Err": errors.ErrInvalidInput}))
 			}
 
 			vaultPath, err := resolveVaultPath(cmd)
@@ -36,7 +34,7 @@ func newTagCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -58,7 +56,6 @@ func newTagCmd() *cobra.Command {
 				return err
 			}
 
-			// Normalize add and remove tags to lowercase.
 			var normalizedAdd []string
 			for _, t := range addTags {
 				normalizedAdd = append(normalizedAdd, strings.ToLower(t))
@@ -68,13 +65,11 @@ func newTagCmd() *cobra.Command {
 				normalizedRemove = append(normalizedRemove, strings.ToLower(t))
 			}
 
-			// Build a set of current tags for efficient lookup.
 			tagSet := make(map[string]struct{}, len(cred.Tags))
 			for _, t := range cred.Tags {
 				tagSet[t] = struct{}{}
 			}
 
-			// Add new tags that are not already present.
 			for _, t := range normalizedAdd {
 				if _, exists := tagSet[t]; !exists {
 					cred.Tags = append(cred.Tags, t)
@@ -82,7 +77,6 @@ func newTagCmd() *cobra.Command {
 				}
 			}
 
-			// Remove tags that match.
 			removeSet := make(map[string]struct{}, len(normalizedRemove))
 			for _, t := range normalizedRemove {
 				removeSet[t] = struct{}{}
@@ -101,21 +95,23 @@ func newTagCmd() *cobra.Command {
 
 			if builder != nil {
 				if logErr := builder.LogEvent("credential-tag-update", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.tag.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 			}
 
 			if len(cred.Tags) == 0 {
-				fmt.Printf("Tags for %s: (none)\n", cred.Label)
+				fmt.Print(i18n.Tf("cmd.tag.tagsNone", map[string]any{"Label": cred.Label}))
 			} else {
-				fmt.Printf("Tags for %s: %s\n", cred.Label, strings.Join(cred.Tags, ", "))
+				fmt.Print(i18n.Tf("cmd.tag.tags",
+					map[string]any{"Label": cred.Label, "Tags": strings.Join(cred.Tags, ", ")}))
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringArrayVar(&addTags, "add", nil, "tag to add (repeatable)")
-	cmd.Flags().StringArrayVar(&removeTags, "remove", nil, "tag to remove (repeatable)")
+	cmd.Flags().StringArrayVar(&addTags, "add", nil, i18n.T("cmd.tag.flag.add"))
+	cmd.Flags().StringArrayVar(&removeTags, "remove", nil, i18n.T("cmd.tag.flag.remove"))
 
 	return cmd
 }

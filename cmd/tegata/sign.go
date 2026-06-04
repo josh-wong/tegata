@@ -9,6 +9,7 @@ import (
 	"github.com/josh-wong/tegata/internal/clipboard"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -19,16 +20,16 @@ func newSignCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "sign <label>",
-		Short: "Sign a challenge string with a stored HMAC secret",
-		Args:  cobra.ExactArgs(1),
-		Example: `  tegata sign github --challenge abc123
-  tegata sign github --challenge abc123 --clip`,
+		Use:     "sign <label>",
+		Short:   i18n.T("cmd.sign.short"),
+		Args:    cobra.ExactArgs(1),
+		Example: i18n.T("cmd.sign.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			label := args[0]
 
 			if challenge == "" {
-				return fmt.Errorf("--challenge is required: %w", errors.ErrInvalidInput)
+				return fmt.Errorf("%s",
+					i18n.Tf("cmd.sign.error.noChallenge", map[string]any{"Err": errors.ErrInvalidInput}))
 			}
 
 			vaultPath, err := resolveVaultPath(cmd)
@@ -36,7 +37,7 @@ func newSignCmd() *cobra.Command {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -48,7 +49,6 @@ func newSignCmd() *cobra.Command {
 			}
 			defer mgr.Close()
 
-			// Load config for clipboard settings; build audit builder while passphrase is still in scope.
 			cfg, _ := config.Load(vaultDir(vaultPath))
 			builder := setupAuditBuilder(cmd.ErrOrStderr(), vaultDir(vaultPath), passphrase, mgr)
 			if builder != nil {
@@ -73,10 +73,10 @@ func newSignCmd() *cobra.Command {
 				return err
 			}
 
-			// Emit audit event after successful sign.
 			if builder != nil {
 				if logErr := builder.LogEvent("challenge-response", cred.Label, cred.Issuer, audit.Hostname(), true); logErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.sign.warn.auditFailed", map[string]any{"Err": logErr}))
 				}
 			}
 
@@ -84,10 +84,12 @@ func newSignCmd() *cobra.Command {
 				cm := clipboard.NewManager()
 				defer cm.Close()
 				if copyErr := cm.CopyWithAutoClear(hexResult, cfg.ClipboardTimeout); copyErr != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Clipboard copy failed: %v\n", copyErr)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+						i18n.Tf("cmd.sign.warn.clipboardFailed", map[string]any{"Err": copyErr}))
 				} else {
-					_, _ = fmt.Fprintf(os.Stderr, "Copied to clipboard (auto-clear in %ds)\n",
-						int(cfg.ClipboardTimeout.Seconds()))
+					_, _ = fmt.Fprintf(os.Stderr, "%s",
+						i18n.Tf("cmd.sign.copied",
+							map[string]any{"Secs": int(cfg.ClipboardTimeout.Seconds())}))
 				}
 				return nil
 			}
@@ -97,8 +99,8 @@ func newSignCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&challenge, "challenge", "", "challenge string to sign (required)")
-	cmd.Flags().BoolVar(&clip, "clip", false, "copy the signed response to clipboard instead of printing")
+	cmd.Flags().StringVar(&challenge, "challenge", "", i18n.T("cmd.sign.flag.challenge"))
+	cmd.Flags().BoolVar(&clip, "clip", false, i18n.T("cmd.sign.flag.clip"))
 
 	return cmd
 }

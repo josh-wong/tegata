@@ -7,24 +7,22 @@ import (
 	"path/filepath"
 
 	"github.com/josh-wong/tegata/internal/audit"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
 func newExportCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "export",
-		Short: "Export all credentials to an encrypted backup file",
-		Long: `Export encrypts all credentials in the vault to a portable .tegata-backup file.
-The backup is protected by a new export passphrase that you choose — it is
-independent of your vault passphrase. Anyone who has the backup file and its
-passphrase can restore your credentials.`,
-		Example: "  tegata export --out ~/backups/vault.tegata-backup",
+		Use:     "export",
+		Short:   i18n.T("cmd.export.short"),
+		Long:    i18n.T("cmd.export.long"),
+		Example: i18n.T("cmd.export.example"),
 		RunE:    runExport,
 	}
 
-	cmd.Flags().String("out", "", "output path for the backup file (default: vault.tegata-backup in vault directory)")
-	cmd.Flags().String("vault", "", "path to vault file or directory")
+	cmd.Flags().String("out", "", i18n.T("cmd.export.flag.out"))
+	cmd.Flags().String("vault", "", i18n.T("cmd.export.flag.vault"))
 	return cmd
 }
 
@@ -34,22 +32,20 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine output path.
 	outPath, _ := cmd.Flags().GetString("out")
 	if outPath == "" {
 		outPath = filepath.Join(filepath.Dir(vaultPath), "vault.tegata-backup")
 	}
 
-	// Unlock vault with vault passphrase.
-	vaultPass, err := promptPassphrase("Vault passphrase: ")
+	vaultPass, err := promptPassphrase(i18n.T("cmd.export.prompt.vaultPass"))
 	if err != nil {
-		return fmt.Errorf("reading vault passphrase: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readVaultPass"), err)
 	}
 	defer zeroBytes(vaultPass)
 
 	mgr, err := openAndUnlock(vaultPath, vaultPass)
 	if err != nil {
-		return fmt.Errorf("could not unlock vault: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.unlockVault"), err)
 	}
 	defer mgr.Close()
 
@@ -61,38 +57,38 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Prompt for export passphrase directly via term.ReadPassword.
 	// The export passphrase is a new credential and must never be read from
 	// the TEGATA_PASSPHRASE environment variable.
-	fmt.Fprintln(os.Stderr, "Choose a passphrase for the backup file (separate from your vault passphrase).")
+	fmt.Fprintln(os.Stderr, i18n.T("cmd.export.info.choosePass"))
 
 	var exportPass []byte
 	for {
-		fmt.Fprint(os.Stderr, "Export passphrase: ")
+		fmt.Fprint(os.Stderr, i18n.T("cmd.export.prompt.exportPass"))
 		exportPass, err = term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			zeroBytes(exportPass)
-			return fmt.Errorf("reading export passphrase: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readExportPass"), err)
 		}
 
 		if len(exportPass) < 8 {
 			zeroBytes(exportPass)
-			fmt.Fprintln(os.Stderr, "Error: export passphrase must be at least 8 characters.")
+			fmt.Fprintln(os.Stderr, i18n.T("cmd.export.error.shortPass"))
 			continue
 		}
 
 		displayStrengthMeter(exportPass)
 
-		fmt.Fprint(os.Stderr, "Confirm export passphrase: ")
+		fmt.Fprint(os.Stderr, i18n.T("cmd.export.prompt.confirmPass"))
 		confirm, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			zeroBytes(exportPass)
-			return fmt.Errorf("reading export passphrase confirmation: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.readConfirmPass"), err)
 		}
 
 		if !bytes.Equal(exportPass, confirm) {
 			zeroBytes(confirm)
 			zeroBytes(exportPass)
-			fmt.Fprintln(os.Stderr, "Error: passphrases do not match. Try again.")
+			fmt.Fprintln(os.Stderr, i18n.T("cmd.export.error.passMismatch"))
 			continue
 		}
 		zeroBytes(confirm)
@@ -102,25 +98,22 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	data, err := mgr.ExportCredentials(exportPass)
 	if err != nil {
-		return fmt.Errorf("export failed: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("cmd.export.error.export"), err)
 	}
 	defer zeroBytes(data)
 
 	if err := os.WriteFile(outPath, data, 0600); err != nil {
-		return fmt.Errorf("writing backup file %q: %w", outPath, err)
+		return fmt.Errorf("%s: %w", i18n.Tf("cmd.export.error.writeFile", map[string]any{"Path": outPath}), err)
 	}
 
 	if builder != nil {
 		if logErr := builder.LogEvent("credential-export", "", "", audit.Hostname(), true); logErr != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Audit log failed: %v\n", logErr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",
+				i18n.Tf("cmd.export.warn.auditFailed", map[string]any{"Err": logErr}))
 		}
 	}
 
 	credCount := len(mgr.ListCredentials())
-	fmt.Printf("Exported %d credential", credCount)
-	if credCount != 1 {
-		fmt.Print("s")
-	}
-	fmt.Printf(" to %s\n", outPath)
+	fmt.Print(i18n.Tp("cmd.export.success", credCount, map[string]any{"Path": outPath}))
 	return nil
 }

@@ -14,6 +14,8 @@ import (
 
 // Config holds the runtime configuration for Tegata.
 type Config struct {
+	// Language is the UI language code ("en" or "ja"). Defaults to "en".
+	Language         string
 	ClipboardTimeout time.Duration
 	IdleTimeout      time.Duration
 	// Audit holds optional ScalarDL Ledger integration settings. When
@@ -92,6 +94,7 @@ type tomlAuditConfig struct {
 // tomlConfig is the intermediate deserialization struct. Pointer fields
 // distinguish "not set" from "zero value".
 type tomlConfig struct {
+	Language  *string `toml:"language"`
 	Clipboard struct {
 		Timeout *int `toml:"timeout"`
 	} `toml:"clipboard"`
@@ -112,6 +115,7 @@ const (
 // by default with a 10,000-event offline queue capacity.
 func DefaultConfig() Config {
 	return Config{
+		Language:         "en-us",
 		ClipboardTimeout: time.Duration(defaultClipboardTimeout) * time.Second,
 		IdleTimeout:      time.Duration(defaultIdleTimeout) * time.Second,
 		Audit: AuditConfig{
@@ -140,6 +144,9 @@ func Load(dir string) (Config, error) {
 	}
 
 	cfg := DefaultConfig()
+	if tc.Language != nil {
+		cfg.Language = *tc.Language
+	}
 	if tc.Clipboard.Timeout != nil {
 		cfg.ClipboardTimeout = time.Duration(*tc.Clipboard.Timeout) * time.Second
 	}
@@ -209,6 +216,9 @@ func WriteDefaults(dir string) error {
 	content := `# Tegata configuration
 # Settings travel with the vault on USB.
 
+# Interface language (en-us = American English, ja-jp = Japanese); default: en-us
+# language = "en-us"
+
 [clipboard]
 # Auto-clear timeout in seconds (default: 45)
 # timeout = 45
@@ -242,7 +252,9 @@ func WriteDefaults(dir string) error {
 
 // FormatEffective returns a human-readable display of the effective
 // configuration. When hasFile is false, values are annotated with "(default)".
-func FormatEffective(cfg Config, hasFile bool) string {
+// The suffix and label strings are caller-supplied so that cmd-layer code can
+// pass i18n-translated values without creating an import cycle.
+func FormatEffective(cfg Config, hasFile bool, defaultLabel string) string {
 	var b strings.Builder
 
 	clipSec := int(cfg.ClipboardTimeout.Seconds())
@@ -250,9 +262,15 @@ func FormatEffective(cfg Config, hasFile bool) string {
 
 	suffix := ""
 	if !hasFile {
-		suffix = "  (default)"
+		suffix = defaultLabel
 	}
 
+	lang := cfg.Language
+	if lang == "" {
+		lang = "en"
+	}
+
+	fmt.Fprintf(&b, "language = %s%s\n", lang, suffix)
 	fmt.Fprintf(&b, "clipboard.timeout = %d%s\n", clipSec, suffix)
 	fmt.Fprintf(&b, "vault.idle_timeout = %d%s\n", idleSec, suffix)
 
