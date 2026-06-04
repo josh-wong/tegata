@@ -76,6 +76,10 @@ func run() error {
 			// early pre-parse in initI18n and ensures runtime output (error
 			// messages, status lines, prompts) uses the vault's stored language.
 			// --lang always takes priority over the stored setting.
+			//
+			// Limitation: cobra Short/Long/Example strings are baked in at
+			// phase-1 (initI18n). If phase-2 changes the language they will
+			// stay in the phase-1 language for this invocation's --help output.
 			if langFlag != "" {
 				i18n.Init(normalizeLangFlag(langFlag))
 			} else if vaultPath, err := resolveVaultPath(cmd); err == nil {
@@ -165,10 +169,10 @@ func initI18n() {
 // passed through unchanged so Init can fall back to American English.
 func normalizeLangFlag(code string) string {
 	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "en", "en-us":
-		return "en-us"
-	case "ja", "ja-jp":
-		return "ja-jp"
+	case "en", i18n.LangEnUS:
+		return i18n.LangEnUS
+	case "ja", i18n.LangJaJP:
+		return i18n.LangJaJP
 	default:
 		return code
 	}
@@ -176,14 +180,16 @@ func normalizeLangFlag(code string) string {
 
 // preParseLangFlag scans os.Args for --lang or --lang=<value> before cobra
 // has parsed flags, so the language is available when constructing commands.
+// Values are unquoted so that --lang="en-us" and --lang=en-us are equivalent.
 func preParseLangFlag() string {
 	args := os.Args[1:]
 	for i, arg := range args {
 		if strings.HasPrefix(arg, "--lang=") {
-			return strings.TrimPrefix(arg, "--lang=")
+			val := strings.TrimPrefix(arg, "--lang=")
+			return strings.Trim(val, `"'`)
 		}
 		if arg == "--lang" && i+1 < len(args) {
-			return args[i+1]
+			return strings.Trim(args[i+1], `"'`)
 		}
 	}
 	return ""

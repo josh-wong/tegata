@@ -1,5 +1,5 @@
 // Package i18n provides localization for Tegata CLI and TUI output.
-// Supported language codes: "en-us" (American English), "ja-jp" (Japanese).
+// Supported language codes: LangEnUS (American English), LangJaJP (Japanese).
 // Unknown codes silently fall back to American English.
 package i18n
 
@@ -8,50 +8,71 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 
 	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
 
+// LangEnUS and LangJaJP are the canonical lowercase BCP 47 codes for the two
+// supported locales. Use these constants everywhere instead of bare string
+// literals so that adding a third language only requires changes in one place.
+const (
+	LangEnUS = "en-us"
+	LangJaJP = "ja-jp"
+)
+
 //go:embed locales/*.json
 var localeFS embed.FS
 
-var localizer *goi18n.Localizer
+// mu guards localizer. Init() is called from the main goroutine (twice: early
+// pre-parse and PersistentPreRun), while T/Tf/Tp may be called concurrently
+// from TUI event handlers and background audit goroutines.
+var (
+	mu       sync.RWMutex
+	localizer *goi18n.Localizer
+)
 
 // SupportedLanguages lists the valid language codes users may specify.
-// Lowercase BCP 47-style codes: en-us = American English, ja-jp = Japanese.
+// Lowercase BCP 47-style codes: LangEnUS = American English, LangJaJP = Japanese.
 // The capitalised forms (en-US, ja-JP) and short forms (en, ja) are also
 // accepted as input and normalised by normalizeLangFlag in main.go.
-var SupportedLanguages = []string{"en-us", "ja-jp"}
+var SupportedLanguages = []string{LangEnUS, LangJaJP}
 
 // Init initializes the global localizer for the given language code.
 // Must be called once before any T/Tf/Tp calls, ideally before building
 // the cobra command tree so that Short/Long/Example strings are translated.
 func Init(lang string) {
-	bundle := goi18n.NewBundle(language.MustParse("en-us"))
+	bundle := goi18n.NewBundle(language.MustParse(LangEnUS))
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 
 	// Base American English messages are always loaded.
-	if _, err := bundle.LoadMessageFileFS(localeFS, "locales/en-us.json"); err != nil {
+	if _, err := bundle.LoadMessageFileFS(localeFS, "locales/"+LangEnUS+".json"); err != nil {
 		panic("i18n: failed to load en-us.json: " + err.Error())
 	}
 
 	// Load the requested locale if it differs from American English.
-	if lang != "" && lang != "en-us" {
+	if lang != "" && lang != LangEnUS {
 		// Silently ignore unsupported locales; fall back to en-us.
 		_, _ = bundle.LoadMessageFileFS(localeFS, "locales/"+lang+".json")
 	}
 
-	localizer = goi18n.NewLocalizer(bundle, lang, "en-us")
+	l := goi18n.NewLocalizer(bundle, lang, LangEnUS)
+	mu.Lock()
+	localizer = l
+	mu.Unlock()
 }
 
 // T returns the localized string for messageID. Falls back to messageID if
 // the message is missing (which should never happen in production).
 func T(messageID string) string {
-	if localizer == nil {
+	mu.RLock()
+	l := localizer
+	mu.RUnlock()
+	if l == nil {
 		return messageID
 	}
-	msg, err := localizer.Localize(&goi18n.LocalizeConfig{MessageID: messageID})
+	msg, err := l.Localize(&goi18n.LocalizeConfig{MessageID: messageID})
 	if err != nil {
 		return messageID
 	}
@@ -61,10 +82,13 @@ func T(messageID string) string {
 // Tf returns the localized string with template variables substituted.
 // data keys must match {{.Key}} placeholders in the message template.
 func Tf(messageID string, data map[string]any) string {
-	if localizer == nil {
+	mu.RLock()
+	l := localizer
+	mu.RUnlock()
+	if l == nil {
 		return messageID
 	}
-	msg, err := localizer.Localize(&goi18n.LocalizeConfig{
+	msg, err := l.Localize(&goi18n.LocalizeConfig{
 		MessageID:    messageID,
 		TemplateData: data,
 	})
@@ -77,14 +101,17 @@ func Tf(messageID string, data map[string]any) string {
 // Tp returns the localized pluralized string. count is used to select the
 // plural form; it is also available as {{.Count}} in the message template.
 func Tp(messageID string, count int, data map[string]any) string {
-	if localizer == nil {
+	mu.RLock()
+	l := localizer
+	mu.RUnlock()
+	if l == nil {
 		return messageID
 	}
 	if data == nil {
 		data = map[string]any{}
 	}
 	data["Count"] = count
-	msg, err := localizer.Localize(&goi18n.LocalizeConfig{
+	msg, err := l.Localize(&goi18n.LocalizeConfig{
 		MessageID:    messageID,
 		PluralCount:  count,
 		TemplateData: data,
