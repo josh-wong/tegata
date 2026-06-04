@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/josh-wong/tegata/internal/crypto"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
@@ -96,7 +97,7 @@ func (m model) updateWizardWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if raw != "" {
 				resolved, err := resolvePathArg(raw)
 				if err != nil {
-					m.errMsg = "Invalid path: " + humanizeError(err)
+					m.errMsg = i18n.T("tui.wizard.error.invalidPath") + humanizeError(err)
 					// No explicit Focus() call needed: the input retains focus
 					// because we never called Blur() on this path.
 					return m, nil
@@ -178,7 +179,7 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.creating = false
 		if msg.err != nil {
 			// Creation failed: return to passphrase step with error.
-			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
+			m.errMsg = i18n.T("tui.wizard.error.vaultCreation") + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.confirmInput.Blur()
 			m.passphraseInput.Focus()
@@ -226,13 +227,13 @@ func (m model) updateWizardPassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pass := m.passphraseInput.Value()
 			confirm := m.confirmInput.Value()
 			if len(pass) < 8 {
-				m.errMsg = "Passphrase must be at least 8 characters"
+				m.errMsg = i18n.T("tui.wizard.error.shortPass")
 				m.confirmInput.Blur()
 				m.passphraseInput.Focus()
 				return m, nil
 			}
 			if pass != confirm {
-				m.errMsg = "Passphrases do not match"
+				m.errMsg = i18n.T("tui.wizard.error.passMismatch")
 				m.confirmInput.Reset()
 				m.confirmInput.Blur()
 				m.passphraseInput.Focus()
@@ -297,7 +298,7 @@ func (m model) updateWizardRecoveryKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle vault creation result that arrives while on the recovery screen.
 		m.creating = false
 		if msg.err != nil {
-			m.errMsg = "Vault creation failed: " + humanizeError(msg.err)
+			m.errMsg = i18n.T("tui.wizard.error.vaultCreation") + humanizeError(msg.err)
 			m.state = stateWizardPassphrase
 			m.passphraseInput.Focus()
 			return m, nil
@@ -337,6 +338,7 @@ func (m model) updateWizardAddCredential(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			m = loadCredentials(m)
 			m.lastActivity = time.Now()
+			m.resetAddOverlay()
 			m.state = stateOverlayAdd
 			m.addLabelInput.Focus()
 			return m, tickCmd()
@@ -364,77 +366,70 @@ func (m model) viewWizard() string {
 
 // viewWizardWelcome renders step 1/5.
 func (m model) viewWizardWelcome() string {
-	tip := tipStyle.Render("💡 Tip: Store your vault on a USB or microSD for security\n" +
-		"and portability. Install Tegata on any device to access it.")
-	content := titleStyle.Render("Welcome to Tegata") + "\n\n" +
-		"Tegata is a portable authenticator that stores your 2FA\n" +
-		"codes and other credentials in an encrypted vault.\n\n" +
+	tip := tipStyle.Render(i18n.T("tui.wizard.tip"))
+	content := titleStyle.Render(i18n.T("tui.wizard.title.welcome")) + "\n\n" +
+		i18n.T("tui.wizard.description") + "\n\n" +
 		tip + "\n\n" +
 		m.vaultPathInput.View() + "\n"
 
 	if m.localVaultWarn {
-		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render("⚠️ Warning: This path doesn't appear to be on a removable\n" +
-			"drive. For better security, store your vault on a USB or\n" +
-			"microSD card; physical separation helps keep your vault\n" +
-			"safe if your computer is compromised.\n" +
-			"Press Enter again to proceed with this location.")
+		warn := warnStyle.AlignHorizontal(lipgloss.Center).Render(i18n.T("tui.wizard.warn.notRemovable"))
 		content += "\n" + warn + "\n"
 	}
 	if m.errMsg != "" {
 		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 	}
 	if m.localVaultWarn {
-		content += "\n" + helpBarStyle.Render("[Enter] Proceed anyway  [Esc] Quit")
+		content += "\n" + helpBarStyle.Render(i18n.T("tui.wizard.helpBar.proceedAnyway"))
 	} else {
-		content += "\n" + helpBarStyle.Render("[Enter] Continue  [Esc] Quit")
+		content += "\n" + helpBarStyle.Render(i18n.T("tui.wizard.helpBar.continue"))
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// viewWizardPassphrase renders step 2/4.
+// viewWizardPassphrase renders step 2/5.
 func (m model) viewWizardPassphrase() string {
 	ppBytes := []byte(m.passphraseInput.Value())
 	strength := strengthLabel(ppBytes)
 	zeroBytes(ppBytes)
-	content := titleStyle.Render("Step 2/5: Set passphrase") + "\n\n" +
+	content := titleStyle.Render(i18n.T("tui.wizard.title.passphrase")) + "\n\n" +
 		m.passphraseInput.View() + "\n" +
 		m.confirmInput.View() + "\n\n" +
-		"Strength: " + strength + "\n"
+		i18n.T("tui.wizard.strength.label") + strength + "\n"
 
 	if m.errMsg != "" {
 		content += "\n" + renderErrMsg(m.errMsg, m.width) + "\n"
 	}
 	if m.creating {
-		content += "\n" + m.spinner.View() + " Creating vault…\n"
+		content += "\n" + m.spinner.View() + " " + i18n.T("tui.wizard.creating") + "\n"
 	} else {
-		content += "\n" + helpBarStyle.Render("[Enter] Next field  [Tab] Switch field  [Esc] Quit")
+		content += "\n" + helpBarStyle.Render(i18n.T("tui.wizard.helpBar.passphrase"))
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// viewWizardRecoveryKey renders step 3/4.
+// viewWizardRecoveryKey renders step 3/5.
 func (m model) viewWizardRecoveryKey() string {
 	var content string
 	if m.creating || m.recoveryKey == "" {
 		// Vault is still being created in the background; show a spinner.
-		content = titleStyle.Render("Step 3/5: Recovery key") + "\n\n" +
-			m.spinner.View() + " Creating vault… please wait.\n"
+		content = titleStyle.Render(i18n.T("tui.wizard.title.recoveryKey")) + "\n\n" +
+			m.spinner.View() + " " + i18n.T("tui.wizard.creatingWait") + "\n"
 	} else {
 		keyBox := overlayBoxStyle.Render(m.recoveryKey)
-		content = titleStyle.Render("Step 3/5: Recovery key") + "\n\n" +
+		content = titleStyle.Render(i18n.T("tui.wizard.title.recoveryKey")) + "\n\n" +
 			keyBox + "\n\n" +
-			errorStyle.Render("Write this down. You cannot recover your vault without it.") + "\n\n" +
-			helpBarStyle.Render("[Enter] I have stored my recovery key")
+			errorStyle.Render(i18n.T("tui.wizard.recoveryKeyAdvice")) + "\n\n" +
+			helpBarStyle.Render(i18n.T("tui.wizard.helpBar.recoveryKey"))
 	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// viewWizardAddCredential renders step 4/4.
+// viewWizardAddCredential renders step 4/5.
 func (m model) viewWizardAddCredential() string {
-	content := titleStyle.Render("Step 4/5: Add your first credential") + "\n\n" +
-		"Add a TOTP, HOTP, challenge-response, or static password credential\n" +
-		"to get started. You can add more credentials later from the main view.\n\n" +
-		helpBarStyle.Render("[Enter] Add credential  [Esc] Skip")
+	content := titleStyle.Render(i18n.T("tui.wizard.title.firstCredential")) + "\n\n" +
+		i18n.T("tui.wizard.firstCredentialDesc") + "\n\n" +
+		helpBarStyle.Render(i18n.T("tui.wizard.helpBar.firstCredential"))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
@@ -463,11 +458,9 @@ func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // viewWizardAuditOptIn renders step 5/5.
 func (m model) viewWizardAuditOptIn() string {
-	content := titleStyle.Render("Step 5/5: Audit logging") + "\n\n" +
-		"Tegata can log every authentication event to a\n" +
-		"tamper-evident ledger. This requires Docker to be\n" +
-		"installed on the host machine.\n\n" +
-		helpBarStyle.Render("[y] Enable audit logging  [n] Skip for now")
+	content := titleStyle.Render(i18n.T("tui.wizard.title.audit")) + "\n\n" +
+		i18n.T("tui.wizard.auditDesc") + "\n\n" +
+		helpBarStyle.Render(i18n.T("tui.wizard.helpBar.audit"))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/josh-wong/tegata/internal/i18n"
 	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 	"github.com/spf13/cobra"
 )
@@ -14,16 +15,16 @@ func newListCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
-		Short:   "List all credentials in the vault",
+		Short:   i18n.T("cmd.list.short"),
 		Args:    cobra.NoArgs,
-		Example: `  tegata list`,
+		Example: i18n.T("cmd.list.example"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath, err := resolveVaultPath(cmd)
 			if err != nil {
 				return err
 			}
 
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
@@ -37,7 +38,7 @@ func newListCmd() *cobra.Command {
 
 			creds := mgr.ListCredentials()
 			if len(creds) == 0 {
-				fmt.Println("No credentials stored. Run tegata add to add one.")
+				fmt.Println(i18n.T("cmd.list.empty"))
 				return nil
 			}
 
@@ -47,14 +48,14 @@ func newListCmd() *cobra.Command {
 				// Flat filtered list: only credentials with an exact case-sensitive
 				// match against the requested tag.
 				w := tabwriter.NewWriter(out, 0, 2, 3, ' ', 0)
-				_, _ = fmt.Fprintln(w, "LABEL\tISSUER\tTYPE")
+				_, _ = fmt.Fprintln(w, i18n.T("cmd.list.header"))
 				matched := 0
 				for _, c := range creds {
 					for _, t := range c.Tags {
 						if t == tagFilter {
 							issuer := c.Issuer
 							if issuer == "" {
-								issuer = "--"
+								issuer = i18n.T("cmd.list.emptyIssuer")
 							}
 							_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", c.Label, issuer, c.Type)
 							matched++
@@ -63,7 +64,8 @@ func newListCmd() *cobra.Command {
 					}
 				}
 				if matched == 0 {
-					if _, err := fmt.Fprintf(out, "No credentials with tag %q.\n", tagFilter); err != nil {
+					if _, err := fmt.Fprint(out,
+						i18n.Tf("cmd.list.emptyTag", map[string]any{"Tag": tagFilter})); err != nil {
 						return err
 					}
 				}
@@ -72,7 +74,6 @@ func newListCmd() *cobra.Command {
 
 			// Default grouped output: credentials appear under each tag they
 			// belong to. Credentials with no tags appear under [untagged].
-			// Collect tag set and sort for deterministic output.
 			tagSet := map[string][]pkgmodel.Credential{}
 			var untagged []pkgmodel.Credential
 			for _, c := range creds {
@@ -85,7 +86,6 @@ func newListCmd() *cobra.Command {
 				}
 			}
 
-			// Sort tag names for stable output.
 			var tagNames []string
 			for t := range tagSet {
 				tagNames = append(tagNames, t)
@@ -100,7 +100,7 @@ func newListCmd() *cobra.Command {
 				for _, c := range tagSet[tag] {
 					issuer := c.Issuer
 					if issuer == "" {
-						issuer = "--"
+						issuer = i18n.T("cmd.list.emptyIssuer")
 					}
 					_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Label, issuer, c.Type)
 				}
@@ -111,13 +111,13 @@ func newListCmd() *cobra.Command {
 			}
 
 			if len(untagged) > 0 {
-				if _, err := fmt.Fprintf(out, "[untagged]\n"); err != nil {
+				if _, err := fmt.Fprintf(out, "[%s]\n", i18n.T("cmd.list.untagged")); err != nil {
 					return err
 				}
 				for _, c := range untagged {
 					issuer := c.Issuer
 					if issuer == "" {
-						issuer = "--"
+						issuer = i18n.T("cmd.list.emptyIssuer")
 					}
 					_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Label, issuer, c.Type)
 				}
@@ -131,7 +131,7 @@ func newListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&tagFilter, "tag", "", "filter credentials by tag (case-sensitive exact match)")
+	cmd.Flags().StringVar(&tagFilter, "tag", "", i18n.T("cmd.list.flag.tag"))
 
 	return cmd
 }

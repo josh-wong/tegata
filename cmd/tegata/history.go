@@ -13,6 +13,7 @@ import (
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/config"
 	tegerrors "github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -28,20 +29,11 @@ func newHistoryCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "history",
-		Short: "View authentication history from ScalarDL Ledger",
-		Long: `Retrieve and display authentication event records from the ScalarDL Ledger.
-Events are stored as hashed records; label and service name hashes protect
-user privacy in the audit log.
-
-Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
-		Example: `  tegata history
-  tegata history --from 2026-01-01 --to 2026-03-31
-  tegata history --type totp
-  tegata history --sort operation --order asc
-  tegata history --limit 20
-  tegata history --json`,
-		Args: cobra.NoArgs,
+		Use:     "history",
+		Short:   i18n.T("cmd.history.short"),
+		Long:    i18n.T("cmd.history.long"),
+		Example: i18n.T("cmd.history.example"),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			vaultPath, err := resolveVaultPath(cmd)
 			if err != nil {
@@ -50,7 +42,7 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 
 			cfg, err := config.Load(vaultDir(vaultPath))
 			if err != nil {
-				return fmt.Errorf("loading config: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("cmd.history.error.loadConfig"), err)
 			}
 
 			if !cfg.Audit.Enabled {
@@ -58,37 +50,35 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return nil
 			}
 
-			// Validate --sort and --order flag values.
 			validSortCols := map[string]bool{"operation": true, "label": true, "timestamp": true, "hash": true}
 			if sortBy != "" && !validSortCols[sortBy] {
-				return fmt.Errorf("invalid --sort value %q (expected: operation, label, timestamp, hash): %w",
-					sortBy, tegerrors.ErrInvalidInput)
+				return fmt.Errorf("%s: %w",
+					i18n.Tf("cmd.history.error.invalidSort",
+						map[string]any{"Value": sortBy}), tegerrors.ErrInvalidInput)
 			}
 			if order != "" && order != "asc" && order != "desc" {
-				return fmt.Errorf("invalid --order value %q (expected: asc, desc): %w",
-					order, tegerrors.ErrInvalidInput)
+				return fmt.Errorf("%s: %w",
+					i18n.Tf("cmd.history.error.invalidOrder",
+						map[string]any{"Value": order}), tegerrors.ErrInvalidInput)
 			}
 
-			// Unlock vault to resolve label hashes to human-readable names.
-			passphrase, err := promptPassphrase("Passphrase: ")
+			passphrase, err := promptPassphrase(i18n.T("cmd.prompt.passphrase"))
 			if err != nil {
 				return err
 			}
 			mgr, err := openAndUnlock(vaultPath, passphrase)
 			zeroBytes(passphrase)
 			if err != nil {
-				return fmt.Errorf("unlocking vault: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("cmd.history.error.unlockVault"), err)
 			}
 			defer mgr.Close()
 
-			// Load HMAC secret from vault and inject into config.
 			secretFromVault := mgr.GetSecret("audit.secret_key")
 			if secretFromVault != "" {
 				cfg.Audit.SecretKey = secretFromVault
 			}
 			defer func() { cfg.Audit.SecretKey = "" }()
 
-			// Build hash→label lookup from vault credentials.
 			creds := mgr.ListCredentials()
 			labels := make([]string, len(creds))
 			for i, c := range creds {
@@ -114,10 +104,9 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				return err
 			}
 			if result.Warning != "" {
-				fmt.Fprintf(os.Stderr, "warning: %s\n", result.Warning)
+				fmt.Fprintf(os.Stderr, "%s", i18n.Tf("cmd.history.warn", map[string]any{"Msg": result.Warning}))
 			}
 
-			// Convert to local historyRecord for filtering/display.
 			records := make([]historyRecord, len(result.Records))
 			for i, r := range result.Records {
 				records[i] = historyRecord{
@@ -129,32 +118,28 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 				}
 			}
 
-			// Parse --from and --to date filters.
 			var fromTime, toTime time.Time
 			if from != "" {
 				fromTime, err = time.ParseInLocation("2006-01-02", from, time.Local)
 				if err != nil {
-					return fmt.Errorf("invalid --from date %q (expected YYYY-MM-DD): %w",
-						from, tegerrors.ErrInvalidInput)
+					return fmt.Errorf("%s: %w",
+						i18n.Tf("cmd.history.error.invalidFrom",
+							map[string]any{"Value": from}), tegerrors.ErrInvalidInput)
 				}
 			}
 			if to != "" {
 				toTime, err = time.ParseInLocation("2006-01-02", to, time.Local)
 				if err != nil {
-					return fmt.Errorf("invalid --to date %q (expected YYYY-MM-DD): %w",
-						to, tegerrors.ErrInvalidInput)
+					return fmt.Errorf("%s: %w",
+						i18n.Tf("cmd.history.error.invalidTo",
+							map[string]any{"Value": to}), tegerrors.ErrInvalidInput)
 				}
-				// Include the full end day.
 				toTime = toTime.Add(24*time.Hour - time.Nanosecond)
 			}
 
-			// Apply date and operation type filters.
 			filtered := filterRecords(records, fromTime, toTime, opType)
-
-			// Apply column sort (default: timestamp desc, already set by FetchHistory).
 			sortRecords(filtered, labelMap, deletedMap, sortBy, order)
 
-			// Apply row limit.
 			if limit > 0 && len(filtered) > limit {
 				filtered = filtered[:limit]
 			}
@@ -170,13 +155,13 @@ Requires audit to be enabled in tegata.toml ([audit] enabled = true).`,
 		},
 	}
 
-	cmd.Flags().StringVar(&from, "from", "", "start date filter (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&to, "to", "", "end date filter (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&opType, "type", "", "filter by operation type (e.g., totp, hotp, vault-unlock)")
-	cmd.Flags().StringVar(&sortBy, "sort", "", "sort column (operation, label, timestamp, hash); default: timestamp")
-	cmd.Flags().StringVar(&order, "order", "", "sort order (asc, desc); default: desc when --sort is timestamp, asc otherwise")
-	cmd.Flags().IntVar(&limit, "limit", 0, "maximum number of rows to display (0 = no limit)")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON array")
+	cmd.Flags().StringVar(&from, "from", "", i18n.T("cmd.history.flag.from"))
+	cmd.Flags().StringVar(&to, "to", "", i18n.T("cmd.history.flag.to"))
+	cmd.Flags().StringVar(&opType, "type", "", i18n.T("cmd.history.flag.type"))
+	cmd.Flags().StringVar(&sortBy, "sort", "", i18n.T("cmd.history.flag.sort"))
+	cmd.Flags().StringVar(&order, "order", "", i18n.T("cmd.history.flag.order"))
+	cmd.Flags().IntVar(&limit, "limit", 0, i18n.T("cmd.history.flag.limit"))
+	cmd.Flags().BoolVar(&jsonOut, "json", false, i18n.T("cmd.history.flag.json"))
 
 	return cmd
 }
@@ -220,7 +205,6 @@ func filterRecords(records []historyRecord, from, to time.Time, opType string) [
 // label-column sorting.
 func sortRecords(records []historyRecord, labelMap, deletedMap map[string]string, sortBy, order string) {
 	if sortBy == "" {
-		// Already in default order (timestamp desc). Apply ascending flip if requested.
 		if order == "asc" {
 			for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
 				records[i], records[j] = records[j], records[i]
@@ -250,7 +234,7 @@ func sortRecords(records []historyRecord, labelMap, deletedMap map[string]string
 				return records[i].HashValue > records[j].HashValue
 			}
 			return records[i].HashValue < records[j].HashValue
-		default: // "timestamp" — only remaining valid value after upstream validation
+		default: // "timestamp"
 			if order == "asc" {
 				return records[i].Timestamp < records[j].Timestamp
 			}
@@ -259,18 +243,16 @@ func sortRecords(records []historyRecord, labelMap, deletedMap map[string]string
 	})
 }
 
-// printRecordsTable writes a human-readable tabular display of history records
-// with operation, label, timestamp, and hash columns. Labels are resolved from
-// hashes using labelMap and deletedMap; deleted credentials show as "Label (deleted)".
+// printRecordsTable writes a human-readable tabular display of history records.
 func printRecordsTable(records []historyRecord, labelMap, deletedMap map[string]string) {
 	if len(records) == 0 {
-		fmt.Println("No audit events found.")
+		fmt.Println(i18n.T("cmd.history.empty"))
 		return
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Operation\tLabel\tTimestamp\tHash")
-	_, _ = fmt.Fprintln(w, "---------\t-----\t---------\t----")
+	_, _ = fmt.Fprintln(w, i18n.T("cmd.history.header"))
+	_, _ = fmt.Fprintln(w, i18n.T("cmd.history.headerSep"))
 	for _, r := range records {
 		label := audit.ResolveLabelWithDeleted(r.LabelHash, labelMap, deletedMap)
 		op := audit.FormatOperation(r.Operation)

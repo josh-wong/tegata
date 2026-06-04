@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -26,6 +27,28 @@ func WriteClipboardVaultSections(dir string, clipboardTimeout, idleTimeout int) 
 	content = rewriteSection([]byte(content), "vault", vaultBlock)
 
 	return os.WriteFile(path, []byte(content), 0600)
+}
+
+// rewriteTopLevelKey replaces or inserts a bare top-level key = value line
+// (i.e. not inside a [section]) in existing. newLine must end with "\n".
+func rewriteTopLevelKey(existing []byte, key, newLine string) string {
+	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `\s*=.*$`)
+	if re.Match(existing) {
+		replaced := re.ReplaceAllLiteral(existing, []byte(strings.TrimRight(newLine, "\n")))
+		return string(replaced)
+	}
+	// Insert before the first [section] header, or at top if none exists.
+	idx := bytes.Index(existing, []byte("\n["))
+	if idx >= 0 {
+		before := string(existing[:idx+1])
+		after := string(existing[idx+1:])
+		return before + newLine + "\n" + after
+	}
+	content := strings.TrimRight(string(existing), "\n")
+	if content != "" {
+		return content + "\n" + newLine
+	}
+	return newLine
 }
 
 // rewriteSection replaces the named TOML section in existing with newBlock,
