@@ -1,5 +1,8 @@
 import "@testing-library/jest-dom"
 
+// react-i18next is aliased to our own shim (react-i18next-shim.tsx) via
+// vitest.config.ts, so no mock is needed — the shim is the real implementation.
+
 vi.mock("@/lib/wails", () => import("./__mocks__/wails"))
 
 // jsdom does not implement window.matchMedia — provide a minimal polyfill

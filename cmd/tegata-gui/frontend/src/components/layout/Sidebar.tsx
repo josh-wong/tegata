@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ChevronRight, Copy, Key, Plus, Search, Trash2, Check, CheckCheck, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,6 +62,7 @@ export function Sidebar({
   onEdit,
   onRemove,
 }: SidebarProps) {
+  const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [deleteConfirmCred, setDeleteConfirmCred] = useState<Credential | null>(null)
@@ -70,6 +72,8 @@ export function Sidebar({
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [bulkDeleteInput, setBulkDeleteInput] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const confirmWord = t("gui.common.confirmWord")
 
   // Flip the context menu upward / leftward if it would overflow the viewport.
   useLayoutEffect(() => {
@@ -126,7 +130,7 @@ export function Sidebar({
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search credentials..."
+              placeholder={t("gui.sidebar.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="h-8 pl-8 text-sm"
@@ -145,7 +149,7 @@ export function Sidebar({
                 setSelectedCreds(new Set())
               }}
             >
-              Cancel
+              {t("gui.sidebar.cancelSelection")}
             </Button>
           )}
         </div>
@@ -173,7 +177,7 @@ export function Sidebar({
                     !collapsed.has(tag) && "rotate-90",
                   )}
                 />
-                {tag}
+                {tag === "[Uncategorized]" ? t("gui.sidebar.uncategorized") : tag}
               </button>
 
               {!collapsed.has(tag) &&
@@ -246,8 +250,8 @@ export function Sidebar({
           {filtered.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               {credentials.length === 0
-                ? "No credentials yet"
-                : "No matches found"}
+                ? t("gui.sidebar.noCredentials")
+                : t("gui.sidebar.noMatches")}
             </p>
           )}
         </div>
@@ -262,7 +266,7 @@ export function Sidebar({
             onClick={() => setBulkDeleteConfirm(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Remove {selectedCreds.size} selected
+            {t("gui.sidebar.removeSelected", { count: selectedCreds.size })}
           </Button>
         </div>
       )}
@@ -278,7 +282,7 @@ export function Sidebar({
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               onClick={() => { onCopyCode(ctxMenu.credential.label); setCtxMenu(null) }}
             >
-              <Copy className="h-3.5 w-3.5" /> Copy code
+              <Copy className="h-3.5 w-3.5" /> {t("gui.sidebar.contextCopyCode")}
             </button>
           )}
           {ctxMenu.credential.type === "static" && (
@@ -286,26 +290,26 @@ export function Sidebar({
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               onClick={() => { onCopyPassword(ctxMenu.credential.label); setCtxMenu(null) }}
             >
-              <Key className="h-3.5 w-3.5" /> Copy password
+              <Key className="h-3.5 w-3.5" /> {t("gui.sidebar.contextCopyPassword")}
             </button>
           )}
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
             onClick={() => { onEdit(ctxMenu.credential); setCtxMenu(null) }}
           >
-            <Edit className="h-3.5 w-3.5" /> Edit
+            <Edit className="h-3.5 w-3.5" /> {t("gui.sidebar.contextEdit")}
           </button>
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
             onClick={() => { setDeleteConfirmCred(ctxMenu.credential); setCtxMenu(null) }}
           >
-            <Trash2 className="h-3.5 w-3.5" /> Remove
+            <Trash2 className="h-3.5 w-3.5" /> {t("gui.sidebar.contextRemove")}
           </button>
           <button
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent"
             onClick={() => { setSelectionMode(true); setSelectedCreds(new Set([ctxMenu.credential.id])); setCtxMenu(null) }}
           >
-            <CheckCheck className="h-3.5 w-3.5" /> Remove multiple
+            <CheckCheck className="h-3.5 w-3.5" /> {t("gui.sidebar.contextRemoveMultiple")}
           </button>
         </div>
       )}
@@ -314,18 +318,18 @@ export function Sidebar({
       <Dialog open={!!deleteConfirmCred} onOpenChange={(open) => { if (!open) { setDeleteConfirmCred(null); setDeleteConfirmInput("") } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove credential?</DialogTitle>
+            <DialogTitle>{t("gui.sidebar.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of "{deleteConfirmCred?.label}".
+              {t("gui.sidebar.deleteDescription", { confirmWord, label: deleteConfirmCred?.label })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder='Type "REMOVE" to confirm'
+              placeholder={t("gui.sidebar.deleteConfirmPlaceholder", { confirmWord })}
               value={deleteConfirmInput}
               onChange={(e) => setDeleteConfirmInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && deleteConfirmInput === "REMOVE" && deleteConfirmCred) {
+                if (e.key === "Enter" && deleteConfirmInput === confirmWord && deleteConfirmCred) {
                   onRemove(deleteConfirmCred.id)
                   setDeleteConfirmCred(null)
                   setDeleteConfirmInput("")
@@ -343,9 +347,9 @@ export function Sidebar({
                     setDeleteConfirmInput("")
                   }
                 }}
-                disabled={deleteConfirmInput !== "REMOVE"}
+                disabled={deleteConfirmInput !== confirmWord}
               >
-                Remove
+                {t("gui.common.remove")}
               </Button>
               <Button
                 variant="outline"
@@ -354,7 +358,7 @@ export function Sidebar({
                   setDeleteConfirmInput("")
                 }}
               >
-                Cancel
+                {t("gui.common.cancel")}
               </Button>
             </div>
           </div>
@@ -365,9 +369,14 @@ export function Sidebar({
       <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => { if (!open) { setBulkDeleteConfirm(false); setBulkDeleteInput("") } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove {selectedCreds.size} {selectedCreds.size === 1 ? "credential" : "credentials"}?</DialogTitle>
+            <DialogTitle>
+              {t("gui.sidebar.bulkDeleteTitle", { count: selectedCreds.size })}
+            </DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of {selectedCreds.size === 1 ? "this credential" : `these ${selectedCreds.size} credentials`}.
+              {t(selectedCreds.size === 1 ? "gui.sidebar.bulkDeleteDesc_one" : "gui.sidebar.bulkDeleteDesc_other", {
+                count: selectedCreds.size,
+                confirmWord,
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -382,11 +391,11 @@ export function Sidebar({
               </ul>
             </div>
             <Input
-              placeholder='Type "REMOVE" to confirm'
+              placeholder={t("gui.sidebar.deleteConfirmPlaceholder", { confirmWord })}
               value={bulkDeleteInput}
               onChange={(e) => setBulkDeleteInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && bulkDeleteInput === "REMOVE") {
+                if (e.key === "Enter" && bulkDeleteInput === confirmWord) {
                   selectedCreds.forEach(id => onRemove(id))
                   setBulkDeleteConfirm(false)
                   setBulkDeleteInput("")
@@ -406,9 +415,9 @@ export function Sidebar({
                   setSelectedCreds(new Set())
                   setSelectionMode(false)
                 }}
-                disabled={bulkDeleteInput !== "REMOVE"}
+                disabled={bulkDeleteInput !== confirmWord}
               >
-                Remove all
+                {t("gui.sidebar.removeAll")}
               </Button>
               <Button
                 variant="outline"
@@ -417,7 +426,7 @@ export function Sidebar({
                   setBulkDeleteInput("")
                 }}
               >
-                Cancel
+                {t("gui.common.cancel")}
               </Button>
             </div>
           </div>

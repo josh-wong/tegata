@@ -999,6 +999,28 @@ func (a *App) SetClipboardTimeoutSeconds(seconds int) error {
 	return nil
 }
 
+// GetLanguage returns the current UI language code (e.g. "en-us", "ja-jp").
+func (a *App) GetLanguage() string {
+	return a.config.Language
+}
+
+// SetLanguage updates the UI language preference and persists it to tegata.toml.
+func (a *App) SetLanguage(lang string) error {
+	switch lang {
+	case "en-us", "ja-jp":
+		// valid
+	default:
+		return fmt.Errorf("unsupported language: %s", lang)
+	}
+	a.config.Language = lang
+	if a.vaultPath != "" {
+		if err := config.WriteLanguage(vaultDir(a.vaultPath), lang); err != nil {
+			return fmt.Errorf("saving language: %w", err)
+		}
+	}
+	return nil
+}
+
 // CopyToClipboard writes text to the clipboard with auto-clear. All credential
 // copy actions in the GUI must route through this method so the configured
 // clipboard timeout is respected regardless of credential type.

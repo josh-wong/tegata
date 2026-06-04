@@ -1,4 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,7 @@ export function UnlockView({
   onSelectVault,
   onBack,
 }: UnlockViewProps) {
+  const { t } = useTranslation()
   const [passphrase, setPassphrase] = useState("")
   const [auditStatus, setAuditStatus] = useState("")
   const [showError, setShowError] = useState(true)
@@ -86,19 +88,19 @@ export function UnlockView({
           onClick={onBack}
           className="gap-1"
         >
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {t("gui.unlock.back")}
         </Button>
 
         <div className="text-center">
           <h1 className="text-2xl font-bold text-primary">Tegata</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Unlock your vault to continue
+            {t("gui.unlock.subtitle")}
           </p>
         </div>
 
         {showVaultSelector && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Vault</label>
+            <label className="text-sm font-medium">{t("gui.unlock.vaultLabel")}</label>
             <VaultSelector
               vaultPath={vaultPath}
               vaultLocations={vaultLocations}
@@ -119,7 +121,7 @@ export function UnlockView({
             <Input
               ref={inputRef}
               type="password"
-              placeholder="Passphrase"
+              placeholder={t("gui.unlock.passphrasePlaceholder")}
               value={passphrase}
               onChange={handlePassphraseChange}
               maxLength={256}
@@ -139,7 +141,7 @@ export function UnlockView({
             {loading ? (
               <LoadingSpinner size="sm" />
             ) : (
-              "Unlock"
+              t("gui.unlock.unlock")
             )}
           </Button>
 

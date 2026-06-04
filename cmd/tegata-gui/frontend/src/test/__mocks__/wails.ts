@@ -46,6 +46,8 @@ export const App = {
   GetAuditAutoStart: vi.fn().mockResolvedValue(false),
   SetAuditAutoStart: vi.fn().mockResolvedValue(undefined),
   EnableAudit: vi.fn().mockResolvedValue(undefined),
+  GetLanguage: vi.fn().mockResolvedValue("en-us"),
+  SetLanguage: vi.fn().mockResolvedValue(undefined),
 }
 
 export const EventsOn = vi.fn()

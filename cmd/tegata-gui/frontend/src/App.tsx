@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { LANG_STORAGE_KEY } from "@/lib/i18n"
 import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { CredentialDetail } from "@/components/credentials/CredentialDetail"
@@ -22,6 +24,7 @@ const SETUP_STEP_OPEN_EXISTING = 6 as const
 function App() {
   const vault = useVault()
   const creds = useCredentials()
+  const { t } = useTranslation()
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -40,6 +43,18 @@ function App() {
       .then((s) => setIdleTimeoutMs(s * 1000))
       .catch(() => {})
   }, [settingsOpen, vault.isUnlocked])
+
+  useEffect(() => {
+    if (!vault.isUnlocked) return
+    WailsApp.GetLanguage()
+      .then((lang) => {
+        // The shim's I18nextProvider reads language from localStorage on mount.
+        // Writing here keeps it in sync for the NEXT session; the current
+        // session reflects whatever was stored before vault unlock.
+        localStorage.setItem(LANG_STORAGE_KEY, lang)
+      })
+      .catch(() => {})
+  }, [vault.isUnlocked])
 
   useEffect(() => {
     if (vault.isUnlocked) {
@@ -106,7 +121,7 @@ function App() {
   if (vault.view === "loading") {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner size="lg" message="Loading..." />
+        <LoadingSpinner size="lg" message={t("gui.common.loading")} />
       </div>
     )
   }

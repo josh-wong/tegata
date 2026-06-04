@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -37,6 +38,7 @@ interface AuditPanelProps {
 }
 
 export function AuditPanel({ open, onClose }: AuditPanelProps) {
+  const { t } = useTranslation()
   const [history, setHistory] = useState<AuditHistoryRecord[]>([])
   const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -76,11 +78,11 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
     } catch (err) {
-      setError(formatError(err, "Failed to fetch audit data"))
+      setError(formatError(err, t("gui.audit.refresh")))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (open) {
@@ -99,7 +101,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       const result = await App.VerifyAuditLog()
       setVerifyResult(result)
     } catch (err) {
-      setError(formatError(err, "Failed to verify audit log"))
+      setError(formatError(err, t("gui.audit.verifyIntegrity")))
     } finally {
       setLoading(false)
     }
@@ -118,7 +120,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
   function copyHash(hash: string) {
     navigator.clipboard.writeText(hash).then(() => {
       setCopiedHash(hash)
-      setCopyMsg("Hash copied to clipboard")
+      setCopyMsg(t("gui.audit.hashCopied"))
       if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
       copyTimerRef.current = setTimeout(() => {
         setCopyMsg("")
@@ -180,7 +182,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Audit</h2>
+              <h2 className="text-lg font-semibold">{t("gui.audit.title")}</h2>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -190,7 +192,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
           <div className="p-4 flex flex-col gap-4 overflow-hidden flex-1 min-h-0">
             {!dockerPath && history.length === 0 && !verifyResult && (
               <p className="text-sm text-muted-foreground">
-                Audit logging was not enabled during vault creation.
+                {t("gui.audit.notEnabled")}
               </p>
             )}
 
@@ -202,7 +204,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 variant="outline"
                 size="sm"
               >
-                Refresh
+                {t("gui.audit.refresh")}
               </Button>
               <Button
                 onClick={handleVerify}
@@ -210,7 +212,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                 variant="outline"
                 size="sm"
               >
-                Verify integrity
+                {t("gui.audit.verifyIntegrity")}
               </Button>
               {copyMsg && (
                 <span className="ml-auto text-xs" style={{ color: "var(--cinnabar)" }}>{copyMsg}</span>
@@ -230,12 +232,12 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
               )}>
                 {verifyResult.valid ? (
                   verifyResult.event_count === 0 ? (
-                    <p className="text-sm">No audit events found. Nothing to verify.</p>
+                    <p className="text-sm">{t("gui.audit.noEventsToVerify")}</p>
                   ) : (
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                       <p className="text-sm text-green-700 dark:text-green-300">
-                        Audit log integrity verified. {verifyResult.event_count} events checked.
+                        {t("gui.audit.integrityVerified", { count: verifyResult.event_count })}
                       </p>
                     </div>
                   )
@@ -244,7 +246,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                       <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                        TAMPERING DETECTED
+                        {t("gui.audit.tamperingDetected")}
                       </p>
                     </div>
                     {verifyResult.faults && verifyResult.faults.length > 0 && (
@@ -262,7 +264,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
             )}
 
             {history.length === 0 && !loading && !error && !verifyResult && (
-              <p className="text-sm text-muted-foreground">No audit events found. Generate a code or perform a credential action to create events.</p>
+              <p className="text-sm text-muted-foreground">{t("gui.audit.noEvents")}</p>
             )}
 
             {history.length > 0 && (
@@ -277,7 +279,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                     onChange={(e) => { setOpFilter(e.target.value); setPage(0) }}
                     aria-label="Filter by operation type"
                   >
-                    <option value="">All (lock/unlock hidden)</option>
+                    <option value="">{t("gui.audit.filterAll")}</option>
                     {Array.from(new Set(history.map((r) => r.operation)))
                       .sort()
                       .map((op) => (
@@ -287,18 +289,18 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                   <DatePicker
                     value={fromDate}
                     onChange={(d) => { setFromDate(d); setPage(0) }}
-                    placeholder="From date"
-                    aria-label="From date"
+                    placeholder={t("gui.audit.fromDate")}
+                    aria-label={t("gui.audit.fromDate")}
                   />
                   <span className="text-xs text-muted-foreground">–</span>
                   <DatePicker
                     value={toDate}
                     onChange={(d) => { setToDate(d); setPage(0) }}
-                    placeholder="To date"
-                    aria-label="To date"
+                    placeholder={t("gui.audit.toDate")}
+                    aria-label={t("gui.audit.toDate")}
                   />
                   <span className="text-xs text-muted-foreground ml-auto">
-                    {filtered.length} of {history.length} events
+                    {t("gui.audit.eventsCount", { filtered: filtered.length, total: history.length })}
                   </span>
                 </div>
 
@@ -313,25 +315,25 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                               className="text-left p-2 cursor-pointer select-none w-[22%]"
                               onClick={() => toggleSort("operation")}
                             >
-                              Operation <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
+                              {t("gui.audit.colOperation")} <SortIcon col="operation" sortCol={sortCol} sortDir={sortDir} />
                             </th>
                             <th
                               className="text-left p-2 cursor-pointer select-none w-[22%]"
                               onClick={() => toggleSort("label")}
                             >
-                              Label <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
+                              {t("gui.audit.colLabel")} <SortIcon col="label" sortCol={sortCol} sortDir={sortDir} />
                             </th>
                             <th
                               className="text-left p-2 cursor-pointer select-none w-[22%]"
                               onClick={() => toggleSort("timestamp")}
                             >
-                              Timestamp <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
+                              {t("gui.audit.colTimestamp")} <SortIcon col="timestamp" sortCol={sortCol} sortDir={sortDir} />
                             </th>
                             <th
                               className="text-left p-2 cursor-pointer select-none w-[34%]"
                               onClick={() => toggleSort("hash")}
                             >
-                              Hash <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
+                              {t("gui.audit.colHash")} <SortIcon col="hash" sortCol={sortCol} sortDir={sortDir} />
                             </th>
                           </tr>
                         </thead>
@@ -343,7 +345,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                                 <td className="p-2">{record.operation}</td>
                                 <td className="p-2">{record.label}</td>
                                 <td className="p-2 text-muted-foreground">
-                                  {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "\u2014"}
+                                  {record.timestamp ? new Date(record.timestamp * 1000).toLocaleString() : "—"}
                                 </td>
                                 <td className="p-2 font-mono">
                                   <button
@@ -368,7 +370,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
                   {totalPages > 1 && (
                     <div className="flex items-center justify-end gap-2 pt-1 flex-none">
                       <span className="text-xs text-muted-foreground">
-                        Page {page + 1} of {totalPages}
+                        {t("gui.audit.page", { current: page + 1, total: totalPages })}
                       </span>
                       <Button
                         variant="outline"
