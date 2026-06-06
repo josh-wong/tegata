@@ -267,6 +267,7 @@
       "notUntilNextRelease": "Not until next release",
       "upToDate": "You're up to date.",
       "checkForUpdates": "Check for updates",
+      "checkFailed": "Update check failed",
       "checking": "Checking...",
       "sectionAbout": "About",
       "aboutDescription": "Tegata — Your credentials, encrypted and portable",
@@ -294,6 +295,7 @@
       "page": "Page {{current}} of {{total}}",
       "hashCopied": "Hash copied to clipboard",
       "tamperingDetected": "TAMPERING DETECTED",
+      "integrityVerified_one": "Audit log integrity verified. 1 event checked.",
       "integrityVerified": "Audit log integrity verified. {{count}} events checked.",
       "noEventsToVerify": "No audit events found. Nothing to verify."
     }
