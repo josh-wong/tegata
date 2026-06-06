@@ -24,6 +24,16 @@ interface CredentialDetailProps {
   auditEnabled?: boolean
 }
 
+function formatCredentialType(type: string, t: (key: string) => string): string {
+  switch (type) {
+    case "totp": return t("gui.detail.typeTotp")
+    case "hotp": return t("gui.detail.typeHotp")
+    case "static": return t("gui.detail.typeStatic")
+    case "challenge-response": return t("gui.detail.typeChallengeResponse")
+    default: return type
+  }
+}
+
 export function CredentialDetail({ credential, onRemove, auditEnabled = false }: CredentialDetailProps) {
   const { t } = useTranslation()
   const confirmWord = t("gui.common.confirmWord")
@@ -80,16 +90,6 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
     setDeleteConfirmInput("")
   }, [credential, onRemove, setShowDeleteConfirm, setDeleteConfirmInput])
 
-  function formatCredentialType(type: string): string {
-    switch (type) {
-      case "totp": return t("gui.detail.typeTotp")
-      case "hotp": return t("gui.detail.typeHotp")
-      case "static": return t("gui.detail.typeStatic")
-      case "challenge-response": return t("gui.detail.typeChallengeResponse")
-      default: return type
-    }
-  }
-
   if (!credential) {
     return (
       <main className="flex flex-1 items-center justify-center bg-background">
@@ -136,7 +136,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">{t("gui.detail.fieldType")}</span>
-              <span className="font-medium">{formatCredentialType(credential.type)}</span>
+              <span className="font-medium">{formatCredentialType(credential.type, t)}</span>
             </div>
 
             {credential.category && (

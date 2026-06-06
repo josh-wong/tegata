@@ -56,7 +56,7 @@ function App() {
         }
       })
       .catch(() => {})
-  }, [vault.isUnlocked, i18n.language, i18n.changeLanguage])
+  }, [vault.isUnlocked, i18n.changeLanguage])
 
   useEffect(() => {
     if (vault.isUnlocked) {
