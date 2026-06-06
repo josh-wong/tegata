@@ -43,13 +43,15 @@ function App() {
       .catch(() => {})
   }, [settingsOpen, vault.isUnlocked])
 
+  // Sync language from tegata.toml on unlock. This covers the edge case where
+  // localStorage was cleared (e.g. browser data wipe) but tegata.toml still
+  // holds the user's preference — the toml value wins and is written back to
+  // localStorage via the shim's changeLanguage.
   useEffect(() => {
     if (!vault.isUnlocked) return
     WailsApp.GetLanguage()
       .then((lang) => {
         if (lang && lang !== i18n.language) {
-          // Applies the persisted language to the running session immediately.
-          // The shim's changeLanguage also writes to localStorage for future sessions.
           i18n.changeLanguage(lang)
         }
       })

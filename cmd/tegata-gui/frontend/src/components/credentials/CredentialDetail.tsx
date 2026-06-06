@@ -412,7 +412,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
         setTimeout(() => setCopied(false), 3000)
       })
       .catch((err) => {
-        setError(formatError(err, t("gui.detail.failedGenerateCode")))
+        setError(formatError(err, t("gui.detail.failedCopyPassword")))
       })
       .finally(() => { inFlight.current = false })
   }

@@ -12,7 +12,13 @@ export { t }
 const i18n = {
   t,
   changeLanguage: () => Promise.resolve(),
-  language: "en-us",
+  // Read localStorage each time so class components (e.g. ErrorBoundary) see
+  // the current language, not the value frozen at module load time.
+  get language() {
+    return typeof localStorage !== "undefined"
+      ? (localStorage.getItem(LANG_STORAGE_KEY) ?? "en-us")
+      : "en-us"
+  },
   isInitialized: true,
 }
 export default i18n

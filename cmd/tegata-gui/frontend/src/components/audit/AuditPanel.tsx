@@ -78,7 +78,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       const records = await App.GetAuditHistory()
       setHistory(records || [])
     } catch (err) {
-      setError(formatError(err, t("gui.audit.refresh")))
+      setError(formatError(err, t("gui.audit.fetchFailed")))
     } finally {
       setLoading(false)
     }
@@ -101,7 +101,7 @@ export function AuditPanel({ open, onClose }: AuditPanelProps) {
       const result = await App.VerifyAuditLog()
       setVerifyResult(result)
     } catch (err) {
-      setError(formatError(err, t("gui.audit.verifyIntegrity")))
+      setError(formatError(err, t("gui.audit.verifyFailed")))
     } finally {
       setLoading(false)
     }

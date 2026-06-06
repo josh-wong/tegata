@@ -83,7 +83,8 @@
       "staticDescription": "The password will be copied to your clipboard and cleared automatically after the configured timeout.",
       "challengeDescription": "Enter a challenge string to compute an HMAC signature using this credential's secret key. The resulting hex-encoded signature can be used for authentication with services that support challenge-response verification.",
       "signingFailed": "Signing failed",
-      "failedGenerateCode": "Failed to generate code"
+      "failedGenerateCode": "Failed to generate code",
+      "failedCopyPassword": "Failed to copy password"
     },
     "add": {
       "title": "Add credential",
@@ -279,7 +280,9 @@
       "notEnabled": "Audit logging was not enabled during vault creation.",
       "noEvents": "No audit events found. Generate a code or perform a credential action to create events.",
       "refresh": "Refresh",
+      "fetchFailed": "Failed to fetch audit data",
       "verifyIntegrity": "Verify integrity",
+      "verifyFailed": "Failed to verify audit log",
       "filterAll": "All (lock/unlock hidden)",
       "fromDate": "From date",
       "toDate": "To date",

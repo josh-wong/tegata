@@ -1,4 +1,5 @@
 import { FolderSync, Settings, Shield } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { UpdateBadge } from "@/components/settings/UpdateBadge"
 import type { UpdateInfo } from "@/lib/types"
@@ -41,6 +42,7 @@ function getVaultPathParts(path: string): { dir: string; filename: string } {
 }
 
 export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateFound, updateInfo, vaultPath }: HeaderProps) {
+  const { t } = useTranslation()
   let displayDir = ""
   let displayFilename = ""
 
@@ -72,6 +74,7 @@ export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateF
           variant="ghost"
           size="icon"
           className="h-8 w-8"
+          title={t("gui.header.switchVault")}
           onClick={onSwitchVault}
         >
           <FolderSync className="h-4 w-4" />
@@ -82,6 +85,7 @@ export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateF
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            title={t("gui.header.audit")}
             onClick={onAuditClick}
           >
             <Shield className="h-4 w-4" />
@@ -93,6 +97,7 @@ export function Header({ onSettingsClick, onAuditClick, onSwitchVault, onUpdateF
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            title={t("gui.header.settings")}
             onClick={onSettingsClick}
           >
             <Settings className="h-4 w-4" />

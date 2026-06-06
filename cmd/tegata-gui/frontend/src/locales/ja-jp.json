@@ -83,7 +83,8 @@
       "staticDescription": "パスワードはクリップボードにコピーされ、設定されたタイムアウト後に自動的に削除されます。",
       "challengeDescription": "チャレンジ文字列を入力すると、この認証情報の秘密鍵を使って HMAC 署名が計算されます。生成された16進数エンコードの署名は、チャレンジ・レスポンス認証をサポートするサービスで使用できます。",
       "signingFailed": "署名に失敗しました",
-      "failedGenerateCode": "コードの生成に失敗しました"
+      "failedGenerateCode": "コードの生成に失敗しました",
+      "failedCopyPassword": "パスワードのコピーに失敗しました"
     },
     "add": {
       "title": "認証情報を追加",
@@ -145,7 +146,7 @@
       "step2Title": "保存場所を選択",
       "step2Tip": "💡 ヒント: セキュリティと携帯性のため、USB または microSD にボールトを保存してください。Tegata をインストールすれば、どのデバイスからでもアクセスできます。",
       "onlyRemovable": "リムーバブルドライブ (USB、SD、microSD) のみが表示されます。",
-      "customPathLabelWithDrives": "またはカスタムパスを入力: ",
+      "customPathLabelWithDrives": "またはカスタムパスを入力:",
       "customPathLabelWithoutDrives": "ボールトのパスを入力: ",
       "customPathPlaceholder": "C:\\path\\to\\folder",
       "warningTitle": "⚠️ 警告",
@@ -279,7 +280,9 @@
       "notEnabled": "ボールト作成時に監査ログが有効化されていませんでした。",
       "noEvents": "監査イベントが見つかりません。コードを生成するか、認証情報の操作を行ってください。",
       "refresh": "更新",
+      "fetchFailed": "監査データの取得に失敗しました",
       "verifyIntegrity": "整合性を検証",
+      "verifyFailed": "監査ログの検証に失敗しました",
       "filterAll": "すべて (ロック/解除は非表示)",
       "fromDate": "開始日",
       "toDate": "終了日",

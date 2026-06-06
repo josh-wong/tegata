@@ -373,10 +373,7 @@ export function Sidebar({
               {t("gui.sidebar.bulkDeleteTitle", { count: selectedCreds.size })}
             </DialogTitle>
             <DialogDescription>
-              {t(selectedCreds.size === 1 ? "gui.sidebar.bulkDeleteDesc_one" : "gui.sidebar.bulkDeleteDesc_other", {
-                count: selectedCreds.size,
-                confirmWord,
-              })}
+              {t("gui.sidebar.bulkDeleteDesc", { count: selectedCreds.size, confirmWord })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
