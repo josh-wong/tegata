@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -183,11 +183,11 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
     }
   }
 
-  const themeLabels = useMemo<Record<string, string>>(() => ({
+  const themeLabels: Record<string, string> = {
     system: t("gui.settings.themeSystem"),
     light: t("gui.settings.themeLight"),
     dark: t("gui.settings.themeDark"),
-  }), [t])
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
