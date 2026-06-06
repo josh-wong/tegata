@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Copy, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,22 +24,20 @@ interface CredentialDetailProps {
   auditEnabled?: boolean
 }
 
-function formatCredentialType(type: string): string {
+function formatCredentialType(type: string, t: (key: string) => string): string {
   switch (type) {
-    case "totp":
-      return "TOTP"
-    case "hotp":
-      return "HOTP"
-    case "static":
-      return "Static password"
-    case "challenge-response":
-      return "Challenge-response"
-    default:
-      return type
+    case "totp": return t("gui.detail.typeTotp")
+    case "hotp": return t("gui.detail.typeHotp")
+    case "static": return t("gui.detail.typeStatic")
+    case "challenge-response": return t("gui.detail.typeChallengeResponse")
+    default: return type
   }
 }
 
 export function CredentialDetail({ credential, onRemove, auditEnabled = false }: CredentialDetailProps) {
+  const { t } = useTranslation()
+  const confirmWord = t("gui.common.confirmWord")
+
   // Reset derived state when the selected credential changes, using React's
   // "setState during render" pattern to avoid the react-hooks/set-state-in-effect rule.
   // See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
@@ -89,13 +88,12 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
     onRemove(credential!.id)
     setShowDeleteConfirm(false)
     setDeleteConfirmInput("")
-  }, [credential, onRemove])
-
+  }, [credential, onRemove, setShowDeleteConfirm, setDeleteConfirmInput])
 
   if (!credential) {
     return (
       <main className="flex flex-1 items-center justify-center bg-background">
-        <p className="text-muted-foreground">Select a credential</p>
+        <p className="text-muted-foreground">{t("gui.detail.selectCredential")}</p>
       </main>
     )
   }
@@ -133,17 +131,17 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
       {/* Meta panel */}
       <div className="w-72 border-l border-border overflow-y-auto flex flex-col">
         <div className="flex flex-1 flex-col p-4">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Details</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">{t("gui.detail.sectionDetails")}</h3>
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Type</span>
-              <span className="font-medium">{formatCredentialType(credential.type)}</span>
+              <span className="text-muted-foreground">{t("gui.detail.fieldType")}</span>
+              <span className="font-medium">{formatCredentialType(credential.type, t)}</span>
             </div>
 
             {credential.category && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Category</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldCategory")}</span>
                 <span className="font-medium capitalize">{credential.category}</span>
               </div>
             )}
@@ -152,19 +150,19 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               <>
                 {credential.algorithm && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Algorithm</span>
+                    <span className="text-muted-foreground">{t("gui.detail.fieldAlgorithm")}</span>
                     <span className="font-medium font-mono">{credential.algorithm}</span>
                   </div>
                 )}
                 {credential.digits > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Digits</span>
+                    <span className="text-muted-foreground">{t("gui.detail.fieldDigits")}</span>
                     <span className="font-medium">{credential.digits}</span>
                   </div>
                 )}
                 {credential.period > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Period</span>
+                    <span className="text-muted-foreground">{t("gui.detail.fieldPeriod")}</span>
                     <span className="font-medium">{credential.period}s</span>
                   </div>
                 )}
@@ -175,13 +173,13 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
               <>
                 {credential.algorithm && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Algorithm</span>
+                    <span className="text-muted-foreground">{t("gui.detail.fieldAlgorithm")}</span>
                     <span className="font-medium font-mono">{credential.algorithm}</span>
                   </div>
                 )}
                 {credential.digits > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Digits</span>
+                    <span className="text-muted-foreground">{t("gui.detail.fieldDigits")}</span>
                     <span className="font-medium">{credential.digits}</span>
                   </div>
                 )}
@@ -190,35 +188,35 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
 
             {credential.type === "challenge-response" && credential.algorithm && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Algorithm</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldAlgorithm")}</span>
                 <span className="font-medium font-mono">{credential.algorithm}</span>
               </div>
             )}
 
             {credential.created_at && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Created</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldCreated")}</span>
                 <span className="font-medium text-xs">{formatTimestamp(credential.created_at)}</span>
               </div>
             )}
 
             {credential.modified_at && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Modified</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldModified")}</span>
                 <span className="font-medium text-xs">{formatTimestamp(credential.modified_at)}</span>
               </div>
             )}
 
             {lastUsed && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Last used</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldLastUsed")}</span>
                 <span className="font-medium text-xs">{lastUsed}</span>
               </div>
             )}
             {!lastUsed && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Last used</span>
-                <span className="text-xs text-muted-foreground italic">Never</span>
+                <span className="text-muted-foreground">{t("gui.detail.fieldLastUsed")}</span>
+                <span className="text-xs text-muted-foreground italic">{t("gui.detail.neverUsed")}</span>
               </div>
             )}
           </div>
@@ -228,9 +226,9 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
           <>
             <Separator />
             <div className="p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase">Audit</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase">{t("gui.detail.sectionAudit")}</h3>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Recorded actions</span>
+                <span className="text-muted-foreground">{t("gui.detail.recordedActions")}</span>
                 <span className="font-medium">
                   {auditEventCount === null ? (
                     <Loader2 className="h-4 w-4 animate-spin inline" />
@@ -249,7 +247,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
             size="sm"
             onClick={() => setShowDeleteConfirm(true)}
           >
-            Remove credential
+            {t("gui.detail.removeCredential")}
           </Button>
         </div>
       </div>
@@ -258,18 +256,18 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
       <Dialog open={showDeleteConfirm} onOpenChange={(open) => { setShowDeleteConfirm(open); if (!open) setDeleteConfirmInput("") }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove credential?</DialogTitle>
+            <DialogTitle>{t("gui.detail.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Type <span className="font-mono font-semibold">REMOVE</span> to confirm removal of "{credential.label}".
+              {t("gui.detail.deleteDescription", { confirmWord, label: credential.label })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder='Type "REMOVE" to confirm'
+              placeholder={t("gui.detail.deleteConfirmPlaceholder", { confirmWord })}
               value={deleteConfirmInput}
               onChange={(e) => setDeleteConfirmInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && deleteConfirmInput === "REMOVE") {
+                if (e.key === "Enter" && deleteConfirmInput === confirmWord) {
                   confirmDelete()
                 }
               }}
@@ -283,14 +281,14 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
                 setDeleteConfirmInput("")
               }}
             >
-              Cancel
+              {t("gui.common.cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
-              disabled={deleteConfirmInput !== "REMOVE"}
+              disabled={deleteConfirmInput !== confirmWord}
             >
-              Remove
+              {t("gui.common.remove")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -300,6 +298,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
 }
 
 function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
+  const { t } = useTranslation()
   const [totp, setTotp] = useState<TOTPResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -313,9 +312,9 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         }
       })
       .catch((err) => {
-        setError(formatError(err, "Failed to generate code"))
+        setError(formatError(err, t("gui.detail.failedGenerateCode")))
       })
-  }, [credential.label])
+  }, [credential.label, t])
 
   useEffect(() => {
     fetchCode()
@@ -324,7 +323,7 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
   if (error) return (
     <div className="space-y-2">
       <p className="text-sm text-destructive">{error}</p>
-      <Button variant="outline" size="sm" onClick={fetchCode}>Retry</Button>
+      <Button variant="outline" size="sm" onClick={fetchCode}>{t("gui.common.retry")}</Button>
     </div>
   )
   if (!totp) return <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -352,6 +351,7 @@ function TOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
 }
 
 function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
+  const { t } = useTranslation()
   const [code, setCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -366,7 +366,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         setCode(result)
         onUsed()
       })
-      .catch((err) => setError(formatError(err, "Failed to generate code")))
+      .catch((err) => setError(formatError(err, t("gui.detail.failedGenerateCode"))))
       .finally(() => { inFlight.current = false })
   }
 
@@ -377,7 +377,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
         <span className="font-mono text-3xl font-bold tracking-wider">{code}</span>
       )}
       <div className="flex gap-2">
-        <Button onClick={generate}>Generate code</Button>
+        <Button onClick={generate}>{t("gui.detail.generateCode")}</Button>
         {code && (
           <CopyButton
             copied={copied}
@@ -396,6 +396,7 @@ function HOTPView({ credential, onUsed }: { credential: Credential; onUsed: () =
 }
 
 function StaticView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inFlight = useRef(false)
@@ -411,7 +412,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
         setTimeout(() => setCopied(false), 3000)
       })
       .catch((err) => {
-        setError(formatError(err, "Failed to copy password"))
+        setError(formatError(err, t("gui.detail.failedCopyPassword")))
       })
       .finally(() => { inFlight.current = false })
   }
@@ -419,7 +420,7 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        The password will be copied to your clipboard and cleared automatically after the configured timeout.
+        {t("gui.detail.staticDescription")}
       </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button onClick={copyPassword}>
@@ -428,13 +429,14 @@ function StaticView({ credential, onUsed }: { credential: Credential; onUsed: ()
         ) : (
           <Copy className="mr-2 h-4 w-4" />
         )}
-        {copied ? "Copied — auto-clears shortly" : "Copy to clipboard"}
+        {copied ? t("gui.detail.copiedAutoClears") : t("gui.detail.copyToClipboard")}
       </Button>
     </div>
   )
 }
 
 function ChallengeResponseView({ credential, onUsed }: { credential: Credential; onUsed: () => void }) {
+  const { t } = useTranslation()
   const [challenge, setChallenge] = useState("")
   const [response, setResponse] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -450,28 +452,28 @@ function ChallengeResponseView({ credential, onUsed }: { credential: Credential;
         setResponse(result)
         onUsed()
       })
-      .catch((err) => setError(formatError(err, "Signing failed")))
+      .catch((err) => setError(formatError(err, t("gui.detail.signingFailed"))))
       .finally(() => { inFlight.current = false })
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Enter a challenge string to compute an HMAC signature using this credential's secret key. The resulting hex-encoded signature can be used for authentication with services that support challenge-response verification.
+        {t("gui.detail.challengeDescription")}
       </p>
       <div className="flex gap-2">
         <Input
-          placeholder="Enter challenge text..."
+          placeholder={t("gui.detail.challengePlaceholder")}
           value={challenge}
           onChange={(e) => setChallenge(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sign()}
         />
-        <Button onClick={sign} disabled={!challenge}>Sign</Button>
+        <Button onClick={sign} disabled={!challenge}>{t("gui.detail.sign")}</Button>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {response && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Signature</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("gui.detail.signatureLabel")}</p>
           <code className="block break-all rounded bg-muted p-3 font-mono text-sm">
             {response}
           </code>
@@ -498,6 +500,7 @@ function CopyButton({
   copied: boolean
   onCopy: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <Button variant="outline" onClick={onCopy}>
       {copied ? (
@@ -505,7 +508,7 @@ function CopyButton({
       ) : (
         <Copy className="mr-2 h-4 w-4" />
       )}
-      {copied ? "Copied" : "Copy"}
+      {copied ? t("gui.common.copied") : t("gui.common.copy")}
     </Button>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,8 +9,9 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
-import { DISMISS_OPTIONS, DOCUMENTATION_URLS } from "@/lib/constants"
+import { DISMISS_OPTIONS } from "@/lib/constants"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n"
 
 interface SettingsPanelProps {
   open: boolean
@@ -20,7 +22,9 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo, onUpdateFound }: SettingsPanelProps) {
+  const { t, i18n: i18nInstance } = useTranslation()
   const { theme, setTheme } = useTheme()
+  const currentLanguage = i18nInstance.language
 
   const [showPassChange, setShowPassChange] = useState(false)
   const [currentPass, setCurrentPass] = useState("")
@@ -119,7 +123,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
       onUpdateFound(info)
       setUpdateCheckDone(true)
     } catch (err) {
-      setUpdateCheckError(formatError(err, "Update check failed"))
+      setUpdateCheckError(formatError(err, t("gui.settings.checkFailed")))
     } finally {
       setUpdateChecking(false)
     }
@@ -135,16 +139,27 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
     }
   }
 
+  async function handleLanguageChange(lang: string) {
+    try {
+      await App.SetLanguage(lang)
+    } catch {
+      // Non-critical — still update the UI even if saving fails
+    }
+    // i18nInstance.changeLanguage() comes from the shim's useTranslation()
+    // and updates the context state, triggering a full re-render.
+    await i18nInstance.changeLanguage(lang)
+  }
+
   if (!open) return null
 
   async function handleChangePassphrase() {
     setPassError("")
     if (newPass.length < 8) {
-      setPassError("Passphrase must be at least 8 characters")
+      setPassError(t("gui.settings.errorPassTooShort"))
       return
     }
     if (newPass !== confirmPass) {
-      setPassError("Passphrases do not match")
+      setPassError(t("gui.settings.errorPassNoMatch"))
       return
     }
     try {
@@ -155,7 +170,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
       setConfirmPass("")
       setTimeout(() => { setPassSuccess(false); setShowPassChange(false) }, 2000)
     } catch (err) {
-      setPassError(formatError(err, "Failed to change passphrase"))
+      setPassError(formatError(err, t("gui.settings.errorChangeFailed")))
     }
   }
 
@@ -168,30 +183,56 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
     }
   }
 
+  const themeLabels: Record<string, string> = {
+    system: t("gui.settings.themeSystem"),
+    light: t("gui.settings.themeLight"),
+    dark: t("gui.settings.themeDark"),
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-card shadow-lg flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between border-b p-3">
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="text-lg font-semibold">{t("gui.settings.title")}</h2>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
         <div className="overflow-y-auto p-6">
 
+        {/* Language */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionLanguage")}</h3>
+          <div className="flex gap-1">
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <Button
+                key={lang}
+                variant={currentLanguage === lang ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleLanguageChange(lang)}
+                className={cn("flex-1", currentLanguage === lang && "pointer-events-none")}
+              >
+                {lang === "en-us" ? t("gui.settings.languageEnUs") : t("gui.settings.languageJaJp")}
+              </Button>
+            ))}
+          </div>
+        </section>
+
+        <Separator className="my-4" />
+
         {/* Theme */}
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">Theme</h3>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionTheme")}</h3>
           <div className="flex gap-1">
-            {(["system", "light", "dark"] as const).map((t) => (
+            {(["system", "light", "dark"] as const).map((themeOption) => (
               <Button
-                key={t}
-                variant={theme === t ? "default" : "outline"}
+                key={themeOption}
+                variant={theme === themeOption ? "default" : "outline"}
                 size="sm"
-                onClick={() => setTheme(t)}
-                className={cn("flex-1 capitalize", theme === t && "pointer-events-none")}
+                onClick={() => setTheme(themeOption)}
+                className={cn("flex-1", theme === themeOption && "pointer-events-none")}
               >
-                {t}
+                {themeLabels[themeOption]}
               </Button>
             ))}
           </div>
@@ -201,25 +242,25 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 
         {/* Auto-lock */}
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">Auto-lock</h3>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionAutoLock")}</h3>
           <select
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={idleTimeout}
             onChange={(e) => handleIdleTimeoutChange(Number(e.target.value))}
           >
             {![60, 120, 300, 600, 900, 1800, 0].includes(idleTimeout) && (
-              <option value={idleTimeout}>{idleTimeout} seconds (custom)</option>
+              <option value={idleTimeout}>{t("gui.settings.autoLockCustom", { seconds: idleTimeout })}</option>
             )}
-            <option value={60}>1 minute</option>
-            <option value={120}>2 minutes</option>
-            <option value={300}>5 minutes (default)</option>
-            <option value={600}>10 minutes</option>
-            <option value={900}>15 minutes</option>
-            <option value={1800}>30 minutes</option>
-            <option value={0}>Never</option>
+            <option value={60}>{t("gui.settings.autoLock1min")}</option>
+            <option value={120}>{t("gui.settings.autoLock2min")}</option>
+            <option value={300}>{t("gui.settings.autoLock5min")}</option>
+            <option value={600}>{t("gui.settings.autoLock10min")}</option>
+            <option value={900}>{t("gui.settings.autoLock15min")}</option>
+            <option value={1800}>{t("gui.settings.autoLock30min")}</option>
+            <option value={0}>{t("gui.settings.autoLockNever")}</option>
           </select>
           <p className="text-xs text-muted-foreground">
-            Lock the vault automatically after a period of inactivity.
+            {t("gui.settings.autoLockDescription")}
           </p>
         </section>
 
@@ -227,24 +268,24 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 
         {/* Clipboard */}
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">Clipboard</h3>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionClipboard")}</h3>
           <select
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={clipboardTimeout}
             onChange={(e) => handleClipboardTimeoutChange(Number(e.target.value))}
           >
             {![15, 30, 45, 60, 120, 0].includes(clipboardTimeout) && (
-              <option value={clipboardTimeout}>{clipboardTimeout} seconds (custom)</option>
+              <option value={clipboardTimeout}>{t("gui.settings.clipboardCustom", { seconds: clipboardTimeout })}</option>
             )}
-            <option value={15}>15 seconds</option>
-            <option value={30}>30 seconds</option>
-            <option value={45}>45 seconds (default)</option>
-            <option value={60}>1 minute</option>
-            <option value={120}>2 minutes</option>
-            <option value={0}>Never</option>
+            <option value={15}>{t("gui.settings.clipboard15s")}</option>
+            <option value={30}>{t("gui.settings.clipboard30s")}</option>
+            <option value={45}>{t("gui.settings.clipboard45s")}</option>
+            <option value={60}>{t("gui.settings.clipboard60s")}</option>
+            <option value={120}>{t("gui.settings.clipboard120s")}</option>
+            <option value={0}>{t("gui.settings.clipboardNever")}</option>
           </select>
           <p className="text-xs text-muted-foreground">
-            Clear the clipboard automatically after copying a credential.
+            {t("gui.settings.clipboardDescription")}
           </p>
         </section>
 
@@ -252,37 +293,37 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 
         {/* Vault */}
         <section className="space-y-3">
-          <h3 className="text-sm font-medium">Vault</h3>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionVault")}</h3>
 
           {!showPassChange ? (
             <Button variant="outline" size="sm" onClick={() => setShowPassChange(true)}>
-              Change passphrase
+              {t("gui.settings.changePassphrase")}
             </Button>
           ) : (
             <div className="space-y-2 rounded-md border border-border p-3">
               <Input
                 type="password"
-                placeholder="Current passphrase"
+                placeholder={t("gui.settings.currentPassphrasePlaceholder")}
                 value={currentPass}
                 onChange={(e) => setCurrentPass(e.target.value)}
               />
               <Input
                 type="password"
-                placeholder="New passphrase"
+                placeholder={t("gui.settings.newPassphrasePlaceholder")}
                 value={newPass}
                 onChange={(e) => setNewPass(e.target.value)}
               />
               {newPass && <StrengthMeter passphrase={newPass} />}
               <Input
                 type="password"
-                placeholder="Confirm new passphrase"
+                placeholder={t("gui.settings.confirmNewPassphrasePlaceholder")}
                 value={confirmPass}
                 onChange={(e) => setConfirmPass(e.target.value)}
               />
               {passError && <p className="text-sm text-destructive">{passError}</p>}
-              {passSuccess && <p className="text-sm text-green-500">Passphrase changed</p>}
+              {passSuccess && <p className="text-sm text-green-500">{t("gui.settings.passphraseChanged")}</p>}
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleChangePassphrase}>Save</Button>
+                <Button size="sm" onClick={handleChangePassphrase}>{t("gui.common.save")}</Button>
                 <Button size="sm" variant="outline" onClick={() => {
                   setShowPassChange(false)
                   setCurrentPass("")
@@ -290,7 +331,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                   setConfirmPass("")
                   setPassError("")
                 }}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
               </div>
             </div>
@@ -299,7 +340,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           {!showRecovery ? (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowRecovery(true)}>
-                Verify recovery key
+                {t("gui.settings.verifyRecovery")}
               </Button>
               <div
                 ref={infoRef}
@@ -319,7 +360,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                     className="fixed z-[100] w-72 -translate-x-1/2 rounded-md bg-neutral-800 px-3 py-2 text-xs text-neutral-100 shadow-md dark:bg-neutral-700"
                     style={{ top: tooltipPos.top, left: tooltipPos.left }}
                   >
-                    Confirm that the recovery key you saved still matches your vault. This is the only way to regain access if you forget your passphrase.
+                    {t("gui.settings.recoveryTooltip")}
                   </div>
                 )}
               </div>
@@ -327,31 +368,31 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           ) : (
             <div className="space-y-2 rounded-md border border-border p-3">
               <Input
-                placeholder="Enter recovery key"
+                placeholder={t("gui.settings.recoveryPlaceholder")}
                 value={recoveryKey}
                 onChange={(e) => { setRecoveryKey(e.target.value); setRecoveryResult(null) }}
                 className="font-mono"
               />
-              {recoveryResult === true && <p className="text-sm text-green-500">Recovery key is valid</p>}
+              {recoveryResult === true && <p className="text-sm text-green-500">{t("gui.settings.recoveryValid")}</p>}
               {recoveryResult === false && (
                 <div className="space-y-2 rounded-md bg-destructive/10 p-3">
-                  <p className="text-sm font-medium text-destructive">Recovery key is invalid</p>
+                  <p className="text-sm font-medium text-destructive">{t("gui.settings.recoveryInvalid")}</p>
                   <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                    <li>Check for typos—dashes, spaces, and letter case matter.</li>
-                    <li>Make sure this key is for this vault, not a different one.</li>
-                    <li>If you have lost your recovery key, consider changing your passphrase to something memorable while you still have access.</li>
-                    <li>You may also want to export your credentials as a backup.</li>
+                    <li>{t("gui.settings.recoveryHint1")}</li>
+                    <li>{t("gui.settings.recoveryHint2")}</li>
+                    <li>{t("gui.settings.recoveryHint3")}</li>
+                    <li>{t("gui.settings.recoveryHint4")}</li>
                   </ul>
                 </div>
               )}
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleVerifyRecovery}>Verify</Button>
+                <Button size="sm" onClick={handleVerifyRecovery}>{t("gui.common.verify")}</Button>
                 <Button size="sm" variant="outline" onClick={() => {
                   setShowRecovery(false)
                   setRecoveryKey("")
                   setRecoveryResult(null)
                 }}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
               </div>
             </div>
@@ -363,7 +404,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           <>
             <Separator className="my-4" />
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">Audit</h3>
+              <h3 className="text-sm font-medium">{t("gui.settings.sectionAudit")}</h3>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -371,10 +412,10 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                   onChange={(e) => handleAutoStartChange(e.target.checked)}
                   className="rounded border-input"
                 />
-                Auto-start ledger server
+                {t("gui.settings.autoStartLedger")}
               </label>
               <p className="text-xs text-muted-foreground">
-                Automatically start the audit ledger when you unlock the vault.
+                {t("gui.settings.autoStartDescription")}
               </p>
             </section>
           </>
@@ -384,30 +425,30 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 
         {/* Updates */}
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">Updates</h3>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionUpdates")}</h3>
           {updateInfo ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Version {updateInfo.version} is available.
+                {t("gui.settings.updateAvailable", { version: updateInfo.version })}
               </p>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => BrowserOpenURL(updateInfo.url)}
               >
-                Download
+                {t("gui.settings.download")}
               </Button>
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Remind me:</p>
+                <p className="text-xs text-muted-foreground">{t("gui.settings.remindMe")}</p>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.tomorrow)}>
-                    Tomorrow
+                    {t("gui.settings.tomorrow")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.oneMonth)}>
-                    In one month
+                    {t("gui.settings.inOneMonth")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleDismissUpdate(DISMISS_OPTIONS.nextRelease)}>
-                    Not until next release
+                    {t("gui.settings.notUntilNextRelease")}
                   </Button>
                 </div>
               </div>
@@ -415,7 +456,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           ) : (
             <div className="space-y-2">
               {updateCheckDone && !updateCheckError && (
-                <p className="text-sm text-green-500">You're up to date.</p>
+                <p className="text-sm text-green-500">{t("gui.settings.upToDate")}</p>
               )}
               {updateCheckError && (
                 <p className="text-sm text-destructive">{updateCheckError}</p>
@@ -426,7 +467,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
                 onClick={handleCheckForUpdates}
                 disabled={updateChecking || updateCheckDone}
               >
-                {updateChecking ? "Checking..." : "Check for updates"}
+                {updateChecking ? t("gui.settings.checking") : t("gui.settings.checkForUpdates")}
               </Button>
             </div>
           )}
@@ -436,16 +477,16 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 
         {/* About */}
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">About</h3>
-          <p className="text-xs text-muted-foreground">Tegata — Your credentials, encrypted and portable</p>
-          {appVersion && <p className="text-xs text-muted-foreground">Version: {appVersion}</p>}
-          <p className="text-xs text-muted-foreground">License: MIT</p>
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionAbout")}</h3>
+          <p className="text-xs text-muted-foreground">{t("gui.settings.aboutDescription")}</p>
+          {appVersion && <p className="text-xs text-muted-foreground">{t("gui.settings.aboutVersion", { version: appVersion })}</p>}
+          <p className="text-xs text-muted-foreground">{t("gui.settings.aboutLicense")}</p>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => BrowserOpenURL(DOCUMENTATION_URLS.privacyAndDisclaimer)}
+            onClick={() => BrowserOpenURL(t("gui.settings.privacyAndDisclaimerUrl"))}
           >
-            Privacy & disclaimer
+            {t("gui.settings.privacyAndDisclaimer")}
           </Button>
         </section>
         </div>
@@ -455,6 +496,7 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
 }
 
 function ExportImport({ onImported }: { onImported: () => void }) {
+  const { t } = useTranslation()
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [exportPass, setExportPass] = useState("")
@@ -467,11 +509,11 @@ function ExportImport({ onImported }: { onImported: () => void }) {
   async function handleExport() {
     if (!exportPass) return
     if (exportPass.length < 8) {
-      setMessage({ text: "Passphrase must be at least 8 characters", error: true })
+      setMessage({ text: t("gui.settings.errorExportTooShort"), error: true })
       return
     }
     if (exportPass !== exportConfirm) {
-      setMessage({ text: "Passphrases do not match", error: true })
+      setMessage({ text: t("gui.settings.errorExportNoMatch"), error: true })
       return
     }
     setLoading(true)
@@ -479,12 +521,12 @@ function ExportImport({ onImported }: { onImported: () => void }) {
     try {
       const path = await App.ExportVaultToFile(exportPass)
       if (path) {
-        setMessage({ text: `Exported to ${path}`, error: false })
+        setMessage({ text: t("gui.settings.exportedTo", { path }), error: false })
         setExportPass("")
         setExportConfirm("")
       }
     } catch (err) {
-      setMessage({ text: formatError(err, "Export failed"), error: true })
+      setMessage({ text: formatError(err, t("gui.settings.exportFailed")), error: true })
     } finally {
       setLoading(false)
     }
@@ -497,7 +539,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
         setImportFile(path)
       }
     } catch (err) {
-      setMessage({ text: formatError(err, "Failed to select file"), error: true })
+      setMessage({ text: formatError(err, t("gui.settings.selectFileFailed")), error: true })
     }
   }
 
@@ -508,13 +550,13 @@ function ExportImport({ onImported }: { onImported: () => void }) {
     try {
       const result = await App.ImportVaultFromFile(importFile, importPass)
       if (result) {
-        setMessage({ text: `Imported ${result.imported} credential(s), ${result.skipped} skipped`, error: false })
+        setMessage({ text: t("gui.settings.importResult", { imported: result.imported, skipped: result.skipped }), error: false })
         setImportPass("")
         setImportFile(null)
         onImported()
       }
     } catch (err) {
-      setMessage({ text: formatError(err, "Import failed"), error: true })
+      setMessage({ text: formatError(err, t("gui.settings.importFailed")), error: true })
     } finally {
       setLoading(false)
     }
@@ -525,10 +567,10 @@ function ExportImport({ onImported }: { onImported: () => void }) {
       {!showExport && !showImport && (
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { setShowExport(true); setMessage(null) }}>
-            Export credentials
+            {t("gui.settings.exportCredentials")}
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setShowImport(true); setMessage(null) }}>
-            Import credentials
+            {t("gui.settings.importCredentials")}
           </Button>
         </div>
       )}
@@ -539,24 +581,24 @@ function ExportImport({ onImported }: { onImported: () => void }) {
             <>
               <p className="text-sm text-green-500">{message.text}</p>
               <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }}>
-                Done
+                {t("gui.common.done")}
               </Button>
             </>
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Enter a passphrase to encrypt the export file.
+                {t("gui.settings.exportDescription")}
               </p>
               <Input
                 type="password"
-                placeholder="Export passphrase"
+                placeholder={t("gui.settings.exportPassphrasePlaceholder")}
                 value={exportPass}
                 onChange={(e) => { setExportPass(e.target.value); setMessage(null) }}
               />
               {exportPass.length > 0 && <StrengthMeter passphrase={exportPass} />}
               <Input
                 type="password"
-                placeholder="Confirm passphrase"
+                placeholder={t("gui.settings.exportConfirmPlaceholder")}
                 value={exportConfirm}
                 onChange={(e) => { setExportConfirm(e.target.value); setMessage(null) }}
               />
@@ -565,10 +607,10 @@ function ExportImport({ onImported }: { onImported: () => void }) {
               )}
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleExport} disabled={!exportPass || !exportConfirm || loading}>
-                  {loading ? "Exporting..." : "Export to file"}
+                  {loading ? t("gui.settings.exporting") : t("gui.settings.exportToFile")}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => { setShowExport(false); setExportPass(""); setExportConfirm(""); setMessage(null) }} disabled={loading}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
               </div>
             </>
@@ -582,7 +624,7 @@ function ExportImport({ onImported }: { onImported: () => void }) {
             <>
               <p className="text-sm text-green-500">{message.text}</p>
               <Button size="sm" variant="outline" onClick={() => { setShowImport(false); setImportPass(""); setImportFile(null); setMessage(null) }}>
-                Done
+                {t("gui.common.done")}
               </Button>
             </>
           ) : (
@@ -590,20 +632,20 @@ function ExportImport({ onImported }: { onImported: () => void }) {
               {!importFile ? (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Select the encrypted export file to import.
+                    {t("gui.settings.importDescription")}
                   </p>
                   <Button size="sm" onClick={handlePickFile}>
-                    Choose file
+                    {t("gui.settings.chooseFile")}
                   </Button>
                 </>
               ) : (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    File: {importFile.split(/[/\\]/).pop()}
+                    {t("gui.settings.importFile", { name: importFile.split(/[/\\]/).pop() })}
                   </p>
                   <Input
                     type="password"
-                    placeholder="Passphrase used during export"
+                    placeholder={t("gui.settings.importPassphrasePlaceholder")}
                     value={importPass}
                     onChange={(e) => setImportPass(e.target.value)}
                     autoFocus
@@ -616,11 +658,11 @@ function ExportImport({ onImported }: { onImported: () => void }) {
               <div className="flex gap-2">
                 {importFile && (
                   <Button size="sm" onClick={handleImport} disabled={!importPass || loading}>
-                    {loading ? "Importing..." : "Import"}
+                    {loading ? t("gui.settings.importing") : t("gui.settings.import")}
                   </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={() => { setShowImport(false); setImportPass(""); setImportFile(null); setMessage(null) }}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
               </div>
             </>
