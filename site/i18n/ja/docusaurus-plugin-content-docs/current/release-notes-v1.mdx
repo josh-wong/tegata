@@ -32,7 +32,7 @@ Tegataのオフライン対応のコアは、ネットワークアクセスな�
 	- スタティックパスワードの追加方法の詳細については、[スタティックパスワードをTegataに追加できますか](faq.mdx#can-i-add-static-passwords-to-tegata)を参照してください。
 - **AES-256-GCM暗号化ボールト。** Argon2id（time=3、memory=64 MiB、parallelism=4）でストレッチされたパスフレーズを使用して静止データのクレデンシャルを暗号化します（[josh-wong](https://github.com/josh-wong)による[#2](https://github.com/josh-wong/tegata/pull/2)）。
 - **リカバリーキー。** パスフレーズを失った場合のボールトアクセスを回復します（[josh-wong](https://github.com/josh-wong)による[#2](https://github.com/josh-wong/tegata/pull/2)）。
-	- リカバリーキーの保護方法の詳細については、[リカバリーキーの��護](security-best-practices.mdx#protecting-your-recovery-key)を参照してください。
+	- リカバリーキーの保護方法の詳細については、[リカバリーキーの保護](security-best-practices.mdx#protecting-your-recovery-key)を参照してください。
 - **memguard保護メモリ。** キーマテリアルをガードされたメモリページに保持し、使用直後にゼロにします（[josh-wong](https://github.com/josh-wong)による[#2](https://github.com/josh-wong/tegata/pull/2)）。
 	- キーマテリアルの処理方法の詳細については、[キーマテリアルの処理](security-best-practices.mdx#key-material-handling)を参照してください。
 - **自動ロック。** アイドル時間5分後にボールトをロックします（[josh-wong](https://github.com/josh-wong)による[#49](https://github.com/josh-wong/tegata/pull/49)、[#79](https://github.com/josh-wong/tegata/pull/79)）。
