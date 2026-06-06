@@ -1,0 +1,492 @@
+---
+title: CLIリファレンス
+sidebar_position: 5
+description: すべてのTegata CLIコマンドの完全なリファレンス – フラグ、使用例、終了コード、環境変数。
+---
+
+このページでは、すべてのTegata CLIコマンドのフラグ、デフォルト、使用例について説明します。コマンドはアルファベット順に記載されています。
+
+## ボールト解決
+
+ボールトにアクセスするすべてのコマンドは、以下の解決順序を使用します。
+
+1. `--vault`フラグ（ディレクトリまたはファイルパス – 最高優先度）
+2. `TEGATA_VAULT`環境変数
+3. 現在の作業ディレクトリの`./vault.tegata`
+
+ディレクトリが指定された場合、Tegataは自動的に`vault.tegata`を追加します。
+
+## グローバルフラグ
+
+これらのフラグはすべてのコマンドで使用できます。
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--vault` | string | (なし) | ボールトファイルまたはディレクトリへのパス。 |
+| `--verbose` | bool | false | stderrへのデバッグログを有効にします。 |
+| `--lang` | string | (自動) | CLIおよびTUI出力の言語コード：`en-us`（アメリカ英語）または`ja-jp`（日本語）。省略形`en`と`ja`も使用でき、自動的にマッピングされます。単一の呼び出しに対して`tegata.toml`に保存された言語とシステムロケールを上書きします。 |
+
+## コマンド
+
+このセクションでは、すべてのCLIコマンドをアルファベット順に記載しています。最も一般的なコマンドのクイックスタートガイドについては、[クイックスタート](quickstart.mdx)を参照してください。
+
+### `tegata add`
+
+ボールトにクレデンシャルを追加します。TOTP、HOTP、スタティックパスワード、チャレンジ・レスポンスのクレデンシャルタイプをサポートします。
+
+**使用方法：** `tegata add <LABEL> [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--scan` | bool | false | フィールドを手動で入力する代わりに`otpauth://` URIを貼り付けます。 |
+| `--type` | string | `totp` | クレデンシャルタイプ：`totp`、`hotp`、`static`、`challenge-response`。 |
+| `--issuer` | string | (なし) | クレデンシャル発行者名。 |
+| `--algorithm` | string | `SHA1` | HMACアルゴリズム：`SHA1`、`SHA256`、`SHA512`。チャレンジ・レスポンスのデフォルトは`SHA256`。 |
+| `--digits` | int | `6` | 生成されるコードの桁数（1〜10）。 |
+| `--period` | int | `30` | TOTPの期間（秒）（15〜120）。 |
+| `--tag` | string | (なし) | 適用するタグ（繰り返し可能：`--tag work --tag totp`）。 |
+
+**使用例：**
+
+```bash title="手動でシークレットを入力してTOTPを追加"
+tegata add GitHub --type totp --issuer GitHub
+```
+
+```bash title="otpauth:// URIから追加"
+tegata add GitHub --scan
+```
+
+```bash title="タグ付きで追加"
+tegata add GitHub --type totp --issuer GitHub --tag work --tag totp
+```
+
+シークレットは常に非表示入力でインタラクティブにプロンプトされます。`--scan`を使用すると、タイプ、発行者、アルゴリズム、桁数、期間はURIから自動的に解析されます。
+
+### `tegata bench`
+
+現在のマシンでのArgon2idキー派生パフォーマンスをベンチマークします。デフォルトパラメーター（time=3、memory=64 MiB、parallelism=4）で3回のイテレーションを実行し、平均アンロック時間を報告します。
+
+**使用方法：** `tegata bench`
+
+```bash
+tegata bench
+```
+
+出力には各実行のタイミングと結果が3秒のターゲット内かどうかが含まれます。新しいハードウェアでこれを実行して、キー派生が許容可能な時間内に完了することを確認します。
+
+### `tegata change-passphrase`
+
+クレデンシャルペイロードを再暗号化せずにボールトパスフレーズをローテーションします。パスフレーズでラップされたデータ暗号化キーとヘッダーソルトのみが置き換えられます。
+
+**使用方法：** `tegata change-passphrase`
+
+```bash
+tegata change-passphrase
+```
+
+Tegataは現在のパスフレーズを求め、次に新しいパスフレーズを求めて確認します。操作はボールトのサイズに関係なく高速です。
+
+### `tegata code`
+
+クレデンシャルのTOTPまたはHOTPコードを生成します。コードはターミナルに表示され、デフォルトでクリップボードにコピーされます。
+
+**使用方法：** `tegata code <LABEL> [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--clip` | bool | `true` | コードをクリップボードにコピーします。 |
+| `--show` | bool | `true` | ターミナルにコードを表示します。 |
+
+**使用例：**
+
+```bash title="TOTPコードを生成（表示とクリップボードにコピー）"
+tegata code GitHub
+```
+
+```bash title="クリップボードコピーなしで生成"
+tegata code GitHub --clip=false
+```
+
+TOTPクレデンシャルの場合、出力にはコードが有効期限切れになるまでの残り秒数が含まれます。HOTPクレデンシャルの場合、カウンターはコードを表示する前にインクリメントされて保存されます。
+
+### `tegata config set`
+
+`tegata.toml`の設定値を設定します。
+
+**使用方法：** `tegata config set <KEY> <VALUE>`
+
+**サポートされるキー：**
+
+| キー | 値 | 説明 |
+|-----|--------|-------------|
+| `audit.auto_start` | `true` / `false` | ボールトのアンロック時にDockerの監査スタックを自動起動します。 |
+| `language` | `en-us` / `ja-jp` | CLIおよびTUI出力の言語。ボールトと一緒に移動するように`tegata.toml`に保存されます。 |
+
+**使用例：**
+
+```bash title="日本語に切り替え"
+tegata config set language ja-jp
+```
+
+```bash title="英語に戻す"
+tegata config set language en-us
+```
+
+```bash title="監査の自動起動を無効化"
+tegata config set audit.auto_start false
+```
+
+言語設定は他のボールト設定とともに`tegata.toml`に保存されるため、複数のマシンでも再設定する必要がありません。
+
+### `tegata config show`
+
+`tegata.toml`の値またはそのデフォルトを含む有効な設定を表示します。出力にはアクティブな言語が含まれます。
+
+**使用方法：** `tegata config show`
+
+```bash
+tegata config show
+```
+
+### `tegata export`
+
+すべてのクレデンシャルを暗号化された`.tegata-backup`ファイルにエクスポートします。バックアップはエクスポート時に選択した別のエクスポートパスフレーズで保護されます。
+
+**使用方法：** `tegata export [flags]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--out` | string | ボールトディレクトリの`vault.tegata-backup` | バックアップファイルの出力パス。 |
+
+```bash title="特定の場所にエクスポート"
+tegata export --out ~/backups/vault.tegata-backup
+```
+
+Tegataはボールトパスフレーズを求め、次に新しいエクスポートパスフレーズを求めて確認します（最低8文字）。エクスポートパスフレーズはボールトパスフレーズとは独立しています。
+
+:::tip[異なるエクスポートパスフレーズを設定する]
+
+バックアップに異なるパスフレーズを使用することで多層防御が追加されます。攻撃者が一方のパスフレーズを知っても、自動的に両方を入手できるわけではありません。
+
+:::
+
+### `tegata get`
+
+スタティックパスワードのクレデンシャルを取得します。パスワードはデフォルトでクリップボードにコピーされ、オプションでターミナルに表示されます。
+
+**使用方法：** `tegata get <LABEL> [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--show` | bool | `false` | ターミナルにパスワードを表示します。 |
+
+**使用例：**
+
+```bash title="取得してクリップボードにコピー"
+tegata get backup-key
+```
+
+```bash title="取得してターミナルに表示"
+tegata get backup-key --show
+```
+
+### `tegata history`
+
+ScalarDL Ledgerからの認証イベント履歴を表示します。`tegata.toml`で監査ログが有効になっている必要があります。
+
+Tegataはラベルハッシュを人間が読みやすいクレデンシャル名に解決するためにボールトパスフレーズを求めます。イベントが記録された後にクレデンシャルが削除されている場合、ラベルは`(deleted)`として表示されます。
+
+**使用方法：** `tegata history [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--from` | string | (なし) | 開始日フィルター（`YYYY-MM-DD`）。 |
+| `--to` | string | (なし) | 終了日フィルター（`YYYY-MM-DD`）。 |
+| `--json` | bool | `false` | JSON配列として出力します。 |
+
+**テーブル出力列：** 操作、ラベル（ハッシュから解決）、タイムスタンプ（UTC）、ハッシュ（省略）。
+
+**レコードごとのJSONフィールド：** `object_id`、`operation`、`label_hash`、`timestamp`（Unix秒）、`hash_value`。
+
+**使用例：**
+
+```bash title="すべての履歴を表示"
+tegata history
+```
+
+```bash title="日付範囲でフィルター"
+tegata history --from 2026-01-01 --to 2026-03-31
+```
+
+```bash title="スクリプト化のためのJSON出力"
+tegata history --json | jq '.[] | select(.operation == "totp")'
+```
+
+### `tegata import`
+
+暗号化された`.tegata-backup`ファイルから現在のボールトにクレデンシャルをインポートします。ボールト内に既にラベルが存在するクレデンシャルはスキップされます。
+
+**使用方法：** `tegata import <BACKUP-FILE>`
+
+**使用例：**
+
+```bash
+tegata import ~/backups/vault.tegata-backup
+```
+
+Tegataはボールトパスフレーズとバックアップパスフレーズを求めます。スクリプト化されたリストアフローの場合、バックアップパスフレーズは`TEGATA_BACKUP_PASSPHRASE`環境変数で提供できます。
+
+### `tegata init`
+
+新しい暗号化されたボールトを作成します。パス引数が提供された場合、それがボールトディレクトリとして使用されます。そうでない場合は現在のディレクトリが使用されます。
+
+**使用方法：** `tegata init [path]`
+
+**使用例：**
+
+USBドライブにボールトを作成するには、以下のコマンドを実行します。`/path/to/usb`をドライブパスに置き換えてください。
+
+```bash title="USBドライブにボールトを初期化"
+tegata init /path/to/usb
+```
+
+現在のディレクトリにボールトを作成するには、以下のコマンドを実行します。
+
+```bash title="現在のディレクトリに初期化"
+tegata init
+```
+
+Tegataはパスフレーズを求めて確認し（最低8文字）、ボールトファイルを作成し、デフォルトの`tegata.toml`設定を書き込み、リカバリーキーを表示します。続行する前にリカバリーキーを別の安全な場所に保管してください。
+
+### `tegata ledger start`
+
+ScalarDL Ledger Dockerスタックを起動して監査ログを設定するワンクリックセットアップです。監査層を有効にするためにボールトを作成した後に一度実行します。
+
+**使用方法：** `tegata ledger start [flags]`
+
+**使用例：**
+
+```bash title="TEGATA_VAULTまたは現在のディレクトリのボールトで起動"
+tegata ledger start
+```
+
+```bash title="明示的なボールトパスで起動"
+tegata ledger start --vault /media/usb
+```
+
+Tegataは完全なセットアップシーケンスを実行します：Dockerを確認し、バンドルされたcomposeファイルを`~/.tegata/docker/`に展開し、固有のエンティティIDとシークレットキーを生成し、Dockerスタックを起動し、レジャーが準備完了になるのを待ち、クレデンシャルを登録し、`tegata.toml`に`[audit]`セクションを書き込みます。最初の実行では3〜7分かかります（HashStore SDKのダウンロードが遅い部分です）。
+
+セットアップ後、すべてのボールトのアンロックがバックグラウンドでDockerスタックを自動的に起動します。
+
+詳細については、[監査ログの有効化](scalardl-setup.mdx)ガイドを参照してください。
+
+### `tegata ledger stop`
+
+ScalarDL Ledger Dockerコンテナーを停止します。監査履歴はディスクに保持されます。
+
+**使用方法：** `tegata ledger stop [flags]`
+
+```bash
+tegata ledger stop
+tegata ledger stop --vault /media/usb
+```
+
+### `tegata ledger setup`
+
+HMACシークレットキーをScalarDLに登録して接続を確認します。これは、バンドルされたDockerスタックではなく独自のScalarDLインスタンスを実行しているユーザーのための`tegata ledger start`の手動の代替です。
+
+**使用方法：** `tegata ledger setup`
+
+```bash
+tegata ledger setup
+```
+
+`tegata.toml`から`[audit]`セクションを読み込み、設定されたシークレットキーを登録します。設定手順については、[監査ログの有効化](scalardl-setup.mdx)ガイドを参照してください。
+
+### `tegata list`
+
+ボールト内のすべてのクレデンシャルをタグでグループ化してリストします。タグのないクレデンシャルは`[untagged]`の下に表示されます。
+
+**使用方法：** `tegata list [flags]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--tag` | string | (なし) | タグでクレデンシャルをフィルター（大文字小文字を区別した完全一致）。 |
+
+**使用例：**
+
+```bash title="すべてのクレデンシャルをリスト"
+tegata list
+```
+
+```bash title="タグでフィルター"
+tegata list --tag work
+```
+
+### `tegata remove`
+
+ボールトからクレデンシャルを削除します。Tegataは削除する前に確認を求めます。
+
+**使用方法：** `tegata remove <LABEL>`
+
+```bash
+tegata remove old-service
+```
+
+### `tegata resync`
+
+カウンターがドリフトした後にHOTPカウンターを再同期します。サーバーまたは別の認証アプリからの2つの連続したコードを提供します。Tegataは一致する位置を見つけるために100カウンターの先読みウィンドウをスキャンします。
+
+**使用方法：** `tegata resync <LABEL>`
+
+```bash
+tegata resync my-hotp-service
+```
+
+Tegataはインタラクティブに2つの連続したコードを求めます。
+
+### `tegata sign`
+
+保存されたHMACシークレット（チャレンジ・レスポンスクレデンシャル）を使用してチャレンジ文字列に署名します。アルゴリズムはクレデンシャルのアルゴリズムフィールドによって決まります：`SHA256`はHMAC-SHA256を生成し、それ以外はデフォルトでHMAC-SHA1になります。
+
+**使用方法：** `tegata sign <LABEL> [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--challenge` | string | (なし) | 署名するチャレンジ文字列（必須）。 |
+| `--clip` | bool | `false` | 印刷する代わりに署名されたレスポンスをクリップボードにコピーします。 |
+
+**使用例：**
+
+```bash title="署名してstdoutに出力"
+tegata sign github --challenge abc123
+```
+
+```bash title="署名してクリップボードにコピー"
+tegata sign github --challenge abc123 --clip
+```
+
+### `tegata tag`
+
+既存のクレデンシャルにタグを追加または削除します。`--add`または`--remove`のいずれかを少なくとも1つ提供する必要があります。
+
+**使用方法：** `tegata tag <LABEL> [FLAGS]`
+
+**フラグ：**
+
+| フラグ | タイプ | デフォルト | 説明 |
+|------|------|---------|-------------|
+| `--add` | string | (なし) | 追加するタグ（繰り返し可能）。 |
+| `--remove` | string | (なし) | 削除するタグ（繰り返し可能）。 |
+
+**使用例：**
+
+```bash title="タグを追加"
+tegata tag github --add work --add totp
+```
+
+```bash title="タグを削除"
+tegata tag github --remove personal
+```
+
+### `tegata ui`
+
+インタラクティブなターミナルユーザーインターフェースを起動します。ボールトが見つからない場合、TUIはセットアップウィザードを起動します。完全なウォークスルーについては、[TUIの使用](tui-guide.mdx)ガイドを参照してください。
+
+**使用方法：** `tegata ui`
+
+```bash
+tegata ui
+```
+
+### `tegata verify`
+
+ScalarDL Ledgerに保存された監査ログの整合性を確認します。エンティティのコレクションからすべてのイベントIDを取得し、各イベントを保存されたハッシュと照合します。確認されたイベントの総数を報告し、検出された場合はイベントごとの障害をリストします。
+
+監査ハッシュが独立して保存される前に記録されたイベントは既存のものとして報告されてスキップされます。
+
+**使用方法：** `tegata verify [flags]`
+
+**終了コード：** 成功時`0`、整合性違反時`9`、ネットワーク障害時`8`。
+
+**使用例：**
+
+```bash title="現在のディレクトリのボールトを確認"
+tegata verify
+```
+
+```bash title="明示的なパスのボールトを確認"
+tegata verify --vault /media/usb/vault.tegata
+```
+
+### `tegata verify-recovery`
+
+ボールト作成時に保存されたSHA-256ハッシュと照合してリカバリーキーを確認します。
+
+**使用方法：** `tegata verify-recovery`
+
+```bash
+tegata verify-recovery
+```
+
+Tegataはボールトパスフレーズとリカバリーキー文字列を求めます。保存されているリカバリーキーがまだ有効であることを確認するために定期的に実行します。
+
+### `tegata version`
+
+バージョン情報を印刷します。
+
+**使用方法：** `tegata version`
+
+```bash
+tegata version
+```
+
+## 環境変数
+
+| 変数 | 説明 |
+|----------|-------------|
+| `TEGATA_VAULT` | `--vault`が指定されていない場合のデフォルトのボールトパス。 |
+| `TEGATA_PASSPHRASE` | 非対話的な使用のためのボールトパスフレーズ（stderrに警告が出力されます）。 |
+| `TEGATA_BACKUP_PASSPHRASE` | スクリプト化された`tegata import`のためのバックアップパスフレーズ。 |
+| `NO_COLOR` | ANSI カラー出力を無効にする（空でない任意の値で有効になります）。 |
+| `LANG` / `LANGUAGE` / `LC_ALL` / `LC_MESSAGES` | システムロケール変数。Tegataはこれらを読み取って、`tegata.toml`に`language`値が設定されておらず`--lang`が指定されていない場合に優先言語を検出します。完全なロケールタグと言語のみの部分の両方が一致します（`ja_JP.UTF-8` → `ja-jp`、`en_US.UTF-8` → `en-us`）。サポートされる値：`en-us`、`ja-jp`。 |
+
+`TEGATA_PASSPHRASE`はCIおよびスクリプト化環境向けです。使用するたびにstderrに警告が出力されます。`tegata export`コマンドはこの変数を読み取りません。新しいバックアップパスフレーズを設定する際は常にインタラクティブなプロンプトが必要です。
+
+## 言語選択
+
+Tegataはアメリカ英語（`en-us`）と日本語（`ja-jp`）をサポートしています。言語は以下の順序で解決されます。
+
+1. `--lang`フラグ（単一コマンドの上書き、最高優先度）
+2. `tegata.toml`の`language`（ボールトと一緒に保存され、複数マシンに移動）
+3. システムロケール（`$LANG`、`$LANGUAGE`、`$LC_ALL`、`$LC_MESSAGES`）
+4. 英語（デフォルト）
+
+デフォルトの言語を永続的に変更するには、`tegata config set language <code>`を使用します。1つのコマンドの場合は`--lang`を使用します。
+
+## 終了コード
+
+| コード | 意味 |
+|------|---------|
+| `0` | 成功 |
+| `1` | 一般エラー（無効な入力、ファイルなし） |
+| `2` | 認証エラー（パスフレーズが間違っている） |
+| `3` | ボールトエラー（破損、存在しない、ロック済み） |
+| `4` | ネットワークエラー（ScalarDLに到達できない） |
+| `5` | 整合性エラー（監査チェーンが壊れている） |
+| `8` | `tegata verify`中のネットワーク障害 |
+| `9` | `tegata verify`による整合性違反の検出 |

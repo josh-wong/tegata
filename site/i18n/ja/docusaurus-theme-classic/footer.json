@@ -1,0 +1,6 @@
+{
+  "copyright": {
+    "message": "Copyright © {year} Josh Wong. Docusaurusで構築。",
+    "description": "The footer copyright"
+  }
+}

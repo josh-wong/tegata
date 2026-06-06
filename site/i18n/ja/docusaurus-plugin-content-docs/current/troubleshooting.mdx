@@ -1,0 +1,466 @@
+---
+title: トラブルシューティング
+sidebar_position: 8
+description: Tegataの一般的な問題の解決策 – ボールトのアンロック失敗、クリップボードの問題、監査セットアップエラーなど。
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+このページでは一般的な問題とその解決策を説明します。ここに記載されていない問題が発生した場合は、`--verbose`を使用して失敗したコマンドを実行してデバッグ出力を確認し、出力を添付して[issueを作成](https://github.com/josh-wong/tegata/issues)してください。
+
+症状に基づく修正にはこのページを使用してください。セキュリティの根拠とポリシーの詳細については、[セキュリティのベストプラクティス](security-best-practices.mdx)を参照してください。
+
+## ボールトの問題
+
+このセクションでは、ボールトのアクセス、破損、パスフレーズの回復に関する一般的な問題のトラブルシューティング方法について説明します。
+
+### パスフレーズが間違えているためボールトをアンロックできません
+
+**症状：** `tegata code`または`tegata ui`が「パスフレーズが正しくありません」と報告します。
+
+**まずこれらを確認してください：**
+
+- `tegata init`中に設定したパスフレーズを使用していることを確認してください。古いものや別のパスフレーズは使用しないでください。
+- Caps Lockを確認してください。パスフレーズは大文字と小文字を区別します。
+- 最近`tegata change-passphrase`を実行した場合は、新しいパスフレーズを使用していることを確認してください。
+
+**レート制限：** 数回の失敗後、Tegataは指数バックオフを適用します。エラーメッセージには残りの試行回数が含まれます。次の試行まで指定された遅延時間待ってください。レート制限の状態はボールトヘッダーに保存されているため、セッションをまたいで持続します。
+
+**ボールトの回復：** パスフレーズを忘れた場合は、リカバリーキーでボールトをアンロックできます。
+
+```bash
+tegata verify-recovery
+```
+
+これはキーが有効であることを確認します。
+
+:::warning[リカバリーキーはパスフレーズではありません]
+
+リカバリーキーはボールト作成時に生成された別個の32バイトランダム値です。パスフレーズから派生していないため、パスフレーズの代わりに使用できません。パスフレーズではなくリカバリーキーをお持ちの場合は、`tegata verify-recovery`を実行してボールトをアンロックし、`tegata change-passphrase`を使用して新しいパスフレーズを設定してください。
+
+リカバリーキーの保管と回復不能な紛失に関するガイダンスについては、[リカバリーキーの保護](security-best-practices.mdx#protecting-your-recovery-key)を参照してください。
+
+:::
+
+### ボールトファイルが見つかりません
+
+**症状：** `Error: no vault found. Use --vault, set TEGATA_VAULT, or run from your vault directory.`
+
+Tegataは以下の順序でボールトを検索します。
+
+1. `--vault`フラグ
+2. `TEGATA_VAULT`環境変数
+3. 現在のディレクトリの`./vault.tegata`
+
+**修正：** ボールトパスを明示的に指定します。`/path/to/vault`を実際のボールトへのパスに置き換えてください。
+
+```bash
+tegata code GitHub --vault /path/to/vault
+```
+
+または以下のコマンドを実行して環境変数を設定します。`/path/to/vault`をボールトのディレクトリに置き換えてください。
+
+```bash
+export TEGATA_VAULT=/path/to/vault
+```
+
+WindowsのPowerShellでは、以下のコマンドを実行して環境変数を設定します。`<USB_DRIVE_LETTER>`を実際のドライブレターに置き換えてください。
+
+```powershell
+$env:TEGATA_VAULT = "<USB_DRIVE_LETTER>:\"
+```
+
+### ボールトが破損しているようです
+
+**症状：** `Error: vault corrupt or invalid magic bytes.`
+
+これは通常、間違ったファイルが指定されたか、ボールトが損傷（書き込み中の電源断、ファイルシステムエラー）したことを意味します。
+
+**まずバックアップを試してください：** Tegataはすべての書き込み前にボールトディレクトリに`.bak`ファイルを作成します。`vault.tegata.bak`が存在する場合は、`vault.tegata`に名前を変更してみてください。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows" default>
+
+PowerShellでバックアップボールトの名前を変更するには、以下のコマンドを実行します。`<USB_DRIVE_LETTER>`を実際のドライブレターに置き換えてください。
+
+```powershell
+Rename-Item <USB_DRIVE_LETTER>:\vault.tegata.bak vault.tegata
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+macOSまたはLinuxでバックアップボールトの名前を変更するには、以下のコマンドを実行します。`/path/to/vault`を実際のボールトへのパスに置き換えてください。
+
+```bash
+mv /path/to/vault/vault.tegata.bak /path/to/vault/vault.tegata
+```
+
+  </TabItem>
+</Tabs>
+
+**エクスポートバックアップから復元する：** `.bak`ファイルが役に立たない場合は、`tegata export`で作成した暗号化されたバックアップから復元します。パスをバックアップファイルとボールトディレクトリに置き換えてください。
+
+```bash
+tegata init /path/to/vault # 新しいボールトを作成
+tegata import /path/to/backup/vault.tegata-backup # クレデンシャルを復元
+```
+
+### アイドルタイムアウト後にボールトがロックされました
+
+**症状：** TUIまたはGUIがロック画面またはセッション期限切れメッセージを表示します。
+
+ボールトはデフォルトで5分間の非アクティブ後に自動ロックします。続行するにはパスフレーズを再入力してください。アイドルタイムアウトを変更するには、`tegata.toml`を編集して`idle_timeout`を秒単位で設定します（`0`に設定すると無効になります）。
+
+## クリップボードの問題
+
+このセクションでは、コードがコピーされない、自動クリアが早すぎるなど、クリップボード操作の一般的な問題のトラブルシューティング方法について説明します。
+
+### クリップボードの自動クリアが早すぎる（または遅すぎる）
+
+デフォルトのクリップボードクリア遅延は45秒です。`tegata.toml`で調整します。
+
+```toml
+[clipboard]
+clear_delay = 90 # 秒；0は自動クリアを無効にします
+```
+
+### Linuxでコードがクリップボードにコピーされません
+
+**症状：** 出力に`Copied to clipboard`と表示されるが、貼り付けても何もない。
+
+TegataはX11では`xclip`を、Waylandでは`wl-copy`を使用します。いずれかをインストールする必要があります。
+
+<Tabs groupId="linux-distro" queryString>
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
+
+```bash
+sudo apt install xclip wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora">
+
+```bash
+sudo dnf install xclip wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S xclip wl-clipboard
+```
+
+  </TabItem>
+</Tabs>
+
+X11フォワーディングなしのヘッドレスまたはSSHセッションでは、クリップボード操作は利用できません。`--clip=false`を使用してください。
+
+```bash
+tegata code GitHub --clip=false
+```
+
+### WSL2でクリップボードが機能しません
+
+WSL2はWindowsホストの`clip.exe`を使用します。WSL interopが有効になっていることを確認します。
+
+```bash
+cat /proc/sys/fs/binfmt_misc/WSLInterop
+# 期待される出力: enabled
+```
+
+有効になっていない場合は、`/etc/wsl.conf`に以下を追加してWSL2セッションを再起動します。
+
+```ini
+[interop]
+enabled=true
+```
+
+## GUIの問題
+
+このセクションでは、各プラットフォームでのデスクトップGUIの起動に関する一般的な問題について説明します。
+
+### GUIが起動しません
+
+**症状：** インストーラーは成功するが、GUIが開かないか、すぐに終了する。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows">
+
+Windowsが「このアプリを実行するにはご使用のPCは保護されています」と表示する場合、バイナリはSmartScreenのレピュテーションチェックによってブロックされています。
+
+1. **詳細情報**を選択します。
+2. **実行**を選択します。
+
+これは、まだ広いレピュテーション履歴を持っていない新しいオープンソースバイナリでは予想される動作です。
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+macOSがTegataを開発元が確認できないため開けないと報告する場合は、**システム設定 → プライバシーとセキュリティ → このまま開く**を使用して起動を許可します。
+
+アプリがまだブロックされている場合は、検疫フラグをクリアして再試行します。
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+GUIにはシステムのWebKit2GTKランタイムが必要です。アプリが起動しない場合は、ランタイムの依存関係をインストールして再試行します。
+
+```bash
+# Ubuntu / Debian（新しいリリース）
+sudo apt install libwebkit2gtk-4.1-0
+
+# Ubuntu / Debian（古いリリース）
+sudo apt install libwebkit2gtk-4.0-37
+
+# Fedora / RHEL
+sudo dnf install webkit2gtk4.1
+
+# Arch Linux
+sudo pacman -S webkit2gtk
+```
+
+起動が失敗する場合は、ターミナルから実行してローダーエラーをキャプチャし、[新しいissue](https://github.com/josh-wong/tegata/issues/new)に添付します。
+
+```bash
+tegata-gui
+```
+
+  </TabItem>
+</Tabs>
+
+## 監査ログの問題
+
+このセクションでは、監査層の一般的な問題のトラブルシューティング方法について説明します。
+
+### `tegata ledger start`がすぐに失敗します
+
+**症状：** コマンドがDockerが見つからないかDockerデーモンが実行されていないというエラーで終了します。
+
+Dockerをインストールしてデーモンが実行されていることを確認します。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows">
+
+[Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)をインストールし、スタートメニューから起動します。Tegataはその後のボールトアンロック時にDockerを自動的に起動できますが、最初の`tegata ledger start`にはDocker Desktopがすでに実行されている必要があります。
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+[Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)をインストールして少なくとも一度開きます。その後、TegataはDockerを自動的に起動できます。
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+```bash
+# Dockerデーモンを起動
+sudo systemctl start docker
+
+# 起動時に開始するよう設定
+sudo systemctl enable docker
+
+# ユーザーをdockerグループに追加（この後ログアウトして再ログインが必要）
+sudo usermod -aG docker $USER
+```
+
+  </TabItem>
+</Tabs>
+
+### レジャーセットアップが「HashStoreコントラクトを待機中」で停止します
+
+**症状：** セットアップの進行がHashStore登録ステップで10分以上停止します。
+
+最初の実行ではScalarDL HashStore SDK（約50 MB）をダウンロードし、Docker内でJVMをブートストラップします。遅いネットワークやリソースが制限されたマシンでは、予想以上に時間がかかる場合があります。
+
+- キャンセルする前に少なくとも10分待ってください。
+- `github.com`または`objects.githubusercontent.com`へのアウトバウンドHTTPSトラフィックをブロックするファイアウォールがないことを確認してください。
+- Dockerに十分なメモリが割り当てられていることを確認してください（最低2 GB推奨）。
+
+セットアップが本当に失敗した場合は、`tegata ledger stop`を実行してクリーンアップし、`tegata ledger start`を再試行します。
+
+### 事前定義されたHashStoreコントラクトが登録されていません
+
+**症状：** コントラクト登録中にセットアップが失敗するか、コンテナーが実行中であっても登録が不完全に見えます。
+
+登録コンテナーを手動で実行します。
+
+```bash
+cd ~/.tegata/docker
+docker compose run --rm scalardl-contract-registration
+```
+
+このコマンドが`INVALID_SIGNATURE`で失敗する場合は、`~/.tegata/docker/certs/client.properties`を確認し、`scalar.db.storage.secret_key`の値が改行なしの1行であることを確認します。
+
+### ScalarDLとのポートの競合があります
+
+**症状：** Dockerがポートが既に使用中というエラーでレジャーコンテナーの起動に失敗します。
+
+TegataはDockerを起動する前にポートチェックを実行し、競合しているポートを保持しているプロセスを報告します。一般的な競合：
+
+- **ポート5432：** PostgreSQL（ローカルのPostgreSQLインストール、またはWindowsではWSL2ディストリビューション内で実行中のPostgreSQLインスタンスであることが多い）
+- **ポート50051：** gRPCサーバー（他のgRPCサービスやKubernetesローカルプロキシで使用される場合あり）
+- **ポート50052：** ScalarDL特権ポート
+
+競合しているサービスを停止して`tegata ledger start`を再試行します。Windowsでボールトスタックが実行されていないにもかかわらずポート5432が使用中の場合は、WSL2内のPostgreSQLサーバーが原因の可能性が高いです。以下のコマンドを実行して停止します。
+
+```powershell
+wsl -- sudo service postgresql stop
+```
+
+### 監査履歴に`(deleted)`ラベルが表示されます
+
+`tegata remove`でクレデンシャルが削除されると、ラベルはボールトに存在しなくなります。削除前に記録されたイベントはレジャーに保持されますが、Tegataはラベルハッシュを名前に解決できません。履歴出力にはこれらのイベントに対して`(deleted)`が表示されます。これは予想される動作です。
+
+### `tegata verify`が整合性違反を報告します
+
+**症状：** verifyコマンドがハッシュ不一致のイベントを1つ以上報告します。
+
+これは、ScalarDL Ledger内のイベントレコードが書き込まれた後に変更されたことを示します。これは監査層が検出するように設計された主要なシグナルです。これが発生した場合：
+
+1. `tegata verify --json`を実行して影響を受けるイベントIDの完全なリストを取得します。
+2. 影響を受けるイベントのタイムスタンプと操作を確認します。
+3. 変更を自分で行っていない場合は、潜在的なセキュリティインシデントとして扱います。
+
+監査ハッシュ機能が有効になる前に記録されたイベントは「既存のもの」として報告されてスキップされます。保存されたハッシュなしには確認できません。
+
+## バイナリとインストールの問題
+
+このセクションでは、CLIおよびGUIバイナリ、インストール、プラットフォーム固有の問題の一般的なトラブルシューティング方法について説明します。
+
+### `tegata: command not found`
+
+バイナリがPATHにありません。フルパスで実行するか、そのディレクトリをPATHに追加します。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+```powershell
+# 直接実行
+<USB_DRIVE_LETTER>:\tegata.exe version
+
+# セッションのPATHに追加（<USB_DRIVE_LETTER>を実際のドライブレターに置き換えてください）
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+```bash
+# 直接実行（<USB_DRIVE_NAME>を実際のドライブ名に置き換えてください）
+/Volumes/<USB_DRIVE_NAME>/tegata version
+
+# PATHに追加（zsh）（<USB_DRIVE_NAME>を実際のドライブ名に置き換えてください）
+echo 'export PATH="/Volumes/<USB_DRIVE_NAME>:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+  </TabItem>
+</Tabs>
+
+### macOS：「開発元が確認できないため開けません」
+
+これはGatekeeperの検疫ブロックです。以下のコマンドを実行して検疫属性をクリアします。`<USB_DRIVE_NAME>`を実際のドライブ名に置き換えてください。
+
+```bash
+xattr -d com.apple.quarantine /Volumes/<USB_DRIVE_NAME>/tegata
+```
+
+GUIアプリの場合：
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+### ビルド失敗：`cgo: C compiler not found`
+
+CLIバイナリは`CGO_ENABLED=0`でビルドされ、Cコンパイラーは必要ありません。macOSまたはLinuxでビルド時にCGOエラーが発生した場合は、CLIターゲットをビルドしていることを確認してください。
+
+```bash
+make build # bin/tegataをビルド
+```
+
+Windowsでは、`make build`にはcmd.exeとGNU Makeが必要です。代わりに、PowerShellでリポジトリのルートから以下のコマンドを実行してください。
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
+```
+
+GUIはシステムWebViewに依存するためCGOが必要です。GUIをビルドするには、macOSではXcode Command Line Toolsを、LinuxではBuild Essentialsを、WindowsではMSVCをインストールしてから使用してください。
+
+```bash
+wails build # GUIバイナリをビルド
+```
+
+## TOTP/HOTPの問題
+
+このセクションでは、TOTPおよびHOTPコードの生成に関する一般的な問題のトラブルシューティング方法について説明します。
+
+### TOTPコードがサービスに拒否されます
+
+**症状：** Tegataが生成したコードは正しそうに見えるが、サービスが無効と言う。
+
+最も一般的な原因は**時刻のズレ**です。TOTPは時間ベースであり、システムクロックが±30秒以内であることが必要です。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows">
+
+```powershell
+# 時刻を手動で同期
+w32tm /resync /force
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+```bash
+# 現在の時刻同期状態を確認
+sntp -sS time.apple.com
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+```bash
+# NTP同期状態を確認
+timedatectl status
+
+# 無効になっている場合はNTP同期を有効化
+sudo timedatectl set-ntp true
+```
+
+  </TabItem>
+</Tabs>
+
+クロックが正しくてもコードが引き続き拒否される場合は、`tegata add`中に正しいシークレットを追加したことを確認してください。クレデンシャルを削除して再追加する必要があります。
+
+### HOTPカウンターが同期外れになっています
+
+Tegataを使用せずに（別の認証アプリやサービスのテストページで）コードを生成した場合、カウンターが同期外れになっている可能性があります。
+
+サービスからの2つの連続したコードで再同期コマンドを実行します。
+
+```bash
+tegata resync <HOTP_SERVICE>
+```
+
+Tegataは2つの連続したコードを対話的に求め、一致する位置を見つけるために100カウンターの先読みウィンドウをスキャンします。
+
+## さらに助けを求める
+
+上記のいずれも問題を解決しない場合：
+
+1. `--verbose`を使用して失敗したコマンドを実行してデバッグ出力をキャプチャします。`<COMMAND>`を実行しているコマンドに置き換えてください。
+
+   ```bash
+   tegata <COMMAND> --verbose 2>&1 | tee debug.log
+   ```
+
+2. [GitHub Issues](https://github.com/josh-wong/tegata/issues)ページで問題が既に報告されているか確認します。
+3. プラットフォーム、Tegataバージョン（`tegata version`）、デバッグログを添付して[新しいissueを作成](https://github.com/josh-wong/tegata/issues/new)します。

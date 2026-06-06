@@ -37,7 +37,19 @@ const config = {
   // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
-    locales: ['en'],
+    locales: ['en', 'ja'],
+    localeConfigs: {
+      en: {
+        label: 'English',
+        direction: 'ltr',
+        htmlLang: 'en',
+      },
+      ja: {
+        label: '日本語',
+        direction: 'ltr',
+        htmlLang: 'ja',
+      },
+    },
   },
 
   presets: [
@@ -101,6 +113,10 @@ const config = {
           {
             href: 'https://github.com/josh-wong/tegata',
             label: 'GitHub',
+            position: 'right',
+          },
+          {
+            type: 'localeDropdown',
             position: 'right',
           },
         ],
