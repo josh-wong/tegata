@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- intentional mixed-export shim */
 // Drop-in replacement for react-i18next that bypasses i18next entirely.
 // Uses a simple React context with synchronous nested-key lookup so there
 // are no async init issues in any environment (Wails WebView, tests, etc.).
@@ -68,7 +69,6 @@ const Ctx = createContext<I18nContext>({
 // Re-export as I18nextProvider so main.tsx import works unchanged.
 export function I18nextProvider({
   children,
-  i18n: _i18n,
 }: {
   children: ReactNode
   i18n?: unknown

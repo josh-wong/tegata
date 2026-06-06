@@ -11,7 +11,7 @@ export { t }
 
 const i18n = {
   t,
-  changeLanguage: (_lang: string) => Promise.resolve(),
+  changeLanguage: () => Promise.resolve(),
   language: "en-us",
   isInitialized: true,
 }

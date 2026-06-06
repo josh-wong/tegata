@@ -78,7 +78,7 @@ export function CredentialDetail({ credential, onRemove, auditEnabled = false }:
     onRemove(credential!.id)
     setShowDeleteConfirm(false)
     setDeleteConfirmInput("")
-  }, [credential, onRemove])
+  }, [credential, onRemove, setShowDeleteConfirm, setDeleteConfirmInput])
 
   function formatCredentialType(type: string): string {
     switch (type) {
