@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { LANG_STORAGE_KEY } from "@/lib/i18n"
 import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { CredentialDetail } from "@/components/credentials/CredentialDetail"
@@ -24,7 +23,7 @@ const SETUP_STEP_OPEN_EXISTING = 6 as const
 function App() {
   const vault = useVault()
   const creds = useCredentials()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -48,13 +47,14 @@ function App() {
     if (!vault.isUnlocked) return
     WailsApp.GetLanguage()
       .then((lang) => {
-        // The shim's I18nextProvider reads language from localStorage on mount.
-        // Writing here keeps it in sync for the NEXT session; the current
-        // session reflects whatever was stored before vault unlock.
-        localStorage.setItem(LANG_STORAGE_KEY, lang)
+        if (lang && lang !== i18n.language) {
+          // Applies the persisted language to the running session immediately.
+          // The shim's changeLanguage also writes to localStorage for future sessions.
+          i18n.changeLanguage(lang)
+        }
       })
       .catch(() => {})
-  }, [vault.isUnlocked])
+  }, [vault.isUnlocked, i18n])
 
   useEffect(() => {
     if (vault.isUnlocked) {
