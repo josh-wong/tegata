@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ArrowLeft, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,7 @@ export function SetupWizard({
   onOpenExisting,
   onComplete,
 }: SetupWizardProps) {
+  const { t } = useTranslation()
   const [step, setStep] = useState<Step>(initialStep ?? 1)
   const [removableDrives, setRemovableDrives] = useState<VaultLocation[]>([])
   const [selectedPath, setSelectedPath] = useState("")
@@ -102,11 +104,11 @@ export function SetupWizard({
   async function handleCreate() {
     setValidationError("")
     if (passphrase.length < 8) {
-      setValidationError("Passphrase must be at least 8 characters")
+      setValidationError(t("gui.setup.errorPassTooShort"))
       return
     }
     if (passphrase !== confirm) {
-      setValidationError("Passphrases do not match")
+      setValidationError(t("gui.setup.errorPassNoMatch"))
       return
     }
     try {
@@ -153,7 +155,7 @@ export function SetupWizard({
             onClick={() => setStep((step - 1) as Step)}
             className="gap-1"
           >
-            <ArrowLeft className="h-4 w-4" /> Back
+            <ArrowLeft className="h-4 w-4" /> {t("gui.common.back")}
           </Button>
         )}
 
@@ -163,22 +165,21 @@ export function SetupWizard({
             <div>
               <h1 className="text-2xl font-bold text-primary">Tegata</h1>
               <p className="mt-2 text-muted-foreground">
-                Your 2FA codes and credentials, encrypted <span className="whitespace-nowrap">and portable</span>
+                {t("gui.setup.step1Subtitle")}
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Tegata is a portable authenticator that stores your 2FA codes
-              and other credentials in an encrypted vault.
+              {t("gui.setup.step1Description")}
             </p>
             <Button className="w-full" onClick={() => setStep(2)}>
-              Create new vault
+              {t("gui.setup.createNew")}
             </Button>
             <Button
               variant="outline"
               className="w-full"
               onClick={() => setStep(6 as Step)}
             >
-              Open existing vault
+              {t("gui.setup.openExisting")}
             </Button>
             {onCancel && (
               <Button
@@ -186,7 +187,7 @@ export function SetupWizard({
                 className="w-full"
                 onClick={onCancel}
               >
-                Cancel
+                {t("gui.common.cancel")}
               </Button>
             )}
           </div>
@@ -195,9 +196,9 @@ export function SetupWizard({
         {/* Step 2: Location picker */}
         {step === 2 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Choose a location</h2>
+            <h2 className="text-lg font-semibold">{t("gui.setup.step2Title")}</h2>
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-green-600 dark:text-green-400">💡 Tip:</span> Store your vault on a USB or microSD for security and portability. Install Tegata on any device to access it.
+              <span className="font-semibold text-green-600 dark:text-green-400">{t("gui.setup.step2Tip")}</span>
             </p>
 
             <div className="space-y-2">
@@ -219,16 +220,18 @@ export function SetupWizard({
 
               {removableDrives.length > 0 && (
                 <p className="px-1 text-xs text-muted-foreground">
-                  Only removable drives (USB, SD, and microSD) are shown.
+                  {t("gui.setup.onlyRemovable")}
                 </p>
               )}
             </div>
 
             <label className="text-sm font-medium">
-              {removableDrives.length > 0 ? "Or enter a custom path:" : "Enter a vault path:"}
+              {removableDrives.length > 0
+                ? t("gui.setup.customPathLabelWithDrives")
+                : t("gui.setup.customPathLabelWithoutDrives")}
             </label>
             <Input
-              placeholder="C:\path\to\folder"
+              placeholder={t("gui.setup.customPathPlaceholder")}
               value={customPath}
               onChange={(e) => {
                 setCustomPath(e.target.value)
@@ -239,15 +242,15 @@ export function SetupWizard({
 
             {selectedPath === "__custom__" && customPath && !isCustomPathRemovable && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">⚠️ Warning</p>
+                <p className="font-medium text-amber-900">{t("gui.setup.warningTitle")}</p>
                 <p className="mt-1 text-amber-800">
-                  This path doesn't appear to be on a removable drive. For better security, store your vault on a USB or microSD card; physical separation helps keep your vault safe if your computer is compromised.
+                  {t("gui.setup.warningBody")}
                 </p>
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Vault name</label>
+              <label className="text-sm font-medium">{t("gui.setup.vaultNameLabel")}</label>
               <div className="flex items-stretch gap-0">
                 <Input
                   value={vaultName}
@@ -259,7 +262,7 @@ export function SetupWizard({
                     }
                   }}
                   className="rounded-r-none"
-                  placeholder="vault"
+                  placeholder={t("gui.setup.vaultNamePlaceholder")}
                 />
                 <span className="flex items-center rounded-r-md border border-l-0 border-input bg-muted px-3 text-sm text-muted-foreground">
                   .tegata
@@ -272,7 +275,7 @@ export function SetupWizard({
               disabled={!folderPath || !vaultName}
               onClick={() => setStep(3)}
             >
-              Continue
+              {t("gui.setup.continue")}
             </Button>
           </div>
         )}
@@ -280,17 +283,16 @@ export function SetupWizard({
         {/* Step 3: Passphrase */}
         {step === 3 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Create a passphrase</h2>
+            <h2 className="text-lg font-semibold">{t("gui.setup.step3Title")}</h2>
             <p className="text-sm text-muted-foreground">
-              This passphrase encrypts your vault. Choose something strong and
-              memorable.
+              {t("gui.setup.step3Description")}
             </p>
 
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Input
                   type="password"
-                  placeholder="Passphrase"
+                  placeholder={t("gui.setup.passphrasePlaceholder")}
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
                   maxLength={256}
@@ -301,7 +303,7 @@ export function SetupWizard({
 
               <Input
                 type="password"
-                placeholder="Confirm passphrase"
+                placeholder={t("gui.setup.confirmPassphrasePlaceholder")}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 maxLength={256}
@@ -320,9 +322,9 @@ export function SetupWizard({
               onClick={handleCreate}
             >
               {loading ? (
-                <LoadingSpinner size="sm" message="Creating vault..." />
+                <LoadingSpinner size="sm" message={t("gui.setup.creating")} />
               ) : (
-                "Create vault"
+                t("gui.setup.createVault")
               )}
             </Button>
           </div>
@@ -331,10 +333,9 @@ export function SetupWizard({
         {/* Step 4: Recovery key */}
         {step === 4 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Save your recovery key</h2>
+            <h2 className="text-lg font-semibold">{t("gui.setup.step4Title")}</h2>
             <p className="text-sm text-destructive font-medium">
-              Store this key separately from your USB drive. It is the only way
-              to recover your vault if you forget your passphrase.
+              {t("gui.setup.step4Warning")}
             </p>
 
             <div className="relative rounded-lg bg-muted p-4">
@@ -362,7 +363,7 @@ export function SetupWizard({
                 onChange={(e) => setSavedKey(e.target.checked)}
                 className="rounded border-input"
               />
-              I have saved my recovery key
+              {t("gui.setup.savedKey")}
             </label>
 
             <Button
@@ -370,7 +371,7 @@ export function SetupWizard({
               disabled={!savedKey}
               onClick={() => setStep(5)}
             >
-              Continue
+              {t("gui.setup.continue")}
             </Button>
           </div>
         )}
@@ -378,9 +379,9 @@ export function SetupWizard({
         {/* Step 5: Vault created */}
         {step === 5 && (
           <div className="space-y-4 text-center">
-            <h2 className="text-xl font-medium">Vault created</h2>
+            <h2 className="text-xl font-medium">{t("gui.setup.step5Title")}</h2>
             <p className="text-sm text-muted-foreground">
-              Your vault has been created and encrypted. Save your recovery key somewhere safe.
+              {t("gui.setup.step5Description")}
             </p>
             <label className={`flex items-center justify-center gap-2 text-sm ${auditLoading ? "opacity-50" : ""}`}>
               <input
@@ -390,16 +391,16 @@ export function SetupWizard({
                 disabled={auditLoading}
                 className="rounded border-input"
               />
-              Enable audit logging
+              {t("gui.setup.enableAudit")}
             </label>
             <p className="text-xs text-muted-foreground">
-              Log every authentication event to a tamper-evident ledger. Requires Docker.
+              {t("gui.setup.auditDescription")}
             </p>
             {auditError && (
               <div className="space-y-2">
-                <p className="text-sm text-destructive">Audit setup failed: {auditError}</p>
+                <p className="text-sm text-destructive">{t("gui.setup.auditSetupFailed", { error: auditError })}</p>
                 <Button variant="outline" className="w-full" onClick={onComplete}>
-                  Continue without audit
+                  {t("gui.setup.continueWithoutAudit")}
                 </Button>
               </div>
             )}
@@ -429,10 +430,10 @@ export function SetupWizard({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    {auditProgress || "Setting up audit..."}
+                    {auditProgress || t("gui.setup.settingUpAudit")}
                   </span>
                 ) : (
-                  "Open vault"
+                  t("gui.setup.openVault")
                 )}
               </Button>
             )}
@@ -448,15 +449,15 @@ export function SetupWizard({
               onClick={() => setStep(1)}
               className="gap-1"
             >
-              <ArrowLeft className="h-4 w-4" /> Back
+              <ArrowLeft className="h-4 w-4" /> {t("gui.common.back")}
             </Button>
 
-            <h2 className="text-lg font-semibold">Open existing vault</h2>
+            <h2 className="text-lg font-semibold">{t("gui.setup.step6Title")}</h2>
 
             {existingVaults.length > 0 && (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Detected vaults on your removable drives.
+                  {t("gui.setup.detectedVaults")}
                 </p>
                 <div className="space-y-2">
                   {existingVaults.map((v) => (
@@ -475,12 +476,12 @@ export function SetupWizard({
 
             <p className="text-sm text-muted-foreground">
               {existingVaults.length > 0
-                ? "Or enter a path manually."
-                : "Enter the path to your vault file."}
+                ? t("gui.setup.enterPathManually")
+                : t("gui.setup.enterPathNoVaults")}
             </p>
 
             <Input
-              placeholder="C:\path\to\vault.tegata"
+              placeholder={t("gui.setup.openVaultPlaceholder")}
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
               onKeyDown={(e) => {
@@ -499,7 +500,7 @@ export function SetupWizard({
               disabled={!customPath}
               onClick={() => onOpenExisting(customPath)}
             >
-              Open vault
+              {t("gui.setup.openVault")}
             </Button>
           </div>
         )}

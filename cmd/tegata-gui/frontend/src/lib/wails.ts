@@ -80,6 +80,8 @@ interface WailsAppBindings {
   GetAuditAutoStart(): Promise<boolean>
   SetAuditAutoStart(enabled: boolean): Promise<void>
   EnableAudit(): Promise<void>
+  GetLanguage(): Promise<string>
+  SetLanguage(lang: string): Promise<void>
 }
 
 function getApp(): WailsAppBindings {
@@ -138,6 +140,8 @@ export const App = {
   GetAuditAutoStart: () => getApp().GetAuditAutoStart(),
   SetAuditAutoStart: (enabled: boolean) => getApp().SetAuditAutoStart(enabled),
   EnableAudit: () => getApp().EnableAudit(),
+  GetLanguage: () => getApp().GetLanguage(),
+  SetLanguage: (lang: string) => getApp().SetLanguage(lang),
 }
 
 export function EventsOn(event: string, callback: (...data: unknown[]) => void) {

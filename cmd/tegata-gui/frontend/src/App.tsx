@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { CredentialDetail } from "@/components/credentials/CredentialDetail"
@@ -22,6 +23,7 @@ const SETUP_STEP_OPEN_EXISTING = 6 as const
 function App() {
   const vault = useVault()
   const creds = useCredentials()
+  const { t, i18n } = useTranslation()
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -40,6 +42,21 @@ function App() {
       .then((s) => setIdleTimeoutMs(s * 1000))
       .catch(() => {})
   }, [settingsOpen, vault.isUnlocked])
+
+  // Sync language from tegata.toml on unlock. This covers the edge case where
+  // localStorage was cleared (e.g. browser data wipe) but tegata.toml still
+  // holds the user's preference — the toml value wins and is written back to
+  // localStorage via the shim's changeLanguage.
+  useEffect(() => {
+    if (!vault.isUnlocked) return
+    WailsApp.GetLanguage()
+      .then((lang) => {
+        if (lang && lang !== i18n.language) {
+          i18n.changeLanguage(lang)
+        }
+      })
+      .catch(() => {})
+  }, [vault.isUnlocked, i18n.changeLanguage])
 
   useEffect(() => {
     if (vault.isUnlocked) {
@@ -106,7 +123,7 @@ function App() {
   if (vault.view === "loading") {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner size="lg" message="Loading..." />
+        <LoadingSpinner size="lg" message={t("gui.common.loading")} />
       </div>
     )
   }

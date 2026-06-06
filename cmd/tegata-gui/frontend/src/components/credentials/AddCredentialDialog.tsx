@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,7 @@ interface AddCredentialDialogProps {
 }
 
 export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDialogProps) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState("manual")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -72,11 +74,11 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
   async function handleManualSubmit(e: FormEvent) {
     e.preventDefault()
     if (!label || !secret) {
-      setError("Label and secret are required")
+      setError(t("gui.add.errorRequired"))
       return
     }
     if ((credType === "totp" || credType === "hotp") && !isValidBase32(secret)) {
-      setError("Secret contains invalid characters — TOTP and HOTP secrets use A-Z and 2-7 only (0, 1, and 8 are also accepted as lookalikes)")
+      setError(t("gui.add.errorInvalidBase32"))
       return
     }
     setLoading(true)
@@ -97,7 +99,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(formatError(err, "Failed to add credential"))
+      setError(formatError(err, t("gui.add.errorAdd")))
     } finally {
       setLoading(false)
     }
@@ -106,7 +108,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
   async function handleURISubmit(e: FormEvent) {
     e.preventDefault()
     if (!uri) {
-      setError("URI is required")
+      setError(t("gui.add.errorUri"))
       return
     }
     setLoading(true)
@@ -117,34 +119,39 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
       onAdded()
       onClose()
     } catch (err) {
-      setError(formatError(err, "Failed to add credential"))
+      setError(formatError(err, t("gui.add.errorAdd")))
     } finally {
       setLoading(false)
     }
   }
 
+  const secretPlaceholder =
+    credType === "static" ? t("gui.add.secretPassword") :
+    credType === "challenge-response" ? t("gui.add.secretSharedKey") :
+    t("gui.add.secretDefault")
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold">Add credential</h2>
+        <h2 className="mb-4 text-lg font-semibold">{t("gui.add.title")}</h2>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-4 w-full">
-            <TabsTrigger value="manual" className="flex-1">Manual entry</TabsTrigger>
-            <TabsTrigger value="uri" className="flex-1">Paste URI</TabsTrigger>
+            <TabsTrigger value="manual" className="flex-1">{t("gui.add.tabManual")}</TabsTrigger>
+            <TabsTrigger value="uri" className="flex-1">{t("gui.add.tabUri")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manual">
             <fieldset disabled={loading}>
             <form onSubmit={handleManualSubmit} className="space-y-3">
               <Input
-                placeholder="Label (required)"
+                placeholder={t("gui.add.labelPlaceholder")}
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 autoFocus
               />
               <Input
-                placeholder="Service name, e.g., GitHub, Microsoft (optional)"
+                placeholder={t("gui.add.issuerPlaceholder")}
                 value={issuer}
                 onChange={(e) => setIssuer(e.target.value)}
               />
@@ -153,30 +160,26 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                 value={credType}
                 onChange={(e) => setCredType(e.target.value as CredentialType)}
               >
-                <option value="totp">TOTP</option>
-                <option value="hotp">HOTP</option>
-                <option value="static">Static password</option>
-                <option value="challenge-response">Challenge-response</option>
+                <option value="totp">{t("gui.add.typeTotp")}</option>
+                <option value="hotp">{t("gui.add.typeHotp")}</option>
+                <option value="static">{t("gui.add.typeStatic")}</option>
+                <option value="challenge-response">{t("gui.add.typeChallengeResponse")}</option>
               </select>
               <div className="space-y-1.5">
                 <Input
                   type="password"
-                  placeholder={
-                    credType === "static" ? "Password (required)" :
-                    credType === "challenge-response" ? "Shared secret key (required)" :
-                    "Secret (required)"
-                  }
+                  placeholder={secretPlaceholder}
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                 />
                 {credType === "static" && (
                   <p className="text-xs text-muted-foreground">
-                    This is the password that will be stored and copied to your clipboard when you use this credential.
+                    {t("gui.add.staticHint")}
                   </p>
                 )}
                 {credType === "challenge-response" && (
                   <p className="text-xs text-muted-foreground">
-                    The shared secret used to compute HMAC signatures. Can be plain text or a base32-encoded key.
+                    {t("gui.add.challengeHint")}
                   </p>
                 )}
               </div>
@@ -188,45 +191,45 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
                     onClick={() => setShowAdvanced(!showAdvanced)}
                   >
                     {showAdvanced ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    Advanced options
+                    {t("gui.add.advancedOptions")}
                   </button>
                   {showAdvanced && (
                     <div className="space-y-2 rounded-md border border-border p-3">
                       {(credType === "totp" || credType === "challenge-response") && (
                         <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Hash algorithm</label>
+                          <label className="text-xs text-muted-foreground">{t("gui.add.hashAlgorithm")}</label>
                           <select
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             value={algorithm}
                             onChange={(e) => setAlgorithm(e.target.value)}
                           >
-                            <option value="SHA1">SHA-1 (default)</option>
-                            <option value="SHA256">SHA-256</option>
-                            <option value="SHA512">SHA-512</option>
+                            <option value="SHA1">{t("gui.add.sha1Default")}</option>
+                            <option value="SHA256">{t("gui.add.sha256")}</option>
+                            <option value="SHA512">{t("gui.add.sha512")}</option>
                           </select>
                           {credType === "totp" && (
                             <p className="text-xs text-muted-foreground">
-                              Default is SHA-1. If your provider&apos;s otpauth URI specifies SHA256 or SHA512, use that value.
+                              {t("gui.add.totpAlgoHint")}
                             </p>
                           )}
                         </div>
                       )}
                       {credType !== "challenge-response" && (
                         <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Code length</label>
+                          <label className="text-xs text-muted-foreground">{t("gui.add.codeLength")}</label>
                           <select
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             value={digits}
                             onChange={(e) => setDigits(Number(e.target.value))}
                           >
-                            <option value={6}>6 digits (default)</option>
-                            <option value={8}>8 digits</option>
+                            <option value={6}>{t("gui.add.digits6")}</option>
+                            <option value={8}>{t("gui.add.digits8")}</option>
                           </select>
                         </div>
                       )}
                       {credType === "totp" && (
                         <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Refresh interval (seconds)</label>
+                          <label className="text-xs text-muted-foreground">{t("gui.add.refreshInterval")}</label>
                           <Input
                             type="number"
                             value={period}
@@ -242,16 +245,16 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
               )}
               {credType === "hotp" && (
                 <p className="text-xs text-muted-foreground">
-                  HOTP uses SHA-1 (RFC 4226).
+                  {t("gui.add.hotpAlgoHint")}
                 </p>
               )}
               <Input
-                placeholder="Tags (comma-separated)"
+                placeholder={t("gui.add.tagsPlaceholder")}
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
               />
               <Input
-                placeholder="Category (optional)"
+                placeholder={t("gui.add.categoryPlaceholder")}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               />
@@ -260,10 +263,10 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
 
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Adding..." : "Add"}
+                  {loading ? t("gui.add.adding") : t("gui.add.add")}
                 </Button>
               </div>
             </form>
@@ -276,7 +279,7 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
               <textarea
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
                 rows={4}
-                placeholder="otpauth://totp/Example:user@example.com?secret=..."
+                placeholder={t("gui.add.uriPlaceholder")}
                 value={uri}
                 onChange={(e) => setUri(e.target.value)}
                 autoFocus
@@ -286,10 +289,10 @@ export function AddCredentialDialog({ open, onClose, onAdded }: AddCredentialDia
 
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>
-                  Cancel
+                  {t("gui.common.cancel")}
                 </Button>
                 <Button type="submit" disabled={loading || !uri}>
-                  {loading ? "Adding..." : "Add"}
+                  {loading ? t("gui.add.adding") : t("gui.add.add")}
                 </Button>
               </div>
             </form>

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { ChevronDown } from "lucide-react"
 import type { VaultLocation } from "@/lib/types"
 
@@ -15,6 +16,7 @@ export function VaultSelector({
   onSelectVault,
   disabled,
 }: VaultSelectorProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [prevIsOpen, setPrevIsOpen] = useState(false)
@@ -36,7 +38,7 @@ export function VaultSelector({
   const currentVault = vaultLocations.find((v) => v.path === vaultPath)
   const displayText = currentVault
     ? `${currentVault.driveName} — ${currentVault.path.split(/[/\\]/).pop() || "vault"}`
-    : "Select a vault"
+    : t("gui.vault.selectVault")
 
   // Close dropdown when clicking outside
   useEffect(() => {
