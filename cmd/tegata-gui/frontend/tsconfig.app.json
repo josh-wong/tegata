@@ -27,7 +27,8 @@
     /* Path alias */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "react-i18next": ["./src/lib/react-i18next-shim.tsx"]
     }
   },
   "include": ["src"],

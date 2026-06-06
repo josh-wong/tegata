@@ -1,5 +1,6 @@
 import { Component } from "react"
 import type { ErrorInfo, ReactNode } from "react"
+import i18n from "@/lib/i18n"
 
 export class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -19,13 +20,13 @@ export class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-center">
-          <h1 className="text-xl font-semibold text-destructive">Something went wrong</h1>
+          <h1 className="text-xl font-semibold text-destructive">{i18n.t("gui.error.somethingWentWrong")}</h1>
           <p className="max-w-md text-sm text-muted-foreground">{this.state.error.message}</p>
           <button
             className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
             onClick={() => this.setState({ error: null })}
           >
-            Try again
+            {i18n.t("gui.error.tryAgain")}
           </button>
         </div>
       )

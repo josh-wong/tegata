@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -14,6 +15,7 @@ interface EditCredentialDialogProps {
 }
 
 export function EditCredentialDialog({ credential, open, onClose, onUpdated }: EditCredentialDialogProps) {
+  const { t } = useTranslation()
   const [label, setLabel] = useState("")
   const [issuer, setIssuer] = useState("")
   const [tags, setTags] = useState("")
@@ -47,7 +49,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
 
     const trimmedLabel = label.trim()
     if (!trimmedLabel) {
-      setError("Label is required")
+      setError(t("gui.edit.errorRequired"))
       return
     }
 
@@ -59,7 +61,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
     // Check for duplicate tags
     const tagSet = new Set(tagList)
     if (tagSet.size !== tagList.length) {
-      setError("Duplicate tags found")
+      setError(t("gui.edit.errorDuplicateTags"))
       return
     }
 
@@ -73,7 +75,7 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
       onUpdated()
       onClose()
     } catch (err) {
-      setError(formatError(err, "Failed to update credential"))
+      setError(formatError(err, t("gui.edit.errorUpdate")))
     } finally {
       setLoading(false)
     }
@@ -83,54 +85,54 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit Credential</DialogTitle>
+          <DialogTitle>{t("gui.edit.title")}</DialogTitle>
           <DialogDescription>
-            Update the label, issuer, category, and tags for this credential.
+            {t("gui.edit.description")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Label</label>
+            <label className="block text-sm font-medium">{t("gui.edit.labelField")}</label>
             <Input
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g., GitHub"
+              placeholder={t("gui.edit.labelPlaceholder")}
               disabled={loading}
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Issuer (optional)</label>
+            <label className="block text-sm font-medium">{t("gui.edit.issuerField")}</label>
             <Input
               type="text"
               value={issuer}
               onChange={(e) => setIssuer(e.target.value)}
-              placeholder="e.g., GitHub Inc"
+              placeholder={t("gui.edit.issuerPlaceholder")}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Category (optional)</label>
+            <label className="block text-sm font-medium">{t("gui.edit.categoryField")}</label>
             <Input
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g., work"
+              placeholder={t("gui.edit.categoryPlaceholder")}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Tags (comma-separated, optional)</label>
+            <label className="block text-sm font-medium">{t("gui.edit.tagsField")}</label>
             <Input
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="e.g., work, personal, 2fa"
+              placeholder={t("gui.edit.tagsPlaceholder")}
               disabled={loading}
             />
           </div>
@@ -148,13 +150,13 @@ export function EditCredentialDialog({ credential, open, onClose, onUpdated }: E
               onClick={onClose}
               disabled={loading}
             >
-              Cancel
+              {t("gui.common.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={loading}
             >
-              {loading ? "Updating..." : "Update"}
+              {loading ? t("gui.edit.updating") : t("gui.common.update")}
             </Button>
           </div>
         </form>

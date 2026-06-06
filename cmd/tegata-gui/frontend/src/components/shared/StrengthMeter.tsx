@@ -1,10 +1,11 @@
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 
 interface StrengthMeterProps {
   passphrase: string
 }
 
-type Tier = { label: string; color: string; width: string }
+type Tier = { labelKey: string; color: string; width: string }
 
 function charClasses(s: string): number {
   let classes = 0
@@ -18,17 +19,18 @@ function charClasses(s: string): number {
 function getTier(passphrase: string): Tier {
   const len = passphrase.length
   if (len < 8)
-    return { label: "Too short", color: "bg-red-500", width: "w-1/4" }
+    return { labelKey: "gui.strength.tooShort", color: "bg-red-500", width: "w-1/4" }
   const classes = charClasses(passphrase)
   if (classes < 2)
-    return { label: "Weak", color: "bg-orange-500", width: "w-1/2" }
+    return { labelKey: "gui.strength.weak", color: "bg-orange-500", width: "w-1/2" }
   const score = len + classes * 3
   if (score < 22)
-    return { label: "Fair", color: "bg-yellow-500", width: "w-3/4" }
-  return { label: "Strong", color: "bg-green-500", width: "w-full" }
+    return { labelKey: "gui.strength.fair", color: "bg-yellow-500", width: "w-3/4" }
+  return { labelKey: "gui.strength.strong", color: "bg-green-500", width: "w-full" }
 }
 
 export function StrengthMeter({ passphrase }: StrengthMeterProps) {
+  const { t } = useTranslation()
   const tier = getTier(passphrase)
 
   return (
@@ -42,7 +44,7 @@ export function StrengthMeter({ passphrase }: StrengthMeterProps) {
           )}
         />
       </div>
-      <p className="text-xs text-muted-foreground">{tier.label}</p>
+      <p className="text-xs text-muted-foreground">{t(tier.labelKey)}</p>
     </div>
   )
 }
