@@ -4,7 +4,7 @@
     "description": "The label for category Getting started in sidebar tutorialSidebar"
   },
   "sidebar.tutorialSidebar.category.Getting started.link.generated-index.description": {
-    "message": "Tegataの概要とボールトの設定方法について説明します。",
+    "message": "Tegata の概要とボールトの設定方法について説明します。",
     "description": "The generated-index page description for category Getting started in sidebar tutorialSidebar"
   },
   "sidebar.tutorialSidebar.category.Guides": {
@@ -12,7 +12,7 @@
     "description": "The label for category Guides in sidebar tutorialSidebar"
   },
   "sidebar.tutorialSidebar.category.Guides.link.generated-index.description": {
-    "message": "デスクトップGUI、ターミナルUI、CLIのウォークスルーです。",
+    "message": "デスクトップ GUI、ターミナル UI、CLI のウォークスルーです。",
     "description": "The generated-index page description for category Guides in sidebar tutorialSidebar"
   },
   "sidebar.tutorialSidebar.category.Audit logging": {
