@@ -1,0 +1,348 @@
+---
+title: OS のセットアップ
+sidebar_position: 2
+description: Tegata のための Windows、macOS、Linux のセットアップ手順 (USB フォーマット、権限設定、OS の注意事項を含む)。
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Tegata は Windows 10 以降、macOS 12 以降、Linux (amd64) で動作します。CLI と TUI はスタンドアロンで動作しますが、デスクトップ GUI は各プラットフォームのシステム WebView に依存しています。このページでは、[クイックスタート](quickstart.mdx)ガイドを超えた OS 固有の設定 (USB ドライブのフォーマット、権限の問題、自動起動の動作、既知の OS の問題) について説明します。
+
+## オペレーティングシステムのセットアップ {#オペレーティングシステムのセットアップ}
+
+オペレーティングシステムの手順に従って Tegata をセットアップします。複数のオペレーティングシステムを使用する場合は、それぞれの手順に従ってください。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows" default>
+
+Windows ユーザーは、USB ドライブのフォーマットの設定、PowerShell の実行ポリシーの処理、Tegata バイナリをブロックする可能性がある Microsoft Defender SmartScreen プロンプトの管理が必要です。
+
+<h3>USB ドライブまたは microSD カードのフォーマット</h3>
+
+クロスプラットフォームの互換性を最大化するために、USB ドライブまたは microSD カードを **exFAT** でフォーマットします。FAT32 も動作しますが、4 GB のファイルサイズ制限があり、真のアトミックリネームをサポートしていません。Tegata はこれを適切に処理しますが、exFAT が推奨されます。
+
+エクスプローラーでフォーマットするには: USB ドライブまたは microSD カードを右クリック → **フォーマット** → ファイルシステムを **exFAT** に設定 → **開始**。
+
+<h3>バイナリの実行</h3>
+
+PowerShell は実行ファイルの現在のディレクトリを検索しません。コマンドの前に `.\` を付けるか、ドライブルートを PATH に追加します。`<USB_DRIVE_LETTER>` を実際のドライブレターに置き換えてください。
+
+```powershell
+# 直接実行
+.\tegata.exe version
+
+# または USB ドライブをセッションの PATH に追加
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
+tegata version
+```
+
+PATH 変更をセッションをまたいで永続化するには、**システムのプロパティ → 環境変数**を使用してドライブレターを追加します。
+
+<h3>Microsoft Defender SmartScreen でアプリを許可する</h3>
+
+Windows がダウンロードしたバイナリを SmartScreen プロンプトでブロックする場合があります。「このアプリを実行するにはご使用の PC は保護されています」というメッセージが表示された場合:
+
+1. **詳細情報**を選択します。
+2. **実行**を選択します。
+
+SmartScreen は、Microsoft のクラウドレピュテーションサービスにまだ十分な情報がない実行ファイルにフラグを立てます。これは新しいオープンソースツールでは予想される動作です。
+
+<h3>実行ポリシーの調整</h3>
+
+PowerShell がスクリプトの実行をブロックする場合は、実行ポリシーを調整する必要があります。
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+これにより、ローカルで作成されたスクリプトと署名されたリモートスクリプトが実行できるようになります。Tegata 自体はスクリプトではなくバイナリであるため、実行ポリシーによってブロックされることはありません。
+
+<h3>デスクトップ GUI のインストール</h3>
+
+`tegata-gui-windows-amd64-setup.exe` を実行して NSIS インストーラーの指示に従います。GUI は `%ProgramFiles%\Tegata\` にインストールされ、スタートメニューのエントリが作成されます。GUI バイナリはホストマシンに残り、CLI バイナリのみが USB ドライブに保存されます。
+
+<h3>監査ログのための Docker</h3>
+
+監査ログ機能には Docker Desktop for Windows が必要です。[Docker のウェブサイト](https://www.docker.com/products/docker-desktop/)からインストールしてください。
+
+インストール後、Tegata はボールトのアンロック時に自動的に Docker を起動できます。Docker Desktop を手動で開く必要はありません。
+
+<h3>WSL2 でのクリップボードの動作設定</h3>
+
+WSL2 内で Tegata を使用する場合、クリップボード統合は `/mnt/c/Windows/System32/clip.exe` 経由で Windows クリップボードに書き込みます。`clip.exe` が利用できないか WSL2 interop が無効になっている場合、クリップボードのコピーはサイレントに失敗し、stderr に警告が出力されます。
+
+interop が有効になっていることを確認するには:
+
+```bash
+cat /proc/sys/fs/binfmt_misc/WSLInterop
+```
+
+出力が `enabled` であれば、interop はアクティブです。そうでない場合は、`/etc/wsl.conf` で有効にします。
+
+```ini
+[interop]
+enabled=true
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+macOS はダウンロードしたバイナリにセキュリティ属性を追加し、アドホック署名されたアプリケーションには特定のセットアップが必要です。このセクションでは、検疫フラグのクリア、アーキテクチャに適したバイナリの選択、監査ログのための Docker のセットアップについて説明します。
+
+<h3>検疫フラグのクリア</h3>
+
+macOS はインターネットからダウンロードしたファイルに検疫フラグを追加します。検疫されたバイナリを実行すると「開発元が確認できないため開けません」というエラーが表示されます。
+
+このエラーが発生した場合は、ターミナルで以下のコマンドを実行してフラグをクリアします。
+
+```bash
+xattr -d com.apple.quarantine tegata-darwin-arm64 # Apple Silicon プロセッサ搭載 Mac の場合
+xattr -d com.apple.quarantine tegata-darwin-amd64 # Intel プロセッサ搭載 Mac の場合
+```
+
+バイナリがすでに USB ドライブにある場合は、以下のコマンドを実行します。`<USB_DRIVE_NAME>` を実際のドライブ名に置き換えてください。
+
+```bash
+xattr -d com.apple.quarantine /Volumes/<USB_DRIVE_NAME>/tegata
+```
+
+GUI アプリの場合:
+
+```bash
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+<h3>Apple Silicon と Intel の比較</h3>
+
+お使いの Mac に適したバイナリをダウンロードします。
+
+| バイナリ | チップ |
+|--------|------|
+| `tegata-darwin-arm64` | Apple Silicon |
+| `tegata-darwin-amd64` | Intel |
+
+デスクトップ GUI は両方のアーキテクチャでネイティブに動作する**ユニバーサルバイナリ** (`tegata-gui-darwin-universal.dmg`) として配布されています。
+
+<h3>USB ドライブまたは microSD カードのフォーマット</h3>
+
+macOS は exFAT と FAT32 をネイティブで読み書きできます。Disk Utility を使用して USB ドライブまたは microSD カードを exFAT でフォーマットします。
+
+1. **Disk Utility** を開きます (アプリケーション → ユーティリティ)。
+2. USB ドライブまたは microSD カードを選択して**消去**を選択します。
+3. フォーマットを **ExFAT** に設定します。
+4. **消去**を選択します。
+
+:::tip[APFS はクロスプラットフォーム USB ドライブには推奨されません]
+
+APFS は macOS のネイティブファイルシステムですが、サードパーティソフトウェアなしに Windows または Linux で読み取れません。ドライブを複数のマシン間で移動する場合は exFAT を使用してください。
+
+:::
+
+<h3>TEGATA_VAULT を永続的に設定する</h3>
+
+以下のコマンドを実行して `TEGATA_VAULT` をシェルプロファイルに追加し、すべてのコマンドで `--vault` を入力する必要をなくします。`<USB_DRIVE_NAME>` を実際のドライブ名に置き換えてください。
+
+```bash
+# zsh (macOS 10.15 以降のデフォルト) の場合
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.zshrc
+source ~/.zshrc
+
+# bash の場合
+echo 'export TEGATA_VAULT=/Volumes/<USB_DRIVE_NAME>' >> ~/.bash_profile
+source ~/.bash_profile
+```
+
+<h3>監査ログのための Docker</h3>
+
+監査ログ機能には Docker Desktop for Mac が必要です。[Docker のウェブサイト](https://www.docker.com/products/docker-desktop/)からインストールしてください。
+
+インストール後、Tegata はボールトのアンロック時に自動的に Docker を起動できます。Docker Desktop を手動で開く必要はありません。
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+:::note[Linux サポート]
+
+Linux は手動でテストされていません。このページの手順は動作することが期待されますが、問題が発生した場合は [issue を作成](https://github.com/josh-wong/tegata/issues)してください。
+
+:::
+
+Linux のセットアップでは、USB ドライブのマウントの設定、デスクトップ環境に適したクリップボードツールのインストール、Docker への URI 権限の確保が必要です。WSL2 ユーザーはクリップボードアクセスのために interop を設定する必要があります。
+
+<h3>USB ドライブまたは microSD カードのマウント</h3>
+
+ほとんどのデスクトップ Linux ディストリビューションは USB ドライブまたは microSD カードを `/media/$USER/<drive-name>` に自動マウントします。最小限またはサーバーシステムでは、`/dev/path/to/device` と `/mnt/path/to/usb` を適切な値に置き換えて手動でマウントします。
+
+```bash
+sudo mkdir -p /mnt/path/to/usb
+sudo mount /dev/path/to/device /mnt/path/to/usb
+```
+
+`lsblk`を使用してデバイスを識別します。
+
+```bash
+lsblk -f
+```
+
+<h3>クリップボード依存関係のインストール</h3>
+
+Tegata は X11 では `xclip` を、Wayland では `wl-clipboard` (`wl-copy`) を使用します。デスクトップ環境に適したパッケージをインストールします。
+
+<Tabs groupId="linux-distro" queryString>
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian">
+
+```bash
+# X11
+sudo apt install xclip
+
+# Wayland
+sudo apt install wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+# X11
+sudo dnf install xclip
+
+# Wayland
+sudo dnf install wl-clipboard
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+# X11
+sudo pacman -S xclip
+
+# Wayland
+sudo pacman -S wl-clipboard
+```
+
+  </TabItem>
+</Tabs>
+
+どちらのツールも利用できない場合、Tegata はコードを stdout に出力し、クリップボードのコピーがスキップされたという警告をログに記録します。`tegata code <label> --clip=false` を実行して警告を抑制します。
+
+<h3>ヘッドレスサーバーと SSH セッションでのクリップボードコピーの無効化</h3>
+
+クリップボード操作にはディスプレイが必要です。X11 フォワーディングなしのヘッドレスサーバーまたは SSH セッションでは、`--clip=false` を使用してクリップボードコピーをスキップします。
+
+```bash
+tegata code GitHub --clip=false
+```
+
+<h3>デスクトップ GUI ランタイム依存関係のインストール</h3>
+
+デスクトップ GUI はシステム WebView を使用します。GUI を実行する前に、ディストリビューションの WebView ランタイムライブラリをインストールします。
+
+<Tabs groupId="linux-distro" queryString>
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian (新しいリリース)">
+
+```bash
+sudo apt install libwebkit2gtk-4.1-0
+```
+
+  </TabItem>
+  <TabItem value="ubuntu-older" label="Ubuntu / Debian (古いリリース)">
+
+```bash
+sudo apt install libwebkit2gtk-4.0-37
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+sudo dnf install webkit2gtk4.1
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S webkit2gtk
+```
+
+  </TabItem>
+</Tabs>
+
+<h3>デスクトップ GUI ビルド依存関係のインストール (開発者向け)</h3>
+
+ソースから GUI をビルドする場合は、上記のランタイムパッケージに加えて開発ヘッダーをインストールします。
+
+<Tabs groupId="linux-distro" queryString>
+  <TabItem value="ubuntu-debian" label="Ubuntu / Debian (新しいリリース)">
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+  </TabItem>
+  <TabItem value="ubuntu-older" label="Ubuntu / Debian (古いリリース)">
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
+```
+
+  </TabItem>
+  <TabItem value="fedora" label="Fedora / RHEL">
+
+```bash
+sudo dnf install gtk3-devel webkit2gtk4.1-devel
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -S gtk3 webkit2gtk
+```
+
+  </TabItem>
+</Tabs>
+
+<h3>監査ログのためにユーザーを Docker グループに追加する</h3>
+
+Tegata での Audit ログには Docker Engine 24 以降と Compose v2 が必要です。[公式 Docker ドキュメント](https://docs.docker.com/engine/install/)に従って Docker Engine をインストールします。
+
+インストール後、Tegata が `sudo` なしにコンテナを起動できるように、ユーザーを `docker` グループに追加します。
+
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+<h3>USB ドライブまたは microSD カードのフォーマット</h3>
+
+クロスプラットフォームの互換性のために USB ドライブまたは microSD カードを exFAT でフォーマットします。
+
+```bash
+# 必要に応じて exfatprogs をインストール
+sudo apt install exfatprogs # Debian/Ubuntu
+sudo dnf install exfatprogs # Fedora
+
+# ドライブをフォーマット (/dev/sdb1 をデバイスに置き換えてください)
+sudo mkfs.exfat -n MyUSB /dev/sdb1
+```
+
+<h3>AppArmor / SELinux</h3>
+
+強制アクセス制御が有効なシステムでは、Tegata バイナリが USB ドライブやクリップボードツールへのアクセスをブロックされる場合があります。権限エラーが発生した場合は、監査ログ (`journalctl -f`) で AppArmor または SELinux の拒否を確認して、適切なポリシー例外を追加してください。
+
+  </TabItem>
+</Tabs>
+
+## 環境変数リファレンス
+
+これらの環境変数はすべてのプラットフォームでの Tegata の動作に影響します。
+
+| 変数 | 説明 |
+|----------|-------------|
+| `TEGATA_VAULT` | `--vault` が指定されていない場合のデフォルトのボールトパス |
+| `TEGATA_PASSPHRASE` | 非対話的な使用のためのボールトパスフレーズ (stderr に警告が出力されます) |
+| `TEGATA_BACKUP_PASSPHRASE` | スクリプト化された `tegata import` のためのバックアップパスフレーズ |
+| `NO_COLOR` | ANSI カラー出力を無効にする (空の値も含め、任意の値で有効になります) |

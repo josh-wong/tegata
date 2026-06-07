@@ -1,0 +1,340 @@
+---
+title: 監査ログの有効化
+sidebar_position: 6
+description: Tegata でオプションの改ざん防止監査層 (ScalarDL Ledger による) のセットアップとテスト (ワンクリックセットアップ、手動設定、改ざん検出デモを含む)。
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Tegata のオプションの監査層は、すべての認証イベントをハッシュチェーン型 ScalarDL Ledger に記録し、`tegata verify` による事後整合性確認を可能にします。監査ログはデフォルトで無効になっています。監査ログなしでもすべての認証操作は正常に動作します。
+
+改ざん防止ログが必要ない場合は、このガイドをスキップして通常通り Tegata を使用し続けてください。
+
+## 前提条件
+
+- Docker Desktop (Windows および macOS) または Docker Engine 24 以降と Compose v2 (Linux)
+- クレデンシャルが設定済みの Tegata ボールト
+  - ボールトの作成が必要な場合は[クイックスタート](quickstart.mdx)を参照してください。
+
+証明書や鍵ペアは必要ありません。Tegata はセットアップ時に自動生成されたシークレットキーを使用して ScalarDL の HMAC 認証モードを使用します。
+
+## GUI によるセットアップ
+
+デスクトップ GUI には監査層のセットアップウィザードが含まれています。ボールトを作成した後、最初のボールトアンロック時に監査ログの有効化を求めるプロンプトが表示されます。プロンプトに従ってコマンドライン操作なしでセットアップを完了します。
+
+## ターミナルでのワンコマンドセットアップ
+
+ボールトを作成した後に `tegata ledger start` を一度実行します。`path/to/vault` をボールトファイルへのパスに置き換えてください。
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+Tegata はボールトパスフレーズを求め、以下の完全なセットアップシーケンスを実行します。
+
+1. Docker がインストールされていることを確認し、実行されていない場合は Docker デーモンを起動します。
+2. バンドルされた `docker-compose.yml` を `~/.tegata/docker/` に展開します。
+3. ボールトから固有のエンティティ ID とシークレットキーを生成します。
+4. インフラストラクチャコンテナー (PostgreSQL、スキーマローダー、ScalarDL Ledger) を起動します。
+5. レジャーが準備完了になるのを待ちます (最大30秒)。
+6. 監査クレデンシャルをレジャーに登録し、`tegata.toml` に `[audit]` セクションを書き込みます。
+7. コントラクト登録コンテナーを起動し、HashStore コントラクトが登録されるのを待ちます (最初の実行では最大 10 分かかります。JVM の起動と約 50 MB の SDK ダウンロードが遅い部分です)。
+
+セットアップが完了すると以下のメッセージが表示されます。
+
+```bash
+Ledger server started. Audit logging is now active.
+```
+
+これ以降、すべてのボールトのアンロックが Docker スタックをバックグラウンドで自動的に起動します (Docker デーモンが実行されていない場合も含む)。
+
+## 自動起動の動作の設定
+
+セットアップ後、すべてのボールトのアンロックが Docker の監査スタックを自動的に起動します。
+
+- Docker Desktop が閉じている場合、Tegata は起動して最大60秒待機します。
+- Docker デーモンが実行されると、Tegata は ScalarDL コンテナーを起動します (`docker compose up -d`)。
+- Tegata はアンロックのたびに埋め込みの `docker-compose.yml` を `~/.tegata/docker/` に同期し、バイナリのアップグレード後もスタックを最新の状態に保ちます。
+- CLI では自動起動はコマンドの実行前に完了します。TUI ではバックグラウンドで実行されます。
+
+何らかの理由で自動起動が失敗した場合、Tegata はエラーを stderr に記録し、監査イベントをローカルにキューに入れます。キューに入れられたイベントはレジャーに到達可能になったときに送信されます。
+
+監査設定を削除せずに自動起動を無効にするには:
+
+```bash
+tegata config set audit.auto_start false
+```
+
+再度有効にするには:
+
+```bash
+tegata config set audit.auto_start true
+```
+
+## 暗号化されたレジャーデータボリューム {#暗号化されたレジャーデータボリューム}
+
+`tegata ledger start` を実行すると、Tegata は各ボールトに固有のキーを使用して AES-256-GCM 暗号化で PostgreSQL データディレクトリを自動的に暗号化します。
+
+### 仕組み
+
+セットアップ時に、Tegata はランダムな 32 バイトの暗号化キーを生成し、暗号化されたボールトファイルに安全に保存します。PostgreSQL データディレクトリはこの段階でプレーンテキストでディスクに書き込まれません。
+
+ボールトをアンロックすると (CLI、TUI、または GUI 経由)、Tegata は PostgreSQL データボリュームを一時的なプレーンテキストディレクトリに自動的に復号し、Docker スタックを起動する前に PostgreSQL コンテナーにマウントします。ボールトをロックするかアプリケーションを閉じると、Tegata はコンテナーを停止し、プレーンテキストディレクトリを圧縮アーカイブに再暗号化し、プレーンテキストディレクトリを削除し、暗号化キーをメモリからゼロにします。
+
+### 保存場所
+
+暗号化されたボリュームアーカイブは以下の場所に保存されます。
+
+```
+~/.tegata/docker/<entity-id>/ledger-data.enc
+```
+
+プレーンテキストデータディレクトリはボールトがアンロックされている間のみ存在します。
+
+```
+~/.tegata/docker/<entity-id>/ledger-data/
+```
+
+### キーの保護
+
+暗号化キーは暗号化されたボールトファイル内に保存され、プレーンテキストでディスクに書き込まれることはありません。パスフレーズでボールトがアンロックされている場合にのみアクセス可能で、ボールトがロックされると即座にメモリからゼロにされます。Tegata は外部ツールの依存なしにピュア Go の AES-256-GCM 暗号化を使用します。
+
+### 脅威モデル
+
+このテーブルは暗号化されたボリュームが何を保護するかを示しています。
+
+| シナリオ                                | 保護されるか |
+|------------------------------------------|-----------|
+| マシンの電源オフまたはストレージの盗難    | はい       |
+| マシンがオン、Tegata が閉じている          | はい       |
+| マシンがオン、Tegata が実行中              | いいえ — PostgreSQL はプレーンテキストアクセスが必要 |
+| 実行中システムへの特権攻撃者              | いいえ — カーネルメモリの読み取りは対象外 |
+
+暗号化されたボリュームは、物理的な盗難や不正なストレージアクセスに対する静止データの保護に適しています。実行中のシステムへの積極的な特権アクセスを持つ攻撃者からの保護は設計されていません。
+
+### 後方互換性
+
+暗号化されたボリュームがサポートされる前にセットアップされた既存のボールトは、名前付き Docker ボリューム (非暗号化) を引き続き使用します。暗号化は新しいセットアップでのみ有効になります。既存のセットアップで暗号化を有効にするには、スタックを停止して再度セットアップを実行します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+## 監査層のテスト
+
+イベントが記録され、整合性確認が期待通りに動作することをテストします。
+
+### CLI を通じたテスト
+
+以下のコマンドを実行して監査イベントをトリガーする TOTP コードを生成します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata code my-totp-credential --vault /path/to/vault
+```
+
+以下のコマンドを実行してイベントが記録されたことを確認します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata history --vault /path/to/vault
+```
+
+以下のコマンドを実行してハッシュチェーンの整合性を確認します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+監査ログが無傷の場合の期待される出力:
+
+```bash
+Audit log integrity verified. 3 events checked.
+```
+
+`tegata verify` は整合性違反時にコード`9`で終了し、レジャーに到達できない場合はコード`8`で終了します。
+
+### TUI を通じたテスト
+
+以下のコマンドを実行して TUI を起動してボールトをアンロックします。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata ui --vault /path/to/vault
+```
+
+`v` を押して監査オーバーレイを開き、`↑` / `j` と `↓` / `k` を使用してオプションを選択し **Enter** を押します。
+
+- **履歴を表示する。** レジャーからすべての監査イベントを取得して表示します。
+- **整合性を確認する。** ハッシュチェーンを検証し、ログが無傷か改ざんされているかを報告します。
+
+**Esc** を押してオーバーレイを閉じます。
+
+### GUI を通じたテスト
+
+ボールトをアンロックします。Docker の監査スタックがバックグラウンドで自動的に起動します。ヘッダーバーのシールドアイコンを選択して監査パネルを開きます。
+
+- **履歴を表示する。** 監査イベントのテーブルを取得して表示します。
+- **整合性を確認する。** ハッシュチェーンチェックを実行します。有効なログは緑のバナーで表示され、ログが変更されている場合は赤の「TAMPER DETECTED」バナーが表示されます。
+
+## 改ざん検出のデモ
+
+この手順は、ScalarDL が変更を検出することを確認するために監査レコードを意図的に破壊します。
+
+:::warning[改ざんされたレコードは永続的です]
+
+このセクションのコマンドを実行すると、監査ログが不可逆的に変更されます。実際の認証に使用しているボールトではこれらのコマンドを実行しないでください。テスト用ボールトを使用するか、続行する前にボールトファイルをバックアップしてください。
+
+:::
+
+まず、以下のコマンドを実行して監査ログが現在無傷であることを確認します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+データベース内のハッシュ値を直接ゼロにしてレコードを改ざんします。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+```powershell
+docker exec docker-compose-postgres-1 psql -U scalardl -d scalardl -c "UPDATE scalar.asset SET hash = decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex') WHERE id LIKE 'tegata-%%' LIMIT 1;"
+```
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+```bash
+docker exec docker-compose-postgres-1 psql -U scalardl -d scalardl -c "
+  UPDATE scalar.asset
+  SET hash = decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
+  WHERE id LIKE 'tegata-%'
+  LIMIT 1;
+"
+```
+
+  </TabItem>
+</Tabs>
+
+以下のコマンドを実行して再度確認します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata verify --vault /path/to/vault
+```
+
+期待される出力:
+
+```bash
+Integrity violation detected. <error details>
+```
+
+コマンドはコード `9` で終了します。データベースへの直接アクセスがあっても、元のデータなしに再構築できない独立したハッシュチェーンを ScalarDL が維持するため、変更は検出可能です。
+
+:::note[テスト後にレジャーをクリーンアップする]
+
+監査ログは設計上追記専用です。Tegata を通じてエントリを削除する方法はありません。テスト後にクリーンなレジャーが必要な場合は、スタックを停止してセットアップを再実行します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+:::
+
+## 監査ログの手動セットアップ (上級者向け)
+
+バンドルされた Docker スタックではなく独自の ScalarDL インスタンスを実行している場合は、`tegata ledger start` をスキップして `tegata.toml` を手動で設定します。
+
+ボールトディレクトリの `tegata.toml` に `[audit]` セクションを追加します。
+
+<Tabs groupId="scalardl-host" queryString>
+  <TabItem value="local" label="ローカル/セルフホスト (TLS なし)" default>
+
+```toml
+[audit]
+enabled           = true
+server            = "127.0.0.1:50051"
+privileged_server = "127.0.0.1:50052"
+entity_id         = "tegata-client"
+key_version       = 1
+insecure          = true
+auto_start        = false
+```
+
+  </TabItem>
+  <TabItem value="remote" label="リモート/本番 (TLS)">
+
+```toml
+[audit]
+enabled           = true
+server            = "scalardl.example.com:50051"
+privileged_server = "scalardl.example.com:50052"
+entity_id         = "tegata-client"
+key_version       = 1
+# insecureのデフォルトはfalse – TLSが有効
+auto_start        = false
+```
+
+サーバーが自己署名証明書を使用している場合は、`ca_cert_path` を CA 証明書ファイルのパスに設定します。
+
+  </TabItem>
+</Tabs>
+
+:::note[セルフホストセットアップの `auto_start`]
+
+ScalarDL を自分で管理する場合は `auto_start = false` に設定します。`auto_start` は Tegata がボールトのアンロック時にローカル Docker スタックを起動するかどうかのみを制御します。リモートまたは手動で管理されているインスタンスへの接続には影響しません。
+
+:::
+
+`secret_key` は `tegata.toml` には保存されず、代わりに暗号化されたボールトに保存されます。`tegata ledger setup` を実行してクレデンシャルを登録します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata ledger setup --vault /path/to/vault
+```
+
+Tegata はボールトパスフレーズと HMAC シークレットをボールトから自動的に読み込みます。
+
+## トラブルシューティング
+
+このセクションでは、一般的な ScalarDL セットアップの問題について説明します。完全な診断と回復手順については、[トラブルシューティング](troubleshooting.mdx)ガイドを参照してください。
+
+一般的な ScalarDL セットアップの問題:
+
+- Docker デーモン起動の失敗: [`tegata ledger start` がすぐに失敗する](troubleshooting.mdx#tegata-ledger-startがすぐに失敗します)
+- コントラクト登録の失敗または `INVALID_SIGNATURE`: [事前定義された HashStore コントラクトが登録されていない](troubleshooting.mdx#事前定義されたhashstoreコントラクトが登録されていません)
+
+### `DL-COMMON-400003`: リクエスト署名を検証できません
+
+署名に使用された HMAC シークレットキーがレジャーに登録されたシークレットと一致しません。初期登録後にシークレットを変更した場合は、スタックを停止して再セットアップします。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+### `DB-CORE-10016`: coordinator.state テーブルが存在しません
+
+コーディネータースキーマがセットアップ中に作成されませんでした。完全に停止して再実行します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+docker compose -f ~/.tegata/docker/docker-compose.yml down -v
+tegata ledger start --vault /path/to/vault
+```
+
+### Apple Silicon 搭載 macOS での Docker イメージエラー
+
+一部の ScalarDL イメージは x86-64 専用です。Mac 用 Docker Desktop は Apple Silicon では Rosetta 2 でこれらを自動的に実行します。手動設定は不要です。これらのコンテナーの Docker Desktop での AMD64 バッジは予想される正常な動作です。
+
+### 接続拒否またはタイムアウト
+
+ScalarDL コンテナーが実行されていることを確認します。
+
+```bash
+cd ~/.tegata/docker && docker compose ps
+```
+
+WSL2 では、`tegata.toml` で `localhost` の代わりに `127.0.0.1` を使用します。WSL2 は `localhost` を IPv6 の `::1` に解決しますが、ScalarDL コンテナーは IPv4 のみでリッスンします。
+
+### 監査ログが有効になっていない
+
+`tegata.toml` の `[audit]` セクションに `enabled = true` があり、ファイルが `vault.tegata` と同じディレクトリにあることを確認します。`tegata config show` を実行して有効な設定を確認します。
