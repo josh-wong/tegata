@@ -1,0 +1,157 @@
+---
+title: v1.0 リリースノート
+description: Tegata v1.0.0 の新機能についてお読みください。オープンソースのポータブル認証システムの最初の安定版リリースです。
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Tegata v1.0 リリースノート
+
+このページでは、Tegata v1.0 のリリースノートを説明します。新しいマイナーバージョンとパッチバージョンがリリースされると、将来のリリースノートで更新されます。
+
+## 🚀 v1.0.0 – 初回リリース
+
+**リリース日：** 2026年5月26日
+
+これは Tegata v1.0.0 の最初のリリースです。標準の USB ドライブまたは microSD カードに AES-256-GCM 暗号化ボールトを使用して 2FA コードとクレデンシャルを保存するオープンソースのポータブル認証システムです。専用ハードウェアは不要です。
+
+### ✨ 新機能
+
+このリリースには以下の機能が含まれています。
+
+#### コア認証
+
+Tegata のオフライン対応のコアは、ネットワークアクセスなしにすべての認証操作をデバイス上でローカルに処理します。
+
+- **TOTP/HOTP コード生成。** RFC 6238/4226 準拠のコードを生成します。TOTP は SHA-1、SHA-256、SHA-512 をサポートし、HOTP は SHA-1 のみを使用します ([josh-wong](https://github.com/josh-wong) による [#2](https://github.com/josh-wong/tegata/pull/2)、[#94](https://github.com/josh-wong/tegata/pull/94)、[#101](https://github.com/josh-wong/tegata/pull/101))。
+	- 最初のコードの生成方法の詳細については、[最初のコードの生成](quickstart.mdx#最初のコードの生成)を参照してください。
+- **チャレンジ・レスポンス署名。** サポートするサービス向けに HMAC-SHA256 でチャレンジ文字列に署名します ([josh-wong](https://github.com/josh-wong) による [#3](https://github.com/josh-wong/tegata/pull/3)、[#94](https://github.com/josh-wong/tegata/pull/94))。
+	- チャレンジ・レスポンスクレデンシャルの使用方法の詳細については、[チャレンジ・レスポンスクレデンシャルとは何ですか](faq.mdx#チャレンジレスポンスクレデンシャルとは何ですか)を参照してください。
+- **スタティックパスワードストレージ。** OTP を使用しないクレデンシャルを保存して取得します ([josh-wong](https://github.com/josh-wong) による [#3](https://github.com/josh-wong/tegata/pull/3))。
+	- スタティックパスワードの追加方法の詳細については、[スタティックパスワードを Tegata に追加できますか](faq.mdx#スタティックパスワードを-tegata-に追加できますか)を参照してください。
+- **AES-256-GCM 暗号化ボールト。** Argon2id (time=3、memory=64 MiB、parallelism=4) でストレッチされたパスフレーズを使用して静止データのクレデンシャルを暗号化します ([josh-wong](https://github.com/josh-wong) による [#2](https://github.com/josh-wong/tegata/pull/2))。
+- **リカバリーキー。** パスフレーズを失った場合のボールトアクセスを回復します ([josh-wong](https://github.com/josh-wong) による [#2](https://github.com/josh-wong/tegata/pull/2))。
+	- リカバリーキーの保護方法の詳細については、[リカバリーキーの保護](security-best-practices.mdx#リカバリーキーの保護)を参照してください。
+- **memguard 保護メモリ。** キーマテリアルをガードされたメモリページに保持し、使用直後にゼロにします ([josh-wong](https://github.com/josh-wong) による [#2](https://github.com/josh-wong/tegata/pull/2))。
+	- キーマテリアルの処理方法の詳細については、[キーマテリアルの処理](security-best-practices.mdx#キーマテリアルの処理)を参照してください。
+- **自動ロック。** アイドル時間 5 分後にボールトをロックします ([josh-wong](https://github.com/josh-wong) による [#49](https://github.com/josh-wong/tegata/pull/49)、[#79](https://github.com/josh-wong/tegata/pull/79))。
+	- 自動ロックの動作の詳細については、[自動ロックの動作](tui-guide.mdx#自動ロックの動作)を参照してください。
+- **エクスポートとインポート。** ボールトのポータビリティのための暗号化バックアップファイルを作成します ([josh-wong](https://github.com/josh-wong) による [#3](https://github.com/josh-wong/tegata/pull/3)、[#68](https://github.com/josh-wong/tegata/pull/68))。
+	- 暗号化バックアップの作成方法の詳細については、[暗号化されたバックアップの作成](security-best-practices.mdx#暗号化されたバックアップの作成)を参照してください。
+- **タグベースのクレデンシャル整理。** タグでクレデンシャルをフィルタリングおよびグループ化します ([josh-wong](https://github.com/josh-wong) による [#85](https://github.com/josh-wong/tegata/pull/85))。
+	- クレデンシャルの整理方法の詳細については、[クレデンシャルの整理](security-best-practices.mdx#クレデンシャルの整理)を参照してください。
+
+#### インターフェース
+
+**ターミナル UI (TUI)。** 以下を備えたガイド付きターミナルインターフェースを提供します。
+
+- 初回ボールト初期化のためのセットアップウィザード ([josh-wong](https://github.com/josh-wong) による [#5](https://github.com/josh-wong/tegata/pull/5))。
+	- 初回起動の完了方法の詳細については、[初回起動とセットアップウィザード](tui-guide.mdx#初回起動とセットアップウィザード)を参照してください。
+- TOTP コードの視覚的カウントダウンタイマー ([josh-wong](https://github.com/josh-wong) による [#5](https://github.com/josh-wong/tegata/pull/5))。
+	- カウントダウンタイマーの動作の詳細については、[TOTP カウントダウンタイマー](tui-guide.mdx#totp-カウントダウンタイマー)を参照してください。
+- 完全なキーボードナビゲーション ([josh-wong](https://github.com/josh-wong) による [#5](https://github.com/josh-wong/tegata/pull/5))。
+	- キーボードでのナビゲート方法の詳細については、[キーボードショートカット](tui-guide.mdx#キーボードショートカット)を参照してください。
+- ビューポート対応コンテキストメニュー ([josh-wong](https://github.com/josh-wong) による [#101](https://github.com/josh-wong/tegata/pull/101))。
+
+**デスクトップ GUI。** 以下を備えた Wails + React デスクトップアプリを提供します。
+
+- CLI/TUI との完全な機能パリティ ([josh-wong](https://github.com/josh-wong) による [#7](https://github.com/josh-wong/tegata/pull/7)、[#9](https://github.com/josh-wong/tegata/pull/9))
+- Windows、macOS、Linux 向けのインストーラーパッケージ ([josh-wong](https://github.com/josh-wong) による [#7](https://github.com/josh-wong/tegata/pull/7))。
+	- GUI のインストール方法の詳細については、[GUI のインストール](gui-guide.mdx#gui-のインストール)を参照してください。
+- どのボールトが開いているかを常に把握できるボールト識別子表示 ([josh-wong](https://github.com/josh-wong) による [#81](https://github.com/josh-wong/tegata/pull/81))。
+
+#### オプションの監査ログ
+
+Tegata はオプションで[ScalarDL Ledger](https://github.com/scalar-labs/scalardl) (コミュニティエディション、Apache 2.0) と統合し、改ざん防止ハッシュチェーン型レジャーに認証イベントを記録します。
+
+- 監査イベントはハッシュ化されたクレデンシャルラベルとサービス名を使用します。平文のシークレットは送信されません ([josh-wong](https://github.com/josh-wong) による [#4](https://github.com/josh-wong/tegata/pull/4)、[#80](https://github.com/josh-wong/tegata/pull/80))。
+	- 監査イベントフィールドの保護方法の詳細については、[監査ログにはどのようなデータが含まれていますか](faq.mdx#監査ログにはどのようなデータが含まれていますか)を参照してください。
+- `tegata verify` はハッシュチェーンを走査して改ざんされているエントリがないことを確認します ([josh-wong](https://github.com/josh-wong) による [#16](https://github.com/josh-wong/tegata/pull/16)、[#74](https://github.com/josh-wong/tegata/pull/74))。
+	- 確認の仕組みの詳細については、[tegata verify が証明すること](security-best-practices.mdx#tegata-verifyが証明すること)を参照してください。
+- オフラインイベントキューはレジャーに到達できないときに監査イベントを保存し、再接続時に再送します ([josh-wong](https://github.com/josh-wong) による [#4](https://github.com/josh-wong/tegata/pull/4)、[#27](https://github.com/josh-wong/tegata/pull/27))。
+	- Docker がオフラインの場合のキューに入れられたイベントの動作の詳細については、[Docker がオフラインの場合、キューに入れられたイベントはどうなりますか](faq.mdx#docker-がオフラインの場合キューに入れられたイベントはどうなりますか)を参照してください。
+- 監査スタックは Docker を通じてローカルで実行され、静止データのレジャーデータ用の暗号化バッキングボリュームを使用します ([josh-wong](https://github.com/josh-wong) による [#102](https://github.com/josh-wong/tegata/pull/102))。
+	- 暗号化されたレジャーストレージの使用方法の詳細については、[暗号化されたレジャーデータボリューム](scalardl-setup.mdx#暗号化されたレジャーデータボリューム)を参照してください。
+- ボールトごとの監査分離により、各ボールトが専用の監査コンテキストを持つことが保証されます ([josh-wong](https://github.com/josh-wong) による [#92](https://github.com/josh-wong/tegata/pull/92))。
+	- ボールトごとの ScalarDL セットアップ方法の詳細については、[ScalarDL のセットアップ](scalardl-setup.mdx)を参照してください。
+
+### 📈 改善
+
+_初回リリースのため、リスト対象なし。_
+
+### 🐛 バグ修正
+
+_初回リリースのため、リスト対象なし。_
+
+### 📚 ドキュメント
+
+完全なドキュメントサイトが [tegata.080f53.com](https://tegata.080f53.com) で利用可能になりました。クイックスタートガイド、セットアップウォークスルー、CLI リファレンスなどが含まれています ([josh-wong](https://github.com/josh-wong) による [#98](https://github.com/josh-wong/tegata/pull/98))。
+
+### 📦 ダウンロード
+
+<Tabs>
+  <TabItem value="windows" label="Windows">
+
+| インターフェース | ダウンロード |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| **GUI**   | [tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-windows-amd64-setup.exe) |
+| **CLI**   | [tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-windows-amd64.exe)                     |
+
+:::note
+
+初回起動時に、Windows が新しいバイナリに対して SmartScreen 警告を表示する場合があります。「このアプリを実行するにはご使用の PC は保護されています」というメッセージが表示された場合は、**詳細情報**を選択してから**実行**を選択してください。
+
+:::
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+| アーキテクチャ     | インターフェース | ダウンロード |
+|-------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------|
+| **ユニバーサル**     | **GUI**   | [tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-darwin-universal.dmg) |
+| **Apple Silicon** | **CLI**   | [tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-darwin-arm64)                         |
+| **Intel**         | **CLI**   | [tegata-darwin-amd64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-darwin-amd64)                         |
+
+:::note
+
+macOS では、ダウンロード後に以下のコマンドのいずれかを実行して CLI バイナリを実行可能としてマークしてください。
+
+```shell
+# Apple Silicon ベースのオールマックの場合
+chmod +x tegata-darwin-arm64
+
+# Intel ベースのオールマックの場合
+chmod +x tegata-darwin-amd64
+```
+
+Gatekeeper が GUI アプリの初回起動をブロックすることもあります。メッセージが表示された場合は、**システム設定 → プライバシーとセキュリティ → このまま開く**を使用するか、以下のコマンドで検疫を解除してください。
+
+```shell
+xattr -r -d com.apple.quarantine /Applications/Tegata.app
+```
+
+:::
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+| インターフェース | ダウンロード |
+|-----------|-----------------------------------------------------------------------------------------------------------------------|
+| **GUI**   | [tegata-gui-linux-amd64.deb](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-linux-amd64.deb) |
+| **GUI**   | [tegata-gui-linux-amd64.rpm](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-gui-linux-amd64.rpm) |
+| **CLI**   | [tegata-linux-amd64](https://github.com/josh-wong/tegata/releases/download/v1.0.0/tegata-linux-amd64)                 |
+
+:::note
+
+- **GUI について：** Linux GUI はシステムの WebKit2GTK ランタイムに依存しています。インストール後にアプリが起動しない場合は、ディストリビューションのリリースに適したランタイムパッケージをインストールして再試行してください。
+- **CLI について：** Linux では、ダウンロード後に以下のコマンドを実行して CLI バイナリを実行可能としてマークしてください。
+
+  ```shell
+  chmod +x tegata-linux-amd64
+  ```
+
+:::
+  </TabItem>
+</Tabs>
+
+SHA-256 チェックサムは [SHA256SUMS.txt](https://github.com/josh-wong/tegata/releases/download/v1.0.0/SHA256SUMS.txt)にあります。

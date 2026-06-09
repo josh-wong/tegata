@@ -1,0 +1,22 @@
+{
+  "title": {
+    "message": "Tegata",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "Tegataロゴ",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Docs": {
+    "message": "ドキュメント",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.Release notes": {
+    "message": "リリースノート",
+    "description": "Navbar item with label Release notes"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}
