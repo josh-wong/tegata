@@ -19,6 +19,12 @@ const config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
+  markdown: {
+    mdx1Compat: {
+      headingIds: true,
+    },
+  },
+
   // Set the production url of your site here
   url: 'https://tegata.080f53.com',
   // Set the /<baseUrl>/ pathname under which your site is served
@@ -36,8 +42,20 @@ const config = {
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: 'en-us',
+    locales: ['en-us', 'ja-jp'],
+    localeConfigs: {
+      'en-us': {
+        label: 'English',
+        direction: 'ltr',
+        htmlLang: 'en-US',
+      },
+      'ja-jp': {
+        label: '日本語',
+        direction: 'ltr',
+        htmlLang: 'ja-JP',
+      },
+    },
   },
 
   presets: [
@@ -101,6 +119,10 @@ const config = {
           {
             href: 'https://github.com/josh-wong/tegata',
             label: 'GitHub',
+            position: 'right',
+          },
+          {
+            type: 'localeDropdown',
             position: 'right',
           },
         ],
