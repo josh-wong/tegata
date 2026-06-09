@@ -1,0 +1,555 @@
+---
+title: クイックスタート
+sidebar_position: 1
+description: Tegata のセットアップ、初めてのボールトの作成、最初の 2FA コードの生成。
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+このガイドでは、Tegata のインストール、最初のボールトの作成、最初のクレデンシャルワークフローの実行 (TOTP を例に) について説明します。完了後、動作するボールトとワークフロー全体の概要を把握できます。Tegata を初めて使用する場合は、まず[はじめに](introduction.mdx)を参照してください。
+
+## 前提条件
+
+作業を開始する前に、以下のものが必要です。
+
+- FAT32 または exFAT でフォーマットされた USB ドライブまたは microSD カード
+- base32 シークレットまたは `otpauth://` URI を提供する GitHub や Microsoft などの TOTP 対応アカウント
+- Go 1.25 以降 (オプション – ソースからビルドする場合のみ)
+- [Node.js](https://nodejs.org/) 20 以降と[Wails](https://wails.io/) v2 (オプション – ソースからデスクトップ GUI をビルドする場合のみ)
+- [Docker](https://www.docker.com/products/docker-desktop/) (オプション – 監査ログを有効にする場合のみ)
+
+## Tegata のセットアップ
+
+Tegata には2つのインターフェースがあります。ワークフローに合ったものを選択するか、両方をセットアップしてください。
+
+:::note[トラブルシューティング]
+
+セットアップしたインターフェースが初回起動時に起動しない場合は、プラットフォーム固有の修正方法について[OS のセットアップ](os-setup.mdx)と[トラブルシューティング](troubleshooting.mdx)を確認してください。
+
+:::
+
+### CLI と TUI の実行
+
+CLI と TUI は USB ドライブから直接実行でき、ホストマシンへのインストールは不要です。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows" default>
+
+[tegata-windows-amd64.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-windows-amd64.exe)をダウンロードします。ファイル名を `tegata.exe` に変更して USB ドライブにコピーします。
+
+PowerShell を開きます。PowerShell は現在のディレクトリで実行ファイルを検索しないため、`.\` をプレフィックスとして付けてバイナリを実行します。
+
+```powershell
+.\tegata.exe version
+```
+
+任意のディレクトリから `tegata` を実行するには、以下のコマンドを実行してセッションの PATH に USB ドライブのドライブレターを追加します。`<USB_DRIVE_LETTER>` を実際のドライブレターに置き換えてください。
+
+```powershell
+$env:PATH += ";<USB_DRIVE_LETTER>:\"
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+お使いの Mac に対応したバイナリをダウンロードします。
+
+- Apple Silicon (M1 以降) の場合は[tegata-darwin-arm64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-arm64)
+- Intel の場合は[tegata-darwin-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-darwin-amd64)
+
+以下のコマンドを実行してバイナリを実行可能にし、USB ドライブにコピーします。`<USB_DRIVE_NAME>` を実際のドライブ名に置き換えてください。
+
+```bash
+chmod +x tegata-darwin-arm64 # Intel プロセッサ搭載 Mac の場合は chmod +x tegata-darwin-amd64
+cp tegata-darwin-arm64 /Volumes/<USB_DRIVE_NAME>/tegata # Intel プロセッサ搭載 Mac の場合は cp tegata-darwin-amd64 /Volumes/<USB_DRIVE_NAME>/tegata
+```
+
+:::warning[macOS Gatekeeper]
+
+macOS が初回実行時にバイナリをブロックする場合があります。検疫フラグをクリアする正確な手順については、[macOS セットアップガイド](os-setup.mdx?os=macos#オペレーティングシステムのセットアップ)を参照してください。
+
+:::
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+:::note[Linux サポート]
+
+Linux は手動でテストされていません。これらの手順は動作することが期待されますが、問題が発生した場合は [issue を作成](https://github.com/josh-wong/tegata/issues)してください。
+
+:::
+
+[tegata-linux-amd64](https://github.com/josh-wong/tegata/releases/latest/download/tegata-linux-amd64)をダウンロードします。次に、以下のコマンドを実行してファイルを実行可能にし、USB ドライブにコピーします。`<USB_DRIVE_NAME>`を実際のドライブ名に置き換えてください。
+
+```bash
+chmod +x tegata-linux-amd64
+cp tegata-linux-amd64 /media/$USER/<USB_DRIVE_NAME>/tegata
+```
+  </TabItem>
+</Tabs>
+
+### デスクトップ GUI のインストール
+
+デスクトップ GUI は USB ドライブではなく、ホストマシンにインストールされます。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows" default>
+
+[tegata-gui-windows-amd64-setup.exe](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-windows-amd64-setup.exe)をダウンロードして実行します。NSIS インストーラーがバイナリを`Program Files`に配置し、スタートメニューのエントリを作成します。
+
+:::note
+
+SmartScreen が初回起動をブロックした場合は、**詳細情報**を選択してから**実行**を選択してください。
+
+:::
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+[tegata-gui-darwin-universal.dmg](https://github.com/josh-wong/tegata/releases/latest/download/tegata-gui-darwin-universal.dmg)をダウンロードします。ディスクイメージを開き、Tegata を Applications フォルダーにドラッグします。
+
+:::note
+
+Gatekeeper が初回起動をブロックした場合は、**システム設定 → プライバシーとセキュリティ → このまま開く**を使用するか、[OS のセットアップ](os-setup.mdx?os=macos#オペレーティングシステムのセットアップ)の検疫除去手順に従ってください。
+
+:::
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+:::note[Linux サポート]
+
+Linux は手動でテストされていません。これらの手順は動作することが期待されますが、問題が発生した場合は [issue を作成](https://github.com/josh-wong/tegata/issues)してください。
+
+:::
+
+[リリース](https://github.com/josh-wong/tegata/releases)ページから Linux システムに合ったパッケージ形式をダウンロードします。
+
+- Debian、Ubuntu、および派生ディストリビューションの場合は `.deb`: `sudo dpkg -i tegata-gui-linux-amd64.deb`
+- Fedora、RHEL、および派生ディストリビューションの場合は `.rpm`: `sudo rpm -i tegata-gui-linux-amd64.rpm`
+
+:::note
+
+アプリが起動しない場合は、ディストリビューション用の WebKit2GTK ランタイムパッケージをインストールして再試行してください。詳細については、[OS のセットアップ](os-setup.mdx?os=linux#オペレーティングシステムのセットアップ)を参照してください。
+
+:::
+</TabItem>
+</Tabs>
+
+### ソースからのビルド
+
+ソースからビルドする場合は、まずリポジトリをクローンします。
+
+```bash
+git clone https://github.com/josh-wong/tegata.git
+cd tegata
+```
+
+#### CLI と TUI
+
+プラットフォーム向けの CLI と TUI をビルドします。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+Windows での Makefile によるビルドには cmd.exe と GNU Make が必要です。代わりに、PowerShell でリポジトリのルートから以下のコマンドを実行してください。
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -ldflags "-s -w" -o bin\tegata.exe .\cmd\tegata\
+```
+
+バイナリは `bin\tegata.exe` に配置されます。ボールトと一緒に USB ドライブにコピーしてください。
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+ターミナルでリポジトリのルートから以下のコマンドを実行します。
+
+```bash
+make build
+```
+
+バイナリは `bin/tegata` に配置されます。ボールトと一緒に USB ドライブにコピーしてください。
+
+  </TabItem>
+</Tabs>
+
+:::tip[CLI をどこからでも実行できるようにする]
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows" default>
+
+PowerShell でリポジトリのルートから以下のコマンドを実行します。
+
+```powershell
+.\bin\tegata.exe version
+```
+
+任意のディレクトリから `tegata` を実行するには、`bin\tegata.exe` を PATH にあるフォルダー (例: `%USERPROFILE%\bin`) にコピーし、そのフォルダーをユーザーの `PATH` に追加します。
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+以下のコマンドを実行して PATH 上のディレクトリにインストールします。
+
+```bash
+sudo make install
+```
+
+これにより、デフォルトで `tegata` が `/usr/local/bin/tegata` にインストールされます。ユーザーローカルパスの場合は、`make install PREFIX=$HOME/.local` を実行し、`$HOME/.local/bin` が PATH に含まれていることを確認してください。
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+以下のコマンドを実行して PATH 上のディレクトリにインストールします。
+
+```bash
+sudo make install
+```
+
+これにより、デフォルトで `tegata` が `/usr/local/bin/tegata` にインストールされます。ユーザーローカルパスの場合は、`make install PREFIX=$HOME/.local` を実行し、`$HOME/.local/bin` が PATH に含まれていることを確認してください。
+
+  </TabItem>
+</Tabs>
+
+:::
+
+#### デスクトップ GUI
+
+GUI のビルドには、[Wails CLI](https://wails.io/docs/gettingstarted/installation)、Go 1.25 以降、Node.js 20 以降が必要です。以下のコマンドを実行して Wails CLI をインストールします。
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows (PowerShell)" default>
+
+Windows での Makefile による GUI ビルドには `mv` が使用されますが、PowerShell では使用できません。代わりに、リポジトリのルートから以下のコマンドを実行してください。
+
+```powershell
+cd cmd\tegata-gui
+wails build -clean
+```
+
+バイナリは `cmd\tegata-gui\build\bin\tegata-gui.exe` に配置されます。
+
+  </TabItem>
+  <TabItem value="macos-linux" label="macOS/Linux">
+
+ターミナルでリポジトリのルートから以下のコマンドを実行します。
+
+```bash
+make gui
+```
+
+macOS では、アプリバンドルは `cmd/tegata-gui/build/bin/Tegata.app` に配置されます。Linux では、バイナリは `cmd/tegata-gui/build/bin/tegata-gui` に配置されます。
+
+  </TabItem>
+</Tabs>
+
+## ボールトの作成
+
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+プラットフォームを選択して対応するコマンドを実行します。
+
+<Tabs groupId="os" queryString>
+  <TabItem value="windows" label="Windows">
+
+PowerShell で以下のコマンドを実行します。`<USB_DRIVE_LETTER>` を実際のドライブレターに置き換えてください。
+
+```powershell
+.\tegata.exe init <USB_DRIVE_LETTER>:\
+```
+
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+
+ターミナルで以下のコマンドを実行します。`<USB_DRIVE_NAME>` を実際のドライブ名に置き換えてください。
+
+```bash
+tegata init /Volumes/<USB_DRIVE_NAME>
+```
+
+  </TabItem>
+  <TabItem value="linux" label="Linux">
+
+ターミナルで以下のコマンドを実行します。`<USB_DRIVE_NAME>` を実際のドライブ名に置き換えてください。
+
+```bash
+tegata init /media/$USER/<USB_DRIVE_NAME>
+```
+
+  </TabItem>
+</Tabs>
+
+Tegata はパスフレーズの作成 (8文字以上) を促し、リカバリーキーを表示します。
+
+```bash
+Vault created: /path/to/vault
+
+Recovery key (store this somewhere safe—you will not see it again):
+
+    ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567
+```
+
+:::danger[リカバリーキーを保存してください]
+
+リカバリーキーを書き留めて、USB ドライブとは物理的に別の安全な場所に保管してください (金庫の中に印刷したもの、信頼できるパスワードマネージャー、または施錠された引き出しなど)。パスフレーズを忘れた場合、このキーがボールトを回復する唯一の方法です。この画面から進んだ後、リカバリーキーを取得することはできません。
+
+:::
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+`tegata ui` を実行して TUI を起動します。解決されたボールトパスにボールトが存在しない場合、セットアップウィザードが自動的に起動します。
+
+```bash
+tegata ui
+```
+
+ウィザードは以下の手順を案内します。
+
+1. **ボールトの場所を選択します。** USB ドライブまたは microSD カードを指定します。
+2. **パスフレーズを作成します。** パスフレーズを入力して確認します (8文字以上)。
+3. **リカバリーキーを保存します。** キーは一度だけ表示されます。
+
+セットアップが完了すると、TUI は自動的にメインビューに移行します。
+
+:::danger[リカバリーキーを保存してください]
+
+リカバリーキーを書き留めて、USB ドライブとは物理的に別の安全な場所に保管してください (金庫の中に印刷したもの、信頼できるパスワードマネージャー、または施錠された引き出しなど)。パスフレーズを忘れた場合、このキーがボールトを回復する唯一の方法です。この画面から進んだ後、リカバリーキーを取得することはできません。
+
+:::
+
+  </TabItem>
+  <TabItem value="gui" label="デスクトップ GUI">
+
+Tegata を開きます。初回起動時に、セットアップウィザードが自動的に起動します。
+
+ウィザードは以下の手順を案内します。
+
+1. **ボールトの場所を選択します。** USB ドライブまたは microSD カードのディレクトリを選択します。
+2. **パスフレーズを作成します。** パスフレーズを入力して確認します。強度インジケーターが推定セキュリティレベルを示します。
+3. **リカバリーキーを保存します。** キーは一度だけ表示されます。
+
+:::danger[続行を選択する前にリカバリーキーを保存してください]
+
+リカバリーキー画面は再度表示されません。このキーなしにパスフレーズを失った場合、ボールトを回復できません。
+
+:::
+
+  </TabItem>
+</Tabs>
+
+## クレデンシャルの追加
+
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+Tegata はクレデンシャルを追加するための 2 つの方法をサポートしています: `otpauth://` URI のスキャンと手動でのシークレット入力。
+
+<Tabs groupId="add-method" queryString>
+  <TabItem value="scan" label="URI のスキャン (推奨)">
+
+サービスが QR コードを表示する際、ほとんどのサービスは「リンクをコピー」オプションを提供するか、`otpauth://` URI をテキストとして表示します。URI をコピーして以下のコマンドを実行します。`path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata add GitHub --scan --vault /path/to/vault
+```
+
+Tegata はユーザーに URI の貼り付けを求めます (入力は非表示)。クレデンシャルタイプ、発行者、アルゴリズム、桁数、および期間は URI から自動的に解析されます。
+
+  </TabItem>
+  <TabItem value="manual" label="手動入力">
+
+base32 シークレットのみをお持ちの場合は、以下のコマンドを実行してシークレットを自分のものに置き換えてください。`path/to/vault` もボールトパスに置き換えてください。
+
+```bash
+tegata add GitHub --type totp --issuer GitHub --vault /path/to/vault
+```
+
+Tegata はシークレットの入力を求めます (入力は非表示)。
+
+  </TabItem>
+</Tabs>
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+メインビューで `a` を押してクレデンシャル追加オーバーレイを開きます。Tab キーでクレデンシャルタイプ (TOTP、HOTP、チャレンジ・レスポンス、スタティックパスワード) を切り替え、ラベルとシークレットフィールドに入力して Enter を押して保存します。
+
+クレデンシャルが保存されると、リストに表示され、自動的に選択されます。
+
+  </TabItem>
+  <TabItem value="gui" label="デスクトップ GUI">
+
+ツールバーの**+**ボタンを選択するか、ファイルメニューから**クレデンシャルを追加**を選択します。ダイアログには各クレデンシャルタイプのタブがあります: TOTP、HOTP、チャレンジ・レスポンス、スタティックパスワード。必要なフィールドに入力して**追加**を選択します。
+
+`otpauth://` URI を使用してクレデンシャルを追加するには、**URI をスキャン**を選択して URI を貼り付けます。タイプ、ラベル、発行者、アルゴリズム、桁数、および期間が自動的に入力されます。
+
+  </TabItem>
+</Tabs>
+
+## 最初のコードの生成
+
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+以下のコマンドを実行します。`/path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata code GitHub --vault /path/to/vault
+```
+
+出力には現在のコード、有効期限までの時間、およびクリップボードにコピーされた確認が表示されます。
+
+```bash
+482901
+Expires in 18s
+Copied to clipboard (auto-clear in 45s)
+```
+
+:::tip[毎回ボールトパスを入力しないようにする]
+
+以下のコマンドを実行して `TEGATA_VAULT` 環境変数を USB ドライブのパスに設定します。`/path/to/vault` をボールトパスに置き換えてください。これにより、すべてのコマンドが自動的にボールトを見つけます。
+
+```bash
+export TEGATA_VAULT=/path/to/vault
+```
+
+Windows の PowerShell では、以下のコマンドを実行します。`<USB_DRIVE_LETTER>` を実際のドライブレターに置き換えてください。
+
+```powershell
+$env:TEGATA_VAULT = "<USB_DRIVE_LETTER>:\"
+```
+
+:::
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+↑/↓でクレデンシャルに移動して Enter を押し、現在のコードをクリップボードにコピーします。詳細パネルには現在のコード、カウントダウンタイマー、およびクリップボードの確認が表示されます。
+
+TOTP クレデンシャルの場合、コードとタイマーは自動的に更新されます。更新するために Enter を再度押す必要はありません。
+
+  </TabItem>
+  <TabItem value="gui" label="デスクトップ GUI">
+
+リストからクレデンシャルを選択します。右側の詳細パネルに現在のコードとカウントダウンタイマーが表示されます。**コピー**を選択してクリップボードにコピーします。
+
+TOTP クレデンシャルの場合、コードは有効期限が切れる前に自動的に更新されます。
+
+  </TabItem>
+</Tabs>
+
+## ワークフロー
+
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+一般的なワークフローは以下の通りです。
+
+1. USB ドライブを接続します。
+2. `tegata code <label>` を実行してコードを生成してコピーします。
+3. コードを必要な場所に貼り付けます。
+4. クリップボードは45秒後に自動的にクリアされます。
+
+ボールト内のすべてのクレデンシャルをリストするには、以下のコマンドを実行します。
+
+```bash
+tegata list
+```
+
+クレデンシャルはタグでグループ化されます。タグのないクレデンシャルは `[untagged]` の下に表示されます。
+
+:::tip[ボールト解決順序]
+
+`--vault` を指定しない場合、Tegata は以下の順序でボールトを検索します。
+
+1. `--vault` フラグ
+2. `TEGATA_VAULT` 環境変数
+3. 現在の作業ディレクトリの `./vault.tegata`
+
+:::
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+一般的なワークフローは以下の通りです。
+
+1. USB ドライブを接続します。
+2. `tegata ui` を実行して TUI を起動するか、セッション間で起動したままにします。
+3. ↑/↓でナビゲートして Enter を押してコードをコピーします。
+4. コードを必要な場所に貼り付けます。
+5. クリップボードは45秒後に自動的にクリアされます。
+
+キーボードショートカット、クレデンシャル管理、および日常的な使用のヒントについては、[TUI の使用](tui-guide.mdx)を参照してください。
+
+  </TabItem>
+  <TabItem value="gui" label="デスクトップ GUI">
+
+一般的なワークフローは以下の通りです。
+
+1. USB ドライブを接続します。
+2. Tegata を開きます。
+3. クレデンシャルを選択して**コピー**でコードをコピーします。
+4. コードを必要な場所に貼り付けます。
+5. クリップボードは45秒後に自動的にクリアされます。
+
+クレデンシャル管理、設定、および監査パネルについては、[デスクトップ GUI の使用](gui-guide.mdx)を参照してください。
+
+  </TabItem>
+</Tabs>
+
+## オプション: 監査ログの有効化
+
+Tegata は、ScalarDL Ledger による改ざん防止監査ログにすべての認証イベントを記録できます。監査ログはデフォルトで無効になっており、Docker が必要です。
+
+<Tabs groupId="interface" queryString>
+  <TabItem value="cli" label="CLI">
+
+ボールトを作成した後に以下のコマンドを一度実行します。`/path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+セットアップ後、すべてのボールトのアンロックがバックグラウンドで Docker スタックを自動的に起動します。
+
+  </TabItem>
+  <TabItem value="tui" label="TUI">
+
+監査ログのセットアップでは、主なインターフェースに関係なく CLI コマンドを使用します。以下のコマンドを一度実行します。`/path/to/vault` をボールトパスに置き換えてください。
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+セットアップ後、すべてのボールトのアンロックがバックグラウンドで Docker スタックを自動的に起動します。
+
+  </TabItem>
+  <TabItem value="gui" label="デスクトップ GUI">
+
+設定パネルから監査ログを有効にするか、以下の CLI コマンドを一度実行してセットアップします。
+
+```bash
+tegata ledger start --vault /path/to/vault
+```
+
+有効にした後、記録されたイベントを表示するための監査パネルが GUI で利用可能になります。詳細については、[デスクトップ GUI の使用](gui-guide.mdx#監査パネルでイベントを表示する)を参照してください。
+
+  </TabItem>
+</Tabs>
+
+詳細については、[監査ログの有効化](scalardl-setup.mdx)ガイドを参照してください。
+
+## 次のステップ
+
+- **[OS のセットアップ](os-setup.mdx):** USB フォーマット、Gatekeeper、Linux udev ルール
+- **[GUI の使用](gui-guide.mdx):** デスクトップアプリケーションのウォークスルー
+- **[TUI の使用](tui-guide.mdx):** キーボードショートカットとワークフロー
+- **[CLI リファレンス](cli-reference.mdx):** すべてのコマンド、フラグ、環境変数
+- **[セキュリティのベストプラクティス](security-best-practices.mdx):** ボールトを安全に保つためのヒント
