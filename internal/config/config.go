@@ -21,6 +21,11 @@ type Config struct {
 	// Audit holds optional ScalarDL Ledger integration settings. When
 	// Audit.Enabled is false (the default) the audit layer is inactive.
 	Audit AuditConfig
+	// LaunchCount tracks how many times the vault has been unlocked. Used to
+	// decide when to show the one-time support banner.
+	LaunchCount int
+	// SupportBannerDismissed is true once the user has dismissed the banner.
+	SupportBannerDismissed bool
 }
 
 // AuditConfig holds settings for the optional ScalarDL Ledger audit layer.
@@ -93,6 +98,11 @@ type tomlAuditConfig struct {
 
 // tomlConfig is the intermediate deserialization struct. Pointer fields
 // distinguish "not set" from "zero value".
+type tomlUI struct {
+	LaunchCount            *int  `toml:"launch_count"`
+	SupportBannerDismissed *bool `toml:"support_banner_dismissed"`
+}
+
 type tomlConfig struct {
 	Language  *string `toml:"language"`
 	Clipboard struct {
@@ -102,6 +112,7 @@ type tomlConfig struct {
 		IdleTimeout *int `toml:"idle_timeout"`
 	} `toml:"vault"`
 	Audit tomlAuditConfig `toml:"audit"`
+	UI    tomlUI          `toml:"ui"`
 }
 
 const (
@@ -205,6 +216,13 @@ func Load(dir string) (Config, error) {
 	// When docker_compose_path is set but auto_start is absent, default to true.
 	if a.AutoStart == nil && cfg.Audit.DockerComposePath != "" {
 		cfg.Audit.AutoStart = true
+	}
+
+	if tc.UI.LaunchCount != nil {
+		cfg.LaunchCount = *tc.UI.LaunchCount
+	}
+	if tc.UI.SupportBannerDismissed != nil {
+		cfg.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
 	}
 
 	return cfg, nil

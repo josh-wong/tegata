@@ -274,7 +274,16 @@
       "aboutVersion": "バージョン: {{version}}",
       "aboutLicense": "ライセンス: MIT",
       "privacyAndDisclaimer": "プライバシーと免責事項",
-      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/ja-jp/docs/privacy-and-disclaimer/"
+      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/ja-jp/docs/privacy-and-disclaimer/",
+      "sectionSupport": "プロジェクトを支援する",
+      "supportBannerMessage": "Tegataはお役に立てていますか？プロジェクトの支援をご検討ください：",
+      "supportDescription": "Tegataが役に立っている場合は、開発を支援することをご検討ください。",
+      "supportGitHubSponsors": "GitHub Sponsors",
+      "supportGitHubSponsorsUrl": "https://github.com/sponsors/josh-wong",
+      "supportKoFi": "Ko-fi",
+      "supportKoFiUrl": "https://ko-fi.com/josh_haha",
+      "supportPayPal": "PayPal",
+      "supportPayPalUrl": "https://www.paypal.me/joshww"
     },
     "audit": {
       "title": "監査",

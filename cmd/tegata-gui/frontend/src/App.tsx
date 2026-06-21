@@ -11,6 +11,7 @@ import { UnlockView } from "@/components/vault/UnlockView"
 import { SetupWizard } from "@/components/vault/SetupWizard"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+import { SupportBanner } from "@/components/shared/SupportBanner"
 import { useVault } from "@/hooks/useVault"
 import { useCredentials } from "@/hooks/useCredentials"
 import { useIdleTimer } from "@/hooks/useIdleTimer"
@@ -35,6 +36,7 @@ function App() {
   const [isSwitching, setIsSwitching] = useState(false)
   const [idleTimeoutMs, setIdleTimeoutMs] = useState(5 * 60 * 1000)
   const [auditEnabled, setAuditEnabled] = useState(false)
+  const [showSupportBanner, setShowSupportBanner] = useState(false)
 
   useEffect(() => {
     if (!vault.isUnlocked) return
@@ -66,9 +68,21 @@ function App() {
     }
   }, [vault.isUnlocked])
 
+  useEffect(() => {
+    if (!vault.isUnlocked) return
+    WailsApp.GetSupportBannerVisible()
+      .then(setShowSupportBanner)
+      .catch(() => {})
+  }, [vault.isUnlocked])
+
   const handleLock = useCallback(() => {
     vault.lock()
   }, [vault])
+
+  const handleDismissSupportBanner = useCallback(() => {
+    setShowSupportBanner(false)
+    WailsApp.DismissSupportBanner().catch(() => {})
+  }, [])
 
   // Only run the idle timer while the vault is unlocked. Passing 0 when the
   // user is on the setup or unlock screen disables the timer so pre-login
@@ -208,6 +222,8 @@ function App() {
           auditEnabled={auditEnabled}
         />
       </div>
+
+      {showSupportBanner && <SupportBanner onDismiss={handleDismissSupportBanner} />}
 
       <AddCredentialDialog
         open={addDialogOpen}

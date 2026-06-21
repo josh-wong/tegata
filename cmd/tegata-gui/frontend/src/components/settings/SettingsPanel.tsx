@@ -489,6 +489,37 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
             {t("gui.settings.privacyAndDisclaimer")}
           </Button>
         </section>
+
+        <Separator className="my-4" />
+
+        {/* Support */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionSupport")}</h3>
+          <p className="text-xs text-muted-foreground">{t("gui.settings.supportDescription")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(t("gui.settings.supportGitHubSponsorsUrl"))}
+            >
+              {t("gui.settings.supportGitHubSponsors")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(t("gui.settings.supportKoFiUrl"))}
+            >
+              {t("gui.settings.supportKoFi")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(t("gui.settings.supportPayPalUrl"))}
+            >
+              {t("gui.settings.supportPayPal")}
+            </Button>
+          </div>
+        </section>
         </div>
       </div>
     </div>

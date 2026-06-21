@@ -274,7 +274,16 @@
       "aboutVersion": "Version: {{version}}",
       "aboutLicense": "License: MIT",
       "privacyAndDisclaimer": "Privacy & disclaimer",
-      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/docs/privacy-and-disclaimer/"
+      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/docs/privacy-and-disclaimer/",
+      "sectionSupport": "Support the project",
+      "supportBannerMessage": "Enjoying Tegata? Consider supporting the project:",
+      "supportDescription": "If you find Tegata useful, consider supporting its development.",
+      "supportGitHubSponsors": "GitHub Sponsors",
+      "supportGitHubSponsorsUrl": "https://github.com/sponsors/josh-wong",
+      "supportKoFi": "Ko-fi",
+      "supportKoFiUrl": "https://ko-fi.com/josh_haha",
+      "supportPayPal": "PayPal",
+      "supportPayPalUrl": "https://www.paypal.me/joshww"
     },
     "audit": {
       "title": "Audit",
