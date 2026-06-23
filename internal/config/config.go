@@ -21,9 +21,15 @@ type Config struct {
 	// Audit holds optional ScalarDL Ledger integration settings. When
 	// Audit.Enabled is false (the default) the audit layer is inactive.
 	Audit AuditConfig
-	// LaunchCount tracks how many times the vault has been unlocked. Used to
+	// UI holds UI-layer state that travels with the vault on USB.
+	UI UIConfig
+}
+
+// UIConfig holds UI-layer state persisted in the [ui] section of tegata.toml.
+type UIConfig struct {
+	// UnlockCount tracks how many times the vault has been unlocked. Used to
 	// decide when to show the one-time support banner.
-	LaunchCount int
+	UnlockCount int
 	// SupportBannerDismissed is true once the user has dismissed the banner.
 	SupportBannerDismissed bool
 }
@@ -99,7 +105,7 @@ type tomlAuditConfig struct {
 // tomlConfig is the intermediate deserialization struct. Pointer fields
 // distinguish "not set" from "zero value".
 type tomlUI struct {
-	LaunchCount            *int  `toml:"launch_count"`
+	UnlockCount            *int  `toml:"unlock_count"`
 	SupportBannerDismissed *bool `toml:"support_banner_dismissed"`
 }
 
@@ -218,11 +224,11 @@ func Load(dir string) (Config, error) {
 		cfg.Audit.AutoStart = true
 	}
 
-	if tc.UI.LaunchCount != nil {
-		cfg.LaunchCount = *tc.UI.LaunchCount
+	if tc.UI.UnlockCount != nil {
+		cfg.UI.UnlockCount = *tc.UI.UnlockCount
 	}
 	if tc.UI.SupportBannerDismissed != nil {
-		cfg.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
+		cfg.UI.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
 	}
 
 	return cfg, nil

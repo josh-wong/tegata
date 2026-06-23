@@ -212,8 +212,8 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	a.config = cfg
 
 	// Increment unlock count for the support banner threshold; failure is non-fatal.
-	a.config.LaunchCount++
-	_ = config.WriteUI(vaultDir(a.vaultPath), a.config.LaunchCount, a.config.SupportBannerDismissed)
+	a.config.UI.UnlockCount++
+	_ = config.WriteUI(vaultDir(a.vaultPath), a.config.UI.UnlockCount, a.config.UI.SupportBannerDismissed)
 
 	// Attempt to load HMAC secret from vault (encrypted storage).
 	secretFromVault := a.vault.GetSecret("audit.secret_key")
@@ -1030,17 +1030,18 @@ func (a *App) SetLanguage(lang string) error {
 // not yet dismissed the banner.
 func (a *App) GetSupportBannerVisible() bool {
 	const threshold = 10
-	return a.config.LaunchCount >= threshold && !a.config.SupportBannerDismissed
+	return a.config.UI.UnlockCount >= threshold && !a.config.UI.SupportBannerDismissed
 }
 
 // DismissSupportBanner marks the support banner as permanently dismissed and
 // persists the state to tegata.toml.
 func (a *App) DismissSupportBanner() error {
-	a.config.SupportBannerDismissed = true
-	if a.vaultPath != "" {
-		if err := config.WriteUI(vaultDir(a.vaultPath), a.config.LaunchCount, true); err != nil {
-			return fmt.Errorf("saving support banner state: %w", err)
-		}
+	a.config.UI.SupportBannerDismissed = true
+	if a.vaultPath == "" {
+		return fmt.Errorf("vault is not open")
+	}
+	if err := config.WriteUI(vaultDir(a.vaultPath), a.config.UI.UnlockCount, true); err != nil {
+		return fmt.Errorf("saving support banner state: %w", err)
 	}
 	return nil
 }
