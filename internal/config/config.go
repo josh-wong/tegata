@@ -21,6 +21,20 @@ type Config struct {
 	// Audit holds optional ScalarDL Ledger integration settings. When
 	// Audit.Enabled is false (the default) the audit layer is inactive.
 	Audit AuditConfig
+	// UI holds UI-layer state that travels with the vault on USB.
+	UI UIConfig
+}
+
+// UIConfig holds UI-layer state. SupportBannerDismissed is persisted in the
+// [ui] section of tegata.toml. UnlockCount is stored in the encrypted vault
+// (not in tegata.toml) so it cannot be casually manipulated.
+type UIConfig struct {
+	// UnlockCount is loaded from the encrypted vault on unlock and held in
+	// memory only. It is never written to tegata.toml.
+	UnlockCount int
+	// SupportBannerDismissed is true once the user has permanently dismissed
+	// the support banner. Persisted to tegata.toml.
+	SupportBannerDismissed bool
 }
 
 // AuditConfig holds settings for the optional ScalarDL Ledger audit layer.
@@ -93,6 +107,10 @@ type tomlAuditConfig struct {
 
 // tomlConfig is the intermediate deserialization struct. Pointer fields
 // distinguish "not set" from "zero value".
+type tomlUI struct {
+	SupportBannerDismissed *bool `toml:"support_banner_dismissed"`
+}
+
 type tomlConfig struct {
 	Language  *string `toml:"language"`
 	Clipboard struct {
@@ -102,6 +120,7 @@ type tomlConfig struct {
 		IdleTimeout *int `toml:"idle_timeout"`
 	} `toml:"vault"`
 	Audit tomlAuditConfig `toml:"audit"`
+	UI    tomlUI          `toml:"ui"`
 }
 
 const (
@@ -205,6 +224,10 @@ func Load(dir string) (Config, error) {
 	// When docker_compose_path is set but auto_start is absent, default to true.
 	if a.AutoStart == nil && cfg.Audit.DockerComposePath != "" {
 		cfg.Audit.AutoStart = true
+	}
+
+	if tc.UI.SupportBannerDismissed != nil {
+		cfg.UI.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
 	}
 
 	return cfg, nil
