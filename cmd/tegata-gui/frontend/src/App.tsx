@@ -81,7 +81,7 @@ function App() {
 
   const handleDismissSupportBanner = useCallback(() => {
     setShowSupportBanner(false)
-    WailsApp.DismissSupportBanner().catch(() => {})
+    WailsApp.DismissSupportBanner().catch(console.error)
   }, [])
 
   // Only run the idle timer while the vault is unlocked. Passing 0 when the
