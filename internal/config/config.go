@@ -25,12 +25,15 @@ type Config struct {
 	UI UIConfig
 }
 
-// UIConfig holds UI-layer state persisted in the [ui] section of tegata.toml.
+// UIConfig holds UI-layer state. SupportBannerDismissed is persisted in the
+// [ui] section of tegata.toml. UnlockCount is stored in the encrypted vault
+// (not in tegata.toml) so it cannot be casually manipulated.
 type UIConfig struct {
-	// UnlockCount tracks how many times the vault has been unlocked. Used to
-	// decide when to show the one-time support banner.
+	// UnlockCount is loaded from the encrypted vault on unlock and held in
+	// memory only. It is never written to tegata.toml.
 	UnlockCount int
-	// SupportBannerDismissed is true once the user has dismissed the banner.
+	// SupportBannerDismissed is true once the user has permanently dismissed
+	// the support banner. Persisted to tegata.toml.
 	SupportBannerDismissed bool
 }
 
@@ -105,7 +108,6 @@ type tomlAuditConfig struct {
 // tomlConfig is the intermediate deserialization struct. Pointer fields
 // distinguish "not set" from "zero value".
 type tomlUI struct {
-	UnlockCount            *int  `toml:"unlock_count"`
 	SupportBannerDismissed *bool `toml:"support_banner_dismissed"`
 }
 
@@ -224,9 +226,6 @@ func Load(dir string) (Config, error) {
 		cfg.Audit.AutoStart = true
 	}
 
-	if tc.UI.UnlockCount != nil {
-		cfg.UI.UnlockCount = *tc.UI.UnlockCount
-	}
 	if tc.UI.SupportBannerDismissed != nil {
 		cfg.UI.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
 	}
