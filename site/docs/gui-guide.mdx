@@ -100,7 +100,7 @@ After unlocking your vault, the left sidebar shows your list of credentials.
 
 ## Add a credential
 
-Select the **+** button in the toolbar or the **Add credential** option in the File menu to open the add credential dialog.
+Select the **+** button in the toolbar to open the add credential dialog.
 
 ![Add credential dialog with manual entry options](./images/gui-add-credential.png)
 
@@ -135,7 +135,7 @@ Right-click a credential in the list to access options:
 
 Select the gear icon or open **Settings** from the application menu to access the settings panel.
 
-![Settings panel with theme, auto-lock, and clipboard controls](./images/gui-settings.png)
+![Settings panel showing available configuration options](./images/gui-settings.png)
 
 Available settings:
 
@@ -146,6 +146,29 @@ Available settings:
 | Theme | Light, Dark, or System | System |
 | Audit auto-start | Start Docker audit stack automatically on unlock | On (after `tegata ledger start`) |
 
+### Manage your vault
+
+The **Vault** section of the settings panel contains options for managing your vault credentials and passphrase.
+
+| Option | Description |
+|--------|-------------|
+| **Change passphrase** | Rotate your vault passphrase |
+| **Verify recovery key** | Confirm that your stored recovery key is still valid |
+| **Export credentials** | Create an encrypted `.tegata-backup` file with an independent export passphrase |
+| **Import credentials** | Merge credentials from a `.tegata-backup` file into the current vault |
+
+To switch to a different vault, select the **Switch vault** icon in the header toolbar. If you select an existing vault, the current vault is locked before the new one opens.
+
+### Support the project
+
+The **Support the project** section includes links to [GitHub Sponsors](https://github.com/sponsors/josh-wong), [Ko-fi](https://ko-fi.com/josh_haha), and [PayPal](https://www.paypal.me/joshww).
+
+:::note[Support banner]
+
+A banner with the same links also appears at the bottom of the main window every 10 vault unlocks. Select **X** to dismiss it for the current session, or choose **Don't show again** to hide it permanently.
+
+:::
+
 ## View events in the audit panel
 
 The audit panel is available after enabling audit logging with `tegata ledger start` (CLI) or through the Settings panel in the GUI.
@@ -155,18 +178,6 @@ The audit panel is available after enabling audit logging with `tegata ledger st
 The panel shows a table of recorded events with columns for operation type, credential label, timestamp (UTC), and event hash. Use the date filters to narrow the range. Select **Verify integrity** to run `tegata verify` and check the entire audit chain.
 
 Events for removed credentials show as **(deleted)** in the label column. This is expected because the label hash is preserved in the ledger but the plaintext label is no longer in your vault.
-
-## Manage your vault
-
-Access vault management options from the **File** menu.
-
-| Option | Description |
-|--------|-------------|
-| **Export backup** | Create an encrypted `.tegata-backup` file with an independent export passphrase |
-| **Import backup** | Merge credentials from a `.tegata-backup` file into the current vault |
-| **Change passphrase** | Rotate your vault passphrase |
-| **Verify recovery key** | Confirm that your stored recovery key is still valid |
-| **Lock vault** | Lock your vault immediately without quitting |
 
 ## Known limitations
 
