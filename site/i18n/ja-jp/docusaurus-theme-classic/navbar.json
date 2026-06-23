@@ -15,6 +15,10 @@
     "message": "リリースノート",
     "description": "Navbar item with label Release notes"
   },
+  "item.label.Support the project": {
+    "message": "プロジェクトをサポート",
+    "description": "Navbar item with label Support the project"
+  },
   "item.label.GitHub": {
     "message": "GitHub",
     "description": "Navbar item with label GitHub"

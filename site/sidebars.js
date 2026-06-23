@@ -55,6 +55,33 @@ const sidebars = {
       items: ['release-notes-v1'],
     },
   ],
+
+  supportSidebar: [
+    {
+      type: 'category',
+      label: 'Support the project',
+      link: {
+        type: 'generated-index',
+      },
+      items: [
+        {
+          type: 'link',
+          label: 'GitHub Sponsors',
+          href: 'https://github.com/sponsors/josh-wong',
+        },
+        {
+          type: 'link',
+          label: 'Ko-fi',
+          href: 'https://ko-fi.com/josh_haha',
+        },
+        {
+          type: 'link',
+          label: 'PayPal',
+          href: 'https://www.paypal.me/joshww',
+        },
+      ],
+    },
+  ],
 };
 
 export default sidebars;
