@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -210,6 +211,14 @@ func (a *App) UnlockVault(path, passphrase string) error {
 		cfg = config.DefaultConfig()
 	}
 	a.config = cfg
+
+	// Read, increment, and store the unlock count in the encrypted vault so it
+	// cannot be manipulated by editing tegata.toml. Failure is non-fatal.
+	if n, err := strconv.Atoi(a.vault.GetSecret("ui.unlock_count")); err == nil {
+		a.config.UI.UnlockCount = n
+	}
+	a.config.UI.UnlockCount++
+	_ = a.vault.SetSecret("ui.unlock_count", strconv.Itoa(a.config.UI.UnlockCount))
 
 	// Attempt to load HMAC secret from vault (encrypted storage).
 	secretFromVault := a.vault.GetSecret("audit.secret_key")
@@ -1017,6 +1026,30 @@ func (a *App) SetLanguage(lang string) error {
 		if err := config.WriteLanguage(vaultDir(a.vaultPath), lang); err != nil {
 			return fmt.Errorf("saving language: %w", err)
 		}
+	}
+	return nil
+}
+
+// GetSupportBannerVisible returns true when the support banner should be
+// displayed: the vault has been unlocked a positive multiple of 10 times and
+// the user has not permanently dismissed the banner. The unlock count is stored
+// in the encrypted vault and cannot be manipulated via tegata.toml.
+func (a *App) GetSupportBannerVisible() bool {
+	const interval = 10
+	return a.config.UI.UnlockCount > 0 &&
+		a.config.UI.UnlockCount%interval == 0 &&
+		!a.config.UI.SupportBannerDismissed
+}
+
+// DismissSupportBanner marks the support banner as permanently dismissed and
+// persists the state to tegata.toml.
+func (a *App) DismissSupportBanner() error {
+	a.config.UI.SupportBannerDismissed = true
+	if a.vaultPath == "" {
+		return fmt.Errorf("vault is not open")
+	}
+	if err := config.WriteUI(vaultDir(a.vaultPath), true); err != nil {
+		return fmt.Errorf("saving support banner state: %w", err)
 	}
 	return nil
 }

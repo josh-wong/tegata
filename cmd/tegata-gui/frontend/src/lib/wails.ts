@@ -82,6 +82,8 @@ interface WailsAppBindings {
   EnableAudit(): Promise<void>
   GetLanguage(): Promise<string>
   SetLanguage(lang: string): Promise<void>
+  GetSupportBannerVisible(): Promise<boolean>
+  DismissSupportBanner(): Promise<void>
 }
 
 function getApp(): WailsAppBindings {
@@ -142,6 +144,8 @@ export const App = {
   EnableAudit: () => getApp().EnableAudit(),
   GetLanguage: () => getApp().GetLanguage(),
   SetLanguage: (lang: string) => getApp().SetLanguage(lang),
+  GetSupportBannerVisible: () => getApp().GetSupportBannerVisible(),
+  DismissSupportBanner: () => getApp().DismissSupportBanner(),
 }
 
 export function EventsOn(event: string, callback: (...data: unknown[]) => void) {

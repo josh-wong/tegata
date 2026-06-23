@@ -9,9 +9,9 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
-import { DISMISS_OPTIONS } from "@/lib/constants"
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
+import { DISMISS_OPTIONS, SUPPORT_URLS } from "@/lib/constants"
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n"
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 
 interface SettingsPanelProps {
   open: boolean
@@ -489,6 +489,38 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
             {t("gui.settings.privacyAndDisclaimer")}
           </Button>
         </section>
+
+        <Separator className="my-4" />
+
+        {/* Support */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">{t("gui.settings.sectionSupport")}</h3>
+          <p className="text-xs text-muted-foreground">{t("gui.settings.supportDescription")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.gitHubSponsors)}
+            >
+              {t("gui.settings.supportGitHubSponsors")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.koFi)}
+            >
+              {t("gui.settings.supportKoFi")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.payPal)}
+            >
+              {t("gui.settings.supportPayPal")}
+            </Button>
+          </div>
+        </section>
+
         </div>
       </div>
     </div>
