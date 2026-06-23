@@ -34,5 +34,9 @@
   "sidebar.releaseNotesSidebar.category.Release notes": {
     "message": "リリースノート",
     "description": "The label for category Release notes in sidebar releaseNotesSidebar"
+  },
+  "sidebar.supportSidebar.category.Support the project": {
+    "message": "プロジェクトをサポート",
+    "description": "The label for category Support the project in sidebar supportSidebar"
   }
 }
