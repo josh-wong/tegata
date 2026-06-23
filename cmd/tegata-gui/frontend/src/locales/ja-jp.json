@@ -2,6 +2,7 @@
   "gui": {
     "common": {
       "cancel": "キャンセル",
+      "dismiss": "閉じる",
       "save": "保存",
       "done": "完了",
       "back": "戻る",
@@ -274,7 +275,14 @@
       "aboutVersion": "バージョン: {{version}}",
       "aboutLicense": "ライセンス: MIT",
       "privacyAndDisclaimer": "プライバシーと免責事項",
-      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/ja-jp/docs/privacy-and-disclaimer/"
+      "privacyAndDisclaimerUrl": "https://tegata.080f53.com/ja-jp/docs/privacy-and-disclaimer/",
+      "sectionSupport": "プロジェクトを支援する",
+      "supportBannerMessage": "Tegata はお役に立てていますか？プロジェクトの支援をご検討ください:",
+      "supportBannerDontShowAgain": "今後表示しない",
+      "supportDescription": "Tegata が役に立っている場合は、開発を支援することをご検討ください。",
+      "supportGitHubSponsors": "GitHub Sponsors",
+      "supportKoFi": "Ko-fi",
+      "supportPayPal": "PayPal"
     },
     "audit": {
       "title": "監査",
