@@ -81,6 +81,10 @@ function App() {
 
   const handleDismissSupportBanner = useCallback(() => {
     setShowSupportBanner(false)
+  }, [])
+
+  const handleDismissSupportBannerPermanently = useCallback(() => {
+    setShowSupportBanner(false)
     WailsApp.DismissSupportBanner().catch(console.error)
   }, [])
 
@@ -223,7 +227,7 @@ function App() {
         />
       </div>
 
-      {showSupportBanner && <SupportBanner onDismiss={handleDismissSupportBanner} />}
+      {showSupportBanner && <SupportBanner onDismiss={handleDismissSupportBanner} onDismissPermanently={handleDismissSupportBannerPermanently} />}
 
       <AddCredentialDialog
         open={addDialogOpen}

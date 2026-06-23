@@ -277,8 +277,9 @@
       "privacyAndDisclaimer": "プライバシーと免責事項",
       "privacyAndDisclaimerUrl": "https://tegata.080f53.com/ja-jp/docs/privacy-and-disclaimer/",
       "sectionSupport": "プロジェクトを支援する",
-      "supportBannerMessage": "Tegataはお役に立てていますか？プロジェクトの支援をご検討ください：",
-      "supportDescription": "Tegataが役に立っている場合は、開発を支援することをご検討ください。",
+      "supportBannerMessage": "Tegata はお役に立てていますか？プロジェクトの支援をご検討ください:",
+      "supportBannerDontShowAgain": "今後表示しない",
+      "supportDescription": "Tegata が役に立っている場合は、開発を支援することをご検討ください。",
       "supportGitHubSponsors": "GitHub Sponsors",
       "supportKoFi": "Ko-fi",
       "supportPayPal": "PayPal"

@@ -278,6 +278,7 @@
       "privacyAndDisclaimerUrl": "https://tegata.080f53.com/docs/privacy-and-disclaimer/",
       "sectionSupport": "Support the project",
       "supportBannerMessage": "Enjoying Tegata? Consider supporting the project:",
+      "supportBannerDontShowAgain": "Don't show again",
       "supportDescription": "If you find Tegata useful, consider supporting its development.",
       "supportGitHubSponsors": "GitHub Sponsors",
       "supportKoFi": "Ko-fi",
