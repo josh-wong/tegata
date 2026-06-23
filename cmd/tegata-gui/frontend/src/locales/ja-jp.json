@@ -2,6 +2,7 @@
   "gui": {
     "common": {
       "cancel": "キャンセル",
+      "dismiss": "閉じる",
       "save": "保存",
       "done": "完了",
       "back": "戻る",
@@ -279,11 +280,8 @@
       "supportBannerMessage": "Tegataはお役に立てていますか？プロジェクトの支援をご検討ください：",
       "supportDescription": "Tegataが役に立っている場合は、開発を支援することをご検討ください。",
       "supportGitHubSponsors": "GitHub Sponsors",
-      "supportGitHubSponsorsUrl": "https://github.com/sponsors/josh-wong",
       "supportKoFi": "Ko-fi",
-      "supportKoFiUrl": "https://ko-fi.com/josh_haha",
-      "supportPayPal": "PayPal",
-      "supportPayPalUrl": "https://www.paypal.me/joshww"
+      "supportPayPal": "PayPal"
     },
     "audit": {
       "title": "監査",
