@@ -9,13 +9,9 @@ import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
 import { cn, formatError } from "@/lib/utils"
-import { DISMISS_OPTIONS } from "@/lib/constants"
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-
-const GITHUB_SPONSORS_URL = "https://github.com/sponsors/josh-wong"
-const KO_FI_URL = "https://ko-fi.com/josh_haha"
-const PAYPAL_URL = "https://www.paypal.me/joshww"
+import { DISMISS_OPTIONS, SUPPORT_URLS } from "@/lib/constants"
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n"
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 
 interface SettingsPanelProps {
   open: boolean
@@ -504,21 +500,21 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
             <Button
               variant="outline"
               size="sm"
-              onClick={() => BrowserOpenURL(GITHUB_SPONSORS_URL)}
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.gitHubSponsors)}
             >
               {t("gui.settings.supportGitHubSponsors")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => BrowserOpenURL(KO_FI_URL)}
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.koFi)}
             >
               {t("gui.settings.supportKoFi")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => BrowserOpenURL(PAYPAL_URL)}
+              onClick={() => BrowserOpenURL(SUPPORT_URLS.payPal)}
             >
               {t("gui.settings.supportPayPal")}
             </Button>

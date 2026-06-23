@@ -72,7 +72,7 @@ function App() {
     if (!vault.isUnlocked) return
     WailsApp.GetSupportBannerVisible()
       .then(setShowSupportBanner)
-      .catch(() => {})
+      .catch(console.error)
   }, [vault.isUnlocked])
 
   const handleLock = useCallback(() => {
