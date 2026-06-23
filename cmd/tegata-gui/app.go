@@ -1029,8 +1029,10 @@ func (a *App) SetLanguage(lang string) error {
 // be displayed: the vault has been unlocked at least 10 times and the user has
 // not yet dismissed the banner.
 func (a *App) GetSupportBannerVisible() bool {
-	const threshold = 10
-	return a.config.UI.UnlockCount >= threshold && !a.config.UI.SupportBannerDismissed
+	const interval = 10
+	return a.config.UI.UnlockCount > 0 &&
+		a.config.UI.UnlockCount%interval == 0 &&
+		!a.config.UI.SupportBannerDismissed
 }
 
 // DismissSupportBanner marks the support banner as permanently dismissed and
