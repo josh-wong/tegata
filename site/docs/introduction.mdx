@@ -24,6 +24,12 @@ Credentials are stored in your vault file on the USB drive, encrypted with AES-2
 
 Tegata can record every authentication event in a tamper-evident, hash-chained audit log backed by [ScalarDL Ledger](https://scalardl.scalar-labs.com/docs/). Audit logging is disabled by default and requires Docker to enable.
 
+:::warning[Audit history does not follow the vault by default]
+
+The default one-click setup starts a separate local Docker ledger on each machine, so audit history is siloed per machine unless you point every machine at the same external ScalarDL Ledger server. For details, see [Ledger history and multi-device portability](scalardl-setup.mdx#ledger-history-and-multi-device-portability).
+
+:::
+
 ## Next steps
 
 To set up a vault and run your first credential workflow (for example, generating a TOTP code), see [Quickstart](quickstart.mdx).
