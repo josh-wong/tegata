@@ -508,6 +508,12 @@ For credential management, settings, and the audit panel, see [Using the desktop
 
 Tegata can record every authentication event in a tamper-evident audit log backed by ScalarDL Ledger. Audit logging is disabled by default and requires Docker.
 
+:::warning[Audit history does not follow the vault by default]
+
+The one-click setup below starts a separate local Docker ledger on each machine, so if you use your vault on more than one machine, each machine has its own siloed audit history. Shared history across machines requires pointing all of them at the same external ScalarDL Ledger server. For details, see [Ledger history and multi-device portability](scalardl-setup.mdx#ledger-history-and-multi-device-portability).
+
+:::
+
 <Tabs groupId="interface" queryString>
   <TabItem value="cli" label="CLI">
 
