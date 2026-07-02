@@ -49,6 +49,24 @@ Ledger server started. Audit logging is now active.
 
 From this point forward, every vault unlock automatically starts the Docker stack—including the Docker daemon if it is not running—in the background with no extra steps required.
 
+## Ledger history and multi-device portability
+
+The vault file itself is portable—you can move it between machines on a USB drive or microSD card—but whether your audit history follows the vault depends on where each machine's `tegata.toml` points the ledger connection, not on the vault file.
+
+### Local Docker mode
+
+Running `tegata ledger start` on a machine starts a local Docker stack whose PostgreSQL data is stored under `~/.tegata/docker/<entity-id>/`, encrypted at rest for setups created after encrypted volume support was added (see [Encrypted ledger data volume](#encrypted-ledger-data-volume)). If you run `tegata ledger start` independently on each machine you use, every machine gets its own local ledger with its own history. Tegata does not sync these histories between machines.
+
+### External server mode
+
+If you configure `tegata.toml` on every machine to point at the same remote ScalarDL Ledger server—the same `server` address in the `[audit]` section—all of those machines write to and read from that shared backend, and audit history follows you across devices. For the `tegata.toml` fields that you need to configure, see [Set up the audit log manually](#set-up-the-audit-log-manually-advanced).
+
+:::warning[Audit history does not follow the vault by default]
+
+Out of the box with local Docker mode, history is siloed per machine. Shared history across machines requires pointing all of them at the same external ScalarDL Ledger server.
+
+:::
+
 ## Configure auto-start behavior
 
 After setup, every vault unlock starts the Docker audit stack automatically.
