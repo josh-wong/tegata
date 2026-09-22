@@ -4,7 +4,7 @@
 
 ## Related issues or PRs
 
-<!-- Use format: Resolves #123, Relates to #456. If none exist, write "N/A" -->
+<!-- Use a closing keyword so GitHub links the issue under Development and auto-syncs assignee/labels, for example: Resolves #123, Fixes #123, Closes #123. For a non-closing reference, use "Relates to #456". If a related issue or PR doesn't exist, write "N/A". -->
 -
 
 ## Changes made
@@ -18,54 +18,51 @@
 
 <!-- Describe architectural decisions, patterns used, etc. -->
 - **Approach:**
-- **Key components modified:**
+- **Key files modified:**
 - **Dependencies added/removed:**
 - **Design patterns used:**
 
 ## Testing performed
 
-<!-- Mark completed testing with [x]. Add PR-specific items as needed. -->
-- [ ] Builds successfully on macOS (arm64)
-- [ ] Builds successfully on Windows (amd64)
-- [ ] Builds successfully on Linux (amd64)
-- [ ] Unit tests pass
-- [ ] Integration tests pass (if applicable)
-- [ ] CLI commands tested manually with expected inputs
-- [ ] Edge cases and error handling tested (invalid inputs, missing files, permission errors)
-- [ ] Cryptographic operations verified (if applicable)
-- [ ] ScalarDL integration tested (if applicable)
-- [ ] Cross-platform compatibility verified (if applicable)
+<!-- Retain every checklist item. Mark completed items with [x]. Leave incomplete items unchecked. If an item doesn't apply, leave it unchecked and append "not applicable – [brief reason]". -->
+- [ ] Code compiles without errors or warnings
+- [ ] Tested core functionality works as expected
+- [ ] Tested edge cases and error handling
+- [ ] Unit tests added or updated (if applicable)
 
-## Security considerations
+- [ ] Tested with no network connection
+- [ ] Tested in light mode
+- [ ] Tested in dark mode
+- [ ] Tested with larger accessibility text sizes
+- [ ] Tested with a screen reader
+- [ ] Tested on Windows, macOS, and Linux when platform behavior changes
+- [ ] Tested with relevant removable media
 
-<!-- Mark applicable items with [x]. Add PR-specific security notes. -->
-- [ ] No sensitive data (keys, passwords, secrets) in code or tests
-- [ ] Cryptographic operations use secure, well-tested libraries
-- [ ] Memory is zeroed after handling sensitive data
-- [ ] Input validation implemented for all user-provided data
-- [ ] No SQL injection, command injection, or path traversal vulnerabilities
-- [ ] Error messages don't leak sensitive information
-- [ ] Vault files remain encrypted and properly protected
-- [ ] No new dependencies with known vulnerabilities
-- [ ] Authentication/authorization logic is sound (if applicable)
+## Privacy and security considerations
+
+<!-- Mark applicable items with [x]. Add PR-specific notes below any relevant item. -->
+- [ ] No new data leaves the system without updating any relevant user-facing disclosure
+- [ ] No new network calls, telemetry, analytics SDK, or crash reporter added without review
+- [ ] Error messages and logs don't leak sensitive data
+
+
 
 ## Code quality
 
 <!-- Verify these items -->
-- [ ] Code follows project conventions (Go style guidelines)
-- [ ] Added appropriate comments for complex cryptographic or security logic
-- [ ] No hardcoded secrets or configuration values
-- [ ] Proper error handling and user-friendly error messages
-- [ ] No debugging code or print/println statements left in
-- [ ] Removed unused imports, variables, and functions
-- [ ] Dependencies pinned to specific versions
-- [ ] Documentation updated (README, user guides, API docs if applicable)
+- [ ] Code follows project conventions and patterns
+- [ ] Added appropriate comments for non-obvious logic only
+- [ ] No hardcoded strings that should be localized (if the project supports multiple locales)
+- [ ] Proper error handling implemented
+- [ ] No debugging code or print statements left in
+- [ ] Removed unused imports and variables
 
 ## Breaking changes
 
-<!-- Does this PR introduce breaking changes to the CLI API, vault format, or configuration? -->
+<!-- Does this PR change a persisted schema, a public API, or a wire/exchange format? -->
 - [ ] No breaking changes
-- [ ] Breaking changes (describe below):
+- [ ] Schema or data-model version change (describe migration below)
+- [ ] API or wire-format version change (describe backward-compatibility handling below)
 
 ## Additional context
 
