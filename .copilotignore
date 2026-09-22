@@ -1,29 +1,14 @@
-# Build artifacts
-bin/
-dist/
-build/
-*.o
-*.a
-*.so
-*.dll
-*.dylib
-
-# Generated code
-*.pb.go
-*.pb.gw.go
-
-# Dependencies
-vendor/
-go.sum
-
-# Test data and secrets
-*.vault
-*.queue
+# Secrets and local configuration
 .env
-.env.local
-.env.*.local
+.env.*
+Secrets.plist
+GoogleService-Info.plist
+*.pem
+*.key
+*.p12
+*.pfx
 
-# IDE and editor config
+# IDE and editor configuration
 .vscode/
 .idea/
 *.swp
@@ -31,20 +16,15 @@ go.sum
 *~
 .DS_Store
 
-# Docker and build artifacts
-docker-compose.override.yml
-Dockerfile.dev
-
 # Temporary files
 tmp/
 temp/
 *.tmp
 *.log
 
-# Large binaries and executables
-/tegata
-/tegata.exe
-/tegata-darwin
-
-# CI/CD artifacts
-.actrc
+# Go and site output
+bin/
+coverage.out
+site/node_modules/
+site/build/
+site/.docusaurus/
