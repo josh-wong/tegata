@@ -37,7 +37,10 @@ Follow these guidelines to maintain code quality and project consistency.
 
 ### Build, test, and validation commands
 
-- **Build:** `make build`\n- **Tests:** `make test`\n- **Lint:** `make lint`\n- **GUI build:** `make gui`
+- **Build:** `make build`
+- **Tests:** `make test`
+- **Lint:** `make lint`
+- **GUI build:** `make gui`
 
 ### Issue creation guidelines
 
