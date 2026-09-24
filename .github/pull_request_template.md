@@ -24,7 +24,7 @@
 
 ## Testing performed
 
-<!-- Retain every checklist item. Mark completed items with [x]. Leave incomplete items unchecked. If an item doesn't apply, leave it unchecked and append "not applicable – [brief reason]". Keep checklist items consecutive with no blank lines between them. -->
+<!-- Retain every checklist item. Mark completed items with [x]. Leave incomplete items unchecked. If an item doesn't apply, leave it unchecked and append "not applicable – [brief reason]". Keep checklist items consecutive with no blank lines between them. Use exactly one blank line between the final checklist item and the next heading. -->
 - [ ] Code compiles without errors or warnings
 - [ ] Tested core functionality works as expected
 - [ ] Tested edge cases and error handling
@@ -43,8 +43,6 @@
 - [ ] No new data leaves the system without updating any relevant user-facing disclosure
 - [ ] No new network calls, telemetry, analytics SDK, or crash reporter added without review
 - [ ] Error messages and logs don't leak sensitive data
-
-
 
 ## Code quality
 
