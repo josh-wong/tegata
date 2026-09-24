@@ -24,12 +24,11 @@
 
 ## Testing performed
 
-<!-- Retain every checklist item. Mark completed items with [x]. Leave incomplete items unchecked. If an item doesn't apply, leave it unchecked and append "not applicable – [brief reason]". -->
+<!-- Retain every checklist item. Mark completed items with [x]. Leave incomplete items unchecked. If an item doesn't apply, leave it unchecked and append "not applicable – [brief reason]". Keep checklist items consecutive with no blank lines between them. -->
 - [ ] Code compiles without errors or warnings
 - [ ] Tested core functionality works as expected
 - [ ] Tested edge cases and error handling
 - [ ] Unit tests added or updated (if applicable)
-
 - [ ] Tested with no network connection
 - [ ] Tested in light mode
 - [ ] Tested in dark mode
