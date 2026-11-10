@@ -376,11 +376,11 @@ func (m model) viewAuditHistory(boxW int) string {
 
 	var body strings.Builder
 	if len(m.auditFiltered) > 0 {
-		body.WriteString(fmt.Sprintf("  %-*s %-*s %-*s   %s\n",
+		fmt.Fprintf(&body, "  %-*s %-*s %-*s   %s\n",
 			opW, i18n.T("tui.audit.col.operation"),
 			labelW, i18n.T("tui.audit.col.label"),
 			tsW, i18n.T("tui.audit.col.timestamp"),
-			i18n.T("tui.audit.col.hash")))
+			i18n.T("tui.audit.col.hash"))
 		body.WriteString(strings.Repeat("-", lineW) + "\n")
 
 		end := m.auditScrollOff + auditHistoryPageSize

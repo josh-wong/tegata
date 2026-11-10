@@ -8,7 +8,7 @@
 	<a href="https://github.com/josh-wong/tegata/actions/workflows/release.yml"><img src="https://github.com/josh-wong/tegata/actions/workflows/release.yml/badge.svg" alt="Release Workflow"></a>
 	<br />
 	<a href="https://github.com/josh-wong/tegata/actions/workflows/deploy.yml"><img src="https://github.com/josh-wong/tegata/actions/workflows/deploy.yml/badge.svg" alt="Docs Deploy"></a>
-	<img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg" alt="Go 1.25+">
+	<img src="https://img.shields.io/badge/Go-1.26%2B-00ADD8.svg" alt="Go 1.26+">
 	<a href="https://goreportcard.com/report/github.com/josh-wong/tegata"><img src="https://goreportcard.com/badge/github.com/josh-wong/tegata" alt="Go Report Card"></a>
 	<img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
 </p>

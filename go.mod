@@ -1,6 +1,6 @@
 module github.com/josh-wong/tegata
 
-go 1.25.11
+go 1.26.10
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -14,10 +14,10 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/spf13/cobra v1.9.0
 	github.com/wailsapp/wails/v2 v2.12.0
-	golang.org/x/crypto v0.49.0
-	golang.org/x/term v0.41.0
-	golang.org/x/text v0.35.0
-	google.golang.org/grpc v1.71.1
+	golang.org/x/crypto v0.57.0
+	golang.org/x/term v0.46.0
+	golang.org/x/text v0.42.0
+	google.golang.org/grpc v1.83.1
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -64,7 +64,7 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
