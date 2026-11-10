@@ -85,7 +85,7 @@ Check `[x]` only when completed. Leave incomplete items as `[ ]`. If an item doe
 
 ### Code standards
 
-Follow idiomatic conventions for Go 1.25, Cobra, Bubble Tea, Wails, React, TypeScript, and Docusaurus. Preserve the repository’s established layering, naming, compatibility targets, accessibility requirements, and error-handling patterns. Do not suppress security, concurrency, type, lint, or compiler diagnostics without a documented reason.
+Follow idiomatic conventions for Go 1.26, Cobra, Bubble Tea, Wails, React, TypeScript, and Docusaurus. Preserve the repository’s established layering, naming, compatibility targets, accessibility requirements, and error-handling patterns. Do not suppress security, concurrency, type, lint, or compiler diagnostics without a documented reason.
 
 ## Privacy and security considerations
 

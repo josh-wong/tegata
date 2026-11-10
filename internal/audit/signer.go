@@ -102,7 +102,10 @@ func (s *ECDSASigner) Sign(contractID, contractArgument, nonce, entityID string,
 // removes the most accessible reference.
 func (s *ECDSASigner) Zero() {
 	if s.privateKey != nil {
-		s.privateKey.D.SetInt64(0)
+		// PrivateKey.D is deprecated since Go 1.26 because mutating it can produce
+		// an invalid key. The key is discarded immediately below and never used
+		// again, so overwriting the scalar is a deliberate best-effort wipe.
+		s.privateKey.D.SetInt64(0) //nolint:staticcheck // SA1019: intentional wipe of a key that is discarded right after
 		s.privateKey = nil
 	}
 }
