@@ -29,28 +29,28 @@ func WriteAuditSection(dir string, cfg AuditConfig) error {
 func formatAuditSection(cfg AuditConfig) string {
 	var buf bytes.Buffer
 	buf.WriteString("[audit]\n")
-	buf.WriteString(fmt.Sprintf("enabled = %t\n", cfg.Enabled))
+	fmt.Fprintf(&buf, "enabled = %t\n", cfg.Enabled)
 	if cfg.Server != "" {
-		buf.WriteString(fmt.Sprintf("server = %q\n", cfg.Server))
+		fmt.Fprintf(&buf, "server = %q\n", cfg.Server)
 	}
 	if cfg.PrivilegedServer != "" {
-		buf.WriteString(fmt.Sprintf("privileged_server = %q\n", cfg.PrivilegedServer))
+		fmt.Fprintf(&buf, "privileged_server = %q\n", cfg.PrivilegedServer)
 	}
 	if cfg.EntityID != "" {
-		buf.WriteString(fmt.Sprintf("entity_id = %q\n", cfg.EntityID))
+		fmt.Fprintf(&buf, "entity_id = %q\n", cfg.EntityID)
 	}
 	if cfg.KeyVersion > 0 {
-		buf.WriteString(fmt.Sprintf("key_version = %d\n", cfg.KeyVersion))
+		fmt.Fprintf(&buf, "key_version = %d\n", cfg.KeyVersion)
 	}
 	if cfg.Insecure {
 		buf.WriteString("insecure = true\n")
 	}
 	if cfg.DockerComposePath != "" {
-		buf.WriteString(fmt.Sprintf("docker_compose_path = %q\n", cfg.DockerComposePath))
+		fmt.Fprintf(&buf, "docker_compose_path = %q\n", cfg.DockerComposePath)
 	}
 	if cfg.DockerProjectName != "" {
-		buf.WriteString(fmt.Sprintf("docker_project_name = %q\n", cfg.DockerProjectName))
+		fmt.Fprintf(&buf, "docker_project_name = %q\n", cfg.DockerProjectName)
 	}
-	buf.WriteString(fmt.Sprintf("auto_start = %t\n", cfg.AutoStart))
+	fmt.Fprintf(&buf, "auto_start = %t\n", cfg.AutoStart)
 	return buf.String()
 }
