@@ -10,7 +10,7 @@ Tegata is written in Go for the CLI/TUI and uses Wails with React/TypeScript for
 
 The following tools are required for CLI and TUI development.
 
-- **Go 1.26.11+** (check with `go version`)
+- **Go 1.26.11 or later** (check with `go version`)
 - **Git**
 - **Make**
 
