@@ -19,6 +19,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Log Go version
+        run: go version
+
       - name: Build CLI binaries
         run: |
           VERSION="${GITHUB_REF_NAME}"
@@ -54,6 +57,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Log Go version
+        run: go version
 
       - uses: actions/setup-node@v4
         with:
@@ -118,6 +124,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Log Go version
+        run: go version
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20.x'
@@ -172,6 +181,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Log Go version
+        run: go version
 
       - uses: actions/setup-node@v4
         with:
