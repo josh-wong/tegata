@@ -50,4 +50,16 @@ describe("OwnerIdentifiers", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/salt has changed/)
     expect(screen.getByLabelText("Email address")).toHaveValue("")
   })
+
+  it("gives each clear checkbox a distinct accessible name", async () => {
+    vi.mocked(App.GetOwner).mockResolvedValue(setOwner)
+    const user = userEvent.setup()
+    render(<OwnerIdentifiers />)
+    await user.click(await screen.findByRole("button", { name: "Edit identifiers" }))
+    await user.click(screen.getByRole("checkbox", { name: "Clear email address" }))
+    expect(screen.getByLabelText("Email address")).toBeDisabled()
+    expect(screen.getByRole("checkbox", { name: "Clear employee ID" })).not.toBeChecked()
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(App.SetOwner).toHaveBeenLastCalledWith("", "", false, true)
+  })
 })

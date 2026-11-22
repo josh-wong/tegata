@@ -267,6 +267,8 @@
       "ownerNotSet": "Not set",
       "ownerKeepPlaceholder": "Leave blank to keep the current value",
       "ownerClear": "Clear",
+      "ownerClearEmployeeId": "Clear employee ID",
+      "ownerClearEmail": "Clear email address",
       "ownerEdit": "Edit identifiers",
       "ownerPrefixTip": "In shared deployments, prefix IDs with an organization code (for example, acme-emp-12345).",
       "ownerSalted": "Your organization's salt is configured. Identifiers are hashed with HMAC-SHA256.",

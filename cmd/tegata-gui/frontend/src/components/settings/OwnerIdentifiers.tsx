@@ -99,6 +99,7 @@ export function OwnerIdentifiers() {
                   <input
                     type="checkbox"
                     checked={clearEmployeeId}
+                    aria-label={t("gui.settings.ownerClearEmployeeId")}
                     onChange={(e) => { setClearEmployeeId(e.target.checked); setEmployeeId("") }}
                     className="rounded border-input"
                   />
@@ -125,6 +126,7 @@ export function OwnerIdentifiers() {
                   <input
                     type="checkbox"
                     checked={clearEmail}
+                    aria-label={t("gui.settings.ownerClearEmail")}
                     onChange={(e) => { setClearEmail(e.target.checked); setEmail("") }}
                     className="rounded border-input"
                   />

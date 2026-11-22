@@ -267,6 +267,8 @@
       "ownerNotSet": "未設定",
       "ownerKeepPlaceholder": "空欄のままにすると現在の値が維持されます",
       "ownerClear": "消去",
+      "ownerClearEmployeeId": "社員 ID を消去",
+      "ownerClearEmail": "メールアドレスを消去",
       "ownerEdit": "識別子を編集",
       "ownerPrefixTip": "共有環境では、ID に組織コードを付けてください (例: acme-emp-12345)。",
       "ownerSalted": "組織のソルトが設定されています。識別子は HMAC-SHA256 でハッシュ化されます。",
