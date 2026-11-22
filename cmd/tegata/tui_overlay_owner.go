@@ -70,11 +70,15 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// in the text input buffers.
 			m.settingsInput1.Reset()
 			m.settingsInput2.Reset()
+			// Return focus to the first field so the next edit starts from a
+			// predictable place.
+			m.settingsInput2.Blur()
+			m.settingsInput1.Focus()
 			if err != nil {
 				if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {
 					m.settingsMsg = i18n.T("tui.settings.owner.saltChanged")
 				} else {
-					m.settingsMsg = i18n.Tf("tui.settings.error.generic", map[string]any{"Err": err})
+					m.settingsMsg = i18n.Tf("tui.settings.owner.saveFailed", map[string]any{"Err": err})
 				}
 				return m, nil
 			}
@@ -130,13 +134,27 @@ func (m model) viewSettingsOwner() string {
 	lines = append(lines, "")
 	lines = append(lines, tipStyle.Render(i18n.T("tui.settings.owner.intro")))
 	lines = append(lines, "")
+	// Show the "> " prompt only on the focused field so the user can tell
+	// which field receives input, including when color is disabled.
+	in1, in2 := m.settingsInput1, m.settingsInput2
+	if !in1.Focused() {
+		in1.Prompt = strings.Repeat(" ", lipgloss.Width(in1.Prompt))
+	}
+	if !in2.Focused() {
+		in2.Prompt = strings.Repeat(" ", lipgloss.Width(in2.Prompt))
+	}
 	lines = append(lines, pad(idLabel)+helpBarStyle.Render(current(idHash)))
-	lines = append(lines, strings.Repeat(" ", col)+m.settingsInput1.View())
+	lines = append(lines, strings.Repeat(" ", col)+in1.View())
 	lines = append(lines, pad(emailLabel)+helpBarStyle.Render(current(emailHash)))
-	lines = append(lines, strings.Repeat(" ", col)+m.settingsInput2.View())
+	lines = append(lines, strings.Repeat(" ", col)+in2.View())
 	if m.settingsMsg != "" {
 		lines = append(lines, "")
-		lines = append(lines, tipStyle.Render(m.settingsMsg))
+		switch m.settingsMsg {
+		case i18n.T("tui.settings.owner.updated"), i18n.T("tui.settings.owner.unchanged"):
+			lines = append(lines, tipStyle.Render(m.settingsMsg))
+		default:
+			lines = append(lines, errorStyle.Render(m.settingsMsg))
+		}
 	}
 	lines = append(lines, "")
 	lines = append(lines, helpBarStyle.Render(i18n.T("tui.settings.helpBar.owner")))
