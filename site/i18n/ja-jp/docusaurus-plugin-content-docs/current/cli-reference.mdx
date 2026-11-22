@@ -216,7 +216,7 @@ Tegata はラベルハッシュを人間が読みやすいクレデンシャル�
 
 **テーブル出力列:** 操作、ラベル (ハッシュから解決)、タイムスタンプ (UTC)、ハッシュ (省略)。
 
-**レコードごとの JSON フィールド:** `object_id`、`operation`、`label_hash`、`timestamp` (Unix 秒)、`hash_value`。
+**レコードごとの JSON フィールド:** `object_id`、`operation`、`label_hash`、`timestamp` (Unix 秒)、`hash_value`、`owner_hash` (主要な所有者識別子のハッシュ。所有者識別子が設定されていた間に記録されたイベントにのみ含まれます)。
 
 **使用例:**
 
@@ -334,6 +334,50 @@ tegata list
 ```bash title="タグでフィルター"
 tegata list --tag work
 ```
+
+### `tegata owner`
+
+マネージドのマルチユーザー環境で、このボールトの監査イベントをあなたに帰属させる社員 ID とメールアドレスを管理します。Tegata はこれらの値のハッシュのみを暗号化されたボールトに保存し、変更をそれぞれ `owner-identifier-update` 監査イベントとして記録します。管理者がこれらの識別子をどのように使用するかについては、[複数ユーザー向けの監査ログのデプロイ](managed-deployment.mdx)を参照してください。
+
+**使用方法:** `tegata owner <SUBCOMMAND> [FLAGS]`
+
+**サブコマンド:**
+
+| サブコマンド | 説明 |
+| ------------ | ---- |
+| `show`       | 保存された各ハッシュの先頭 12 文字、主要識別子、ハッシュ方式、最終更新日時を表示します。 |
+| `set`        | 社員 ID、メールアドレス、またはその両方を設定・変更します。フラグを指定しない場合は各値の入力を求め、空欄のままにすると現在の値が維持されます。 |
+| `clear`      | 社員 ID、メールアドレス、またはその両方を消去します。フラグを指定しない場合は両方を消去します。 |
+
+**`tegata owner set` のフラグ:**
+
+| フラグ          | 型     | 既定値 | 説明 |
+| --------------- | ------ | ------ | ---- |
+| `--employee-id` | string | (なし) | 社員 ID または組織発行の UUID。推奨される主要識別子です。 |
+| `--email`       | string | (なし) | メールアドレス。 |
+
+**`tegata owner clear` のフラグ:**
+
+| フラグ          | 型   | 既定値  | 説明 |
+| --------------- | ---- | ------- | ---- |
+| `--employee-id` | bool | `false` | 社員 ID のみを消去します。 |
+| `--email`       | bool | `false` | メールアドレスのみを消去します。 |
+
+**例:**
+
+```bash title="プロンプトで識別子を入力する"
+tegata owner set
+```
+
+```bash title="プロビジョニングスクリプトで識別子を設定する"
+tegata owner set --employee-id acme-emp-12345 --email alex@example.com
+```
+
+```bash title="メールアドレスを削除する"
+tegata owner clear --email
+```
+
+フラグで渡した値はシェル履歴に保存される場合があります。プロビジョニングをスクリプト化する場合を除き、対話型のプロンプトを使用してください。`tegata.toml` に `[organization] identifier_salt` が設定されている場合、値は SHA-256 の代わりにそのソルトを使用した HMAC-SHA256 でハッシュ化されます。
 
 ### `tegata remove`
 

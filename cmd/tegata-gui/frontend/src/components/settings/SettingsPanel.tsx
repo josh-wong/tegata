@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { StrengthMeter } from "@/components/shared/StrengthMeter"
+import { OwnerIdentifiers } from "@/components/settings/OwnerIdentifiers"
 import { useTheme } from "@/hooks/useTheme"
 import { App } from "@/lib/wails"
 import type { UpdateInfo } from "@/lib/types"
@@ -399,6 +400,11 @@ export function SettingsPanel({ open, onClose, onCredentialsChanged, updateInfo,
           )}
           <ExportImport onImported={onCredentialsChanged} />
         </section>
+
+        <Separator className="my-4" />
+
+        {/* Owner identifiers */}
+        {open && <OwnerIdentifiers />}
 
         {auditConfigured && (
           <>

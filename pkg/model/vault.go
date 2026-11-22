@@ -68,6 +68,45 @@ type VaultPayload struct {
 	// Secrets stores auxiliary secrets such as the HMAC secret for ScalarDL Ledger.
 	// These are stored encrypted in the vault and never persisted to tegata.toml.
 	Secrets map[string]string `json:"secrets,omitempty"`
+	// Owner records the hashed organizational identifiers (employee ID and
+	// email) that attribute this vault's audit events to a person in managed
+	// multi-user deployments. Only hashes are stored; raw identifiers are never
+	// persisted. Nil when no identifier has been configured.
+	Owner *OwnerIdentity `json:"owner,omitempty"`
+}
+
+// OwnerIdentity holds the hashed organizational identifiers for the vault
+// owner. Values are hex-encoded digests produced by audit.HashOwnerIdentifier;
+// HashScheme records how they were computed so administrators can reproduce
+// them ("sha256" or "hmac-sha256").
+type OwnerIdentity struct {
+	EmployeeIDHash string    `json:"employee_id_hash,omitempty"`
+	EmailHash      string    `json:"email_hash,omitempty"`
+	HashScheme     string    `json:"hash_scheme,omitempty"`
+	// SaltID is a short, non-reversible fingerprint of the organization salt
+	// in effect when the hashes were computed (empty when unsalted). It lets
+	// Tegata detect that the salt changed so a kept hash is never mixed with
+	// a hash computed under a different salt.
+	SaltID    string    `json:"salt_id,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// IsZero reports whether no identifier hash is set.
+func (o *OwnerIdentity) IsZero() bool {
+	return o == nil || (o.EmployeeIDHash == "" && o.EmailHash == "")
+}
+
+// PrimaryHash returns the identifier hash used for operational ownership
+// mapping. The employee ID is the recommended primary identifier, so its hash
+// takes precedence; the email hash is used only when no employee ID is set.
+func (o *OwnerIdentity) PrimaryHash() string {
+	if o == nil {
+		return ""
+	}
+	if o.EmployeeIDHash != "" {
+		return o.EmployeeIDHash
+	}
+	return o.EmailHash
 }
 
 // VaultHeader represents the plaintext header of a vault file as specified in

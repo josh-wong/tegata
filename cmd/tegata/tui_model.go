@@ -495,6 +495,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.builder != nil {
 						_ = m.builder.Close()
 					}
+					if m.vaultMgr != nil {
+						newBuilder.OwnerSource = m.vaultMgr.Owner
+					}
 					m.builder = newBuilder
 				}
 			}

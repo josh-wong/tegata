@@ -115,6 +115,7 @@ func newHistoryCmd() *cobra.Command {
 					LabelHash: r.LabelHash,
 					Timestamp: r.Timestamp,
 					HashValue: r.HashValue,
+					OwnerHash: r.OwnerHash,
 				}
 			}
 
@@ -174,6 +175,9 @@ type historyRecord struct {
 	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
+	// OwnerHash is the primary owner identifier hash, included in --json
+	// output for administrator tooling. Omitted when the event has no owner.
+	OwnerHash string `json:"owner_hash,omitempty"`
 }
 
 // filterRecords applies date and operation type filtering using the metadata

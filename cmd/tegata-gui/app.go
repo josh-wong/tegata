@@ -257,6 +257,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 			a.config.Audit.LedgerVolumeKey = volumeKey
 		}
 	}
+	audit.ApplyOwner(&a.config.Audit, a.vault.Owner())
 
 	// Ensure the audit stack is running before building the EventBuilder so
 	// that the first credential operation after unlock records events
@@ -286,6 +287,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// Wire OnHashStored so each submitted audit event's hash is persisted to
 	// the vault for independent verification (D-15).
 	if a.builder != nil {
+		a.builder.OwnerSource = a.vault.Owner
 		a.builder.OnHashStored = func(eventID, hashValue string) {
 			if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
 				slog.Error("failed to store audit hash in vault", "err", err)
@@ -1463,6 +1465,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 				if a.builder != nil {
 					_ = a.builder.Close()
 				}
+				newBuilder.OwnerSource = a.vault.Owner
 				a.builder = newBuilder
 			} else {
 				_ = client.Close()
@@ -1471,7 +1474,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 		return nil
 	}
 
-	_, err = audit.SetupStack(bundleFS, composeDir, vaultID, progress, onRegistered)
+	_, err = audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, a.vault.Owner(), progress, onRegistered)
 	if err != nil {
 		return map[string]interface{}{"steps": steps}, err
 	}

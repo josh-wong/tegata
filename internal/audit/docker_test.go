@@ -63,7 +63,7 @@ func TestExtractComposeFiles(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := extractComposeFiles(fsys, dir, "", ""); err != nil {
+	if err := extractComposeFiles(fsys, dir, "", "", composeLabels{}); err != nil {
 		t.Fatalf("extractComposeFiles: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestExtractComposeFiles_RewritesVolume(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := extractComposeFiles(fsys, dir, "tegata-abc12345", ""); err != nil {
+	if err := extractComposeFiles(fsys, dir, "tegata-abc12345", "", composeLabels{}); err != nil {
 		t.Fatalf("extractComposeFiles: %v", err)
 	}
 
@@ -242,7 +242,7 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 	t.Run("rewrites project name and volume with entityID", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
-		if err := syncDockerCompose(fsys, composePath, "tegata-abc12345", ""); err != nil {
+		if err := syncDockerCompose(fsys, composePath, "tegata-abc12345", "", composeLabels{}); err != nil {
 			t.Fatalf("syncDockerCompose: %v", err)
 		}
 		got, err := os.ReadFile(composePath)
@@ -266,7 +266,7 @@ func TestSyncDockerCompose_RewritesVolume(t *testing.T) {
 	t.Run("leaves names unchanged when entityID empty", func(t *testing.T) {
 		dir := t.TempDir()
 		composePath := filepath.Join(dir, "docker-compose.yml")
-		if err := syncDockerCompose(fsys, composePath, "", ""); err != nil {
+		if err := syncDockerCompose(fsys, composePath, "", "", composeLabels{}); err != nil {
 			t.Fatalf("syncDockerCompose: %v", err)
 		}
 		got, err := os.ReadFile(composePath)

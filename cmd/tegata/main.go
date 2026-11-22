@@ -129,6 +129,7 @@ func run() error {
 		newLedgerCmd(),
 		newHistoryCmd(),
 		newVerifyCmd(),
+		newOwnerCmd(),
 	)
 
 	// cobra adds "completion" during Execute() and "help" during AddCommand, so

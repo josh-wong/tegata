@@ -265,3 +265,53 @@ func TestAutoStart_DefaultWithoutDockerComposePath(t *testing.T) {
 		t.Error("AutoStart should default to false when docker_compose_path is not set")
 	}
 }
+
+func TestOrganization_IdentifierSalt(t *testing.T) {
+	dir := t.TempDir()
+	content := "[organization]\nidentifier_salt = \"org-salt-1\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Organization.IdentifierSalt != "org-salt-1" {
+		t.Errorf("IdentifierSalt = %q", cfg.Organization.IdentifierSalt)
+	}
+}
+
+// TestOrganization_SurvivesAuditRewrite verifies that rewriting [audit]
+// (as ledger setup does with a freshly built AuditConfig) never drops the
+// administrator-provisioned [organization] section.
+func TestOrganization_SurvivesAuditRewrite(t *testing.T) {
+	dir := t.TempDir()
+	content := "[organization]\nidentifier_salt = \"org-salt-1\"\n\n[audit]\nenabled = false\n"
+	if err := os.WriteFile(filepath.Join(dir, "tegata.toml"), []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteAuditSection(dir, AuditConfig{Enabled: true, EntityID: "tegata-abc12345"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Organization.IdentifierSalt != "org-salt-1" {
+		t.Errorf("salt lost after audit rewrite: %q", cfg.Organization.IdentifierSalt)
+	}
+	if !cfg.Audit.Enabled {
+		t.Error("audit section not rewritten")
+	}
+}
+
+func TestOwnerRuntimeFieldsNotWritten(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteAuditSection(dir, AuditConfig{Enabled: true, OwnerHash: "abc123", OwnerHashScheme: "sha256"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "tegata.toml"))
+	if strings.Contains(string(data), "abc123") || strings.Contains(string(data), "owner") {
+		t.Errorf("owner runtime fields leaked into tegata.toml:\n%s", data)
+	}
+}

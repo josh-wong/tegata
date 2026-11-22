@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/josh-wong/tegata/pkg/model"
 )
 
 // EventBuilder coordinates the flush-before-submit pattern for audit events.
@@ -38,6 +40,11 @@ type EventBuilder struct {
 	// Leave false in the TUI: the TUI logs vault-lock explicitly before calling
 	// Close(), so setting this flag would produce a duplicate event.
 	LogVaultLockOnClose bool
+	// OwnerSource, when set, returns the vault owner's hashed identifiers. It
+	// is called once per event so that events logged after an identifier edit
+	// carry the new identifiers immediately. A nil result leaves the owner
+	// fields empty. Typically set to the vault manager's Owner method.
+	OwnerSource func() *model.OwnerIdentity
 }
 
 // callSafe invokes fn, recovering any panic and logging it. Used for best-effort
@@ -134,8 +141,43 @@ func (b *EventBuilder) LogEvent(opType, label, service, host string, success boo
 		return nil
 	}
 
-	evt := NewAuthEvent(opType, label, service, host, success, b.lastHash)
+	evt := NewAuthEvent(opType, label, service, host, success, b.lastHash).withOwner(b.currentOwner())
+	return b.submit(evt)
+}
 
+// LogOwnerUpdate records an owner-identifier-update event after the vault
+// owner's identifiers have been saved. The event carries the new identifier
+// hashes in the regular owner fields and the previous hashes in the old-owner
+// fields, so administrators can correlate history recorded under either
+// identity. Earlier events keep the identifiers they were recorded with.
+// Callers must persist next before calling this method so the event never
+// describes a change that was not saved.
+func (b *EventBuilder) LogOwnerUpdate(old, next *model.OwnerIdentity) error {
+	if b.disabled {
+		return nil
+	}
+	evt := NewAuthEvent(OpOwnerIdentifierUpdate, "", "", Hostname(), true, b.lastHash).withOwner(next)
+	if !old.IsZero() {
+		evt.OldOwnerEmployeeIDHash = old.EmployeeIDHash
+		evt.OldOwnerEmailHash = old.EmailHash
+		evt.OldOwnerHashScheme = old.HashScheme
+	}
+	return b.submit(evt)
+}
+
+// currentOwner returns the owner identity from OwnerSource, or nil.
+func (b *EventBuilder) currentOwner() *model.OwnerIdentity {
+	if b.OwnerSource == nil {
+		return nil
+	}
+	var o *model.OwnerIdentity
+	callSafe(func() { o = b.OwnerSource() }, "audit OwnerSource panic")
+	return o
+}
+
+// submit flushes queued events and submits evt, queueing it on failure. See
+// LogEvent for the concurrency and timeout contract.
+func (b *EventBuilder) submit(evt AuthEvent) error {
 	// Snapshot queued entries before spawning the goroutine. The goroutine
 	// submits from this local slice and never touches b.queue.
 	snapshot := b.queue.Entries()

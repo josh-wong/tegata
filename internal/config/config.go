@@ -23,6 +23,21 @@ type Config struct {
 	Audit AuditConfig
 	// UI holds UI-layer state that travels with the vault on USB.
 	UI UIConfig
+	// Organization holds administrator-provisioned settings for managed
+	// multi-user deployments. Tegata reads this section but never rewrites it.
+	Organization OrganizationConfig
+}
+
+// OrganizationConfig holds settings that an organization's administrator
+// distributes to every user in a managed deployment. It lives in its own
+// [organization] section so that rewriting [audit] during ledger setup never
+// drops it.
+type OrganizationConfig struct {
+	// IdentifierSalt, when non-empty, switches owner identifier hashing from
+	// SHA-256 to HMAC-SHA256 keyed with this value. Every user in the
+	// organization must use the same salt so that hashes are comparable. The
+	// salt is never sent to the ledger.
+	IdentifierSalt string `json:"-"`
 }
 
 // UIConfig holds UI-layer state. SupportBannerDismissed is persisted in the
@@ -84,6 +99,12 @@ type AuditConfig struct {
 	// It is never written to tegata.toml or any disk location in plaintext.
 	// Zero-length when ledger volume encryption is not initialized.
 	LedgerVolumeKey []byte `toml:"-"`
+	// OwnerHash and OwnerHashScheme are the vault owner's primary identifier
+	// hash and its scheme, loaded from the encrypted vault on unlock and held
+	// in memory only. They are written into the ownership labels of
+	// Tegata-managed Docker containers. Empty when no owner is set.
+	OwnerHash       string `toml:"-"`
+	OwnerHashScheme string `toml:"-"`
 }
 
 // tomlAuditConfig is the TOML deserialization intermediate for [audit].
@@ -111,6 +132,10 @@ type tomlUI struct {
 	SupportBannerDismissed *bool `toml:"support_banner_dismissed"`
 }
 
+type tomlOrganization struct {
+	IdentifierSalt *string `toml:"identifier_salt"`
+}
+
 type tomlConfig struct {
 	Language  *string `toml:"language"`
 	Clipboard struct {
@@ -121,6 +146,7 @@ type tomlConfig struct {
 	} `toml:"vault"`
 	Audit tomlAuditConfig `toml:"audit"`
 	UI    tomlUI          `toml:"ui"`
+	Organization tomlOrganization `toml:"organization"`
 }
 
 const (
@@ -229,6 +255,9 @@ func Load(dir string) (Config, error) {
 	if tc.UI.SupportBannerDismissed != nil {
 		cfg.UI.SupportBannerDismissed = *tc.UI.SupportBannerDismissed
 	}
+	if tc.Organization.IdentifierSalt != nil {
+		cfg.Organization.IdentifierSalt = *tc.Organization.IdentifierSalt
+	}
 
 	return cfg, nil
 }
@@ -268,6 +297,13 @@ func WriteDefaults(dir string) error {
 #
 # Maximum events retained in the offline queue before oldest are dropped
 # queue_max_events = 10000
+
+[organization]
+# Set by your administrator in managed deployments. When set, owner
+# identifiers (employee ID and email) are hashed with HMAC-SHA256 using this
+# salt instead of plain SHA-256. All users in the organization must use the
+# same value. Changing it requires re-entering your identifiers.
+# identifier_salt = ""
 `
 	path := filepath.Join(dir, configFileName)
 	return os.WriteFile(path, []byte(content), 0600)

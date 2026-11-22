@@ -273,6 +273,7 @@ func openAndUnlock(vaultPath string, passphrase []byte) (*vault.Manager, error) 
 				defer zeroBytes(volumeKey)
 			}
 		}
+		audit.ApplyOwner(&cfg.Audit, mgr.Owner())
 
 		bundleFS, _ := fs.Sub(dockerBundle, "docker-bundle")
 		if err := audit.EnsureStack(cfg.Audit, bundleFS, nil); err != nil {
@@ -345,6 +346,7 @@ func setupAuditBuilder(w io.Writer, dir string, passphrase []byte, mgr *vault.Ma
 			_, _ = fmt.Fprintf(w, "%s", i18n.Tf("helpers.warn.auditHash", map[string]any{"Err": err}))
 		}
 	}
+	builder.OwnerSource = mgr.Owner
 	if logErr := builder.LogEvent("vault-unlock", "", "", audit.Hostname(), true); logErr != nil {
 		_, _ = fmt.Fprintf(w, "%s", i18n.Tf("helpers.warn.auditFailed", map[string]any{"Err": logErr}))
 	}

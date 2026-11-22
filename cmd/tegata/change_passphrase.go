@@ -70,6 +70,7 @@ func newChangePassphraseCmd() *cobra.Command {
 						_ = builder.Close()
 					}
 				}()
+				builder.OwnerSource = mgr.Owner
 				builder.OnHashStored = func(eventID, hashValue string) {
 					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s",

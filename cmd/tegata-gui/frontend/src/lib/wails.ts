@@ -1,4 +1,4 @@
-import type { Credential, VaultLocation, TOTPResult, UpdateInfo, AuditHistoryRecord, AuditVerifyResult } from "./types"
+import type { Credential, VaultLocation, TOTPResult, UpdateInfo, AuditHistoryRecord, AuditVerifyResult, OwnerInfo } from "./types"
 
 // Wails runtime bindings facade. At build time with `wails build`, the real
 // bindings are injected. This module provides typed stubs so the frontend
@@ -80,6 +80,8 @@ interface WailsAppBindings {
   GetAuditAutoStart(): Promise<boolean>
   SetAuditAutoStart(enabled: boolean): Promise<void>
   EnableAudit(): Promise<void>
+  GetOwner(): Promise<OwnerInfo>
+  SetOwner(employeeId: string, email: string, clearEmployeeId: boolean, clearEmail: boolean): Promise<OwnerInfo>
   GetLanguage(): Promise<string>
   SetLanguage(lang: string): Promise<void>
   GetSupportBannerVisible(): Promise<boolean>
@@ -142,6 +144,9 @@ export const App = {
   GetAuditAutoStart: () => getApp().GetAuditAutoStart(),
   SetAuditAutoStart: (enabled: boolean) => getApp().SetAuditAutoStart(enabled),
   EnableAudit: () => getApp().EnableAudit(),
+  GetOwner: () => getApp().GetOwner(),
+  SetOwner: (employeeId: string, email: string, clearEmployeeId: boolean, clearEmail: boolean) =>
+    getApp().SetOwner(employeeId, email, clearEmployeeId, clearEmail),
   GetLanguage: () => getApp().GetLanguage(),
   SetLanguage: (lang: string) => getApp().SetLanguage(lang),
   GetSupportBannerVisible: () => getApp().GetSupportBannerVisible(),

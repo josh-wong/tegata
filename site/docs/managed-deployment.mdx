@@ -1,0 +1,152 @@
+---
+title: Deploy audit logging for multiple users
+sidebar_position: 7
+description: Plan and run Tegata audit logging for many users in a managed environment, including the recommended shared ScalarDL topology, owner identifiers, and how administrators map vaults and containers to people.
+---
+
+This guide is for administrators who run Tegata's optional audit logging for many users in an organization. It covers how to choose a deployment topology, how users identify themselves with an owner identifier, and how you map audit history and Docker containers back to a person without storing raw personal data.
+
+If you are a single user running audit logging on your own machine, you don't need this guide. Follow [Enable audit logging](scalardl-setup.mdx) instead.
+
+## Choose a deployment topology
+
+Tegata supports two topologies for multi-user audit logging. Both work without running one Docker Engine per user.
+
+**Shared stack (recommended default):** You run one ScalarDL Ledger deployment for the whole organization. Each user's vault connects to it as a separate ScalarDL entity with its own HMAC secret, and each entity's events are kept in their own collection (`tegata-audit-<entity_id>`). This is the simplest topology to operate, back up, and monitor.
+
+**Isolated stacks:** You run a separate ScalarDL Ledger deployment for each team or user, on the same Docker host or on different hosts. Each deployment has its own database, ports, and Docker Compose project. Use this topology when policy requires that one group's audit data is never stored alongside another's.
+
+Use the following table to decide.
+
+| Requirement                                                 | Shared stack | Isolated stacks |
+| ----------------------------------------------------------- | ------------ | --------------- |
+| Fewest services to operate and back up                      | Yes          | No              |
+| One place to search every user's audit history              | Yes          | No              |
+| Separate database per team for compliance or data residency | No           | Yes             |
+| A compromised ledger exposes only one team's records        | No           | Yes             |
+| Works on one Docker host                                    | Yes          | Yes             |
+
+Start with a shared stack. Move a team to an isolated stack only when a specific compliance, data-residency, or blast-radius requirement calls for it.
+
+:::warning[Don't use the bundled one-click stack as a shared server]
+
+The Docker stack that `tegata ledger start` and the GUI create is designed for one user on one machine. It binds fixed host ports (5432, 50051, and 50052), so only one copy can run per host. It also uses a development HMAC cipher key, a default PostgreSQL password, and plaintext gRPC. For a shared or isolated deployment, run ScalarDL Ledger with your own credentials and TLS by following Scalar's production guidance. You can start from `deployments/docker-compose/` in the Tegata repository, but replace those defaults and give each isolated deployment its own host ports.
+
+:::
+
+## Connect users to a shared stack
+
+In a shared stack, you assign each user an entity ID and an HMAC secret, and the user points their vault at your server. Use an opaque, unique entity ID such as `tegata-7f3a9c21`. Don't use an email address or employee ID as the entity ID, because the entity ID appears in plaintext in `tegata.toml`, in ScalarDL, and in collection names. The owner identifier described in the next section is the right place for personal attribution.
+
+The user adds an `[audit]` section like the following to `tegata.toml` in their vault directory, with the values you provide:
+
+```toml
+[audit]
+enabled           = true
+server            = "audit.example.com:50051"
+privileged_server = "audit.example.com:50052"
+entity_id         = "tegata-7f3a9c21"
+key_version       = 1
+secret_key        = "<secret you issued>"
+auto_start        = false
+```
+
+Then the user runs `tegata ledger setup`. Tegata registers the secret, verifies the contracts, and stores the secret in the encrypted vault. After setup succeeds, the user must delete the `secret_key` line from `tegata.toml` so the secret isn't left in plaintext on the drive.
+
+`tegata ledger setup` registers the secret through the privileged port. Any client that can reach that port can register a new entity, so expose it only on a trusted network or only during onboarding.
+
+## Set owner identifiers
+
+An owner identifier links a vault's audit events to a person. Each vault can store two identifiers:
+
+- **Employee ID:** An organization-issued employee ID or stable UUID. This is the recommended primary identifier.
+- **Email address:** Use it when your organization doesn't issue employee IDs, or alongside an employee ID so you can cross-check one against the other.
+
+Ask users to enter both when they have both. When both are set, the employee ID takes precedence for ownership mapping, and the email address is recorded as a secondary value.
+
+Users set identifiers in any of the three interfaces:
+
+- **CLI:** `tegata owner set` (see [`tegata owner`](cli-reference.mdx#tegata-owner)).
+- **TUI:** **Settings** > **Owner identifiers**.
+- **GUI:** **Settings** > **Owner identifiers** > **Edit identifiers**.
+
+Tegata doesn't enforce an organization-specific format. It trims surrounding spaces from both values, lowercases email addresses, and keeps the case of employee IDs. Values can be up to 256 characters and can't contain control characters. Email addresses must contain `@`.
+
+:::tip[Prefix identifiers in a shared stack]
+
+If several business units share one ledger, two people can have the same employee ID. Ask users to add an organization or subsidiary prefix, such as `acme-emp-12345`, so identifiers stay unique across the whole ledger.
+
+:::
+
+## How identifiers are protected
+
+Tegata never stores the raw employee ID or email address. When a user saves an identifier, Tegata normalizes it, hashes it, stores only the hash in the encrypted vault, and discards the raw value.
+
+By default, the hash is SHA-256 of the normalized value. Hashing hides identifiers from casual viewing, but anyone with a list of candidate IDs or emails can recompute the hashes and match them. To prevent someone who obtains the ledger database from matching it against your staff directory, configure an organization salt. Add it to `tegata.toml` on every user's drive:
+
+```toml
+[organization]
+identifier_salt = "<random value from your secrets manager>"
+```
+
+When a salt is set, Tegata uses HMAC-SHA256 with the salt as the key. Every user must use the same salt so that hashes are comparable. The salt is never sent to the ledger. Tegata never rewrites the `[organization]` section, so running ledger setup doesn't remove it.
+
+If you change the salt, existing hashes can't be converted, because hashes can't be reversed. Ask users to enter their identifiers again. If a user edits only one identifier after the salt changes, Tegata detects the change and asks them to enter both again, so hashes made with different salts are never mixed in one vault.
+
+The following table shows where each form of an identifier appears.
+
+| Form                | Where it appears                                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Raw value           | Only in memory while the user types it. Never written to disk, logs, the ledger, or labels by Tegata.                                                                  |
+| Full hash           | The encrypted vault, audit event content and metadata in ScalarDL, Docker container labels and the per-vault `docker-compose.yml`, and `tegata history --json` output. |
+| First 12 characters | `tegata owner show`, and the TUI and GUI settings views.                                                                                                               |
+| Organization salt   | `tegata.toml` (`[organization]` section) only.                                                                                                                         |
+
+## Map vaults and containers to people
+
+To find a person's hash, compute it from the identifier you already hold, using the same normalization Tegata uses (trimmed, and lowercase for email addresses).
+
+```bash title="Without an organization salt"
+printf %s "acme-emp-12345" | sha256sum
+```
+
+```bash title="With an organization salt"
+printf %s "acme-emp-12345" | openssl dgst -sha256 -hmac "$TEGATA_IDENTIFIER_SALT"
+```
+
+On macOS, use `shasum -a 256` instead of `sha256sum`.
+
+### In the ledger
+
+Every audit event that a vault with an owner records carries the owner hashes in its authenticated content (`owner_employee_id_hash`, `owner_email_hash`, and `owner_hash_scheme`). The primary hash is also stored as the top-level `owner_hash` metadata field, so you can search for it without parsing the content. `tegata verify` checks `owner_hash` against the authenticated content, so an attempt to reassign an event to someone else by editing that field is reported as tampering.
+
+In a shared stack, each entity ID maps to one vault. To build an ownership map, read the `owner_hash` of an entity's most recent events.
+
+### In Docker
+
+In local Docker mode, every container in the stack that Tegata creates for a vault has the following labels. Containers in a stack that you deploy yourself, such as a shared stack, don't get these labels; use the ledger mapping instead.
+
+| Label                         | Value                                                    |
+| ----------------------------- | -------------------------------------------------------- |
+| `io.tegata.managed`           | `true`                                                   |
+| `io.tegata.entity-id`         | The vault's entity ID, which is also the Compose project |
+| `io.tegata.owner-hash`        | The owner's primary identifier hash                      |
+| `io.tegata.owner-hash-scheme` | `sha256` or `hmac-sha256`                                |
+
+For example, to list every Tegata container that belongs to one person:
+
+```bash
+docker ps -a --filter label=io.tegata.owner-hash=<hash>
+```
+
+Tegata writes the labels when it creates the stack and each time it starts a stopped stack, including stacks created by earlier versions. After a user changes their identifiers, the labels update the next time the stack starts, for example after `tegata ledger stop` followed by unlocking the vault.
+
+## Change identifiers over time
+
+Identifiers can be changed or cleared at any time. Each change is recorded as an `owner-identifier-update` audit event that contains the new hashes and the previous hashes (`old_owner_employee_id_hash`, `old_owner_email_hash`, and the scheme they were hashed with, `old_owner_hash_scheme`). Events recorded before the change keep the identifiers they were recorded with, so the history stays accurate, and the update event links the old identity to the new one.
+
+Tegata records the update event only after the new identifiers are saved to the vault. If audit logging is disabled when a user changes their identifiers, there is no ledger to record the change in. Events recorded after audit logging is enabled carry the current identifiers.
+
+## Compatibility with existing vaults
+
+Owner identifiers are optional. Vaults without them behave exactly as before: their events contain no owner fields, and the content and hashes of those events are unchanged. Existing entity IDs, Compose project names, and per-vault Docker directories are not affected.

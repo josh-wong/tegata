@@ -104,6 +104,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 				cfg.Audit.LedgerVolumeKey = volumeKey
 			}
 		}
+		audit.ApplyOwner(&cfg.Audit, mgr.Owner())
 
 		// Auto-start is deferred to a tea.Cmd (maybeAutoStartCmd) issued by
 		// handleUnlockResult so any error routes through the TUI message loop
@@ -141,6 +142,7 @@ func loadCredentials(m model) model {
 					cfg.Audit.LedgerVolumeKey = volumeKey
 				}
 			}
+			audit.ApplyOwner(&cfg.Audit, m.vaultMgr.Owner())
 		}
 		m.cfg = cfg
 		m.idleTimeout = cfg.IdleTimeout
@@ -173,6 +175,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	// vault for independent verification (D-15).
 	if m.builder != nil && m.vaultMgr != nil {
 		mgr := m.vaultMgr
+		m.builder.OwnerSource = mgr.Owner
 		m.builder.OnHashStored = func(eventID, hashValue string) {
 			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditHash", map[string]any{"Err": err}))
