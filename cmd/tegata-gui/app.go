@@ -1466,6 +1466,13 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 					_ = a.builder.Close()
 				}
 				newBuilder.OwnerSource = a.vault.Owner
+				// Store event hashes in the vault, as UnlockVault does, so
+				// tegata verify can check events logged in this session.
+				newBuilder.OnHashStored = func(eventID, hashValue string) {
+					if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+						slog.Error("failed to store audit hash in vault", "err", err)
+					}
+				}
 				a.builder = newBuilder
 			} else {
 				_ = client.Close()

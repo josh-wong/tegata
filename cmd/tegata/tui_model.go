@@ -496,7 +496,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						_ = m.builder.Close()
 					}
 					if m.vaultMgr != nil {
-						newBuilder.OwnerSource = m.vaultMgr.Owner
+						mgr := m.vaultMgr
+						newBuilder.OwnerSource = mgr.Owner
+						// Store event hashes in the vault, as handleUnlockResult
+						// does, so tegata verify can check events logged in this
+						// session.
+						newBuilder.OnHashStored = func(eventID, hashValue string) {
+							if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+								_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditHash", map[string]any{"Err": err}))
+							}
+						}
 					}
 					m.builder = newBuilder
 				}
