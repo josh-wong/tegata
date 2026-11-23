@@ -12,7 +12,7 @@ The ScalarDL and PostgreSQL Docker images are built for x86-64 (AMD64) only. The
 
 ## Starting the services
 
-The `--bootstrap` flag on the `scalardl-ledger` service automatically registers the built-in HashStore contracts (`object.Put`, `object.Get`, `object.Validate`, `collection.Create`, `collection.Add`, `collection.Get`) the first time the container starts. These are the contracts that Tegata uses to record and retrieve audit events.
+The `--bootstrap` flag on the `scalardl-ledger` service automatically registers the built-in HashStore contracts (`object.Put`, `object.Get`, `object.Validate`, `collection.Create`, `collection.Add`, `collection.Get`) the first time the container starts. These are the contracts that Tegata uses to record and retrieve audit events. For details, see [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/3.13/getting-started-hashstore/).
 
 ```bash
 docker compose up -d

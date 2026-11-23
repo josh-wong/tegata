@@ -12,7 +12,7 @@ If you are a single user running audit logging on your own machine, you don't ne
 
 Tegata supports two topologies for multi-user audit logging. Both work without running one Docker Engine per user.
 
-**Shared stack (recommended default):** You run one ScalarDL Ledger deployment for the whole organization. Each user's vault connects to it as a separate ScalarDL entity with its own HMAC secret, and each entity's events are kept in their own collection (`tegata-audit-<entity_id>`). This is the simplest topology to operate, back up, and monitor.
+**Shared stack (recommended default):** You run one ScalarDL Ledger deployment for the whole organization. Each user's vault connects to it as a separate ScalarDL entity with its own HMAC secret, and each entity's events are kept in their own [HashStore](https://scalardl.scalar-labs.com/docs/3.13/getting-started-hashstore/) collection (`tegata-audit-<ENTITY_ID>`). This is the simplest topology to operate, back up, and monitor.
 
 **Isolated stacks:** You run a separate ScalarDL Ledger deployment for each team or user, on the same Docker host or on different hosts. Each deployment has its own database, ports, and Docker Compose project. Use this topology when policy requires that one group's audit data is never stored alongside another's.
 
@@ -30,13 +30,13 @@ Start with a shared stack. Move a team to an isolated stack only when a specific
 
 :::warning[Don't use the bundled one-click stack as a shared server]
 
-The Docker stack that `tegata ledger start` and the GUI create is designed for one user on one machine. It binds fixed host ports (5432, 50051, and 50052), so only one copy can run per host. It also uses a development HMAC cipher key, a default PostgreSQL password, and plaintext gRPC. For a shared or isolated deployment, run ScalarDL Ledger with your own credentials and TLS by following Scalar's production guidance. You can start from `deployments/docker-compose/` in the Tegata repository, but replace those defaults and give each isolated deployment its own host ports.
+The Docker stack that `tegata ledger start` and the GUI create is designed for one user on one machine. It binds fixed host ports (5432, 50051, and 50052), so only one copy can run per host. It also uses a development HMAC cipher key, a default PostgreSQL password, and plaintext gRPC. For a shared or isolated deployment, run ScalarDL Ledger with your own credentials and TLS. Set your own HMAC cipher key by using the [ScalarDL configurations reference](https://scalardl.scalar-labs.com/docs/3.13/configurations/) and the [ScalarDL authentication guide](https://scalardl.scalar-labs.com/docs/3.13/authentication/), and enable TLS by following the [ScalarDL Helm chart guides](https://scalardl.scalar-labs.com/docs/3.13/helm-charts/configure-custom-values-scalardl-ledger/). You can start from `deployments/docker-compose/` in the Tegata repository, but replace those defaults and give each isolated deployment its own host ports.
 
 :::
 
 ## Connect users to a shared stack
 
-In a shared stack, you assign each user an entity ID and an HMAC secret, and the user points their vault at your server. Use an opaque, unique entity ID such as `tegata-7f3a9c21`. Don't use an email address or employee ID as the entity ID, because the entity ID appears in plaintext in `tegata.toml`, in ScalarDL, and in collection names. The owner identifier described in the next section is the right place for personal attribution.
+In a shared stack, you assign each user an entity ID and an HMAC secret (see the [ScalarDL authentication guide](https://scalardl.scalar-labs.com/docs/3.13/authentication/)), and the user points their vault at your server. Use an opaque, unique entity ID such as `tegata-7f3a9c21`. Don't use an email address or employee ID as the entity ID, because the entity ID appears in plaintext in `tegata.toml`, in ScalarDL, and in collection names. The owner identifier described in the next section is the right place for personal attribution.
 
 The user adds an `[audit]` section like the following to `tegata.toml` in their vault directory, with the values you provide:
 
@@ -47,7 +47,7 @@ server            = "audit.example.com:50051"
 privileged_server = "audit.example.com:50052"
 entity_id         = "tegata-7f3a9c21"
 key_version       = 1
-secret_key        = "<secret you issued>"
+secret_key        = "<SECRET_YOU_ISSUED>"
 auto_start        = false
 ```
 
@@ -86,7 +86,7 @@ By default, the hash is SHA-256 of the normalized value. Hashing hides identifie
 
 ```toml
 [organization]
-identifier_salt = "<random value from your secrets manager>"
+identifier_salt = "<RANDOM_VALUE_FROM_YOUR_SECRETS_MANAGER>"
 ```
 
 Vaults created by Tegata versions that support owner identifiers already contain an `[organization]` section with `identifier_salt` commented out. In that case, uncomment the line and set the value; don't add a second `[organization]` header. A duplicate section makes `tegata.toml` invalid: the CLI stops with a `parsing tegata.toml` error, and the GUI falls back to default settings, which means the salt and the audit settings are ignored. After editing the file, run `tegata config show`: if every value is marked `(default)`, the file couldn't be parsed.
@@ -138,7 +138,7 @@ In local Docker mode, every container in the stack that Tegata creates for a vau
 For example, to list every Tegata container that belongs to one person:
 
 ```bash
-docker ps -a --filter label=io.tegata.owner-hash=<hash>
+docker ps -a --filter label=io.tegata.owner-hash=<HASH>
 ```
 
 Tegata writes the labels when it creates the stack and each time it starts a stopped stack, including stacks created by earlier versions. After a user changes their identifiers, the labels update the next time the stack starts, for example after `tegata ledger stop` followed by unlocking the vault.

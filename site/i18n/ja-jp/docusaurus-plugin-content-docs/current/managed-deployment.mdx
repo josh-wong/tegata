@@ -12,7 +12,7 @@ description: マネージド環境で多数のユーザー向けに Tegata の�
 
 Tegata は、複数ユーザー向けの監査ログについて 2 つの構成をサポートしています。どちらも、ユーザーごとに Docker Engine を実行する必要はありません。
 
-**共有スタック (推奨される既定の構成):** 組織全体で 1 つの ScalarDL Ledger デプロイを実行します。各ユーザーのボールトは、それぞれ独自の HMAC シークレットを持つ個別の ScalarDL エンティティとして接続し、各エンティティのイベントは専用のコレクション (`tegata-audit-<entity_id>`) に保存されます。運用、バックアップ、監視が最も簡単な構成です。
+**共有スタック (推奨される既定の構成):** 組織全体で 1 つの ScalarDL Ledger デプロイを実行します。各ユーザーのボールトは、それぞれ独自の HMAC シークレットを持つ個別の ScalarDL エンティティとして接続し、各エンティティのイベントは専用の [HashStore](https://scalardl.scalar-labs.com/docs/3.13/getting-started-hashstore/) コレクション (`tegata-audit-<entity_id>`) に保存されます。運用、バックアップ、監視が最も簡単な構成です。
 
 **分離スタック:** チームまたはユーザーごとに個別の ScalarDL Ledger デプロイを、同じ Docker ホストまたは別のホストで実行します。各デプロイは独自のデータベース、ポート、Docker Compose プロジェクトを持ちます。あるグループの監査データを他のグループのデータと同じ場所に保存してはならないというポリシーがある場合に使用します。
 
@@ -30,13 +30,13 @@ Tegata は、複数ユーザー向けの監査ログについて 2 つの構成�
 
 :::warning[同梱のワンクリックスタックを共有サーバーとして使用しないでください]
 
-`tegata ledger start` と GUI が作成する Docker スタックは、1 台のマシンを使う 1 人のユーザー向けに設計されています。固定のホストポート (5432、50051、50052) を使用するため、ホストごとに 1 つしか実行できません。また、開発用の HMAC 暗号鍵、既定の PostgreSQL パスワード、平文の gRPC を使用します。共有スタックまたは分離スタックでは、Scalar の本番環境向けガイダンスに従い、独自の資格情報と TLS で ScalarDL Ledger を実行してください。Tegata リポジトリの `deployments/docker-compose/` を出発点にできますが、これらの既定値を置き換え、分離スタックごとに異なるホストポートを割り当ててください。
+`tegata ledger start` と GUI が作成する Docker スタックは、1 台のマシンを使う 1 人のユーザー向けに設計されています。固定のホストポート (5432、50051、50052) を使用するため、ホストごとに 1 つしか実行できません。また、開発用の HMAC 暗号鍵、既定の PostgreSQL パスワード、平文の gRPC を使用します。共有スタックまたは分離スタックでは、独自の資格情報と TLS で ScalarDL Ledger を実行してください。HMAC 暗号鍵は [ScalarDL の設定リファレンス](https://scalardl.scalar-labs.com/docs/3.13/configurations/)と [ScalarDL の認証ガイド](https://scalardl.scalar-labs.com/docs/3.13/authentication/)を参照して独自の値を設定し、TLS は [ScalarDL の Helm チャートのガイド](https://scalardl.scalar-labs.com/docs/3.13/helm-charts/configure-custom-values-scalardl-ledger/)に従って有効にします。Tegata リポジトリの `deployments/docker-compose/` を出発点にできますが、これらの既定値を置き換え、分離スタックごとに異なるホストポートを割り当ててください。
 
 :::
 
 ## ユーザーを共有スタックに接続する
 
-共有スタックでは、各ユーザーにエンティティ ID と HMAC シークレットを割り当て、ユーザーはボールトをサーバーに接続します。エンティティ ID には `tegata-7f3a9c21` のような一意で意味を持たない値を使用してください。エンティティ ID は `tegata.toml`、ScalarDL、コレクション名に平文で表示されるため、メールアドレスや社員 ID を使用しないでください。個人への帰属には、次のセクションで説明する所有者識別子を使用します。
+共有スタックでは、各ユーザーにエンティティ ID と HMAC シークレット ([ScalarDL の認証ガイド](https://scalardl.scalar-labs.com/docs/3.13/authentication/)を参照) を割り当て、ユーザーはボールトをサーバーに接続します。エンティティ ID には `tegata-7f3a9c21` のような一意で意味を持たない値を使用してください。エンティティ ID は `tegata.toml`、ScalarDL、コレクション名に平文で表示されるため、メールアドレスや社員 ID を使用しないでください。個人への帰属には、次のセクションで説明する所有者識別子を使用します。
 
 ユーザーは、管理者から提供された値を使用して、ボールトディレクトリの `tegata.toml` に次のような `[audit]` セクションを追加します。
 
