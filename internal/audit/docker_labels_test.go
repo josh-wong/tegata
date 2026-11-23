@@ -82,11 +82,13 @@ func TestSyncDockerCompose_WritesOwnerLabels(t *testing.T) {
 	fsys := fstest.MapFS{"docker-compose.yml": &fstest.MapFile{Data: bundleCompose(t)}}
 	path := filepath.Join(t.TempDir(), "docker-compose.yml")
 	owner := &model.OwnerIdentity{EmployeeIDHash: "1111", EmailHash: "2222", HashScheme: OwnerHashSchemeSHA256}
-	var auditCfg config.AuditConfig
+	auditCfg := config.AuditConfig{EntityID: "tegata-abc12345"}
 	ApplyOwner(&auditCfg, owner)
 	cfg := ownerLabels(auditCfg)
 
-	if err := syncDockerCompose(fsys, path, "tegata-abc12345", "", cfg); err != nil {
+	// The project name differs from the entity ID, as in older configs that
+	// set docker_project_name separately. The label must hold the entity ID.
+	if err := syncDockerCompose(fsys, path, "legacy-project", "", cfg); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)

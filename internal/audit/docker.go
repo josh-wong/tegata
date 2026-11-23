@@ -317,7 +317,9 @@ func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string, 
 		}
 		data = rewritten
 	}
-	labels.EntityID = entityID
+	// labels.EntityID comes from the config rather than entityID, which is the
+	// effective project name and can differ from the entity ID in older
+	// configs.
 	data = rewriteComposeLabels(data, labels)
 	return os.WriteFile(composePath, data, 0600)
 }
@@ -332,7 +334,7 @@ type composeLabels struct {
 
 // ownerLabels returns the ownership label values for cfg.
 func ownerLabels(cfg config.AuditConfig) composeLabels {
-	return composeLabels{OwnerHash: cfg.OwnerHash, OwnerHashScheme: cfg.OwnerHashScheme}
+	return composeLabels{EntityID: cfg.EntityID, OwnerHash: cfg.OwnerHash, OwnerHashScheme: cfg.OwnerHashScheme}
 }
 
 // labelValuePattern restricts label values to characters that are safe to
