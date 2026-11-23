@@ -273,6 +273,7 @@
       "ownerPrefixTip": "共有環境では、ID に組織コードを付けてください (例: acme-emp-12345)。",
       "ownerSalted": "組織のソルトが設定されています。識別子は HMAC-SHA256 でハッシュ化されます。",
       "ownerSaved": "所有者識別子を保存しました。",
+      "ownerUnchanged": "所有者識別子は変更されていません。",
       "ownerSaveFailed": "所有者識別子を保存できませんでした",
       "ownerSaltChanged": "組織のソルトが変更されました。両方の識別子を再入力するか、使用しなくなった方を消去してください。",
       "sectionUpdates": "アップデート",

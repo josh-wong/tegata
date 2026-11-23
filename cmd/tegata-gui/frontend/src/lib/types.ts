@@ -51,6 +51,8 @@ export interface OwnerInfo {
   hashScheme: string
   updatedAt: string
   saltConfigured: boolean
+  // Set by SetOwner: whether the save changed any identifier.
+  changed: boolean
 }
 
 export interface AuditVerifyResult {

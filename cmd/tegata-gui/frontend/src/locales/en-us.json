@@ -273,6 +273,7 @@
       "ownerPrefixTip": "In shared deployments, prefix IDs with an organization code (for example, acme-emp-12345).",
       "ownerSalted": "Your organization's salt is configured. Identifiers are hashed with HMAC-SHA256.",
       "ownerSaved": "Owner identifiers saved.",
+      "ownerUnchanged": "Owner identifiers are unchanged.",
       "ownerSaveFailed": "Failed to save owner identifiers",
       "ownerSaltChanged": "Your organization's salt has changed. Enter both identifiers again, or clear the one you no longer use.",
       "sectionUpdates": "Updates",

@@ -20,6 +20,10 @@ type OwnerInfo struct {
 	// SaltConfigured reports whether [organization] identifier_salt is set,
 	// so the UI can tell the user which hashing scheme a save will use.
 	SaltConfigured bool `json:"saltConfigured"`
+	// Changed is set by SetOwner and reports whether the save changed any
+	// identifier, so the UI does not claim to have saved an unchanged edit.
+	// GetOwner always leaves it false.
+	Changed bool `json:"changed"`
 }
 
 // ErrOwnerSaltChangedCode is the error string the frontend matches to show a
@@ -68,9 +72,14 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 		}
 		return &v
 	}
-	next, _, err := audit.UpdateOwner(a.vault, a.builder,
-		field(employeeID, clearEmployeeID), field(email, clearEmail),
-		a.config.Organization.IdentifierSalt)
+	employeeIDEdit, emailEdit := field(employeeID, clearEmployeeID), field(email, clearEmail)
+	// Nothing entered and nothing cleared is a no-op. Returning early also
+	// avoids reporting a salt change for an edit that keeps every hash.
+	if employeeIDEdit == nil && emailEdit == nil {
+		return a.ownerInfo(a.vault.Owner()), nil
+	}
+	next, changed, err := audit.UpdateOwner(a.vault, a.builder,
+		employeeIDEdit, emailEdit, a.config.Organization.IdentifierSalt)
 	if err != nil {
 		if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {
 			return OwnerInfo{}, fmt.Errorf("%s", ErrOwnerSaltChangedCode)
@@ -78,5 +87,7 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 		return OwnerInfo{}, err
 	}
 	audit.ApplyOwner(&a.config.Audit, next)
-	return a.ownerInfo(next), nil
+	info := a.ownerInfo(next)
+	info.Changed = changed
+	return info, nil
 }

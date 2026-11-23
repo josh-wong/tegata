@@ -5,8 +5,8 @@ import { OwnerIdentifiers } from "./OwnerIdentifiers"
 import { App } from "@/lib/wails"
 import type { OwnerInfo } from "@/lib/types"
 
-const emptyOwner: OwnerInfo = { employeeIdHash: "", emailHash: "", hashScheme: "", updatedAt: "", saltConfigured: false }
-const setOwner: OwnerInfo = { employeeIdHash: "a1b2c3d4e5f6", emailHash: "0f9e8d7c6b5a", hashScheme: "sha256", updatedAt: "2026-11-22T00:00:00Z", saltConfigured: false }
+const emptyOwner: OwnerInfo = { employeeIdHash: "", emailHash: "", hashScheme: "", updatedAt: "", saltConfigured: false, changed: false }
+const setOwner: OwnerInfo = { employeeIdHash: "a1b2c3d4e5f6", emailHash: "0f9e8d7c6b5a", hashScheme: "sha256", updatedAt: "2026-11-22T00:00:00Z", saltConfigured: false, changed: true }
 
 describe("OwnerIdentifiers", () => {
   beforeEach(() => {
@@ -37,6 +37,19 @@ describe("OwnerIdentifiers", () => {
     expect(App.SetOwner).toHaveBeenCalledWith("acme-emp-1", "", false, false)
     expect(await screen.findByText("Owner identifiers saved.")).toBeInTheDocument()
     expect(screen.queryByLabelText("Employee ID (recommended)")).not.toBeInTheDocument()
+  })
+
+  it("says the identifiers are unchanged when the save changed nothing", async () => {
+    vi.mocked(App.GetOwner).mockResolvedValue(setOwner)
+    vi.mocked(App.SetOwner).mockResolvedValueOnce({ ...setOwner, changed: false })
+    const user = userEvent.setup()
+    render(<OwnerIdentifiers />)
+    await user.click(await screen.findByRole("button", { name: "Edit identifiers" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(App.SetOwner).toHaveBeenCalledWith("", "", false, false)
+    expect(await screen.findByText("Owner identifiers are unchanged.")).toBeInTheDocument()
+    expect(screen.queryByText("Owner identifiers saved.")).not.toBeInTheDocument()
   })
 
   it("shows a localized message when the organization salt changed", async () => {

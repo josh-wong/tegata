@@ -101,3 +101,47 @@ func TestAdapter_OwnerLocked(t *testing.T) {
 		t.Error("SetOwner on locked app should fail")
 	}
 }
+
+// TestAdapter_SetOwner_EmptySaveIsNoOp verifies that saving with nothing
+// entered and nothing cleared reports no change, logs no event, and does not
+// report a salt change.
+func TestAdapter_SetOwner_EmptySaveIsNoOp(t *testing.T) {
+	app, rec := newOwnerTestApp(t)
+	info, err := app.SetOwner("acme-emp-12345", "", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Changed {
+		t.Error("first save should report Changed")
+	}
+	before := len(rec.snapshot())
+
+	info, err = app.SetOwner("", "", false, false)
+	if err != nil || info.Changed {
+		t.Fatalf("empty save: info = %+v, err = %v; want unchanged, nil", info, err)
+	}
+	if info.EmployeeIDHash != audit.ShortOwnerHash(audit.HashString("acme-emp-12345")) {
+		t.Errorf("empty save should return the current owner, got %+v", info)
+	}
+
+	app.config.Organization.IdentifierSalt = "new-salt"
+	if info, err = app.SetOwner("", "", false, false); err != nil || info.Changed {
+		t.Errorf("empty save after salt change: info = %+v, err = %v; want unchanged, nil", info, err)
+	}
+	if got := len(rec.snapshot()); got != before {
+		t.Errorf("empty saves logged %d events, want 0", got-before)
+	}
+}
+
+// TestAdapter_SetOwner_SameValueUnchanged verifies that re-entering the
+// current identifier reports no change.
+func TestAdapter_SetOwner_SameValueUnchanged(t *testing.T) {
+	app, _ := newOwnerTestApp(t)
+	if _, err := app.SetOwner("acme-emp-12345", "", false, false); err != nil {
+		t.Fatal(err)
+	}
+	info, err := app.SetOwner("acme-emp-12345", "", false, false)
+	if err != nil || info.Changed {
+		t.Errorf("info = %+v, err = %v; want unchanged, nil", info, err)
+	}
+}

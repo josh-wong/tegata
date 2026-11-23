@@ -25,7 +25,8 @@ export function OwnerIdentifiers() {
   const [clearEmployeeId, setClearEmployeeId] = useState(false)
   const [clearEmail, setClearEmail] = useState(false)
   const [error, setError] = useState("")
-  const [saved, setSaved] = useState(false)
+  // Result of the last save: "saved", "unchanged", or "" before any save.
+  const [saveResult, setSaveResult] = useState<"" | "saved" | "unchanged">("")
 
   function resetForm() {
     setEditing(false)
@@ -42,12 +43,12 @@ export function OwnerIdentifiers() {
 
   async function handleSave() {
     setError("")
-    setSaved(false)
+    setSaveResult("")
     try {
       const next = await App.SetOwner(employeeId.trim(), email.trim(), clearEmployeeId, clearEmail)
       setOwner(next)
       resetForm()
-      setSaved(true)
+      setSaveResult(next.changed ? "saved" : "unchanged")
     } catch (err) {
       const msg = formatError(err, t("gui.settings.ownerSaveFailed"))
       setError(msg === SALT_CHANGED_CODE ? t("gui.settings.ownerSaltChanged") : msg)
@@ -74,10 +75,11 @@ export function OwnerIdentifiers() {
       {owner?.saltConfigured && (
         <p className="text-xs text-muted-foreground">{t("gui.settings.ownerSalted")}</p>
       )}
-      {saved && <p className="text-sm text-green-500" role="status">{t("gui.settings.ownerSaved")}</p>}
+      {saveResult === "saved" && <p className="text-sm text-green-500" role="status">{t("gui.settings.ownerSaved")}</p>}
+      {saveResult === "unchanged" && <p className="text-sm text-muted-foreground" role="status">{t("gui.settings.ownerUnchanged")}</p>}
 
       {!editing ? (
-        <Button variant="outline" size="sm" onClick={() => { setEditing(true); setSaved(false) }}>
+        <Button variant="outline" size="sm" onClick={() => { setEditing(true); setSaveResult("") }}>
           {t("gui.settings.ownerEdit")}
         </Button>
       ) : (
