@@ -110,15 +110,15 @@ type AuditConfig struct {
 // tomlAuditConfig is the TOML deserialization intermediate for [audit].
 // Pointer fields distinguish "not set" from "zero value".
 type tomlAuditConfig struct {
-	Enabled        *bool   `toml:"enabled"`
-	Server           *string `toml:"server"`
-	PrivilegedServer *string `toml:"privileged_server"`
-	SecretKey      *string `toml:"secret_key"`
-	CertPath       *string `toml:"cert_path"`
-	KeyPath        *string `toml:"key_path"`
-	CACertPath     *string `toml:"ca_cert_path"`
-	EntityID       *string `toml:"entity_id"`
-	KeyVersion     *uint32 `toml:"key_version"`
+	Enabled           *bool   `toml:"enabled"`
+	Server            *string `toml:"server"`
+	PrivilegedServer  *string `toml:"privileged_server"`
+	SecretKey         *string `toml:"secret_key"`
+	CertPath          *string `toml:"cert_path"`
+	KeyPath           *string `toml:"key_path"`
+	CACertPath        *string `toml:"ca_cert_path"`
+	EntityID          *string `toml:"entity_id"`
+	KeyVersion        *uint32 `toml:"key_version"`
 	QueueMaxEvents    *int    `toml:"queue_max_events"`
 	Insecure          *bool   `toml:"insecure"`
 	DockerComposePath *string `toml:"docker_compose_path"`
@@ -144,8 +144,8 @@ type tomlConfig struct {
 	Vault struct {
 		IdleTimeout *int `toml:"idle_timeout"`
 	} `toml:"vault"`
-	Audit tomlAuditConfig `toml:"audit"`
-	UI    tomlUI          `toml:"ui"`
+	Audit        tomlAuditConfig  `toml:"audit"`
+	UI           tomlUI           `toml:"ui"`
 	Organization tomlOrganization `toml:"organization"`
 }
 
