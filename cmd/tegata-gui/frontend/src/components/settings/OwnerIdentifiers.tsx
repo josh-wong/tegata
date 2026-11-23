@@ -8,6 +8,8 @@ import { formatError } from "@/lib/utils"
 
 // Must match ErrOwnerSaltChangedCode in cmd/tegata-gui/owner.go.
 const SALT_CHANGED_CODE = "owner-salt-changed"
+// Must match ErrOwnerConfigUnreadableCode in cmd/tegata-gui/owner.go.
+const CONFIG_UNREADABLE_CODE = "owner-config-unreadable"
 // Must match ErrOwnerInvalidCodePrefix in cmd/tegata-gui/owner.go. The full
 // code is "owner-invalid:<field>:<reason>".
 const INVALID_CODE_PREFIX = "owner-invalid:"
@@ -55,6 +57,7 @@ export function OwnerIdentifiers() {
   // messages and passes any other error through.
   function saveErrorMessage(msg: string): string {
     if (msg === SALT_CHANGED_CODE) return t("gui.settings.ownerSaltChanged")
+    if (msg === CONFIG_UNREADABLE_CODE) return t("gui.settings.ownerConfigUnreadable")
     if (msg.startsWith(INVALID_CODE_PREFIX)) {
       const [field, reason] = msg.slice(INVALID_CODE_PREFIX.length).split(":")
       const key = `gui.settings.ownerInvalid.${field}.${reason}`

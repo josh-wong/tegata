@@ -31,6 +31,10 @@ type OwnerInfo struct {
 // localized message when the organization salt changed.
 const ErrOwnerSaltChangedCode = "owner-salt-changed"
 
+// ErrOwnerConfigUnreadableCode is the error string the frontend matches to
+// show a localized message when tegata.toml could not be read.
+const ErrOwnerConfigUnreadableCode = "owner-config-unreadable"
+
 // ErrOwnerInvalidCodePrefix starts the error string that SetOwner returns for
 // an identifier validation error. The full code is
 // "owner-invalid:<field>:<reason>", where field is employeeId or email and
@@ -96,6 +100,11 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 		return OwnerInfo{}, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
+	// With an unreadable tegata.toml the organization salt is unknown, so a
+	// save would hash unsalted and never match the organization's hashes.
+	if a.configLoadFailed {
+		return OwnerInfo{}, fmt.Errorf("%s", ErrOwnerConfigUnreadableCode)
+	}
 
 	field := func(v string, clear bool) *string {
 		if clear {

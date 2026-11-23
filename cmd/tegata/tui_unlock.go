@@ -129,7 +129,9 @@ func loadCredentials(m model) model {
 	m = refreshCredList(m)
 
 	// Load config from vault directory; fall back to defaults on error.
-	if cfg, err := config.Load(filepath.Dir(m.vaultPath)); err == nil {
+	cfg, err := config.Load(filepath.Dir(m.vaultPath))
+	m.configLoadFailed = err != nil
+	if err == nil {
 		// Load HMAC secret and ledger volume key from vault (encrypted storage)
 		// and inject into config.
 		if m.vaultMgr != nil {

@@ -276,6 +276,7 @@
       "ownerUnchanged": "Owner identifiers are unchanged.",
       "ownerSaveFailed": "Failed to save owner identifiers",
       "ownerSaltChanged": "Your organization's salt has changed. Enter both identifiers again, or clear the one you no longer use.",
+      "ownerConfigUnreadable": "Couldn't read tegata.toml, so your organization's salt is unknown. Fix the file, then unlock the vault again.",
       "ownerLoadFailed": "Couldn't load your owner identifiers. Close and reopen Settings to try again.",
       "ownerInvalid": {
         "employeeId": {

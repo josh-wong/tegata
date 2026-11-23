@@ -49,16 +49,17 @@ type UpdateInfo struct {
 // runtime. The struct holds references to the vault manager, config, clipboard,
 // and idle timer, delegating all business logic to the internal packages.
 type App struct {
-	ctx          context.Context
-	vault        *vault.Manager
-	config       config.Config
-	clipboard    *clipboard.Manager
-	vaultPath    string
-	vaultModTime time.Time     // mtime of vault file at last read; used to detect external writes
-	watcherStop  chan struct{} // closed to stop the vault file watcher goroutine
-	idleTimer    *IdleTimer
-	locked       bool
-	builder      *audit.EventBuilder // nil when audit disabled or vault locked
+	ctx              context.Context
+	vault            *vault.Manager
+	config           config.Config
+	clipboard        *clipboard.Manager
+	vaultPath        string
+	vaultModTime     time.Time     // mtime of vault file at last read; used to detect external writes
+	watcherStop      chan struct{} // closed to stop the vault file watcher goroutine
+	idleTimer        *IdleTimer
+	locked           bool
+	configLoadFailed bool                // tegata.toml could not be parsed, so a.config holds defaults
+	builder          *audit.EventBuilder // nil when audit disabled or vault locked
 }
 
 // NewApp creates a new App instance with default configuration.
@@ -207,7 +208,8 @@ func (a *App) UnlockVault(path, passphrase string) error {
 
 	// Load config from vault directory.
 	cfg, err := config.Load(vaultDir(path))
-	if err != nil {
+	a.configLoadFailed = err != nil
+	if a.configLoadFailed {
 		cfg = config.DefaultConfig()
 	}
 	a.config = cfg
@@ -1468,11 +1470,14 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 				if a.builder != nil {
 					_ = a.builder.Close()
 				}
-				newBuilder.OwnerSource = a.vault.Owner
+				// Capture the manager so a vault lock cannot nil the callback's
+				// target while registration is still running in the background.
+				mgr := a.vault
+				newBuilder.OwnerSource = mgr.Owner
 				// Store event hashes in the vault, as UnlockVault does, so
 				// tegata verify can check events logged in this session.
 				newBuilder.OnHashStored = func(eventID, hashValue string) {
-					if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 						slog.Error("failed to store audit hash in vault", "err", err)
 					}
 				}

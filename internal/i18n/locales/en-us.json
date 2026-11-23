@@ -469,6 +469,7 @@
   "tui.settings.placeholder.ownerKeep": "blank = keep, - = clear",
   "tui.settings.owner.updated": "Owner identifiers updated.",
   "tui.settings.owner.unchanged": "Owner identifiers are unchanged.",
+  "tui.settings.owner.configUnreadable": "Couldn't read tegata.toml, so the organization salt is unknown. Fix the file and unlock again.",
   "tui.settings.owner.saltChanged": "The organization salt has changed. Enter both identifiers again, or - to clear one.",
   "tui.settings.helpBar.owner": "[Tab] Next  [Enter] Save  [Esc] Cancel",
   "tui.settings.helpBar.main": "[↑↓] Navigate  [Enter] Select  [Esc] Close",

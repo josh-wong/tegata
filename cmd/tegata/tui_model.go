@@ -126,6 +126,7 @@ type model struct {
 	settingsInput3     textinput.Model
 	settingsMsg        string
 	settingsMsgOK      bool // true when settingsMsg reports success, not an error
+	configLoadFailed   bool // tegata.toml could not be parsed, so m.cfg holds defaults
 	settingsTagIdx     int          // selected tag index in tag management
 	settingsEditMode   string       // "clipboard"|"idle"|"" for config edit mode
 	settingsRecoveryOK bool         // true when the most recent recovery key verification succeeded

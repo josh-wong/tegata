@@ -276,6 +276,7 @@
       "ownerUnchanged": "所有者識別子は変更されていません。",
       "ownerSaveFailed": "所有者識別子を保存できませんでした",
       "ownerSaltChanged": "組織のソルトが変更されました。両方の識別子を再入力するか、使用しなくなった方を消去してください。",
+      "ownerConfigUnreadable": "tegata.toml を読み込めないため、組織のソルトが不明です。ファイルを修正してから、もう一度ボールトのロックを解除してください。",
       "ownerLoadFailed": "所有者識別子を読み込めませんでした。設定を閉じて開き直してください。",
       "ownerInvalid": {
         "employeeId": {
