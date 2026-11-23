@@ -78,7 +78,7 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {
 					m.settingsMsg = i18n.T("tui.settings.owner.saltChanged")
 				} else {
-					m.settingsMsg = i18n.Tf("tui.settings.owner.saveFailed", map[string]any{"Err": err})
+					m.settingsMsg = i18n.Tf("tui.settings.owner.saveFailed", map[string]any{"Err": ownerErrorMessage(err)})
 				}
 				return m, nil
 			}

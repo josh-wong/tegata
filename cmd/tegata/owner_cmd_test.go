@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
 	"github.com/josh-wong/tegata/internal/errors"
+	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
 )
 
@@ -117,6 +119,21 @@ func TestOwnerCmd_InvalidInput(t *testing.T) {
 	}
 }
 
+func TestOwnerErrorMessage(t *testing.T) {
+	_, err := audit.MergeOwnerIdentity(nil, nil, strPtr("not-an-email"), "", time.Now())
+	if got := ownerErrorMessage(err); got != i18n.T("cmd.owner.error.emailMissingAt") {
+		t.Errorf("missing @: got %q", got)
+	}
+	_, err = audit.MergeOwnerIdentity(nil, strPtr("acme\x00emp"), nil, "", time.Now())
+	want := i18n.Tf("cmd.owner.error.controlChars", map[string]any{"Field": i18n.T("cmd.owner.error.field.employeeID")})
+	if got := ownerErrorMessage(err); got != want {
+		t.Errorf("control characters: got %q, want %q", got, want)
+	}
+	if got := ownerErrorMessage(errors.New("other")); got != "other" {
+		t.Errorf("unrecognized error: got %q, want it passed through", got)
+	}
+}
+
 func TestOwnerFieldInput(t *testing.T) {
 	if ownerFieldInput("  ") != nil {
 		t.Error("blank should keep (nil)")
@@ -128,3 +145,5 @@ func TestOwnerFieldInput(t *testing.T) {
 		t.Error("value should be trimmed and replaced")
 	}
 }
+
+func strPtr(s string) *string { return &s }

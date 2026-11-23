@@ -8,6 +8,11 @@ import { formatError } from "@/lib/utils"
 
 // Must match ErrOwnerSaltChangedCode in cmd/tegata-gui/owner.go.
 const SALT_CHANGED_CODE = "owner-salt-changed"
+// Must match ErrOwnerInvalidCodePrefix in cmd/tegata-gui/owner.go. The full
+// code is "owner-invalid:<field>:<reason>".
+const INVALID_CODE_PREFIX = "owner-invalid:"
+// Must match MaxOwnerIdentifierLen in internal/audit/owner.go.
+const MAX_IDENTIFIER_LENGTH = 256
 
 // OwnerIdentifiers lets the user set the employee ID and email that attribute
 // audit events to them. Raw values are sent to the backend once, hashed there,
@@ -25,6 +30,7 @@ export function OwnerIdentifiers() {
   const [clearEmployeeId, setClearEmployeeId] = useState(false)
   const [clearEmail, setClearEmail] = useState(false)
   const [error, setError] = useState("")
+  const [loadFailed, setLoadFailed] = useState(false)
   // Result of the last save: "saved", "unchanged", or "" before any save.
   const [saveResult, setSaveResult] = useState<"" | "saved" | "unchanged">("")
 
@@ -38,8 +44,25 @@ export function OwnerIdentifiers() {
   }
 
   useEffect(() => {
-    App.GetOwner().then(setOwner).catch(() => setOwner(null))
+    App.GetOwner()
+      .then((info) => { setOwner(info); setLoadFailed(false) })
+      // Don't render "Not set" when the identifiers couldn't be read; they may
+      // still be stored.
+      .catch(() => { setOwner(null); setLoadFailed(true) })
   }, [])
+
+  // saveErrorMessage maps the error codes that SetOwner returns to localized
+  // messages and passes any other error through.
+  function saveErrorMessage(msg: string): string {
+    if (msg === SALT_CHANGED_CODE) return t("gui.settings.ownerSaltChanged")
+    if (msg.startsWith(INVALID_CODE_PREFIX)) {
+      const [field, reason] = msg.slice(INVALID_CODE_PREFIX.length).split(":")
+      const key = `gui.settings.ownerInvalid.${field}.${reason}`
+      const text = t(key, { max: MAX_IDENTIFIER_LENGTH })
+      return text === key ? t("gui.settings.ownerSaveFailed") : text
+    }
+    return msg
+  }
 
   async function handleSave() {
     setError("")
@@ -51,7 +74,7 @@ export function OwnerIdentifiers() {
       setSaveResult(next.changed ? "saved" : "unchanged")
     } catch (err) {
       const msg = formatError(err, t("gui.settings.ownerSaveFailed"))
-      setError(msg === SALT_CHANGED_CODE ? t("gui.settings.ownerSaltChanged") : msg)
+      setError(saveErrorMessage(msg))
       // Drop raw identifiers from state even when the save fails.
       setEmployeeId("")
       setEmail("")
@@ -66,19 +89,23 @@ export function OwnerIdentifiers() {
       <h3 className="text-sm font-medium">{t("gui.settings.sectionOwner")}</h3>
       <p className="text-xs text-muted-foreground">{t("gui.settings.ownerDescription")}</p>
 
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-muted-foreground">{t("gui.settings.ownerEmployeeId")}</dt>
-        <dd className="font-mono text-xs leading-5">{current(owner?.employeeIdHash)}</dd>
-        <dt className="text-muted-foreground">{t("gui.settings.ownerEmail")}</dt>
-        <dd className="font-mono text-xs leading-5">{current(owner?.emailHash)}</dd>
-      </dl>
+      {loadFailed ? (
+        <p className="text-sm text-destructive" role="alert">{t("gui.settings.ownerLoadFailed")}</p>
+      ) : (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-muted-foreground">{t("gui.settings.ownerEmployeeId")}</dt>
+          <dd className="font-mono text-xs leading-5">{current(owner?.employeeIdHash)}</dd>
+          <dt className="text-muted-foreground">{t("gui.settings.ownerEmail")}</dt>
+          <dd className="font-mono text-xs leading-5">{current(owner?.emailHash)}</dd>
+        </dl>
+      )}
       {owner?.saltConfigured && (
         <p className="text-xs text-muted-foreground">{t("gui.settings.ownerSalted")}</p>
       )}
       {saveResult === "saved" && <p className="text-sm text-green-500" role="status">{t("gui.settings.ownerSaved")}</p>}
       {saveResult === "unchanged" && <p className="text-sm text-muted-foreground" role="status">{t("gui.settings.ownerUnchanged")}</p>}
 
-      {!editing ? (
+      {loadFailed ? null : !editing ? (
         <Button variant="outline" size="sm" onClick={() => { setEditing(true); setSaveResult("") }}>
           {t("gui.settings.ownerEdit")}
         </Button>

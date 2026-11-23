@@ -276,6 +276,20 @@
       "ownerUnchanged": "所有者識別子は変更されていません。",
       "ownerSaveFailed": "所有者識別子を保存できませんでした",
       "ownerSaltChanged": "組織のソルトが変更されました。両方の識別子を再入力するか、使用しなくなった方を消去してください。",
+      "ownerLoadFailed": "所有者識別子を読み込めませんでした。設定を閉じて開き直してください。",
+      "ownerInvalid": {
+        "employeeId": {
+          "invalidUtf8": "社員 ID に無効な文字が含まれています。",
+          "controlChars": "社員 ID に制御文字を含めることはできません。",
+          "tooLong": "社員 ID は {{max}} 文字以内で入力してください。"
+        },
+        "email": {
+          "invalidUtf8": "メールアドレスに無効な文字が含まれています。",
+          "controlChars": "メールアドレスに制御文字を含めることはできません。",
+          "tooLong": "メールアドレスは {{max}} 文字以内で入力してください。",
+          "missingAt": "@ を含むメールアドレスを入力してください。"
+        }
+      },
       "sectionUpdates": "アップデート",
       "updateAvailable": "バージョン {{version}} が利用可能です。",
       "download": "ダウンロード",

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/audit"
@@ -29,6 +30,40 @@ type OwnerInfo struct {
 // ErrOwnerSaltChangedCode is the error string the frontend matches to show a
 // localized message when the organization salt changed.
 const ErrOwnerSaltChangedCode = "owner-salt-changed"
+
+// ErrOwnerInvalidCodePrefix starts the error string that SetOwner returns for
+// an identifier validation error. The full code is
+// "owner-invalid:<field>:<reason>", where field is employeeId or email and
+// reason is invalidUtf8, controlChars, tooLong, or missingAt. The frontend
+// parses it to show a localized message.
+const ErrOwnerInvalidCodePrefix = "owner-invalid:"
+
+// ownerInvalidCode returns the frontend error code for an identifier
+// validation error, or "" when err is not one.
+func ownerInvalidCode(err error) string {
+	var idErr *audit.OwnerIdentifierError
+	if !tegerrors.As(err, &idErr) {
+		return ""
+	}
+	field := "employeeId"
+	if idErr.Kind == audit.OwnerEmail {
+		field = "email"
+	}
+	var reason string
+	switch {
+	case tegerrors.Is(err, audit.ErrOwnerInvalidUTF8):
+		reason = "invalidUtf8"
+	case tegerrors.Is(err, audit.ErrOwnerControlChars):
+		reason = "controlChars"
+	case tegerrors.Is(err, audit.ErrOwnerTooLong):
+		reason = "tooLong"
+	case tegerrors.Is(err, audit.ErrOwnerEmailMissingAt):
+		reason = "missingAt"
+	default:
+		return ""
+	}
+	return ErrOwnerInvalidCodePrefix + field + ":" + reason
+}
 
 func (a *App) ownerInfo(o *model.OwnerIdentity) OwnerInfo {
 	info := OwnerInfo{SaltConfigured: a.config.Organization.IdentifierSalt != ""}
@@ -67,7 +102,9 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 			empty := ""
 			return &empty
 		}
-		if v == "" {
+		// Treat whitespace-only input as "keep" so it is never trimmed to ""
+		// and mistaken for a clear request.
+		if strings.TrimSpace(v) == "" {
 			return nil
 		}
 		return &v
@@ -83,6 +120,9 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 	if err != nil {
 		if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {
 			return OwnerInfo{}, fmt.Errorf("%s", ErrOwnerSaltChangedCode)
+		}
+		if code := ownerInvalidCode(err); code != "" {
+			return OwnerInfo{}, fmt.Errorf("%s", code)
 		}
 		return OwnerInfo{}, err
 	}

@@ -276,6 +276,20 @@
       "ownerUnchanged": "Owner identifiers are unchanged.",
       "ownerSaveFailed": "Failed to save owner identifiers",
       "ownerSaltChanged": "Your organization's salt has changed. Enter both identifiers again, or clear the one you no longer use.",
+      "ownerLoadFailed": "Couldn't load your owner identifiers. Close and reopen Settings to try again.",
+      "ownerInvalid": {
+        "employeeId": {
+          "invalidUtf8": "The employee ID contains characters that aren't valid text.",
+          "controlChars": "The employee ID can't contain control characters.",
+          "tooLong": "The employee ID can't be longer than {{max}} characters."
+        },
+        "email": {
+          "invalidUtf8": "The email address contains characters that aren't valid text.",
+          "controlChars": "The email address can't contain control characters.",
+          "tooLong": "The email address can't be longer than {{max}} characters.",
+          "missingAt": "Enter an email address that contains @."
+        }
+      },
       "sectionUpdates": "Updates",
       "updateAvailable": "Version {{version}} is available.",
       "download": "Download",

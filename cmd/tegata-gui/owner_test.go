@@ -145,3 +145,36 @@ func TestAdapter_SetOwner_SameValueUnchanged(t *testing.T) {
 		t.Errorf("info = %+v, err = %v; want unchanged, nil", info, err)
 	}
 }
+
+// TestAdapter_SetOwner_WhitespaceKeeps verifies that whitespace-only input is
+// treated as "keep" rather than trimmed to "" and applied as a clear.
+func TestAdapter_SetOwner_WhitespaceKeeps(t *testing.T) {
+	app, _ := newOwnerTestApp(t)
+	if _, err := app.SetOwner("acme-emp-12345", "", false, false); err != nil {
+		t.Fatal(err)
+	}
+	info, err := app.SetOwner("   ", "\t", false, false)
+	if err != nil || info.Changed {
+		t.Fatalf("info = %+v, err = %v; want unchanged, nil", info, err)
+	}
+	if info.EmployeeIDHash != audit.ShortOwnerHash(audit.HashString("acme-emp-12345")) {
+		t.Errorf("whitespace input cleared the employee ID: %+v", info)
+	}
+}
+
+func TestAdapter_SetOwner_InvalidCode(t *testing.T) {
+	app, _ := newOwnerTestApp(t)
+	tests := []struct {
+		employeeID, email, want string
+	}{
+		{"", "not-an-email", "owner-invalid:email:missingAt"},
+		{"acme\x00emp", "", "owner-invalid:employeeId:controlChars"},
+		{"acme\xffemp", "", "owner-invalid:employeeId:invalidUtf8"},
+	}
+	for _, tt := range tests {
+		_, err := app.SetOwner(tt.employeeID, tt.email, false, false)
+		if err == nil || err.Error() != tt.want {
+			t.Errorf("SetOwner(%q, %q) err = %v, want %q", tt.employeeID, tt.email, err, tt.want)
+		}
+	}
+}

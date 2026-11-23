@@ -83,12 +83,13 @@ func newOwnerSetCmd() *cobra.Command {
 				if !term.IsTerminal(int(os.Stdin.Fd())) {
 					return fmt.Errorf("%s: %w", i18n.T("cmd.owner.set.error.noInput"), errors.ErrInvalidInput)
 				}
-				fmt.Fprintln(os.Stderr, i18n.T("cmd.owner.set.info.prompt"))
+				errOut := cmd.ErrOrStderr()
+				_, _ = fmt.Fprintln(errOut, i18n.T("cmd.owner.set.info.prompt"))
 				reader := bufio.NewReader(os.Stdin)
-				idPtr = promptOptionalLine(reader, i18n.T("cmd.owner.set.prompt.employeeID"))
-				emailPtr = promptOptionalLine(reader, i18n.T("cmd.owner.set.prompt.email"))
+				idPtr = promptOptionalLine(errOut, reader, i18n.T("cmd.owner.set.prompt.employeeID"))
+				emailPtr = promptOptionalLine(errOut, reader, i18n.T("cmd.owner.set.prompt.email"))
 				if idPtr == nil && emailPtr == nil {
-					fmt.Fprintln(os.Stderr, i18n.T("cmd.owner.info.unchanged"))
+					_, _ = fmt.Fprintln(errOut, i18n.T("cmd.owner.info.unchanged"))
 					return nil
 				}
 			}
@@ -169,10 +170,10 @@ func runOwnerUpdate(cmd *cobra.Command, employeeID, email *string) error {
 		return err
 	}
 	if !changed {
-		fmt.Fprintln(os.Stderr, i18n.T("cmd.owner.info.unchanged"))
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), i18n.T("cmd.owner.info.unchanged"))
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, i18n.T("cmd.owner.success.updated"))
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), i18n.T("cmd.owner.success.updated"))
 	printOwner(cmd.OutOrStdout(), next)
 	return nil
 }
@@ -189,15 +190,42 @@ func updateOwner(mgr *vault.Manager, builder *audit.EventBuilder, employeeID, em
 		if errors.Is(err, audit.ErrOwnerSave) || errors.Is(err, errors.ErrVaultLocked) {
 			return nil, false, err
 		}
-		return nil, false, fmt.Errorf("%s: %w", err.Error(), errors.ErrInvalidInput)
+		return nil, false, fmt.Errorf("%s: %w", ownerErrorMessage(err), errors.ErrInvalidInput)
 	}
 	return next, changed, nil
 }
 
+// ownerErrorMessage returns a localized message for an identifier validation
+// error from audit.UpdateOwner. Errors it does not recognize are returned as
+// their English text.
+func ownerErrorMessage(err error) string {
+	var idErr *audit.OwnerIdentifierError
+	if !errors.As(err, &idErr) {
+		return err.Error()
+	}
+	field := i18n.T("cmd.owner.error.field.employeeID")
+	if idErr.Kind == audit.OwnerEmail {
+		field = i18n.T("cmd.owner.error.field.email")
+	}
+	data := map[string]any{"Field": field, "Max": audit.MaxOwnerIdentifierLen}
+	switch {
+	case errors.Is(err, audit.ErrOwnerInvalidUTF8):
+		return i18n.Tf("cmd.owner.error.invalidUTF8", data)
+	case errors.Is(err, audit.ErrOwnerControlChars):
+		return i18n.Tf("cmd.owner.error.controlChars", data)
+	case errors.Is(err, audit.ErrOwnerTooLong):
+		return i18n.Tf("cmd.owner.error.tooLong", data)
+	case errors.Is(err, audit.ErrOwnerEmailMissingAt):
+		return i18n.T("cmd.owner.error.emailMissingAt")
+	}
+	return err.Error()
+}
+
 // promptOptionalLine prints prompt and reads one line from r. It returns nil
-// when the line is blank, meaning "keep the current value".
-func promptOptionalLine(r *bufio.Reader, prompt string) *string {
-	fmt.Fprint(os.Stderr, prompt)
+// when the line is blank, meaning "keep the current value". The prompt is
+// written to w.
+func promptOptionalLine(w io.Writer, r *bufio.Reader, prompt string) *string {
+	_, _ = fmt.Fprint(w, prompt)
 	line, err := r.ReadString('\n')
 	if err != nil && line == "" {
 		return nil

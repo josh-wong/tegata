@@ -46,6 +46,15 @@ var ErrOwnerSaltChanged = errors.New("the identifier salt has changed since the 
 // apart from invalid identifier input.
 var ErrOwnerSave = errors.New("saving owner identifiers")
 
+// Validation errors returned by NormalizeOwnerIdentifier. Callers match them
+// with errors.Is to show a localized message.
+var (
+	ErrOwnerInvalidUTF8    = errors.New("identifier is not valid UTF-8")
+	ErrOwnerControlChars   = errors.New("identifier must not contain control characters")
+	ErrOwnerTooLong        = fmt.Errorf("identifier must be at most %d characters", MaxOwnerIdentifierLen)
+	ErrOwnerEmailMissingAt = errors.New("email address must contain @")
+)
+
 // OwnerIdentifierKind distinguishes the two supported identifier inputs. The
 // kind controls normalization only; both kinds share the same hash scheme.
 type OwnerIdentifierKind int
@@ -58,6 +67,25 @@ const (
 	// or alongside one so administrators can cross-check.
 	OwnerEmail
 )
+
+// String returns the identifier name used in English error messages.
+func (k OwnerIdentifierKind) String() string {
+	if k == OwnerEmail {
+		return "email"
+	}
+	return "employee ID"
+}
+
+// OwnerIdentifierError reports which identifier failed validation. Err is one
+// of the ErrOwner* validation errors.
+type OwnerIdentifierError struct {
+	Kind OwnerIdentifierKind
+	Err  error
+}
+
+func (e *OwnerIdentifierError) Error() string { return e.Kind.String() + ": " + e.Err.Error() }
+
+func (e *OwnerIdentifierError) Unwrap() error { return e.Err }
 
 // NormalizeOwnerIdentifier returns the canonical form of an identifier that is
 // hashed. Surrounding whitespace is trimmed for both kinds, and the value is
@@ -75,21 +103,21 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 		return "", nil
 	}
 	if !utf8.ValidString(v) {
-		return "", errors.New("identifier is not valid UTF-8")
+		return "", ErrOwnerInvalidUTF8
 	}
 	v = norm.NFC.String(v)
 	for _, r := range v {
 		if unicode.IsControl(r) {
-			return "", errors.New("identifier must not contain control characters")
+			return "", ErrOwnerControlChars
 		}
 	}
 	if utf8.RuneCountInString(v) > MaxOwnerIdentifierLen {
-		return "", fmt.Errorf("identifier must be at most %d characters", MaxOwnerIdentifierLen)
+		return "", ErrOwnerTooLong
 	}
 	if kind == OwnerEmail {
 		v = strings.ToLower(v)
 		if !strings.Contains(v, "@") {
-			return "", errors.New("email address must contain @")
+			return "", ErrOwnerEmailMissingAt
 		}
 	}
 	return v, nil
@@ -149,7 +177,7 @@ func MergeOwnerIdentity(current *model.OwnerIdentity, employeeID, email *string,
 	if employeeID != nil {
 		h, err := hashField(OwnerEmployeeID, *employeeID, salt)
 		if err != nil {
-			return nil, fmt.Errorf("employee ID: %w", err)
+			return nil, &OwnerIdentifierError{Kind: OwnerEmployeeID, Err: err}
 		}
 		next.EmployeeIDHash = h
 	} else if current != nil && current.EmployeeIDHash != "" {
@@ -159,7 +187,7 @@ func MergeOwnerIdentity(current *model.OwnerIdentity, employeeID, email *string,
 	if email != nil {
 		h, err := hashField(OwnerEmail, *email, salt)
 		if err != nil {
-			return nil, fmt.Errorf("email: %w", err)
+			return nil, &OwnerIdentifierError{Kind: OwnerEmail, Err: err}
 		}
 		next.EmailHash = h
 	} else if current != nil && current.EmailHash != "" {

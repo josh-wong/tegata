@@ -136,6 +136,28 @@ func TestMergeOwnerIdentity_ValidationError(t *testing.T) {
 	if err == nil || !strings.HasPrefix(err.Error(), "email:") {
 		t.Errorf("err = %v, want email validation error", err)
 	}
+	var idErr *OwnerIdentifierError
+	if !errors.As(err, &idErr) || idErr.Kind != OwnerEmail || !errors.Is(err, ErrOwnerEmailMissingAt) {
+		t.Errorf("err = %#v, want OwnerIdentifierError{Kind: OwnerEmail} wrapping ErrOwnerEmailMissingAt", err)
+	}
+}
+
+func TestNormalizeOwnerIdentifier_SentinelErrors(t *testing.T) {
+	tests := []struct {
+		kind OwnerIdentifierKind
+		in   string
+		want error
+	}{
+		{OwnerEmployeeID, "acme\xffemp", ErrOwnerInvalidUTF8},
+		{OwnerEmployeeID, "acme\x00emp", ErrOwnerControlChars},
+		{OwnerEmployeeID, strings.Repeat("a", MaxOwnerIdentifierLen+1), ErrOwnerTooLong},
+		{OwnerEmail, "alex.example.com", ErrOwnerEmailMissingAt},
+	}
+	for _, tt := range tests {
+		if _, err := NormalizeOwnerIdentifier(tt.kind, tt.in); !errors.Is(err, tt.want) {
+			t.Errorf("NormalizeOwnerIdentifier(%q) err = %v, want %v", tt.in, err, tt.want)
+		}
+	}
 }
 
 func TestMergeOwnerIdentity_SaltChange(t *testing.T) {

@@ -64,6 +64,26 @@ describe("OwnerIdentifiers", () => {
     expect(screen.getByLabelText("Email address")).toHaveValue("")
   })
 
+  it("shows a localized message for an identifier validation error", async () => {
+    vi.mocked(App.SetOwner).mockRejectedValueOnce("owner-invalid:email:missingAt")
+    const user = userEvent.setup()
+    render(<OwnerIdentifiers />)
+    await user.click(await screen.findByRole("button", { name: "Edit identifiers" }))
+    await user.type(screen.getByLabelText("Email address"), "alex.example.com")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter an email address that contains @.")
+  })
+
+  it("reports a load failure instead of showing not set", async () => {
+    vi.mocked(App.GetOwner).mockRejectedValueOnce("vault is locked")
+    render(<OwnerIdentifiers />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Couldn't load your owner identifiers/)
+    expect(screen.queryByText("Not set")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Edit identifiers" })).not.toBeInTheDocument()
+  })
+
   it("gives each clear checkbox a distinct accessible name", async () => {
     vi.mocked(App.GetOwner).mockResolvedValue(setOwner)
     const user = userEvent.setup()
