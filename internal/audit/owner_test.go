@@ -52,6 +52,7 @@ func TestNormalizeOwnerIdentifier(t *testing.T) {
 		{"composes decomposed accents", OwnerEmployeeID, "rené-1", "rené-1", false},
 		// "カ" + U+3099 COMBINING VOICED SOUND MARK becomes "ガ" (U+30AC).
 		{"composes decomposed kana", OwnerEmployeeID, "ガ-1", "ガ-1", false},
+		{"email lowercased result is NFC when a Greek capital carries ypogegrammeni", OwnerEmail, "\u0386\u0345@example.com", "\u1fb4@example.com", false},
 		{"composes before lowercasing email", OwnerEmail, "RÉNE@example.com", "réne@example.com", false},
 	}
 	for _, tt := range tests {

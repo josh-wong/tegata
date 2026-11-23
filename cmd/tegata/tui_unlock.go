@@ -144,13 +144,17 @@ func loadCredentials(m model) model {
 					cfg.Audit.LedgerVolumeKey = volumeKey
 				}
 			}
-			audit.ApplyOwner(&cfg.Audit, m.vaultMgr.Owner())
 		}
 		m.cfg = cfg
 		m.idleTimeout = cfg.IdleTimeout
 		if cfg.Language != "" {
 			i18n.Init(cfg.Language)
 		}
+	}
+	// Apply the owner even when tegata.toml is unreadable so later compose
+	// label syncs still carry the vault's ownership.
+	if m.vaultMgr != nil {
+		audit.ApplyOwner(&m.cfg.Audit, m.vaultMgr.Owner())
 	}
 
 	return m

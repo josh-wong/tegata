@@ -83,11 +83,13 @@ func (a *App) ownerInfo(o *model.OwnerIdentity) OwnerInfo {
 
 // GetOwner returns the vault owner's identifiers as short hash prefixes.
 func (a *App) GetOwner() (OwnerInfo, error) {
-	if a.vault == nil {
+	// Capture the manager once so a concurrent lock can't nil it mid-call.
+	mgr := a.vault
+	if mgr == nil {
 		return OwnerInfo{}, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
-	return a.ownerInfo(a.vault.Owner()), nil
+	return a.ownerInfo(mgr.Owner()), nil
 }
 
 // SetOwner sets, changes, or clears the vault owner's employee ID and email.
@@ -96,7 +98,9 @@ func (a *App) GetOwner() (OwnerInfo, error) {
 // The change is saved to the vault and then recorded as an
 // owner-identifier-update audit event.
 func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail bool) (OwnerInfo, error) {
-	if a.vault == nil {
+	// Capture the manager once so a concurrent lock can't nil it mid-call.
+	mgr := a.vault
+	if mgr == nil {
 		return OwnerInfo{}, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
@@ -122,9 +126,9 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 	// Nothing entered and nothing cleared is a no-op. Returning early also
 	// avoids reporting a salt change for an edit that keeps every hash.
 	if employeeIDEdit == nil && emailEdit == nil {
-		return a.ownerInfo(a.vault.Owner()), nil
+		return a.ownerInfo(mgr.Owner()), nil
 	}
-	next, changed, err := audit.UpdateOwner(a.vault, a.builder,
+	next, changed, err := audit.UpdateOwner(mgr, a.builder,
 		employeeIDEdit, emailEdit, a.config.Organization.IdentifierSalt)
 	if err != nil {
 		if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {

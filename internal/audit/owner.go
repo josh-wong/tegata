@@ -105,6 +105,12 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 	if !utf8.ValidString(v) {
 		return "", ErrOwnerInvalidUTF8
 	}
+	// Lowercase before NFC: lowercasing can decompose-then-recompose Greek
+	// letters with a combining ypogegrammeni (for example U+0386 + U+0345)
+	// into text that is no longer NFC, so NFC must run last.
+	if kind == OwnerEmail {
+		v = strings.ToLower(v)
+	}
 	v = norm.NFC.String(v)
 	for _, r := range v {
 		if isInvisibleOwnerRune(r) {
@@ -114,11 +120,8 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 	if utf8.RuneCountInString(v) > MaxOwnerIdentifierLen {
 		return "", ErrOwnerTooLong
 	}
-	if kind == OwnerEmail {
-		v = strings.ToLower(v)
-		if !strings.Contains(v, "@") {
-			return "", ErrOwnerEmailMissingAt
-		}
+	if kind == OwnerEmail && !strings.Contains(v, "@") {
+		return "", ErrOwnerEmailMissingAt
 	}
 	return v, nil
 }
