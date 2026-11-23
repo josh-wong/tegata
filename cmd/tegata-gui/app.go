@@ -229,7 +229,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// store it in the vault now. Only rewrite the TOML if vault migration succeeds
 	// to maintain consistency: either both succeed or both fail.
 	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
-		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
+		if vaultErr := mgr.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
 			a.config.Audit.SecretKey = ""
 			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
 		}
@@ -1415,7 +1415,10 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	}
 	a.resetIdle()
 
-	vaultID := a.vault.VaultID()
+	// Capture the manager now: registration finishes in the background, and a
+	// vault lock in the meantime sets a.vault to nil.
+	mgr := a.vault
+	vaultID := mgr.VaultID()
 	dir := filepath.Dir(a.vaultPath)
 
 	u, err := user.Current()
@@ -1470,9 +1473,6 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 				if a.builder != nil {
 					_ = a.builder.Close()
 				}
-				// Capture the manager so a vault lock cannot nil the callback's
-				// target while registration is still running in the background.
-				mgr := a.vault
 				newBuilder.OwnerSource = mgr.Owner
 				// Store event hashes in the vault, as UnlockVault does, so
 				// tegata verify can check events logged in this session.
@@ -1489,7 +1489,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 		return nil
 	}
 
-	_, err = audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, a.vault.Owner(), progress, onRegistered)
+	_, err = audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, mgr.Owner(), progress, onRegistered)
 	if err != nil {
 		return map[string]interface{}{"steps": steps}, err
 	}

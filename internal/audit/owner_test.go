@@ -161,6 +161,51 @@ func TestNormalizeOwnerIdentifier_SentinelErrors(t *testing.T) {
 	}
 }
 
+func TestNormalizeOwnerIdentifier_InvisibleCharacters(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		wantErr error
+	}{
+		{"zero-width space is rejected", "acme\u200bemp", ErrOwnerControlChars},
+		{"interior no-break space is rejected", "acme\u00a0emp", ErrOwnerControlChars},
+		{"ideographic space is rejected", "acme\u3000emp", ErrOwnerControlChars},
+		{"line separator is rejected", "acme\u2028emp", ErrOwnerControlChars},
+		{"zero-width non-joiner is allowed", "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645", nil},
+		{"interior ASCII space is allowed", "acme emp", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NormalizeOwnerIdentifier(OwnerEmployeeID, tt.in)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestOwnerEditNeedsSalt(t *testing.T) {
+	empty, spaces, value := "", "  ", "emp-1"
+	tests := []struct {
+		name             string
+		employeeID, mail *string
+		want             bool
+	}{
+		{"no edit", nil, nil, false},
+		{"clear only", &empty, nil, false},
+		{"whitespace only", &spaces, &spaces, false},
+		{"new employee ID", &value, nil, true},
+		{"clear one and set the other", &empty, &value, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := OwnerEditNeedsSalt(tt.employeeID, tt.mail); got != tt.want {
+				t.Errorf("OwnerEditNeedsSalt = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMergeOwnerIdentity_SaltChange(t *testing.T) {
 	now := time.Now()
 	cur, _ := MergeOwnerIdentity(nil, strPtr(vecEmployeeInput), strPtr("alex@example.com"), "", now)

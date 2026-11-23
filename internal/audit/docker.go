@@ -346,18 +346,18 @@ var labelValuePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 // the compose file. Values that do not match labelValuePattern are left empty
 // rather than written, so a malformed value can never alter the YAML
 // structure. Compose files without placeholders are returned unchanged.
-func rewriteComposeLabels(data []byte, l composeLabels) []byte {
-	set := func(data []byte, key, value string) []byte {
+func rewriteComposeLabels(composeYAML []byte, l composeLabels) []byte {
+	set := func(yaml []byte, key, value string) []byte {
 		if value == "" || !labelValuePattern.MatchString(value) {
-			return data
+			return yaml
 		}
 		placeholder := []byte("  " + key + `: ""`)
-		return bytes.ReplaceAll(data, placeholder, []byte("  "+key+`: "`+value+`"`))
+		return bytes.ReplaceAll(yaml, placeholder, []byte("  "+key+`: "`+value+`"`))
 	}
-	data = set(data, "io.tegata.entity-id", l.EntityID)
-	data = set(data, "io.tegata.owner-hash", l.OwnerHash)
-	data = set(data, "io.tegata.owner-hash-scheme", l.OwnerHashScheme)
-	return data
+	composeYAML = set(composeYAML, "io.tegata.entity-id", l.EntityID)
+	composeYAML = set(composeYAML, "io.tegata.owner-hash", l.OwnerHash)
+	composeYAML = set(composeYAML, "io.tegata.owner-hash-scheme", l.OwnerHashScheme)
+	return composeYAML
 }
 
 // extractComposeFiles walks the provided fs.FS and writes each file to

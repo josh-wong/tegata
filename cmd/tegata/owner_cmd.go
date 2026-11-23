@@ -144,7 +144,7 @@ func runOwnerUpdate(cmd *cobra.Command, employeeID, email *string) error {
 	}
 	dir := vaultDir(vaultPath)
 	cfg, err := config.Load(dir)
-	if err != nil {
+	if err != nil && audit.OwnerEditNeedsSalt(employeeID, email) {
 		return fmt.Errorf("%s: %w", i18n.T("cmd.owner.error.loadConfig"), err)
 	}
 

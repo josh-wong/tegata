@@ -107,9 +107,7 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 	}
 	v = norm.NFC.String(v)
 	for _, r := range v {
-		// Cf covers invisible characters such as U+200B and U+FEFF that
-		// look identical on screen but change the hash.
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		if isInvisibleOwnerRune(r) {
 			return "", ErrOwnerControlChars
 		}
 	}
@@ -123,6 +121,29 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 		}
 	}
 	return v, nil
+}
+
+// isInvisibleOwnerRune reports whether r is a control character, an invisible
+// format character such as U+200B or U+FEFF, or a non-ASCII space such as
+// U+00A0 or U+3000. These look like nothing or a plain space on screen but
+// change the hash. U+200C and U+200D are allowed because Persian, Indic, and
+// other scripts need them to spell ordinary names correctly.
+func isInvisibleOwnerRune(r rune) bool {
+	if r == '\u200c' || r == '\u200d' {
+		return false
+	}
+	if r == ' ' {
+		return false
+	}
+	return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zs, unicode.Zl, unicode.Zp)
+}
+
+// OwnerEditNeedsSalt reports whether applying the edit hashes a new value, and
+// so depends on the organization salt. Keeping a hash or clearing one does
+// not.
+func OwnerEditNeedsSalt(employeeID, email *string) bool {
+	hasValue := func(v *string) bool { return v != nil && strings.TrimSpace(*v) != "" }
+	return hasValue(employeeID) || hasValue(email)
 }
 
 // HashOwnerIdentifier hashes an already-normalized identifier. When salt is

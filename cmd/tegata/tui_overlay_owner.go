@@ -59,14 +59,15 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.error.vaultLocked"), false
 				return m, nil
 			}
+			idIn := ownerFieldInput(m.settingsInput1.Value())
+			emailIn := ownerFieldInput(m.settingsInput2.Value())
 			// With an unreadable tegata.toml the organization salt is unknown, so
-			// a save would hash unsalted and never match the organization's hashes.
-			if m.configLoadFailed {
+			// hashing a new value would never match the organization's hashes.
+			// Clears need no salt and still go through.
+			if m.configLoadFailed && audit.OwnerEditNeedsSalt(idIn, emailIn) {
 				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.configUnreadable"), false
 				return m, nil
 			}
-			idIn := ownerFieldInput(m.settingsInput1.Value())
-			emailIn := ownerFieldInput(m.settingsInput2.Value())
 			if idIn == nil && emailIn == nil {
 				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.unchanged"), true
 				return m, nil

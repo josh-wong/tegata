@@ -100,12 +100,6 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 		return OwnerInfo{}, fmt.Errorf("vault is locked")
 	}
 	a.resetIdle()
-	// With an unreadable tegata.toml the organization salt is unknown, so a
-	// save would hash unsalted and never match the organization's hashes.
-	if a.configLoadFailed {
-		return OwnerInfo{}, fmt.Errorf("%s", ErrOwnerConfigUnreadableCode)
-	}
-
 	field := func(v string, clear bool) *string {
 		if clear {
 			empty := ""
@@ -119,6 +113,12 @@ func (a *App) SetOwner(employeeID, email string, clearEmployeeID, clearEmail boo
 		return &v
 	}
 	employeeIDEdit, emailEdit := field(employeeID, clearEmployeeID), field(email, clearEmail)
+	// With an unreadable tegata.toml the organization salt is unknown, so
+	// hashing a new value would never match the organization's hashes. Clears
+	// need no salt and still go through.
+	if a.configLoadFailed && audit.OwnerEditNeedsSalt(employeeIDEdit, emailEdit) {
+		return OwnerInfo{}, fmt.Errorf("%s", ErrOwnerConfigUnreadableCode)
+	}
 	// Nothing entered and nothing cleared is a no-op. Returning early also
 	// avoids reporting a salt change for an edit that keeps every hash.
 	if employeeIDEdit == nil && emailEdit == nil {
