@@ -1299,8 +1299,8 @@ Go libraries referenced in this document.
 
 ScalarDL documentation.
 
-- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/latest/)
-- [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/latest/getting-started-hashstore/)
-- [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/latest/how-to-write-applications-with-hashstore/)
+- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/3.13/)
+- [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/3.13/getting-started-hashstore/)
+- [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/3.13/how-to-write-applications-with-hashstore/)
 - [ScalarDL GitHub Repository](https://github.com/scalar-labs/scalardl)
 - [ScalarDL Protobuf Definitions](https://github.com/scalar-labs/scalardl/tree/master/rpc/src/main/proto)
