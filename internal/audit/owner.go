@@ -13,6 +13,7 @@ import (
 
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/pkg/model"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Owner hash schemes recorded in model.OwnerIdentity.HashScheme and in audit
@@ -23,7 +24,8 @@ const (
 	// organization salt is configured.
 	OwnerHashSchemeSHA256 = "sha256"
 	// OwnerHashSchemeHMACSHA256 is HMAC-SHA256(key=salt, msg=normalized
-	// identifier), used when audit.owner_identifier_salt is set.
+	// identifier), used when identifier_salt is set in the [organization]
+	// section of tegata.toml.
 	OwnerHashSchemeHMACSHA256 = "hmac-sha256"
 )
 
@@ -53,8 +55,11 @@ const (
 )
 
 // NormalizeOwnerIdentifier returns the canonical form of an identifier that is
-// hashed. Surrounding whitespace is trimmed for both kinds. Email addresses are
-// lowercased; employee IDs keep their case because some organizations issue
+// hashed. Surrounding whitespace is trimmed for both kinds, and the value is
+// converted to Unicode Normalization Form C (NFC) so that composed and
+// decomposed spellings of the same characters, which differ by input method
+// and operating system, hash identically. Email addresses are lowercased;
+// employee IDs keep their case because some organizations issue
 // case-sensitive IDs. No organization-specific format is enforced. An empty
 // result means "not set". Values that contain control characters or exceed
 // MaxOwnerIdentifierLen are rejected so that hashes are reproducible from what
@@ -67,6 +72,7 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 	if !utf8.ValidString(v) {
 		return "", errors.New("identifier is not valid UTF-8")
 	}
+	v = norm.NFC.String(v)
 	for _, r := range v {
 		if unicode.IsControl(r) {
 			return "", errors.New("identifier must not contain control characters")
@@ -114,11 +120,11 @@ func ownerScheme(salt string) (scheme, saltID string) {
 
 // hashField normalizes and hashes one raw identifier. Empty input yields "".
 func hashField(kind OwnerIdentifierKind, raw, salt string) (string, error) {
-	norm, err := NormalizeOwnerIdentifier(kind, raw)
-	if err != nil || norm == "" {
+	normalized, err := NormalizeOwnerIdentifier(kind, raw)
+	if err != nil || normalized == "" {
 		return "", err
 	}
-	return HashOwnerIdentifier(norm, salt), nil
+	return HashOwnerIdentifier(normalized, salt), nil
 }
 
 // MergeOwnerIdentity applies an edit to the current identity and returns the

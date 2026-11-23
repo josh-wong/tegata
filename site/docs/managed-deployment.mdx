@@ -70,7 +70,7 @@ Users set identifiers in any of the three interfaces:
 - **TUI:** **Settings** > **Owner identifiers**.
 - **GUI:** **Settings** > **Owner identifiers** > **Edit identifiers**.
 
-Tegata doesn't enforce an organization-specific format. It trims surrounding spaces from both values, lowercases email addresses, and keeps the case of employee IDs. Values can be up to 256 characters and can't contain control characters. Email addresses must contain `@`.
+Tegata doesn't enforce an organization-specific format. It trims surrounding spaces from both values, converts them to Unicode Normalization Form C (NFC), lowercases email addresses, and keeps the case of employee IDs. NFC makes an accented or kana character hash the same way whether the user's input method composes it as one character or as a base character followed by a combining mark. Values can be up to 256 characters and can't contain control characters. Email addresses must contain `@`.
 
 :::tip[Prefix identifiers in a shared stack]
 
@@ -106,7 +106,7 @@ The following table shows where each form of an identifier appears.
 
 ## Map vaults and containers to people
 
-To find a person's hash, compute it from the identifier you already hold, using the same normalization Tegata uses (trimmed, and lowercase for email addresses).
+To find a person's hash, compute it from the identifier you already hold, using the same normalization Tegata uses (trimmed, in NFC, and lowercase for email addresses). Identifiers that contain only ASCII characters are already in NFC. For other identifiers, convert the value to NFC before you hash it, for example with `python3 -c 'import sys, unicodedata; print(unicodedata.normalize("NFC", sys.argv[1]), end="")' "$ID" | sha256sum`.
 
 ```bash title="Without an organization salt"
 printf %s "acme-emp-12345" | sha256sum

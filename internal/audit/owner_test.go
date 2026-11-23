@@ -47,6 +47,11 @@ func TestNormalizeOwnerIdentifier(t *testing.T) {
 		{"accepts max length", OwnerEmployeeID, strings.Repeat("a", MaxOwnerIdentifierLen), strings.Repeat("a", MaxOwnerIdentifierLen), false},
 		{"rejects over max length", OwnerEmployeeID, strings.Repeat("a", MaxOwnerIdentifierLen+1), "", true},
 		{"counts characters not bytes", OwnerEmployeeID, strings.Repeat("社", MaxOwnerIdentifierLen), strings.Repeat("社", MaxOwnerIdentifierLen), false},
+		// "e" + U+0301 COMBINING ACUTE ACCENT (NFD) becomes U+00E9 (NFC).
+		{"composes decomposed accents", OwnerEmployeeID, "rené-1", "rené-1", false},
+		// "カ" + U+3099 COMBINING VOICED SOUND MARK becomes "ガ" (U+30AC).
+		{"composes decomposed kana", OwnerEmployeeID, "ガ-1", "ガ-1", false},
+		{"composes before lowercasing email", OwnerEmail, "RÉNE@example.com", "réne@example.com", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
