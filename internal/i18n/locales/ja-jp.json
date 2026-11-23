@@ -287,7 +287,7 @@
   "cmd.owner.error.field.employeeID": "社員 ID",
   "cmd.owner.error.field.email": "メールアドレス",
   "cmd.owner.error.invalidUTF8": "{{.Field}}が有効な UTF-8 ではありません",
-  "cmd.owner.error.controlChars": "{{.Field}}に制御文字を含めることはできません",
+  "cmd.owner.error.controlChars": "{{.Field}}に制御文字や不可視文字を含めることはできません",
   "cmd.owner.error.tooLong": "{{.Field}}は {{.Max}} 文字以内にしてください",
   "cmd.owner.error.emailMissingAt": "メールアドレスには @ を含める必要があります",
   "cmd.verify.short": "監査ログのハッシュチェーンの整合性を検証する",

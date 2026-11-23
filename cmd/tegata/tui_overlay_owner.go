@@ -41,7 +41,7 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Blur()
 			m.settingsInput2.Reset()
 			m.settingsInput2.Blur()
-			m.settingsMsg = ""
+			m.settingsMsg, m.settingsMsgOK = "", false
 			return m, nil
 
 		case tea.KeyTab:
@@ -56,13 +56,13 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyEnter:
 			if m.vaultMgr == nil {
-				m.settingsMsg = i18n.T("tui.settings.error.vaultLocked")
+				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.error.vaultLocked"), false
 				return m, nil
 			}
 			idIn := ownerFieldInput(m.settingsInput1.Value())
 			emailIn := ownerFieldInput(m.settingsInput2.Value())
 			if idIn == nil && emailIn == nil {
-				m.settingsMsg = i18n.T("tui.settings.owner.unchanged")
+				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.unchanged"), true
 				return m, nil
 			}
 			next, changed, err := audit.UpdateOwner(m.vaultMgr, m.builder, idIn, emailIn, m.cfg.Organization.IdentifierSalt)
@@ -76,18 +76,18 @@ func (m model) updateSettingsOwner(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsInput1.Focus()
 			if err != nil {
 				if tegerrors.Is(err, audit.ErrOwnerSaltChanged) {
-					m.settingsMsg = i18n.T("tui.settings.owner.saltChanged")
+					m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.saltChanged"), false
 				} else {
-					m.settingsMsg = i18n.Tf("tui.settings.owner.saveFailed", map[string]any{"Err": ownerErrorMessage(err)})
+					m.settingsMsg, m.settingsMsgOK = i18n.Tf("tui.settings.owner.saveFailed", map[string]any{"Err": ownerErrorMessage(err)}), false
 				}
 				return m, nil
 			}
 			if !changed {
-				m.settingsMsg = i18n.T("tui.settings.owner.unchanged")
+				m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.unchanged"), true
 				return m, nil
 			}
 			audit.ApplyOwner(&m.cfg.Audit, next)
-			m.settingsMsg = i18n.T("tui.settings.owner.updated")
+			m.settingsMsg, m.settingsMsgOK = i18n.T("tui.settings.owner.updated"), true
 			return m, nil
 		}
 	}

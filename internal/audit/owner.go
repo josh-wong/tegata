@@ -50,7 +50,7 @@ var ErrOwnerSave = errors.New("saving owner identifiers")
 // with errors.Is to show a localized message.
 var (
 	ErrOwnerInvalidUTF8    = errors.New("identifier is not valid UTF-8")
-	ErrOwnerControlChars   = errors.New("identifier must not contain control characters")
+	ErrOwnerControlChars   = errors.New("identifier must not contain control or invisible characters")
 	ErrOwnerTooLong        = fmt.Errorf("identifier must be at most %d characters", MaxOwnerIdentifierLen)
 	ErrOwnerEmailMissingAt = errors.New("email address must contain @")
 )

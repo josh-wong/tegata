@@ -287,7 +287,7 @@
   "cmd.owner.error.field.employeeID": "the employee ID",
   "cmd.owner.error.field.email": "the email address",
   "cmd.owner.error.invalidUTF8": "{{.Field}} is not valid UTF-8",
-  "cmd.owner.error.controlChars": "{{.Field}} must not contain control characters",
+  "cmd.owner.error.controlChars": "{{.Field}} must not contain control or invisible characters",
   "cmd.owner.error.tooLong": "{{.Field}} must be at most {{.Max}} characters",
   "cmd.owner.error.emailMissingAt": "the email address must contain @",
   "cmd.verify.short": "Verify hash-chain integrity of the audit log",

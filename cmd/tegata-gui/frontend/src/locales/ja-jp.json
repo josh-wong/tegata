@@ -280,12 +280,12 @@
       "ownerInvalid": {
         "employeeId": {
           "invalidUtf8": "社員 ID に無効な文字が含まれています。",
-          "controlChars": "社員 ID に制御文字を含めることはできません。",
+          "controlChars": "社員 ID に制御文字や不可視文字を含めることはできません。",
           "tooLong": "社員 ID は {{max}} 文字以内で入力してください。"
         },
         "email": {
           "invalidUtf8": "メールアドレスに無効な文字が含まれています。",
-          "controlChars": "メールアドレスに制御文字を含めることはできません。",
+          "controlChars": "メールアドレスに制御文字や不可視文字を含めることはできません。",
           "tooLong": "メールアドレスは {{max}} 文字以内で入力してください。",
           "missingAt": "@ を含むメールアドレスを入力してください。"
         }

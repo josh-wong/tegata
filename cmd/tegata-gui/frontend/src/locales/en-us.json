@@ -280,12 +280,12 @@
       "ownerInvalid": {
         "employeeId": {
           "invalidUtf8": "The employee ID contains characters that aren't valid text.",
-          "controlChars": "The employee ID can't contain control characters.",
+          "controlChars": "The employee ID can't contain control or invisible characters.",
           "tooLong": "The employee ID can't be longer than {{max}} characters."
         },
         "email": {
           "invalidUtf8": "The email address contains characters that aren't valid text.",
-          "controlChars": "The email address can't contain control characters.",
+          "controlChars": "The email address can't contain control or invisible characters.",
           "tooLong": "The email address can't be longer than {{max}} characters.",
           "missingAt": "Enter an email address that contains @."
         }

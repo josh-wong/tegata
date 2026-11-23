@@ -287,9 +287,12 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// Wire OnHashStored so each submitted audit event's hash is persisted to
 	// the vault for independent verification (D-15).
 	if a.builder != nil {
-		a.builder.OwnerSource = a.vault.Owner
+		// Capture the manager so a later lock (a.vault = nil) can't make a
+		// queued event's callback dereference nil.
+		mgr := a.vault
+		a.builder.OwnerSource = mgr.Owner
 		a.builder.OnHashStored = func(eventID, hashValue string) {
-			if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 				slog.Error("failed to store audit hash in vault", "err", err)
 			}
 		}
