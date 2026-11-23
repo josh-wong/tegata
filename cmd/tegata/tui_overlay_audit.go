@@ -15,6 +15,7 @@ import (
 	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/vault"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
 // auditHistoryMsg carries the result of an async history fetch.
@@ -450,8 +451,10 @@ func (m model) viewAuditVerify() string {
 // auditStartCmd creates a tea.Cmd that runs Docker audit setup asynchronously.
 // cfg is the full Config (not just AuditConfig) — needed for vaultDir.
 // vaultID is the vault's stable UUID (per D-04), captured at unlock time
-// from Manager.VaultID() and stored in model.vaultID.
-func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
+// from Manager.VaultID() and stored in model.vaultID. owner is the vault's
+// owner identity (may be nil); its hash is written to the container labels
+// and carried in the returned config.
+func auditStartCmd(cfg config.Config, vaultPath, vaultID string, owner *pkgmodel.OwnerIdentity) tea.Cmd {
 	return func() tea.Msg {
 		vaultDir := filepath.Dir(vaultPath)
 
@@ -471,7 +474,7 @@ func auditStartCmd(cfg config.Config, vaultPath, vaultID string) tea.Cmd {
 			steps = append(steps, msg)
 		}
 
-		newCfg, err := audit.SetupStack(bundleFS, composeDir, vaultID, progress, nil)
+		newCfg, err := audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, owner, progress, nil)
 		if err != nil {
 			return auditStartMsg{steps: steps, err: err}
 		}
