@@ -266,8 +266,12 @@ func TestUpdateOwner_SaveFailureLogsNothing(t *testing.T) {
 	b, _ := newTestBuilder(t, sub)
 	store := &memOwnerStore{saveErr: errors.New("disk full")}
 
-	if _, _, err := UpdateOwner(store, b, strPtr(vecEmployeeInput), nil, ""); err == nil {
-		t.Fatal("expected save error")
+	_, _, err := UpdateOwner(store, b, strPtr(vecEmployeeInput), nil, "")
+	if !errors.Is(err, ErrOwnerSave) || !errors.Is(err, store.saveErr) {
+		t.Fatalf("err = %v, want ErrOwnerSave wrapping the store error", err)
+	}
+	if !strings.HasPrefix(err.Error(), "saving owner identifiers: ") {
+		t.Errorf("err message = %q", err.Error())
 	}
 	if sub.CallCount() != 0 {
 		t.Error("an event must not be logged for a change that was not saved")

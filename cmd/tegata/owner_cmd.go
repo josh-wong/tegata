@@ -178,14 +178,15 @@ func runOwnerUpdate(cmd *cobra.Command, employeeID, email *string) error {
 }
 
 // updateOwner wraps audit.UpdateOwner and maps validation errors to
-// ErrInvalidInput so the CLI exits with the usage error code.
+// ErrInvalidInput so the CLI exits with the usage error code. Vault save
+// failures are returned unchanged so they keep their own exit code.
 func updateOwner(mgr *vault.Manager, builder *audit.EventBuilder, employeeID, email *string, salt string) (*pkgmodel.OwnerIdentity, bool, error) {
 	next, changed, err := audit.UpdateOwner(mgr, builder, employeeID, email, salt)
 	if err != nil {
 		if errors.Is(err, audit.ErrOwnerSaltChanged) {
 			return nil, false, fmt.Errorf("%s: %w", i18n.T("cmd.owner.error.saltChanged"), errors.ErrInvalidInput)
 		}
-		if errors.Is(err, errors.ErrVaultLocked) {
+		if errors.Is(err, audit.ErrOwnerSave) || errors.Is(err, errors.ErrVaultLocked) {
 			return nil, false, err
 		}
 		return nil, false, fmt.Errorf("%s: %w", err.Error(), errors.ErrInvalidInput)

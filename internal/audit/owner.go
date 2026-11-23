@@ -41,6 +41,11 @@ const saltIDMessage = "tegata-owner-salt-id-v1"
 // effect. The user must re-enter every identifier that is still set.
 var ErrOwnerSaltChanged = errors.New("the identifier salt has changed since the identifiers were set; re-enter both the employee ID and the email address")
 
+// ErrOwnerSave wraps the error returned by UpdateOwner when the new identity
+// could not be saved to the vault. It lets callers tell a storage failure
+// apart from invalid identifier input.
+var ErrOwnerSave = errors.New("saving owner identifiers")
+
 // OwnerIdentifierKind distinguishes the two supported identifier inputs. The
 // kind controls normalization only; both kinds share the same hash scheme.
 type OwnerIdentifierKind int
@@ -216,7 +221,7 @@ func UpdateOwner(store OwnerStore, b *EventBuilder, employeeID, email *string, s
 		return old, false, nil
 	}
 	if err := store.SetOwner(next); err != nil {
-		return nil, false, fmt.Errorf("saving owner identifiers: %w", err)
+		return nil, false, fmt.Errorf("%w: %w", ErrOwnerSave, err)
 	}
 	if b != nil {
 		// LogOwnerUpdate never fails the caller; ledger errors queue the event.
