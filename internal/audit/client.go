@@ -600,8 +600,13 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 				}, nil
 			}
 			// owner_hash is absent for events without an owner, and for events
-			// submitted before owner attribution existed.
-			if oh, ok := record.Metadata["owner_hash"].(string); ok && oh != evt.OwnerHash() {
+			// submitted before owner attribution existed. When the authenticated
+			// content names an owner, the field must be present and match, so
+			// deleting it is reported just like editing it.
+			oh, present := record.Metadata["owner_hash"]
+			ohStr, isStr := oh.(string)
+			if (present && (!isStr || ohStr != evt.OwnerHash())) ||
+				(!present && evt.OwnerHash() != "") {
 				return &ValidationResult{
 					Valid:       false,
 					ErrorDetail: "owner field has been altered",

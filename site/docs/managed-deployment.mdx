@@ -120,7 +120,7 @@ On macOS, use `shasum -a 256` instead of `sha256sum`.
 
 ### In the ledger
 
-Every audit event that a vault with an owner records carries the owner hashes in its authenticated content (`owner_employee_id_hash`, `owner_email_hash`, and `owner_hash_scheme`). The primary hash is also stored as the top-level `owner_hash` metadata field, so you can search for it without parsing the content. `tegata verify` checks `owner_hash` against the authenticated content, so an attempt to reassign an event to someone else by editing that field is reported as tampering.
+Every audit event that a vault with an owner records carries the owner hashes in its authenticated content (`owner_employee_id_hash`, `owner_email_hash`, and `owner_hash_scheme`). The primary hash is also stored as the top-level `owner_hash` metadata field, so you can search for it without parsing the content. `tegata verify` checks `owner_hash` against the authenticated content, so an attempt to reassign an event to someone else by editing that field, or to hide it from owner searches by deleting the field, is reported as tampering.
 
 In a shared stack, each entity ID maps to one vault. To build an ownership map, read the `owner_hash` of an entity's most recent events.
 

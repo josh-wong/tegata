@@ -133,3 +133,28 @@ func TestClient_Validate_OwnerHashInjected(t *testing.T) {
 		t.Error("expected injected owner_hash to be detected")
 	}
 }
+
+// TestClient_Validate_OwnerHashRemoved verifies that deleting owner_hash from
+// an event whose authenticated content names an owner is detected, so the
+// event cannot be hidden from owner_hash queries.
+func TestClient_Validate_OwnerHashRemoved(t *testing.T) {
+	content, hashValue := ownerContent(t)
+	res := validateWithMetadata(t, hashValue, map[string]interface{}{
+		"content": content, "operation": "hotp", "label_hash": "lhash",
+	})
+	if res.Valid || !strings.Contains(res.ErrorDetail, "owner field has been altered") {
+		t.Errorf("expected removed owner_hash to be detected, got valid=%v detail=%q", res.Valid, res.ErrorDetail)
+	}
+}
+
+// TestClient_Validate_OwnerHashWrongType verifies that replacing owner_hash
+// with a non-string value is detected.
+func TestClient_Validate_OwnerHashWrongType(t *testing.T) {
+	content, hashValue := ownerContent(t)
+	res := validateWithMetadata(t, hashValue, map[string]interface{}{
+		"content": content, "operation": "hotp", "label_hash": "lhash", "owner_hash": 42,
+	})
+	if res.Valid {
+		t.Error("expected non-string owner_hash to be detected")
+	}
+}
