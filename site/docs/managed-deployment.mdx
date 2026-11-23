@@ -82,12 +82,14 @@ If several business units share one ledger, two people can have the same employe
 
 Tegata never stores the raw employee ID or email address. When a user saves an identifier, Tegata normalizes it, hashes it, stores only the hash in the encrypted vault, and discards the raw value.
 
-By default, the hash is SHA-256 of the normalized value. Hashing hides identifiers from casual viewing, but anyone with a list of candidate IDs or emails can recompute the hashes and match them. To prevent someone who obtains the ledger database from matching it against your staff directory, configure an organization salt. Add it to `tegata.toml` on every user's drive:
+By default, the hash is SHA-256 of the normalized value. Hashing hides identifiers from casual viewing, but anyone with a list of candidate IDs or emails can recompute the hashes and match them. To prevent someone who obtains the ledger database from matching it against your staff directory, configure an organization salt. Set `identifier_salt` in the `[organization]` section of `tegata.toml` on every user's drive:
 
 ```toml
 [organization]
 identifier_salt = "<random value from your secrets manager>"
 ```
+
+Vaults created by Tegata versions that support owner identifiers already contain an `[organization]` section with `identifier_salt` commented out. In that case, uncomment the line and set the value; don't add a second `[organization]` header. A duplicate section makes `tegata.toml` invalid: the CLI stops with a `parsing tegata.toml` error, and the GUI falls back to default settings, which means the salt and the audit settings are ignored. After editing the file, run `tegata config show`: if every value is marked `(default)`, the file couldn't be parsed.
 
 When a salt is set, Tegata uses HMAC-SHA256 with the salt as the key. Every user must use the same salt so that hashes are comparable. The salt is never sent to the ledger. Tegata never rewrites the `[organization]` section, so running ledger setup doesn't remove it.
 
