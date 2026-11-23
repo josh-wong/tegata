@@ -259,6 +259,38 @@
       "sectionAudit": "監査",
       "autoStartLedger": "台帳サーバーを自動起動",
       "autoStartDescription": "ボールトのロックを解除すると、監査台帳を自動的に起動します。",
+      "sectionOwner": "所有者識別子",
+      "ownerDescription": "マネージド環境で監査イベントをあなたに帰属させます。ハッシュのみが保存されるため、入力した値を再表示することはできません。",
+      "ownerEmployeeId": "社員 ID (推奨)",
+      "ownerEmail": "メールアドレス",
+      "ownerCurrent": "現在: {{hash}}",
+      "ownerNotSet": "未設定",
+      "ownerKeepPlaceholder": "空欄のままにすると現在の値が維持されます",
+      "ownerClear": "消去",
+      "ownerClearEmployeeId": "社員 ID を消去",
+      "ownerClearEmail": "メールアドレスを消去",
+      "ownerEdit": "識別子を編集",
+      "ownerPrefixTip": "共有環境では、ID に組織コードを付けてください (例: acme-emp-12345)。",
+      "ownerSalted": "組織のソルトが設定されています。識別子は HMAC-SHA256 でハッシュ化されます。",
+      "ownerSaved": "所有者識別子を保存しました。",
+      "ownerUnchanged": "所有者識別子は変更されていません。",
+      "ownerSaveFailed": "所有者識別子を保存できませんでした",
+      "ownerSaltChanged": "組織のソルトが変更されました。両方の識別子を再入力するか、使用しなくなった方を消去してください。",
+      "ownerConfigUnreadable": "tegata.toml を読み込めないため、組織のソルトが不明です。ファイルを修正してから、もう一度ボールトのロックを解除してください。",
+      "ownerLoadFailed": "所有者識別子を読み込めませんでした。設定を閉じて開き直してください。",
+      "ownerInvalid": {
+        "employeeId": {
+          "invalidUtf8": "社員 ID に無効な文字が含まれています。",
+          "controlChars": "社員 ID に制御文字や不可視文字を含めることはできません。",
+          "tooLong": "社員 ID は {{max}} 文字以内で入力してください。"
+        },
+        "email": {
+          "invalidUtf8": "メールアドレスに無効な文字が含まれています。",
+          "controlChars": "メールアドレスに制御文字や不可視文字を含めることはできません。",
+          "tooLong": "メールアドレスは {{max}} 文字以内で入力してください。",
+          "missingAt": "@ を含むメールアドレスを入力してください。"
+        }
+      },
       "sectionUpdates": "アップデート",
       "updateAvailable": "バージョン {{version}} が利用可能です。",
       "download": "ダウンロード",

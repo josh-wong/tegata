@@ -539,9 +539,9 @@ All questions resolved as of March 12, 2026. Decisions and rationale are documen
 ## 13. References
 
 - [ScalarDL GitHub Repository](https://github.com/scalar-labs/scalardl) (Apache 2.0 + Commercial dual license)
-- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/latest/)
-  - [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/latest/getting-started-hashstore/)
-  - [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/latest/how-to-write-applications-with-hashstore/)
+- [ScalarDL Documentation](https://scalardl.scalar-labs.com/docs/3.13/)
+  - [Get Started with ScalarDL HashStore](https://scalardl.scalar-labs.com/docs/3.13/getting-started-hashstore/)
+  - [Write a ScalarDL Application with the HashStore Abstraction](https://scalardl.scalar-labs.com/docs/3.13/how-to-write-applications-with-hashstore/)
 - [RFC 6238 – TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
 - [RFC 4226 – HOTP](https://datatracker.ietf.org/doc/html/rfc4226)
 - [Argon2 Reference](https://github.com/P-H-C/phc-winner-argon2)

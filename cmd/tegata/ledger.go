@@ -227,6 +227,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 			cfg.Audit.SecretKey = secretKey
 			defer func() { cfg.Audit.SecretKey = "" }()
 		}
+		audit.ApplyOwner(&cfg.Audit, mgr.Owner())
 		return audit.EnsureStack(cfg.Audit, bundleFS, progressFn)
 	}
 
@@ -265,7 +266,7 @@ func runLedgerStart(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	if _, err := audit.SetupStack(bundleFS, composeDir, vaultID, progressFn, onRegistered); err != nil {
+	if _, err := audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, mgr.Owner(), progressFn, onRegistered); err != nil {
 		return err
 	}
 

@@ -24,6 +24,8 @@ export const App = {
   PickImportFile: vi.fn().mockResolvedValue(""),
   ImportVaultFromFile: vi.fn().mockResolvedValue(null),
   ChangePassphrase: vi.fn().mockResolvedValue(undefined),
+  GetOwner: vi.fn().mockResolvedValue({ employeeIdHash: "", emailHash: "", hashScheme: "", updatedAt: "", saltConfigured: false, changed: false }),
+  SetOwner: vi.fn().mockResolvedValue({ employeeIdHash: "a1b2c3d4e5f6", emailHash: "", hashScheme: "sha256", updatedAt: "2026-11-22T00:00:00Z", saltConfigured: false, changed: true }),
   VerifyRecoveryKey: vi.fn().mockResolvedValue(true),
   GetVersion: vi.fn().mockResolvedValue("1.0.0"),
   GetConfig: vi.fn().mockResolvedValue({}),

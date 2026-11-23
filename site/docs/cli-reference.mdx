@@ -216,7 +216,7 @@ Tegata prompts for your vault passphrase to resolve label hashes to human-readab
 
 **Table output columns:** Operation, Label (resolved from hash), Timestamp (UTC), Hash (truncated).
 
-**JSON fields per record:** `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), `hash_value`.
+**JSON fields per record:** `object_id`, `operation`, `label_hash`, `timestamp` (Unix seconds), `hash_value`, and `owner_hash` (the primary owner identifier hash, present only for events recorded while an owner identifier was set).
 
 **Examples:**
 
@@ -334,6 +334,50 @@ tegata list
 ```bash title="Filter by tag"
 tegata list --tag work
 ```
+
+### `tegata owner`
+
+Manage the employee ID and email address that attribute this vault's audit events to you in a managed multi-user deployment. Tegata stores only hashes of these values in the encrypted vault, and records each change as an `owner-identifier-update` audit event. For how administrators use these identifiers, see [Deploy audit logging for multiple users](managed-deployment.mdx).
+
+**Usage:** `tegata owner <SUBCOMMAND> [FLAGS]`
+
+**Subcommands:**
+
+| Subcommand | Description                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `show`     | Show the first 12 characters of each stored hash, the primary identifier, the hash scheme, and when the identifiers were last updated. |
+| `set`      | Set or change the employee ID, email address, or both. Without flags, prompts for each value; a blank answer keeps the current value.  |
+| `clear`    | Clear the employee ID, email address, or both. Without flags, clears both.                                                             |
+
+**Flags for `tegata owner set`:**
+
+| Flag            | Type   | Default | Description                                                              |
+| --------------- | ------ | ------- | ------------------------------------------------------------------------ |
+| `--employee-id` | string | (none)  | Employee ID or organization-issued UUID. Recommended primary identifier. |
+| `--email`       | string | (none)  | Email address.                                                           |
+
+**Flags for `tegata owner clear`:**
+
+| Flag            | Type | Default | Description                   |
+| --------------- | ---- | ------- | ----------------------------- |
+| `--employee-id` | bool | `false` | Clear only the employee ID.   |
+| `--email`       | bool | `false` | Clear only the email address. |
+
+**Examples:**
+
+```bash title="Enter identifiers at a prompt"
+tegata owner set
+```
+
+```bash title="Set identifiers in a provisioning script"
+tegata owner set --employee-id acme-emp-12345 --email alex@example.com
+```
+
+```bash title="Remove the email address"
+tegata owner clear --email
+```
+
+Values passed as flags can be saved in your shell history. Prefer the interactive prompt unless you are scripting provisioning. If `[organization] identifier_salt` is set in `tegata.toml`, the values are hashed with HMAC-SHA256 using that salt instead of SHA-256.
 
 ### `tegata remove`
 

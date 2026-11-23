@@ -163,8 +163,9 @@ Each event record stores the following fields.
 - **Label hash.** A SHA-256 hash of the credential label, not the plaintext label
 - **Timestamp.** Unix seconds (UTC)
 - **Event hash.** HMAC-SHA256 of the event data, chained to the previous event
+- **Owner identifier hashes.** Only when you set an owner identifier: hashes of your employee ID and email address. See [Deploy audit logging for multiple users](managed-deployment.mdx).
 
-Plaintext credential names, secrets, generated codes, and vault passphrases are never written to the audit log.
+Plaintext credential names, secrets, generated codes, vault passphrases, employee IDs, and email addresses are never written to the audit log.
 
 ### What `tegata verify` proves
 

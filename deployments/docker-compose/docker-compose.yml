@@ -1,8 +1,21 @@
 name: tegata-ledger
 
+# Ownership labels applied to every Tegata-managed container so administrators
+# can map containers to a vault and its owner with, for example,
+#   docker ps --filter label=io.tegata.owner-hash=<hash>
+# Tegata fills in the empty values when it writes the per-vault copy of this
+# file. The owner hash is the vault owner's primary identifier hash (see
+# `tegata owner`), never a raw employee ID or email address.
+x-tegata-labels: &tegata-labels
+  io.tegata.managed: "true"
+  io.tegata.entity-id: ""
+  io.tegata.owner-hash: ""
+  io.tegata.owner-hash-scheme: ""
+
 services:
   postgres:
     image: postgres:15-alpine
+    labels: *tegata-labels
     environment:
       POSTGRES_DB: scalardl
       POSTGRES_USER: scalardl
@@ -19,6 +32,7 @@ services:
 
   scalardl-schema-loader:
     image: ghcr.io/scalar-labs/scalardl-schema-loader:3.13.0
+    labels: *tegata-labels
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +50,7 @@ services:
   # and registers it in the ScalarDB metadata table.
   scalardl-coordinator-schema:
     image: postgres:15-alpine
+    labels: *tegata-labels
     depends_on:
       scalardl-schema-loader:
         condition: service_completed_successfully
@@ -63,6 +78,7 @@ services:
 
   scalardl-ledger:
     image: ghcr.io/scalar-labs/scalardl-ledger:3.13.0
+    labels: *tegata-labels
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +105,7 @@ services:
   # all predefined contracts in one step.
   scalardl-contract-registration:
     image: eclipse-temurin:17-jre-alpine
+    labels: *tegata-labels
     depends_on:
       scalardl-ledger:
         condition: service_started

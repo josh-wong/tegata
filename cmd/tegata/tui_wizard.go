@@ -13,6 +13,7 @@ import (
 	"github.com/josh-wong/tegata/internal/crypto"
 	"github.com/josh-wong/tegata/internal/i18n"
 	"github.com/josh-wong/tegata/internal/vault"
+	pkgmodel "github.com/josh-wong/tegata/pkg/model"
 )
 
 // createVaultResultMsg is returned by createVaultCmd when the async vault
@@ -450,7 +451,11 @@ func (m model) updateWizardAuditOptIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.auditMsg = ""
 			m.lastActivity = time.Now()
 			m.state = stateOverlayAudit
-			return m, tea.Batch(tickCmd(), auditStartCmd(m.cfg, m.vaultPath, m.vaultID))
+			var owner *pkgmodel.OwnerIdentity
+			if m.vaultMgr != nil {
+				owner = m.vaultMgr.Owner()
+			}
+			return m, tea.Batch(tickCmd(), auditStartCmd(m.cfg, m.vaultPath, m.vaultID, owner))
 		}
 	}
 	return m, nil

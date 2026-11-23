@@ -164,6 +164,12 @@ To change the idle timeout, set `idle_timeout` in `tegata.toml` in seconds:
 idle_timeout = 300 # 5 minutes; set to 0 to disable
 ```
 
+## Setting owner identifiers
+
+If your organization runs audit logging for many users, your administrator might ask you to set an owner identifier so your audit events are attributed to you. Press `s` to open **Settings**, select **Owner identifiers**, and enter your employee ID, your email address, or both. Press `Tab` to move between the fields and `Enter` to save. Leave a field blank to keep its current value, or enter `-` to clear it.
+
+Tegata stores only hashes of these values, so the screen shows the first 12 characters of each stored hash instead of the values you entered. For details, see [Deploy audit logging for multiple users](managed-deployment.mdx).
+
 ## Scrolling through long credential lists
 
 When the credential list exceeds the visible area, a scroll indicator appears in the sidebar:

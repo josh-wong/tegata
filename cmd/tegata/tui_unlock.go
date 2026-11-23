@@ -104,6 +104,7 @@ func unlockVaultCmd(path string, passphrase []byte) tea.Cmd {
 				cfg.Audit.LedgerVolumeKey = volumeKey
 			}
 		}
+		audit.ApplyOwner(&cfg.Audit, mgr.Owner())
 
 		// Auto-start is deferred to a tea.Cmd (maybeAutoStartCmd) issued by
 		// handleUnlockResult so any error routes through the TUI message loop
@@ -128,7 +129,9 @@ func loadCredentials(m model) model {
 	m = refreshCredList(m)
 
 	// Load config from vault directory; fall back to defaults on error.
-	if cfg, err := config.Load(filepath.Dir(m.vaultPath)); err == nil {
+	cfg, err := config.Load(filepath.Dir(m.vaultPath))
+	m.configLoadFailed = err != nil
+	if err == nil {
 		// Load HMAC secret and ledger volume key from vault (encrypted storage)
 		// and inject into config.
 		if m.vaultMgr != nil {
@@ -147,6 +150,11 @@ func loadCredentials(m model) model {
 		if cfg.Language != "" {
 			i18n.Init(cfg.Language)
 		}
+	}
+	// Apply the owner even when tegata.toml is unreadable so later compose
+	// label syncs still carry the vault's ownership.
+	if m.vaultMgr != nil {
+		audit.ApplyOwner(&m.cfg.Audit, m.vaultMgr.Owner())
 	}
 
 	return m
@@ -173,6 +181,7 @@ func (m model) handleUnlockResult(msg unlockResultMsg) (tea.Model, tea.Cmd) {
 	// vault for independent verification (D-15).
 	if m.builder != nil && m.vaultMgr != nil {
 		mgr := m.vaultMgr
+		m.builder.OwnerSource = mgr.Owner
 		m.builder.OnHashStored = func(eventID, hashValue string) {
 			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditHash", map[string]any{"Err": err}))

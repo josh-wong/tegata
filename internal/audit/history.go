@@ -16,6 +16,9 @@ type HistoryRecord struct {
 	LabelHash string `json:"label_hash"`
 	Timestamp int64  `json:"timestamp"`
 	HashValue string `json:"hash_value"`
+	// OwnerHash is the primary owner identifier hash recorded with the event,
+	// or empty for events without an owner. Views show only a short prefix.
+	OwnerHash string `json:"owner_hash,omitempty"`
 }
 
 // FetchHistoryResult holds the records and any non-fatal warning.
@@ -58,6 +61,7 @@ func FetchHistory(ctx context.Context, client Client, entityID string) (*FetchHi
 			LabelHash: MetadataString(r.Metadata, "label_hash"),
 			Timestamp: MetadataInt64(r.Metadata, "timestamp"),
 			HashValue: r.HashValue,
+			OwnerHash: MetadataString(r.Metadata, "owner_hash"),
 		})
 	}
 

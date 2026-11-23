@@ -27,6 +27,7 @@ func settingsMenuItems() []string {
 		i18n.T("tui.settings.menu.exportImport"),
 		i18n.T("tui.settings.menu.config"),
 		i18n.T("tui.settings.menu.verifyRecovery"),
+		i18n.T("tui.settings.menu.owner"),
 	}
 }
 
@@ -62,6 +63,8 @@ func (m model) updateOverlaySettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSettingsConfig(msg)
 	case "recovery":
 		return m.updateSettingsRecovery(msg)
+	case "owner":
+		return m.updateSettingsOwner(msg)
 	default:
 		return m.updateSettingsMenu(msg)
 	}
@@ -143,6 +146,16 @@ func (m model) updateSettingsMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.settingsInput1.Reset()
 				m.settingsInput1.Placeholder = i18n.T("tui.settings.placeholder.recoveryKey")
 				m.settingsInput1.EchoMode = textinput.EchoNormal
+				m.settingsInput1.Focus()
+				m.settingsMsg = ""
+			case 5:
+				m.settingsSubFlow = "owner"
+				m.settingsInput1.Reset()
+				m.settingsInput1.Placeholder = i18n.T("tui.settings.placeholder.ownerKeep")
+				m.settingsInput1.EchoMode = textinput.EchoNormal
+				m.settingsInput2.Reset()
+				m.settingsInput2.Placeholder = i18n.T("tui.settings.placeholder.ownerKeep")
+				m.settingsInput2.EchoMode = textinput.EchoNormal
 				m.settingsInput1.Focus()
 				m.settingsMsg = ""
 			}
@@ -682,6 +695,8 @@ func (m model) viewOverlaySettings() string {
 		content = m.viewSettingsConfig()
 	case "recovery":
 		content = m.viewSettingsRecovery()
+	case "owner":
+		content = m.viewSettingsOwner()
 	default:
 		content = m.viewSettingsMenu()
 	}

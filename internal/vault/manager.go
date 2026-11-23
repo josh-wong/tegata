@@ -1087,6 +1087,42 @@ func (m *Manager) SetSecret(key, value string) error {
 	return m.saveLocked()
 }
 
+// Owner returns a copy of the vault owner's hashed identifiers, or nil when the
+// vault is locked or no identifier is configured.
+func (m *Manager) Owner() *model.OwnerIdentity {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil || m.payload.Owner.IsZero() {
+		return nil
+	}
+	cp := *m.payload.Owner
+	return &cp
+}
+
+// SetOwner replaces the vault owner's hashed identifiers and saves the vault.
+// Passing nil or an identity with no hashes clears the owner. If the save
+// fails, the previous value is restored in memory so callers never emit an
+// audit event for a change that was not persisted.
+func (m *Manager) SetOwner(owner *model.OwnerIdentity) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.payload == nil {
+		return fmt.Errorf("vault not unlocked: %w", errors.ErrVaultLocked)
+	}
+	prev := m.payload.Owner
+	if owner.IsZero() {
+		m.payload.Owner = nil
+	} else {
+		cp := *owner
+		m.payload.Owner = &cp
+	}
+	if err := m.saveLocked(); err != nil {
+		m.payload.Owner = prev
+		return err
+	}
+	return nil
+}
+
 // atomicWrite writes data to path using temp-file-rename for crash safety.
 func atomicWrite(path string, data []byte) error {
 	tmpPath := path + ".tmp"

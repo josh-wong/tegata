@@ -44,8 +44,8 @@ type Client interface {
 	// expectedHash from the vault. It fetches the stored record via Get and
 	// performs three local checks: (1) stored hash_value == expectedHash, and
 	// (2) SHA-256(stored content) == expectedHash when content is present,
-	// and (3) individual metadata display fields (operation, label_hash) match
-	// the authenticated content. Check (3) detects targeted tampering of
+	// and (3) individual metadata display fields (operation, label_hash,
+	// owner_hash) match the authenticated content. Check (3) detects targeted tampering of
 	// individual fields when hash_value and content are left intact.
 	Validate(ctx context.Context, objectID, expectedHash string) (*ValidationResult, error)
 	// CollectionCreate creates a new collection with the given object IDs.
@@ -525,7 +525,7 @@ func (c *LedgerClient) Get(ctx context.Context, objectID string) ([]*EventRecord
 //     manipulation in the ScalarDL database.
 //  2. If a "content" field is present in the record metadata, its SHA-256
 //     must equal expectedHash — detects content replacement.
-//  3. Individual metadata display fields (operation, label_hash) must match
+//  3. Individual metadata display fields (operation, label_hash, owner_hash) must match
 //     the authenticated content — detects targeted field tampering when
 //     hash_value and content are left intact (e.g., changing
 //     operation "hotp" → "totp" without touching the other fields).
@@ -597,6 +597,19 @@ func (c *LedgerClient) Validate(ctx context.Context, objectID, expectedHash stri
 				return &ValidationResult{
 					Valid:       false,
 					ErrorDetail: "credential field has been altered",
+				}, nil
+			}
+			// owner_hash is absent for events without an owner, and for events
+			// submitted before owner attribution existed. When the authenticated
+			// content names an owner, the field must be present and match, so
+			// deleting it is reported just like editing it.
+			oh, present := record.Metadata["owner_hash"]
+			ohStr, isStr := oh.(string)
+			if (present && (!isStr || ohStr != evt.OwnerHash())) ||
+				(!present && evt.OwnerHash() != "") {
+				return &ValidationResult{
+					Valid:       false,
+					ErrorDetail: "owner field has been altered",
 				}, nil
 			}
 		}
@@ -708,6 +721,12 @@ func (c *LedgerClient) Submit(ctx context.Context, entry QueueEntry) (string, er
 		"label_hash": entry.Event.LabelHash,
 		"timestamp":  entry.Event.Timestamp.Unix(),
 		"content":    eventContent,
+	}
+	// Expose the primary owner hash as a top-level field so administrators of
+	// a shared ledger can find a person's events without parsing content.
+	// Validate cross-checks it against the authenticated content.
+	if owner := entry.Event.OwnerHash(); owner != "" {
+		metadata["owner_hash"] = owner
 	}
 
 	objectID := entry.Event.EventID

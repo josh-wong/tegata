@@ -11,12 +11,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/josh-wong/tegata/internal/config"
 	"github.com/josh-wong/tegata/internal/ledgervol"
+	"github.com/josh-wong/tegata/pkg/model"
 )
 
 // autoStartRetries and autoStartInterval control how long MaybeAutoStart
@@ -303,7 +305,7 @@ func generateSecretKey() (string, error) {
 // Windows does not always honour when a top-level name: directive is present).
 // When ledgerDataDir is non-empty, the postgres named volume mount is replaced
 // with a bind mount pointing at the encrypted-volume data directory.
-func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string) error {
+func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string, labels composeLabels) error {
 	data, err := fs.ReadFile(fsys, "docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("reading embedded docker-compose.yml: %w", err)
@@ -315,7 +317,47 @@ func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string) 
 		}
 		data = rewritten
 	}
+	// labels.EntityID comes from the config rather than entityID, which is the
+	// effective project name and can differ from the entity ID in older
+	// configs.
+	data = rewriteComposeLabels(data, labels)
 	return os.WriteFile(composePath, data, 0600)
+}
+
+// composeLabels holds the values written into the io.tegata.* ownership
+// labels of every Tegata-managed container.
+type composeLabels struct {
+	EntityID        string
+	OwnerHash       string
+	OwnerHashScheme string
+}
+
+// ownerLabels returns the ownership label values for cfg.
+func ownerLabels(cfg config.AuditConfig) composeLabels {
+	return composeLabels{EntityID: cfg.EntityID, OwnerHash: cfg.OwnerHash, OwnerHashScheme: cfg.OwnerHashScheme}
+}
+
+// labelValuePattern restricts label values to characters that are safe to
+// place inside a double-quoted YAML scalar without escaping. Entity IDs,
+// hex digests, and scheme names all match.
+var labelValuePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
+
+// rewriteComposeLabels fills in the empty io.tegata.* label placeholders in
+// the compose file. Values that do not match labelValuePattern are left empty
+// rather than written, so a malformed value can never alter the YAML
+// structure. Compose files without placeholders are returned unchanged.
+func rewriteComposeLabels(composeYAML []byte, l composeLabels) []byte {
+	set := func(yaml []byte, key, value string) []byte {
+		if value == "" || !labelValuePattern.MatchString(value) {
+			return yaml
+		}
+		placeholder := []byte("  " + key + `: ""`)
+		return bytes.ReplaceAll(yaml, placeholder, []byte("  "+key+`: "`+value+`"`))
+	}
+	composeYAML = set(composeYAML, "io.tegata.entity-id", l.EntityID)
+	composeYAML = set(composeYAML, "io.tegata.owner-hash", l.OwnerHash)
+	composeYAML = set(composeYAML, "io.tegata.owner-hash-scheme", l.OwnerHashScheme)
+	return composeYAML
 }
 
 // extractComposeFiles walks the provided fs.FS and writes each file to
@@ -324,7 +366,8 @@ func syncDockerCompose(fsys fs.FS, composePath, entityID, ledgerDataDir string) 
 // PostgreSQL data is stored in an isolated Docker named volume. When
 // ledgerDataDir is non-empty, the postgres named volume mount is also replaced
 // with a bind mount to enable encrypted-at-rest ledger data.
-func extractComposeFiles(fsys fs.FS, targetDir, entityID, ledgerDataDir string) error {
+func extractComposeFiles(fsys fs.FS, targetDir, entityID, ledgerDataDir string, labels composeLabels) error {
+	labels.EntityID = entityID
 	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -350,6 +393,9 @@ func extractComposeFiles(fsys fs.FS, targetDir, entityID, ledgerDataDir string) 
 				_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: expected names not found in docker-compose.yml; per-vault isolation may not be applied\n")
 			}
 			data = rewritten
+		}
+		if path == "docker-compose.yml" {
+			data = rewriteComposeLabels(data, labels)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
@@ -540,6 +586,13 @@ func progress(fn func(string), msg string) {
 // if contract registration is still in progress. If onRegistered returns an
 // error, SetupStack returns immediately with that error.
 func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string), onRegistered func(config.AuditConfig) error) (config.AuditConfig, error) {
+	return SetupStackWithOwner(fsys, composeDir, vaultID, nil, progressFn, onRegistered)
+}
+
+// SetupStackWithOwner is SetupStack for a vault that may already have an
+// owner identity. The owner's primary hash and scheme are written into the
+// io.tegata.* ownership labels of the new containers. owner may be nil.
+func SetupStackWithOwner(fsys fs.FS, composeDir, vaultID string, owner *model.OwnerIdentity, progressFn func(string), onRegistered func(config.AuditConfig) error) (config.AuditConfig, error) {
 	if fsys == nil {
 		return config.AuditConfig{}, fmt.Errorf("compose bundle filesystem is nil")
 	}
@@ -570,7 +623,12 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 	if err := os.MkdirAll(composeDir, 0700); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("creating compose directory: %w", err)
 	}
-	if err := extractComposeFiles(fsys, composeDir, entityID, ledgerDataDir); err != nil {
+	var labels composeLabels
+	if !owner.IsZero() {
+		labels.OwnerHash = owner.PrimaryHash()
+		labels.OwnerHashScheme = owner.HashScheme
+	}
+	if err := extractComposeFiles(fsys, composeDir, entityID, ledgerDataDir, labels); err != nil {
 		return config.AuditConfig{}, fmt.Errorf("extracting compose files: %w", err)
 	}
 
@@ -629,6 +687,8 @@ func SetupStack(fsys fs.FS, composeDir, vaultID string, progressFn func(string),
 		DockerComposePath: composePath,
 		DockerProjectName: entityID,
 		LedgerVolumeKey:   ledgerVolumeKey,
+		OwnerHash:         labels.OwnerHash,
+		OwnerHashScheme:   labels.OwnerHashScheme,
 	}
 
 	if err := waitForLedger(cfg); err != nil {
@@ -853,7 +913,7 @@ func EnsureStack(cfg config.AuditConfig, fsys fs.FS, progressFn func(string)) er
 		if len(cfg.LedgerVolumeKey) > 0 {
 			ledgerDir = LedgerVolumeDataDir(filepath.Dir(cfg.DockerComposePath))
 		}
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir); err != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir, ownerLabels(cfg)); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}
@@ -915,7 +975,7 @@ func RunAutoStart(cfg config.AuditConfig, fsys fs.FS) error {
 		if len(cfg.LedgerVolumeKey) > 0 {
 			ledgerDir = LedgerVolumeDataDir(filepath.Dir(cfg.DockerComposePath))
 		}
-		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir); err != nil {
+		if err := syncDockerCompose(fsys, cfg.DockerComposePath, effProject, ledgerDir, ownerLabels(cfg)); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "tegata: warning: could not sync docker-compose.yml: %v\n", err)
 		}
 	}

@@ -43,6 +43,18 @@ export interface AuditHistoryRecord {
   hash_value: string
 }
 
+// OwnerInfo mirrors cmd/tegata-gui/owner.go. Hash fields are short prefixes;
+// raw identifiers are never returned because they are never stored.
+export interface OwnerInfo {
+  employeeIdHash: string
+  emailHash: string
+  hashScheme: string
+  updatedAt: string
+  saltConfigured: boolean
+  // Set by SetOwner: whether the save changed any identifier.
+  changed: boolean
+}
+
 export interface AuditVerifyResult {
   valid: boolean
   event_count: number

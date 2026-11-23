@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/josh-wong/tegata/pkg/model"
 )
 
 // AuthEvent is an immutable audit record for a single authentication operation.
@@ -23,6 +24,40 @@ type AuthEvent struct {
 	HostHash      string    `json:"host_hash"`
 	Success       bool      `json:"success"`
 	PrevHash      string    `json:"prev_hash"`
+	// Owner attribution fields identify the vault owner in managed multi-user
+	// deployments. They hold hashes only, are empty when no identifier is set,
+	// and are omitted from the JSON in that case so that the content and hash
+	// of events from vaults without an owner are unchanged.
+	OwnerEmployeeIDHash string `json:"owner_employee_id_hash,omitempty"`
+	OwnerEmailHash      string `json:"owner_email_hash,omitempty"`
+	OwnerHashScheme     string `json:"owner_hash_scheme,omitempty"`
+	// The old-owner fields are set only on owner-identifier-update events.
+	// They record the identifiers, and the scheme they were hashed with, in
+	// effect before the change so the old and new owner can be correlated.
+	OldOwnerEmployeeIDHash string `json:"old_owner_employee_id_hash,omitempty"`
+	OldOwnerEmailHash      string `json:"old_owner_email_hash,omitempty"`
+	OldOwnerHashScheme     string `json:"old_owner_hash_scheme,omitempty"`
+}
+
+// OwnerHash returns the primary owner hash for the event: the employee ID
+// hash when set, otherwise the email hash.
+func (e AuthEvent) OwnerHash() string {
+	if e.OwnerEmployeeIDHash != "" {
+		return e.OwnerEmployeeIDHash
+	}
+	return e.OwnerEmailHash
+}
+
+// withOwner returns e with the owner attribution fields set from o. A nil or
+// empty o leaves the fields empty.
+func (e AuthEvent) withOwner(o *model.OwnerIdentity) AuthEvent {
+	if o.IsZero() {
+		return e
+	}
+	e.OwnerEmployeeIDHash = o.EmployeeIDHash
+	e.OwnerEmailHash = o.EmailHash
+	e.OwnerHashScheme = o.HashScheme
+	return e
 }
 
 // HashString returns the lowercase hex-encoded SHA-256 digest of s. Used to
@@ -33,6 +68,10 @@ func HashString(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }
+
+// OpOwnerIdentifierUpdate is the operation type of the event emitted when the
+// vault owner's employee ID or email is set, changed, or cleared.
+const OpOwnerIdentifierUpdate = "owner-identifier-update"
 
 // emptyLabelHash is the SHA-256 of an empty string, used as a sentinel to
 // identify events that have no associated credential (e.g., vault-unlock).
@@ -122,6 +161,8 @@ func FormatOperation(op string) string {
 		return "Credential export"
 	case "vault-passphrase-change":
 		return "Vault passphrase change"
+	case OpOwnerIdentifierUpdate:
+		return "Owner identifier update"
 	default:
 		return op
 	}

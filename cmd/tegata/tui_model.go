@@ -125,6 +125,8 @@ type model struct {
 	settingsInput2     textinput.Model
 	settingsInput3     textinput.Model
 	settingsMsg        string
+	settingsMsgOK      bool // true when settingsMsg reports success, not an error
+	configLoadFailed   bool // tegata.toml could not be parsed, so m.cfg holds defaults
 	settingsTagIdx     int          // selected tag index in tag management
 	settingsEditMode   string       // "clipboard"|"idle"|"" for config edit mode
 	settingsRecoveryOK bool         // true when the most recent recovery key verification succeeded
@@ -494,6 +496,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if newBuilder, buildErr := audit.NewEventBuilderMemQueue(client); buildErr == nil {
 					if m.builder != nil {
 						_ = m.builder.Close()
+					}
+					if m.vaultMgr != nil {
+						mgr := m.vaultMgr
+						newBuilder.OwnerSource = mgr.Owner
+						// Store event hashes in the vault, as handleUnlockResult
+						// does, so tegata verify can check events logged in this
+						// session.
+						newBuilder.OnHashStored = func(eventID, hashValue string) {
+							if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+								_, _ = fmt.Fprintf(os.Stderr, "%s", i18n.Tf("tui.unlock.warn.auditHash", map[string]any{"Err": err}))
+							}
+						}
 					}
 					m.builder = newBuilder
 				}

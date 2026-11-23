@@ -32,7 +32,7 @@ const sidebars = {
         type: 'generated-index',
         description: 'Enable and verify the optional tamper-evident audit log.',
       },
-      items: ['scalardl-setup'],
+      items: ['scalardl-setup', 'managed-deployment'],
     },
     {
       type: 'category',

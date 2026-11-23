@@ -49,16 +49,17 @@ type UpdateInfo struct {
 // runtime. The struct holds references to the vault manager, config, clipboard,
 // and idle timer, delegating all business logic to the internal packages.
 type App struct {
-	ctx          context.Context
-	vault        *vault.Manager
-	config       config.Config
-	clipboard    *clipboard.Manager
-	vaultPath    string
-	vaultModTime time.Time     // mtime of vault file at last read; used to detect external writes
-	watcherStop  chan struct{} // closed to stop the vault file watcher goroutine
-	idleTimer    *IdleTimer
-	locked       bool
-	builder      *audit.EventBuilder // nil when audit disabled or vault locked
+	ctx              context.Context
+	vault            *vault.Manager
+	config           config.Config
+	clipboard        *clipboard.Manager
+	vaultPath        string
+	vaultModTime     time.Time     // mtime of vault file at last read; used to detect external writes
+	watcherStop      chan struct{} // closed to stop the vault file watcher goroutine
+	idleTimer        *IdleTimer
+	locked           bool
+	configLoadFailed bool                // tegata.toml could not be parsed, so a.config holds defaults
+	builder          *audit.EventBuilder // nil when audit disabled or vault locked
 }
 
 // NewApp creates a new App instance with default configuration.
@@ -207,7 +208,8 @@ func (a *App) UnlockVault(path, passphrase string) error {
 
 	// Load config from vault directory.
 	cfg, err := config.Load(vaultDir(path))
-	if err != nil {
+	a.configLoadFailed = err != nil
+	if a.configLoadFailed {
 		cfg = config.DefaultConfig()
 	}
 	a.config = cfg
@@ -227,7 +229,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// store it in the vault now. Only rewrite the TOML if vault migration succeeds
 	// to maintain consistency: either both succeed or both fail.
 	if secretFromVault == "" && a.config.Audit.SecretKey != "" {
-		if vaultErr := a.vault.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
+		if vaultErr := mgr.SetSecret("audit.secret_key", a.config.Audit.SecretKey); vaultErr != nil {
 			a.config.Audit.SecretKey = ""
 			return fmt.Errorf("migrating secret to vault: %w", vaultErr)
 		}
@@ -257,6 +259,7 @@ func (a *App) UnlockVault(path, passphrase string) error {
 			a.config.Audit.LedgerVolumeKey = volumeKey
 		}
 	}
+	audit.ApplyOwner(&a.config.Audit, a.vault.Owner())
 
 	// Ensure the audit stack is running before building the EventBuilder so
 	// that the first credential operation after unlock records events
@@ -286,8 +289,12 @@ func (a *App) UnlockVault(path, passphrase string) error {
 	// Wire OnHashStored so each submitted audit event's hash is persisted to
 	// the vault for independent verification (D-15).
 	if a.builder != nil {
+		// Capture the manager so a later lock (a.vault = nil) can't make a
+		// queued event's callback dereference nil.
+		mgr := a.vault
+		a.builder.OwnerSource = mgr.Owner
 		a.builder.OnHashStored = func(eventID, hashValue string) {
-			if err := a.vault.SetAuditHash(eventID, hashValue); err != nil {
+			if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
 				slog.Error("failed to store audit hash in vault", "err", err)
 			}
 		}
@@ -1408,7 +1415,10 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 	}
 	a.resetIdle()
 
-	vaultID := a.vault.VaultID()
+	// Capture the manager now: registration finishes in the background, and a
+	// vault lock in the meantime sets a.vault to nil.
+	mgr := a.vault
+	vaultID := mgr.VaultID()
 	dir := filepath.Dir(a.vaultPath)
 
 	u, err := user.Current()
@@ -1463,6 +1473,14 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 				if a.builder != nil {
 					_ = a.builder.Close()
 				}
+				newBuilder.OwnerSource = mgr.Owner
+				// Store event hashes in the vault, as UnlockVault does, so
+				// tegata verify can check events logged in this session.
+				newBuilder.OnHashStored = func(eventID, hashValue string) {
+					if err := mgr.SetAuditHash(eventID, hashValue); err != nil {
+						slog.Error("failed to store audit hash in vault", "err", err)
+					}
+				}
 				a.builder = newBuilder
 			} else {
 				_ = client.Close()
@@ -1471,7 +1489,7 @@ func (a *App) StartAuditServer() (map[string]interface{}, error) {
 		return nil
 	}
 
-	_, err = audit.SetupStack(bundleFS, composeDir, vaultID, progress, onRegistered)
+	_, err = audit.SetupStackWithOwner(bundleFS, composeDir, vaultID, mgr.Owner(), progress, onRegistered)
 	if err != nil {
 		return map[string]interface{}{"steps": steps}, err
 	}

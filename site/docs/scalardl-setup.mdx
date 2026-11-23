@@ -67,6 +67,8 @@ Out of the box with local Docker mode, history is siloed per machine. Shared his
 
 :::
 
+To run audit logging for many users in an organization, including how to attribute events to people with owner identifiers, see [Deploy audit logging for multiple users](managed-deployment.mdx).
+
 ## Configure auto-start behavior
 
 After setup, every vault unlock starts the Docker audit stack automatically.
@@ -263,7 +265,7 @@ tegata ledger start --vault /path/to/vault
 
 ## Set up the audit log manually (advanced)
 
-If you are running your own ScalarDL instance rather than the bundled Docker stack, skip `tegata ledger start` and configure `tegata.toml` manually.
+If you are running your own ScalarDL instance rather than the bundled Docker stack, skip `tegata ledger start` and configure `tegata.toml` manually. For the server-side settings, see the [ScalarDL configurations reference](https://scalardl.scalar-labs.com/docs/3.13/configurations/) and the [ScalarDL authentication guide](https://scalardl.scalar-labs.com/docs/3.13/authentication/).
 
 Add the `[audit]` section to `tegata.toml` in your vault directory.
 
@@ -295,7 +297,7 @@ key_version       = 1
 auto_start        = false
 ```
 
-If your server uses a self-signed certificate, set `ca_cert_path` to the path of your CA certificate file.
+If your server uses a self-signed certificate, set `ca_cert_path` to the path of your CA certificate file. To enable TLS on the ScalarDL side, see the [ScalarDL Helm chart guides](https://scalardl.scalar-labs.com/docs/3.13/helm-charts/configure-custom-values-scalardl-ledger/).
 
   </TabItem>
 </Tabs>
@@ -325,7 +327,7 @@ Common ScalarDL setup issues:
 
 ### `DL-COMMON-400003`: request signature cannot be validated
 
-The HMAC secret key used for signing does not match the secret registered with the ledger. If you changed the secret after initial registration, tear down the stack and re-run setup, replacing `path/to/vault` with your vault path:
+The HMAC secret key used for signing does not match the secret registered with the ledger. For how ScalarDL uses these secrets, see the [ScalarDL authentication guide](https://scalardl.scalar-labs.com/docs/3.13/authentication/). If you changed the secret after initial registration, tear down the stack and re-run setup, replacing `path/to/vault` with your vault path:
 
 ```bash
 docker compose -f ~/.tegata/docker/docker-compose.yml down -v

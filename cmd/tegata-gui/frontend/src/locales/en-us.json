@@ -259,6 +259,38 @@
       "sectionAudit": "Audit",
       "autoStartLedger": "Auto-start ledger server",
       "autoStartDescription": "Automatically start the audit ledger when you unlock the vault.",
+      "sectionOwner": "Owner identifiers",
+      "ownerDescription": "Attributes your audit events to you in managed deployments. Only hashes are stored, so the values you enter can't be shown again.",
+      "ownerEmployeeId": "Employee ID (recommended)",
+      "ownerEmail": "Email address",
+      "ownerCurrent": "Current: {{hash}}",
+      "ownerNotSet": "Not set",
+      "ownerKeepPlaceholder": "Leave blank to keep the current value",
+      "ownerClear": "Clear",
+      "ownerClearEmployeeId": "Clear employee ID",
+      "ownerClearEmail": "Clear email address",
+      "ownerEdit": "Edit identifiers",
+      "ownerPrefixTip": "In shared deployments, prefix IDs with an organization code (for example, acme-emp-12345).",
+      "ownerSalted": "Your organization's salt is configured. Identifiers are hashed with HMAC-SHA256.",
+      "ownerSaved": "Owner identifiers saved.",
+      "ownerUnchanged": "Owner identifiers are unchanged.",
+      "ownerSaveFailed": "Failed to save owner identifiers",
+      "ownerSaltChanged": "Your organization's salt has changed. Enter both identifiers again, or clear the one you no longer use.",
+      "ownerConfigUnreadable": "Couldn't read tegata.toml, so your organization's salt is unknown. Fix the file, then unlock the vault again.",
+      "ownerLoadFailed": "Couldn't load your owner identifiers. Close and reopen Settings to try again.",
+      "ownerInvalid": {
+        "employeeId": {
+          "invalidUtf8": "The employee ID contains characters that aren't valid text.",
+          "controlChars": "The employee ID can't contain control or invisible characters.",
+          "tooLong": "The employee ID can't be longer than {{max}} characters."
+        },
+        "email": {
+          "invalidUtf8": "The email address contains characters that aren't valid text.",
+          "controlChars": "The email address can't contain control or invisible characters.",
+          "tooLong": "The email address can't be longer than {{max}} characters.",
+          "missingAt": "Enter an email address that contains @."
+        }
+      },
       "sectionUpdates": "Updates",
       "updateAvailable": "Version {{version}} is available.",
       "download": "Download",
