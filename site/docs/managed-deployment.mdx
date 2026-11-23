@@ -152,3 +152,9 @@ Tegata records the update event only after the new identifiers are saved to the 
 ## Compatibility with existing vaults
 
 Owner identifiers are optional. Vaults without them behave exactly as before: their events contain no owner fields, and the content and hashes of those events are unchanged. Existing entity IDs, Compose project names, and per-vault Docker directories are not affected.
+
+:::warning[Update Tegata on every computer before you set identifiers]
+
+Tegata v1.0.0 and earlier don't recognize owner identifiers. If one of those versions opens a vault that has identifiers, it removes them the next time it saves the vault, for example when the user adds a credential, and queued audit events that it submits lose their owner fields. Later events then have no owner, and Tegata doesn't warn about it. Because the vault moves between computers on a removable drive, make sure every computer the drive is used with runs a version later than v1.0.0 before you ask users to set identifiers. If identifiers disappear, the user can set them again.
+
+:::
