@@ -42,6 +42,7 @@ func TestNormalizeOwnerIdentifier(t *testing.T) {
 		{"blank means unset", OwnerEmail, "   ", "", false},
 		{"email requires at sign", OwnerEmail, "alex.example.com", "", true},
 		{"rejects control characters", OwnerEmployeeID, "acme\x00emp", "", true},
+		{"rejects zero-width space", OwnerEmployeeID, "acme​emp", "", true},
 		{"rejects embedded newline", OwnerEmployeeID, "acme\nemp", "", true},
 		{"rejects invalid UTF-8", OwnerEmployeeID, "acme\xffemp", "", true},
 		{"accepts max length", OwnerEmployeeID, strings.Repeat("a", MaxOwnerIdentifierLen), strings.Repeat("a", MaxOwnerIdentifierLen), false},

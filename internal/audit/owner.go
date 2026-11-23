@@ -94,7 +94,7 @@ func (e *OwnerIdentifierError) Unwrap() error { return e.Err }
 // and operating system, hash identically. Email addresses are lowercased;
 // employee IDs keep their case because some organizations issue
 // case-sensitive IDs. No organization-specific format is enforced. An empty
-// result means "not set". Values that contain control characters or exceed
+// result means "not set". Values that contain control or invisible format characters or exceed
 // MaxOwnerIdentifierLen are rejected so that hashes are reproducible from what
 // an administrator can type.
 func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, error) {
@@ -107,7 +107,9 @@ func NormalizeOwnerIdentifier(kind OwnerIdentifierKind, raw string) (string, err
 	}
 	v = norm.NFC.String(v)
 	for _, r := range v {
-		if unicode.IsControl(r) {
+		// Cf covers invisible characters such as U+200B and U+FEFF that
+		// look identical on screen but change the hash.
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return "", ErrOwnerControlChars
 		}
 	}
